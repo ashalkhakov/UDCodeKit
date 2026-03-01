@@ -7,27 +7,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import "PTTypes.h"
+#import "PTStringBuffer.h"
 #import "TextModelSearch.h"
+#import "PTTreeNode.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-// MARK: - NodeColor
-
-typedef NS_ENUM(NSInteger, PTNodeColor) {
-    PTNodeColorBlack = 0,
-    PTNodeColorRed   = 1,
-};
-
-// MARK: - BufferCursor
-
-typedef struct {
-    NSInteger line;
-    NSInteger column;
-} PTBufferCursor;
-
-static inline PTBufferCursor PTBufferCursorMake(NSInteger line, NSInteger column) {
-    return (PTBufferCursor){ line, column };
-}
 
 // MARK: - Piece
 
@@ -45,50 +30,7 @@ static inline PTBufferCursor PTBufferCursorMake(NSInteger line, NSInteger column
                              length:(NSInteger)length;
 @end
 
-// MARK: - StringBuffer
-
-@interface PTStringBuffer : NSObject
-@property (nonatomic, strong) NSString *buffer;
-@property (nonatomic, strong) NSMutableArray<NSNumber *> *lineStarts; // array of NSInteger offsets
-- (instancetype)initWithBuffer:(NSString *)buffer lineStarts:(NSArray<NSNumber *> *)lineStarts;
-@end
-
-// MARK: - TreeNode
-
-@interface PTTreeNode : NSObject
-@property (nonatomic, weak, nullable)   PTTreeNode *parent;
-@property (nonatomic, strong, nullable) PTTreeNode *left;
-@property (nonatomic, strong, nullable) PTTreeNode *right;
-@property (nonatomic) PTNodeColor color;
-@property (nonatomic, strong) PTPiece *piece;
-@property (nonatomic) NSInteger sizeLeft; // size of left subtree
-@property (nonatomic) NSInteger lfLeft;   // line feed count in left subtree
-
-- (instancetype)initWithPiece:(nullable PTPiece *)piece color:(PTNodeColor)color;
-
-/// Returns the in-order next node (or SENTINEL if none).
-- (PTTreeNode *)next;
-/// Returns the in-order previous node (or SENTINEL if none).
-- (PTTreeNode *)prev;
-/// Detaches this node from the tree (sets parent/left/right to nil).
-- (void)detach;
-
-@end
-
-// MARK: - NodePosition
-
-typedef struct {
-    __unsafe_unretained PTTreeNode *node;
-    NSInteger remainder;
-    NSInteger nodeStartOffset;
-} PTNodePosition;
-
-typedef struct {
-    NSInteger line; // 1-based
-    NSInteger column; // 1-based
-} PTPosition;
-
-// MARK: - PieceTreeBase
+// MARK: - PieceTree
 
 @interface PTPieceTreeBase : NSObject
 

@@ -6,13 +6,13 @@
  *  Original source: https://github.com/microsoft/vscode/blob/main/src/vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase.ts
  *--------------------------------------------------------------------------------------------*/
 
-#import "PieceTreeBase.h"
+#import "PTPieceTree.h"
 #import "TextModelSearch.h"
 
 static const NSInteger AverageBufferSize = 65535;
 
-static PTTreeNode *Leftest(PTTreeNode *node);
-static PTTreeNode *Rightest(PTTreeNode *node);
+PTTreeNode *Leftest(PTTreeNode *node);
+PTTreeNode *Rightest(PTTreeNode *node);
 
 // MARK: - Sentinel
 
@@ -85,85 +85,15 @@ static NSMutableArray<NSNumber *> *CreateLineStartsFast(NSString *str) {
 
 @end
 
-// MARK: - PTStringBuffer
-
-@implementation PTStringBuffer
-
-- (instancetype)initWithBuffer:(NSString *)buffer lineStarts:(NSArray<NSNumber *> *)lineStarts {
-    self = [super init];
-    if (self) {
-        _buffer = [buffer copy];
-        _lineStarts = [lineStarts mutableCopy];
-    }
-    return self;
-}
-
-@end
-
-// MARK: - PTTreeNode
-
-@implementation PTTreeNode
-
-- (instancetype)initWithPiece:(nullable PTPiece *)piece color:(PTNodeColor)color {
-    self = [super init];
-    if (self) {
-        _piece    = piece;
-        _color    = color;
-        _sizeLeft = 0;
-        _lfLeft   = 0;
-        // Self-referential initially; caller must set up sentinel references.
-        _parent = self;
-        _left   = self;
-        _right  = self;
-    }
-    return self;
-}
-
-- (PTTreeNode *)next {
-    PTTreeNode *s = Sentinel();
-    if (self.right != s) {
-        return Leftest(self.right);
-    }
-    PTTreeNode *node = self;
-    while (node.parent != s) {
-        if (node.parent.left == node) { break; }
-        node = node.parent;
-    }
-    if (node.parent == s) { return s; }
-    return node.parent;
-}
-
-- (PTTreeNode *)prev {
-    PTTreeNode *s = Sentinel();
-    if (self.left != s) {
-        return Rightest(self.left);
-    }
-    PTTreeNode *node = self;
-    while (node.parent != s) {
-        if (node.parent.right == node) { break; }
-        node = node.parent;
-    }
-    if (node.parent == s) { return s; }
-    return node.parent;
-}
-
-- (void)detach {
-    _parent = nil;
-    _left   = nil;
-    _right  = nil;
-}
-
-@end
-
 // MARK: - Tree helpers (free functions)
 
-static PTTreeNode *Leftest(PTTreeNode *node) {
+PTTreeNode *Leftest(PTTreeNode *node) {
     PTTreeNode *s = Sentinel();
     while (node.left != s) { node = node.left; }
     return node;
 }
 
-static PTTreeNode *Rightest(PTTreeNode *node) {
+PTTreeNode *Rightest(PTTreeNode *node) {
     PTTreeNode *s = Sentinel();
     while (node.right != s) { node = node.right; }
     return node;

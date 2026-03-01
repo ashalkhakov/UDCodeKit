@@ -8,20 +8,9 @@
 
 #import <Foundation/Foundation.h>
 
+#import "PTTypes.h"
+
 NS_ASSUME_NONNULL_BEGIN
-
-// MARK: - PTRange  (1-based line/column range)
-
-typedef struct {
-    NSInteger startLineNumber;   // 1-based
-    NSInteger startColumn;       // 1-based
-    NSInteger endLineNumber;
-    NSInteger endColumn;
-} PTRange;
-
-static inline PTRange PTRangeMake(NSInteger sl, NSInteger sc, NSInteger el, NSInteger ec) {
-    return (PTRange){sl, sc, el, ec};
-}
 
 // MARK: - PTFindMatch
 

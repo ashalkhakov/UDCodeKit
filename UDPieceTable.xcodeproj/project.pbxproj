@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXContainerItemProxy section */
@@ -30,10 +30,12 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A46FAADE2F5443FD0079BB37 /* Exceptions for "UDPieceTable" folder in "UDPieceTableTests" target */ = {
+		A46FAADE2F5443FD0079BB37 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				PieceTreeBase.m,
+				PTPieceTree.m,
+				PTStringBuffer.m,
+				PTTreeNode.m,
 				TextModelSearch.m,
 			);
 			target = A46FAABB2F5441CB0079BB37 /* UDPieceTableTests */;
@@ -41,24 +43,9 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A46FAAAD2F5441C80079BB37 /* UDPieceTable */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				A46FAADE2F5443FD0079BB37 /* Exceptions for "UDPieceTable" folder in "UDPieceTableTests" target */,
-			);
-			path = UDPieceTable;
-			sourceTree = "<group>";
-		};
-		A46FAABF2F5441CB0079BB37 /* UDPieceTableTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = UDPieceTableTests;
-			sourceTree = "<group>";
-		};
-		A46FAAC92F5441CB0079BB37 /* UDPieceTableUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = UDPieceTableUITests;
-			sourceTree = "<group>";
-		};
+		A46FAAAD2F5441C80079BB37 /* UDPieceTable */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (A46FAADE2F5443FD0079BB37 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = UDPieceTable; sourceTree = "<group>"; };
+		A46FAABF2F5441CB0079BB37 /* UDPieceTableTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = UDPieceTableTests; sourceTree = "<group>"; };
+		A46FAAC92F5441CB0079BB37 /* UDPieceTableUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = UDPieceTableUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -200,6 +187,7 @@
 				};
 			};
 			buildConfigurationList = A46FAAA62F5441C80079BB37 /* Build configuration list for PBXProject "UDPieceTable" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -208,7 +196,6 @@
 			);
 			mainGroup = A46FAAA22F5441C80079BB37;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			productRefGroup = A46FAAAC2F5441C80079BB37 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";

@@ -634,6 +634,175 @@ static void PTGetIndexOf(PTTreeNode *node,
     return [ret copy];
 }
 
+// MARK: - getLinesContent
+
+- (NSArray<NSString *> *)getLinesContent {
+    NSMutableArray<NSString *> *lines = [NSMutableArray array];
+    NSMutableString *currentLine = [NSMutableString string];
+    __block BOOL danglingCR = NO;
+
+    [self iterateFrom:self.root callback:^BOOL(PTTreeNode *node) {
+        if (node == Sentinel()) { return YES; }
+
+        PTPiece *piece = node.piece;
+        NSInteger pieceLength = piece.length;
+        if (pieceLength == 0) { return YES; }
+
+        NSString *buffer   = self.buffers[(NSUInteger)piece.bufferIndex].buffer;
+        NSArray<NSNumber *> *lineStarts = self.buffers[(NSUInteger)piece.bufferIndex].lineStarts;
+
+        NSInteger pieceStartLine   = piece.start.line;
+        NSInteger pieceEndLine     = piece.end.line;
+        NSInteger pieceStartOffset = lineStarts[(NSUInteger)pieceStartLine].integerValue + piece.start.column;
+
+        if (danglingCR) {
+            if ([buffer characterAtIndex:(NSUInteger)pieceStartOffset] == '\n') {
+                // '\n' belongs to the previous '\r', consume it
+                pieceStartOffset++;
+                pieceLength--;
+            }
+            [lines addObject:[currentLine copy]];
+            [currentLine setString:@""];
+            danglingCR = NO;
+            if (pieceLength == 0) { return YES; }
+        }
+
+        if (pieceStartLine == pieceEndLine) {
+            // No line breaks in this piece
+            if (!self.eolNormalized &&
+                [buffer characterAtIndex:(NSUInteger)(pieceStartOffset + pieceLength - 1)] == '\r') {
+                danglingCR = YES;
+                [currentLine appendString:[buffer substringWithRange:
+                    NSMakeRange((NSUInteger)pieceStartOffset, (NSUInteger)(pieceLength - 1))]];
+            } else {
+                [currentLine appendString:[buffer substringWithRange:
+                    NSMakeRange((NSUInteger)pieceStartOffset, (NSUInteger)pieceLength)]];
+            }
+            return YES;
+        }
+
+        // Text before first line break in this piece
+        NSInteger firstLineEnd;
+        if (self.eolNormalized) {
+            NSInteger ls1 = lineStarts[(NSUInteger)(pieceStartLine + 1)].integerValue;
+            firstLineEnd = MAX(pieceStartOffset, ls1 - self.eolLength);
+        } else {
+            NSInteger ls1 = lineStarts[(NSUInteger)(pieceStartLine + 1)].integerValue;
+            NSString *sub = [buffer substringWithRange:
+                NSMakeRange((NSUInteger)pieceStartOffset, (NSUInteger)(ls1 - pieceStartOffset))];
+            // strip trailing EOL
+            if ([sub hasSuffix:@"\r\n"]) sub = [sub substringToIndex:sub.length - 2];
+            else if ([sub hasSuffix:@"\r"] || [sub hasSuffix:@"\n"]) sub = [sub substringToIndex:sub.length - 1];
+            [currentLine appendString:sub];
+            [lines addObject:[currentLine copy]];
+            [currentLine setString:@""];
+
+            for (NSInteger line = pieceStartLine + 1; line < pieceEndLine; line++) {
+                NSInteger ls  = lineStarts[(NSUInteger)line].integerValue;
+                NSInteger ls2 = lineStarts[(NSUInteger)(line + 1)].integerValue;
+                NSString *lineSub = [buffer substringWithRange:
+                    NSMakeRange((NSUInteger)ls, (NSUInteger)(ls2 - ls))];
+                if ([lineSub hasSuffix:@"\r\n"]) lineSub = [lineSub substringToIndex:lineSub.length - 2];
+                else if ([lineSub hasSuffix:@"\r"] || [lineSub hasSuffix:@"\n"]) lineSub = [lineSub substringToIndex:lineSub.length - 1];
+                [lines addObject:lineSub];
+            }
+
+            NSInteger lastLineStart = lineStarts[(NSUInteger)pieceEndLine].integerValue;
+            NSInteger lastLen = piece.end.column;
+            if (!self.eolNormalized && lastLen > 0 &&
+                [buffer characterAtIndex:(NSUInteger)(lastLineStart + lastLen - 1)] == '\r') {
+                danglingCR = YES;
+                [currentLine appendString:[buffer substringWithRange:
+                    NSMakeRange((NSUInteger)lastLineStart, (NSUInteger)(lastLen - 1))]];
+            } else {
+                [currentLine appendString:[buffer substringWithRange:
+                    NSMakeRange((NSUInteger)lastLineStart, (NSUInteger)lastLen)]];
+            }
+            return YES;
+        }
+
+        // eolNormalized == YES branch (no early return above)
+        [currentLine appendString:[buffer substringWithRange:
+            NSMakeRange((NSUInteger)pieceStartOffset, (NSUInteger)(firstLineEnd - pieceStartOffset))]];
+        [lines addObject:[currentLine copy]];
+        [currentLine setString:@""];
+
+        for (NSInteger line = pieceStartLine + 1; line < pieceEndLine; line++) {
+            NSInteger ls  = lineStarts[(NSUInteger)line].integerValue;
+            NSInteger ls2 = lineStarts[(NSUInteger)(line + 1)].integerValue;
+            [lines addObject:[buffer substringWithRange:
+                NSMakeRange((NSUInteger)ls, (NSUInteger)(ls2 - self.eolLength - ls))]];
+        }
+
+        NSInteger lastLineStart = lineStarts[(NSUInteger)pieceEndLine].integerValue;
+        [currentLine appendString:[buffer substringWithRange:
+            NSMakeRange((NSUInteger)lastLineStart, (NSUInteger)piece.end.column)]];
+
+        return YES;
+    }];
+
+    if (danglingCR) {
+        [lines addObject:[currentLine copy]];
+        [currentLine setString:@""];
+    }
+    [lines addObject:[currentLine copy]];
+    return [lines copy];
+}
+
+// MARK: - _getCharCodeAtNodePos (private helper)
+
+- (NSInteger)_getCharCodeAtNodePos:(PTNodePosition)nodePos {
+    PTTreeNode *s = Sentinel();
+    if (nodePos.remainder == nodePos.node.piece.length) {
+        // The character we want is at the head of the next node
+        PTTreeNode *matchingNode = [nodePos.node next];
+        if (!matchingNode || matchingNode == s) { return 0; }
+        NSString *buffer = self.buffers[(NSUInteger)matchingNode.piece.bufferIndex].buffer;
+        NSInteger startOff = [self offsetInBuffer:matchingNode.piece.bufferIndex cursor:matchingNode.piece.start];
+        return (NSInteger)[buffer characterAtIndex:(NSUInteger)startOff];
+    } else {
+        NSString *buffer = self.buffers[(NSUInteger)nodePos.node.piece.bufferIndex].buffer;
+        NSInteger startOff = [self offsetInBuffer:nodePos.node.piece.bufferIndex cursor:nodePos.node.piece.start];
+        return (NSInteger)[buffer characterAtIndex:(NSUInteger)(startOff + nodePos.remainder)];
+    }
+}
+
+// MARK: - getLineCharCode:index:
+
+- (NSInteger)getLineCharCode:(NSInteger)lineNumber index:(NSInteger)index {
+    PTNodePosition nodePos = [self nodeAt2Line:lineNumber column:index + 1];
+    return [self _getCharCodeAtNodePos:nodePos];
+}
+
+// MARK: - getCharCode:
+
+- (NSInteger)getCharCode:(NSInteger)offset {
+    PTNodePosition nodePos = [self nodeAtOffset:offset];
+    return [self _getCharCodeAtNodePos:nodePos];
+}
+
+// MARK: - getNearestChunk:
+
+- (NSString *)getNearestChunk:(NSInteger)offset {
+    PTTreeNode *s = Sentinel();
+    PTNodePosition nodePos = [self nodeAtOffset:offset];
+    if (nodePos.remainder == nodePos.node.piece.length) {
+        // offset is at the head of the next node
+        PTTreeNode *matchingNode = [nodePos.node next];
+        if (!matchingNode || matchingNode == s) { return @""; }
+        NSString *buffer = self.buffers[(NSUInteger)matchingNode.piece.bufferIndex].buffer;
+        NSInteger startOff = [self offsetInBuffer:matchingNode.piece.bufferIndex cursor:matchingNode.piece.start];
+        return [buffer substringWithRange:NSMakeRange((NSUInteger)startOff, (NSUInteger)matchingNode.piece.length)];
+    } else {
+        NSString *buffer = self.buffers[(NSUInteger)nodePos.node.piece.bufferIndex].buffer;
+        NSInteger startOff = [self offsetInBuffer:nodePos.node.piece.bufferIndex cursor:nodePos.node.piece.start];
+        NSInteger targetOffset = startOff + nodePos.remainder;
+        NSInteger targetEnd    = startOff + nodePos.node.piece.length;
+        return [buffer substringWithRange:NSMakeRange((NSUInteger)targetOffset,
+                                                      (NSUInteger)(targetEnd - targetOffset))];
+    }
+}
+
 // MARK: - Equality
 
 - (BOOL)isEqualTo:(PTPieceTreeBase *)other {

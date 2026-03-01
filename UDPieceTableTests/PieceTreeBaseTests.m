@@ -1183,6 +1183,290 @@ static NSString *SubstringDelete(NSString *orig, NSInteger pos, NSInteger count)
     AssertTreeInvariants(pt, self);
 }
 
+// MARK: - getLinesContent
+
+/// Helper: build the expected array of lines (no EOL) from a raw string, matching SplitLines + TrimLineFeed.
+static NSArray<NSString *> *ExpectedLinesContent(NSString *str) {
+    NSArray<NSString *> *rawLines = SplitLines(str);
+    NSMutableArray<NSString *> *result = [NSMutableArray array];
+    for (NSString *line in rawLines) {
+        [result addObject:TrimLineFeed(line)];
+    }
+    return result;
+}
+
+- (void)testGetLinesContentEmpty {
+    PTPieceTreeBase *pt = CreatePieceTree(@[@""], YES);
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    XCTAssertEqual(lines.count, (NSUInteger)1);
+    XCTAssertEqualObjects(lines[0], @"");
+}
+
+- (void)testGetLinesContentSingleLine {
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"hello"], YES);
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    XCTAssertEqual(lines.count, (NSUInteger)1);
+    XCTAssertEqualObjects(lines[0], @"hello");
+}
+
+- (void)testGetLinesContentBasicLF {
+    // "1\n2\n3\n4" → ["1","2","3","4"]
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"1\n2\n3\n4"], YES);
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    NSArray<NSString *> *expected = ExpectedLinesContent(@"1\n2\n3\n4");
+    XCTAssertEqualObjects(lines, expected);
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetLinesContentTrailingNewline {
+    // "a\nb\n" → ["a","b",""]
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"a\nb\n"], YES);
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    NSArray<NSString *> *expected = ExpectedLinesContent(@"a\nb\n");
+    XCTAssertEqual(lines.count, (NSUInteger)3);
+    XCTAssertEqualObjects(lines, expected);
+}
+
+- (void)testGetLinesContentCRLF {
+    // CRLF, non-normalized
+    NSString *str = @"a\r\nb\r\nc";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"a\r\nb\r\nc"], NO);
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    NSArray<NSString *> *expected = ExpectedLinesContent(str);
+    XCTAssertEqualObjects(lines, expected);
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetLinesContentMixedEOL {
+    // Mixed \r\n, \r, \n — non-normalized
+    NSString *str = @"a\r\nb\rc\nd";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"a\r\nb\rc\nd"], NO);
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    NSArray<NSString *> *expected = ExpectedLinesContent(str);
+    XCTAssertEqualObjects(lines, expected);
+}
+
+- (void)testGetLinesContentAfterInsertsDeletes {
+    // "a\nb\nc\ndh\ni\njk" — same state as testGetLineContentAfterInsertsDeletes
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"a\nb\nc\nde"], YES);
+    [pt insertAtOffset:8 value:@"fh\ni\njk" eolNormalized:YES];
+    [pt deleteAtOffset:7 count:2];
+    // expected: ["a","b","c","dh","i","jk"]
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    NSArray<NSString *> *expected = @[@"a", @"b", @"c", @"dh", @"i", @"jk"];
+    XCTAssertEqualObjects(lines, expected);
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetLinesContentMatchesGetLineContent {
+    // getLinesContent[i] must equal getLineContent:i+1 for every line.
+    NSString *str = @"";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@""], YES);
+    str = SubstringInsert(str, 0,  @"J eNnDzQpnlWyjmUu\ny "); [pt insertAtOffset:0 value:@"J eNnDzQpnlWyjmUu\ny " eolNormalized:YES];
+    str = SubstringInsert(str, 0,  @"QPEeRAQmRwlJqtZSWhQ "); [pt insertAtOffset:0 value:@"QPEeRAQmRwlJqtZSWhQ " eolNormalized:YES];
+    str = SubstringDelete(str, 5, 1);                           [pt deleteAtOffset:5 count:1];
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    XCTAssertEqual((NSInteger)lines.count, [pt getLineCount]);
+    for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
+        XCTAssertEqualObjects(lines[(NSUInteger)i], [pt getLineContent:i + 1],
+                              @"getLinesContent[%ld] != getLineContent:%ld", (long)i, (long)(i + 1));
+    }
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetLinesContentMatchesGetLineContentCRLF {
+    // Same cross-check but with CRLF content.
+    NSString *str = @"";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@""], NO);
+    str = SubstringInsert(str, 0, @"\r\r\n\n"); [pt insertAtOffset:0 value:@"\r\r\n\n" eolNormalized:NO];
+    str = SubstringInsert(str, 4, @"\r\n\n\r"); [pt insertAtOffset:4 value:@"\r\n\n\r" eolNormalized:NO];
+    str = SubstringInsert(str, 7, @"\n\r\r\r"); [pt insertAtOffset:7 value:@"\n\r\r\r" eolNormalized:NO];
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    XCTAssertEqual((NSInteger)lines.count, [pt getLineCount]);
+    for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
+        XCTAssertEqualObjects(lines[(NSUInteger)i], [pt getLineContent:i + 1],
+                              @"getLinesContent[%ld] != getLineContent:%ld (CRLF)", (long)i, (long)(i + 1));
+    }
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetLinesContentRandomMatchesGetLineContent {
+    // Fuzz: random inserts/deletes, then verify getLinesContent == getLineContent for every line.
+    NSString *str = @"";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@""], NO);
+    for (NSInteger i = 0; i < 200; i++) {
+        if ((double)arc4random() / UINT32_MAX < 0.6) {
+            NSString *text = RandomString(20);
+            NSInteger pos  = (NSInteger)(arc4random_uniform((uint32_t)((NSInteger)str.length + 1)));
+            [pt insertAtOffset:pos value:text eolNormalized:NO];
+            str = SubstringInsert(str, pos, text);
+        } else {
+            if (str.length == 0) { continue; }
+            NSInteger pos = (NSInteger)arc4random_uniform((uint32_t)str.length);
+            NSInteger len = MIN((NSInteger)str.length - pos, (NSInteger)arc4random_uniform(10));
+            [pt deleteAtOffset:pos count:len];
+            str = SubstringDelete(str, pos, len);
+        }
+    }
+    NSArray<NSString *> *lines = [pt getLinesContent];
+    XCTAssertEqual((NSInteger)lines.count, [pt getLineCount]);
+    for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
+        XCTAssertEqualObjects(lines[(NSUInteger)i], [pt getLineContent:i + 1],
+                              @"getLinesContent[%ld] != getLineContent:%ld (random)", (long)i, (long)(i + 1));
+    }
+    AssertTreeInvariants(pt, self);
+}
+
+// MARK: - getCharCode / getLineCharCode
+
+- (void)testGetCharCodeBasic {
+    // "abc" → charCode at offsets 0,1,2 = 'a','b','c'
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"abc"], YES);
+    XCTAssertEqual([pt getCharCode:0], (NSInteger)'a');
+    XCTAssertEqual([pt getCharCode:1], (NSInteger)'b');
+    XCTAssertEqual([pt getCharCode:2], (NSInteger)'c');
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetCharCodeNewline {
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"a\nb"], YES);
+    XCTAssertEqual([pt getCharCode:0], (NSInteger)'a');
+    XCTAssertEqual([pt getCharCode:1], (NSInteger)'\n');
+    XCTAssertEqual([pt getCharCode:2], (NSInteger)'b');
+}
+
+- (void)testGetCharCodeAfterInsert {
+    // Insert into the middle; verify character identity is maintained.
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"ac"], YES);
+    [pt insertAtOffset:1 value:@"b" eolNormalized:YES];
+    // "abc"
+    XCTAssertEqual([pt getCharCode:0], (NSInteger)'a');
+    XCTAssertEqual([pt getCharCode:1], (NSInteger)'b');
+    XCTAssertEqual([pt getCharCode:2], (NSInteger)'c');
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetLineCharCodeBasic {
+    // "1\n2\n3" → line 1 index 0 = '1', line 2 index 0 = '2', line 3 index 0 = '3'
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"1\n2\n3"], YES);
+    XCTAssertEqual([pt getLineCharCode:1 index:0], (NSInteger)'1');
+    XCTAssertEqual([pt getLineCharCode:2 index:0], (NSInteger)'2');
+    XCTAssertEqual([pt getLineCharCode:3 index:0], (NSInteger)'3');
+}
+
+- (void)testGetLineCharCodeMultiChar {
+    // "hello\nworld"
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"hello\nworld"], YES);
+    XCTAssertEqual([pt getLineCharCode:1 index:0], (NSInteger)'h');
+    XCTAssertEqual([pt getLineCharCode:1 index:4], (NSInteger)'o');
+    XCTAssertEqual([pt getLineCharCode:2 index:0], (NSInteger)'w');
+    XCTAssertEqual([pt getLineCharCode:2 index:4], (NSInteger)'d');
+}
+
+- (void)testGetCharCodeMatchesGetLineCharCode {
+    // getCharCode(getOffsetAt(line, col)) == getLineCharCode(line, col-1)
+    NSString *str = @"ab\ncd\nef";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"ab\ncd\nef"], YES);
+    for (NSInteger line = 1; line <= [pt getLineCount]; line++) {
+        NSInteger lineLen = [pt getLineLength:line];
+        for (NSInteger col = 0; col < lineLen; col++) {
+            NSInteger offset   = [pt getOffsetAtLine:line column:col + 1];
+            NSInteger viaOffset = [pt getCharCode:offset];
+            NSInteger viaLine   = [pt getLineCharCode:line index:col];
+            XCTAssertEqual(viaOffset, viaLine,
+                           @"getCharCode(%ld) != getLineCharCode(%ld,%ld) = %ld vs %ld",
+                           (long)offset, (long)line, (long)col, (long)viaOffset, (long)viaLine);
+        }
+    }
+    (void)str;
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetCharCodeConsistentWithRawContent {
+    // For every offset in the raw content string, getCharCode must match.
+    NSString *str = @"";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@""], YES);
+    str = SubstringInsert(str, 0, @"Hello\nWorld\nFoo"); [pt insertAtOffset:0 value:@"Hello\nWorld\nFoo" eolNormalized:YES];
+    NSString *raw = [pt getLinesRawContent];
+    for (NSInteger i = 0; i < (NSInteger)raw.length; i++) {
+        NSInteger expected = (NSInteger)[raw characterAtIndex:(NSUInteger)i];
+        NSInteger got      = [pt getCharCode:i];
+        XCTAssertEqual(got, expected, @"getCharCode(%ld): expected %ld got %ld", (long)i, (long)expected, (long)got);
+    }
+    AssertTreeInvariants(pt, self);
+}
+
+// MARK: - getNearestChunk
+
+- (void)testGetNearestChunkBasic {
+    // Single-chunk document: any offset returns the suffix from that offset.
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"abcdef"], YES);
+    NSString *chunk = [pt getNearestChunk:0];
+    // The chunk must start with 'a' and contain 'abcdef'
+    XCTAssertTrue(chunk.length > 0);
+    XCTAssertEqual([chunk characterAtIndex:0], (unichar)'a');
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetNearestChunkOffsetInsideChunk {
+    // Offset inside a single-piece tree should return the suffix starting at that offset.
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"abcdef"], YES);
+    NSString *chunk = [pt getNearestChunk:3];
+    XCTAssertTrue(chunk.length > 0);
+    // The first char of the returned chunk must be 'd' (offset 3)
+    XCTAssertEqual([chunk characterAtIndex:0], (unichar)'d');
+}
+
+- (void)testGetNearestChunkCoversCharCode {
+    // For every offset, the first character of getNearestChunk must equal getCharCode.
+    NSString *str = @"Hello\nWorld\nFoo";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"Hello\nWorld\nFoo"], YES);
+    for (NSInteger i = 0; i < (NSInteger)str.length; i++) {
+        NSString *chunk = [pt getNearestChunk:i];
+        XCTAssertTrue(chunk.length > 0, @"getNearestChunk(%ld) returned empty", (long)i);
+        NSInteger firstChar = (NSInteger)[chunk characterAtIndex:0];
+        NSInteger expected  = [pt getCharCode:i];
+        XCTAssertEqual(firstChar, expected,
+                       @"getNearestChunk(%ld)[0] = %ld, getCharCode(%ld) = %ld",
+                       (long)i, (long)firstChar, (long)i, (long)expected);
+    }
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetNearestChunkAfterInserts {
+    // After inserting, the chunk at boundary offsets should still be consistent with getCharCode.
+    PTPieceTreeBase *pt = CreatePieceTree(@[@"abc"], YES);
+    [pt insertAtOffset:1 value:@"XY" eolNormalized:YES];
+    // "aXYbc"
+    NSString *raw = [pt getLinesRawContent];
+    for (NSInteger i = 0; i < (NSInteger)raw.length; i++) {
+        NSString *chunk = [pt getNearestChunk:i];
+        XCTAssertTrue(chunk.length > 0, @"empty chunk at offset %ld", (long)i);
+        XCTAssertEqual((NSInteger)[chunk characterAtIndex:0], [pt getCharCode:i],
+                       @"chunk/charCode mismatch at offset %ld", (long)i);
+    }
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testGetNearestChunkContentsMatchRawContent {
+    // Concatenating getNearestChunk results as we advance through the document
+    // should reproduce the full raw content.
+    NSString *str = @"";
+    PTPieceTreeBase *pt = CreatePieceTree(@[@""], YES);
+    str = SubstringInsert(str, 0, @"line1\nline2\nline3"); [pt insertAtOffset:0 value:@"line1\nline2\nline3" eolNormalized:YES];
+    NSString *raw = [pt getLinesRawContent];
+    NSMutableString *reconstructed = [NSMutableString string];
+    NSInteger offset = 0;
+    while (offset < (NSInteger)raw.length) {
+        NSString *chunk = [pt getNearestChunk:offset];
+        XCTAssertTrue(chunk.length > 0, @"empty chunk at offset %ld", (long)offset);
+        [reconstructed appendString:chunk];
+        offset += (NSInteger)chunk.length;
+    }
+    XCTAssertEqualObjects(reconstructed, raw);
+    AssertTreeInvariants(pt, self);
+}
+
 // MARK: - buffer API: equal
 
 - (void)testEqual {

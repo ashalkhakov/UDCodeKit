@@ -111,6 +111,10 @@ typedef struct {
 - (NSInteger)getOffsetAtLine:(NSInteger)lineNumber column:(NSInteger)column;
 - (NSInteger)getLineLength:(NSInteger)lineNumber;
 - (PTPosition)getPositionAt:(NSInteger)offset;
+- (NSArray<NSString *> *)getLinesContent;
+- (NSInteger)getLineCharCode:(NSInteger)lineNumber index:(NSInteger)index;
+- (NSInteger)getCharCode:(NSInteger)offset;
+- (NSString *)getNearestChunk:(NSInteger)offset;
 
 // Mutation
 - (void)insertAtOffset:(NSInteger)offset value:(NSString *)value eolNormalized:(BOOL)eolNormalized;

@@ -29,9 +29,22 @@
 		A46FAAC62F5441CB0079BB37 /* UDPieceTableUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UDPieceTableUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A46FAADE2F5443FD0079BB37 /* Exceptions for "UDPieceTable" folder in "UDPieceTableTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PieceTreeBase.m,
+			);
+			target = A46FAABB2F5441CB0079BB37 /* UDPieceTableTests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A46FAAAD2F5441C80079BB37 /* UDPieceTable */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A46FAADE2F5443FD0079BB37 /* Exceptions for "UDPieceTable" folder in "UDPieceTableTests" target */,
+			);
 			path = UDPieceTable;
 			sourceTree = "<group>";
 		};

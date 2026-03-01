@@ -7,6 +7,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import "TextModelSearch.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -125,6 +126,12 @@ typedef struct {
 
 // Snapshot
 - (NSString *)getPieceContent:(PTPiece *)piece;
+
+// Search
+- (NSArray<PTFindMatch *> *)findMatchesLineByLine:(PTRange)searchRange
+                                       searchData:(PTSearchData *)searchData
+                                   captureMatches:(BOOL)captureMatches
+                                 limitResultCount:(NSInteger)limitResultCount;
 
 @end
 

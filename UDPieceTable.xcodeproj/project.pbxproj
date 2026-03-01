@@ -34,6 +34,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				PieceTreeBase.m,
+				TextModelSearch.m,
 			);
 			target = A46FAABB2F5441CB0079BB37 /* UDPieceTableTests */;
 		};

@@ -40,6 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UDModelDeltaDecoration : NSObject
 @property (nonatomic) UDRange range;
 @property (nonatomic, strong) UDDecorationOptions *options;
+/// Controls how the decoration's range grows when text is inserted at its boundaries.
+/// Defaults to UDTrackedRangeNeverGrowsWhenTypingAtEdges.
+@property (nonatomic) UDTrackedRangeStickiness stickiness;
 - (instancetype)initWithRange:(UDRange)range options:(UDDecorationOptions *)options;
 @end
 
@@ -55,6 +58,7 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
 ///  - Simple editing operations (insert / delete / replace) via -applyEdits:
 ///  - Undo/redo via NSUndoManager (pass in your own or use the built-in one)
 ///  - Text decorations with range-tracking (syntax highlights, error markers, …)
+///    backed by UDIntervalTree with full TrackedRangeStickiness support
 ///  - Text search via the existing UDTextModelSearch infrastructure
 @interface UDTextModel : NSObject
 
@@ -81,6 +85,17 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
 /// Returns the text within the given (1-based) range.
 - (NSString *)getValueInRange:(UDRange)range;
 
+// MARK: EOL
+
+/// Returns the line-ending sequence used by this model (@"\n", @"\r\n", or @"\r").
+/// The EOL is auto-detected from the first line ending in the initial text;
+/// if none is found the default is @"\n".
+- (NSString *)getEOL;
+
+/// Sets the EOL sequence and re-normalises all existing line endings.
+/// Accepted values: @"\n", @"\r\n", @"\r".
+- (void)setEOL:(NSString *)eol;
+
 // MARK: Editing
 
 /// Applies a batch of edit operations atomically.
@@ -102,7 +117,8 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
 /// @param newDecorations   Decorations to add.
 /// @return The IDs of the newly created decorations.
 ///
-/// Decoration ranges are automatically updated as subsequent edits are applied.
+/// Decoration ranges are automatically updated as subsequent edits are applied,
+/// respecting the stickiness of each decoration.
 - (NSArray<NSString *> *)deltaDecorations:(nullable NSArray<NSString *> *)oldDecorations
                            newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations
                                     owner:(nullable NSString *)owner;
@@ -114,6 +130,9 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
 /// Returns the IDs of all decorations that belong to the given owner.
 /// Pass nil to get decorations belonging to the anonymous owner.
 - (NSArray<NSString *> *)decorationsForOwner:(nullable NSString *)owner;
+
+/// Returns the IDs of all decorations whose ranges intersect the given range.
+- (NSArray<NSString *> *)decorationsInRange:(UDRange)range;
 
 /// Returns the current (possibly edit-adjusted) range of a decoration.
 /// Returns an all-zero range (0,0,0,0) if the ID is unknown (valid ranges
@@ -131,6 +150,24 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
                               matchCase:(BOOL)matchCase
                          wordSeparators:(nullable NSString *)wordSeparators
                        limitResultCount:(NSInteger)limitResultCount;
+
+/// Finds the next match at or after @c startPosition, wrapping around to the
+/// beginning of the document if needed.  Returns nil if the document contains
+/// no match at all.
+- (nullable UDFindMatch *)findNextMatch:(NSString *)searchString
+                                isRegex:(BOOL)isRegex
+                              matchCase:(BOOL)matchCase
+                         wordSeparators:(nullable NSString *)wordSeparators
+                                   from:(UDPosition)startPosition;
+
+/// Finds the previous match strictly before @c startPosition, wrapping around
+/// to the end of the document if needed.  Returns nil if the document contains
+/// no match at all.
+- (nullable UDFindMatch *)findPreviousMatch:(NSString *)searchString
+                                    isRegex:(BOOL)isRegex
+                                  matchCase:(BOOL)matchCase
+                             wordSeparators:(nullable NSString *)wordSeparators
+                                       from:(UDPosition)startPosition;
 
 @end
 

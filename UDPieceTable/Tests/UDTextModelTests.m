@@ -419,4 +419,268 @@
     XCTAssertEqual(matches.count, (NSUInteger)0);
 }
 
+// MARK: - EOL
+
+- (void)testGetEOL_default_lf {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"line1\nline2"];
+    XCTAssertEqualObjects([model getEOL], @"\n");
+}
+
+- (void)testGetEOL_crlf {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"line1\r\nline2"];
+    XCTAssertEqualObjects([model getEOL], @"\r\n");
+}
+
+- (void)testGetEOL_cr {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"line1\rline2"];
+    XCTAssertEqualObjects([model getEOL], @"\r");
+}
+
+- (void)testGetEOL_noLineEnding_defaultsToLF {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"single line"];
+    XCTAssertEqualObjects([model getEOL], @"\n");
+}
+
+- (void)testSetEOL_convertsToLF {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"a\r\nb\r\nc"];
+    [model setEOL:@"\n"];
+    XCTAssertEqualObjects([model getEOL], @"\n");
+    // After normalizing the content must be intact
+    XCTAssertEqual([model getLineCount], (NSInteger)3);
+    XCTAssertEqualObjects([model getLineContent:1], @"a");
+    XCTAssertEqualObjects([model getLineContent:2], @"b");
+    XCTAssertEqualObjects([model getLineContent:3], @"c");
+}
+
+- (void)testSetEOL_convertsToCRLF {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"a\nb\nc"];
+    [model setEOL:@"\r\n"];
+    XCTAssertEqualObjects([model getEOL], @"\r\n");
+    XCTAssertEqual([model getLineCount], (NSInteger)3);
+}
+
+// MARK: - findNextMatch / findPreviousMatch
+
+- (void)testFindNextMatch_basic {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"foo bar foo"];
+    UDPosition start = {1, 1};
+    UDFindMatch *m = [model findNextMatch:@"foo"
+                                  isRegex:NO
+                                matchCase:YES
+                           wordSeparators:nil
+                                     from:start];
+    XCTAssertNotNil(m);
+    XCTAssertEqual(m.range.startColumn, (NSInteger)1);
+}
+
+- (void)testFindNextMatch_fromMiddle {
+    // Starting after the first match should find the second.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"foo bar foo"];
+    UDPosition start = {1, 4}; // after "foo"
+    UDFindMatch *m = [model findNextMatch:@"foo"
+                                  isRegex:NO
+                                matchCase:YES
+                           wordSeparators:nil
+                                     from:start];
+    XCTAssertNotNil(m);
+    XCTAssertEqual(m.range.startColumn, (NSInteger)9);
+}
+
+- (void)testFindNextMatch_wrapsAround {
+    // Starting after the last match should wrap to the first.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"foo bar foo"];
+    UDPosition start = {1, 10}; // after the second "foo"
+    UDFindMatch *m = [model findNextMatch:@"foo"
+                                  isRegex:NO
+                                matchCase:YES
+                           wordSeparators:nil
+                                     from:start];
+    XCTAssertNotNil(m);
+    XCTAssertEqual(m.range.startColumn, (NSInteger)1);
+}
+
+- (void)testFindNextMatch_noMatch {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"hello world"];
+    UDPosition start = {1, 1};
+    UDFindMatch *m = [model findNextMatch:@"xyz"
+                                  isRegex:NO
+                                matchCase:YES
+                           wordSeparators:nil
+                                     from:start];
+    XCTAssertNil(m);
+}
+
+- (void)testFindPreviousMatch_basic {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"foo bar foo"];
+    // Position is after both matches — previous should be second "foo"
+    UDPosition start = {1, 12};
+    UDFindMatch *m = [model findPreviousMatch:@"foo"
+                                      isRegex:NO
+                                    matchCase:YES
+                               wordSeparators:nil
+                                         from:start];
+    XCTAssertNotNil(m);
+    XCTAssertEqual(m.range.startColumn, (NSInteger)9);
+}
+
+- (void)testFindPreviousMatch_wrapsAround {
+    // Position is before all matches — wrap to last match in document.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"foo bar foo"];
+    UDPosition start = {1, 1};
+    UDFindMatch *m = [model findPreviousMatch:@"foo"
+                                      isRegex:NO
+                                    matchCase:YES
+                               wordSeparators:nil
+                                         from:start];
+    XCTAssertNotNil(m);
+    XCTAssertEqual(m.range.startColumn, (NSInteger)9);
+}
+
+- (void)testFindPreviousMatch_noMatch {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"hello world"];
+    UDPosition start = {1, 6};
+    UDFindMatch *m = [model findPreviousMatch:@"xyz"
+                                      isRegex:NO
+                                    matchCase:YES
+                               wordSeparators:nil
+                                         from:start];
+    XCTAssertNil(m);
+}
+
+// MARK: - decorationsInRange
+
+- (void)testDecorationsInRange_findsOverlapping {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    // "Hello" [col 1..6)
+    UDModelDeltaDecoration *d1 =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 6) options:opts];
+    // "World" [col 7..12)
+    UDModelDeltaDecoration *d2 =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12) options:opts];
+
+    NSArray<NSString *> *ids =
+        [model deltaDecorations:nil newDecorations:@[d1, d2]];
+
+    // Query the range covering all of "Hello" [col 1..6)
+    NSArray<NSString *> *found = [model decorationsInRange:PTRangeMake(1, 1, 1, 6)];
+    XCTAssertEqual(found.count, (NSUInteger)1);
+    XCTAssertEqualObjects(found[0], ids[0]);
+}
+
+- (void)testDecorationsInRange_emptyWhenNoneOverlap {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *d =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12) options:opts];
+    [model deltaDecorations:nil newDecorations:@[d]];
+
+    // Query a range that doesn't overlap [col 1..2)
+    NSArray<NSString *> *found = [model decorationsInRange:PTRangeMake(1, 1, 1, 2)];
+    XCTAssertEqual(found.count, (NSUInteger)0);
+}
+
+- (void)testDecorationsInRange_multipleOverlapping {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *d1 =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 6) options:opts];
+    UDModelDeltaDecoration *d2 =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 3, 1, 9) options:opts];
+    [model deltaDecorations:nil newDecorations:@[d1, d2]];
+
+    // Both overlap [1,1..1,7)
+    NSArray<NSString *> *found = [model decorationsInRange:PTRangeMake(1, 1, 1, 7)];
+    XCTAssertEqual(found.count, (NSUInteger)2);
+}
+
+// MARK: - TrackedRangeStickiness
+
+- (void)testStickiness_neverGrows_insertAtStart {
+    // NeverGrowsWhenTypingAtEdges: insertion at the start of the range pushes it right.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *delta =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12) options:opts];
+    delta.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
+    NSArray<NSString *> *ids = [model deltaDecorations:nil newDecorations:@[delta]];
+
+    // Insert 3 chars exactly at col 7 (the start of the decoration)
+    UDTextModelEdit *edit = [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 7, 1, 7)
+                                                              text:@"XXX"];
+    [model applyEdits:@[edit]];
+
+    // With NeverGrows: start is pushed right by 3 → col 10, end shifts to col 15
+    UDRange r = [model rangeForDecoration:ids[0]];
+    XCTAssertEqual(r.startColumn, (NSInteger)10);
+    XCTAssertEqual(r.endColumn,   (NSInteger)15);
+}
+
+- (void)testStickiness_alwaysGrows_insertAtStart {
+    // AlwaysGrowsWhenTypingAtEdges: insertion at the start expands the range leftward.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *delta =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12) options:opts];
+    delta.stickiness = UDTrackedRangeAlwaysGrowsWhenTypingAtEdges;
+    NSArray<NSString *> *ids = [model deltaDecorations:nil newDecorations:@[delta]];
+
+    // Insert 3 chars exactly at col 7
+    UDTextModelEdit *edit = [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 7, 1, 7)
+                                                              text:@"XXX"];
+    [model applyEdits:@[edit]];
+
+    // With AlwaysGrows: start absorbs insert → stays at col 7, end shifts to col 15
+    UDRange r = [model rangeForDecoration:ids[0]];
+    XCTAssertEqual(r.startColumn, (NSInteger)7);
+    XCTAssertEqual(r.endColumn,   (NSInteger)15);
+}
+
+- (void)testStickiness_alwaysGrows_insertAtEnd {
+    // AlwaysGrowsWhenTypingAtEdges: insertion at the end expands the range rightward.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *delta =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12) options:opts];
+    delta.stickiness = UDTrackedRangeAlwaysGrowsWhenTypingAtEdges;
+    NSArray<NSString *> *ids = [model deltaDecorations:nil newDecorations:@[delta]];
+
+    // Insert 3 chars at col 12 (the end of the decoration)
+    UDTextModelEdit *edit = [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 12, 1, 12)
+                                                              text:@"XXX"];
+    [model applyEdits:@[edit]];
+
+    // With AlwaysGrows: end grows right → col 15, start unchanged at col 7
+    UDRange r = [model rangeForDecoration:ids[0]];
+    XCTAssertEqual(r.startColumn, (NSInteger)7);
+    XCTAssertEqual(r.endColumn,   (NSInteger)15);
+}
+
+- (void)testStickiness_neverGrows_insertAtEnd {
+    // NeverGrowsWhenTypingAtEdges: insertion at the end does not expand the range.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *delta =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12) options:opts];
+    delta.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
+    NSArray<NSString *> *ids = [model deltaDecorations:nil newDecorations:@[delta]];
+
+    // Insert 3 chars at col 12
+    UDTextModelEdit *edit = [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 12, 1, 12)
+                                                              text:@"XXX"];
+    [model applyEdits:@[edit]];
+
+    // With NeverGrows: end stays at col 12, start stays at col 7
+    UDRange r = [model rangeForDecoration:ids[0]];
+    XCTAssertEqual(r.startColumn, (NSInteger)7);
+    XCTAssertEqual(r.endColumn,   (NSInteger)12);
+}
+
 @end

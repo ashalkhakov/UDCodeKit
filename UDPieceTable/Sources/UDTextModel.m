@@ -7,41 +7,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDTextModel.h"
+#import "UDIntervalTree.h"
 #import "UDPieceTree.h"
 #import "UDStringBuffer.h"
-
-// MARK: - Internal decoration (private to this file)
-
-@interface UDDecoration : NSObject
-@property (nonatomic, copy) NSString *identifier;
-@property (nonatomic) NSInteger startOffset;
-@property (nonatomic) NSInteger endOffset;
-@property (nonatomic, strong) UDDecorationOptions *options;
-@property (nonatomic, copy, nullable) NSString *owner;
-- (instancetype)initWithIdentifier:(NSString *)identifier
-                       startOffset:(NSInteger)startOffset
-                         endOffset:(NSInteger)endOffset
-                           options:(UDDecorationOptions *)options
-                             owner:(nullable NSString *)owner;
-@end
-
-@implementation UDDecoration
-- (instancetype)initWithIdentifier:(NSString *)identifier
-                       startOffset:(NSInteger)startOffset
-                         endOffset:(NSInteger)endOffset
-                           options:(UDDecorationOptions *)options
-                             owner:(nullable NSString *)owner {
-    self = [super init];
-    if (self) {
-        _identifier   = [identifier copy];
-        _startOffset  = startOffset;
-        _endOffset    = endOffset;
-        _options      = options;
-        _owner        = [owner copy];
-    }
-    return self;
-}
-@end
 
 // MARK: - UDTextModelEdit
 
@@ -76,8 +44,9 @@
 - (instancetype)initWithRange:(UDRange)range options:(UDDecorationOptions *)options {
     self = [super init];
     if (self) {
-        _range   = range;
-        _options = options;
+        _range      = range;
+        _options    = options;
+        _stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
     }
     return self;
 }
@@ -89,7 +58,25 @@ NSNotificationName const UDTextModelDidChangeNotification = @"UDTextModelDidChan
 
 // MARK: - Helpers
 
-/// Build a UDPieceTree from an arbitrary text string.
+/// Auto-detect the EOL sequence from the first line ending found in text.
+/// Falls back to @"\n" if none is found.
+static NSString *DetectEOL(NSString *text) {
+    NSInteger len = (NSInteger)text.length;
+    for (NSInteger i = 0; i < len; i++) {
+        unichar c = [text characterAtIndex:(NSUInteger)i];
+        if (c == '\r') {
+            if (i + 1 < len && [text characterAtIndex:(NSUInteger)(i + 1)] == '\n') {
+                return @"\r\n";
+            }
+            return @"\r";
+        } else if (c == '\n') {
+            return @"\n";
+        }
+    }
+    return @"\n";
+}
+
+/// Build a UDPieceTree from an arbitrary text string, auto-detecting the EOL.
 static UDPieceTree *CreatePieceTreeFromText(NSString *text) {
     NSMutableArray<NSNumber *> *lineStarts = [NSMutableArray arrayWithObject:@0];
     NSInteger len = (NSInteger)text.length;
@@ -106,36 +93,30 @@ static UDPieceTree *CreatePieceTreeFromText(NSString *text) {
             [lineStarts addObject:@(i + 1)];
         }
     }
+    NSString *eol = DetectEOL(text);
     UDStringBuffer *buf = [[UDStringBuffer alloc] initWithBuffer:text lineStarts:lineStarts];
     NSArray<UDStringBuffer *> *chunks = (text.length > 0) ? @[buf] : @[];
-    return [[UDPieceTree alloc] initWithChunks:chunks eol:@"\n" eolNormalized:YES];
+    return [[UDPieceTree alloc] initWithChunks:chunks eol:eol eolNormalized:YES];
 }
 
-/// Map a single offset through an edit (delete deleteLen chars at editStart,
-/// then insert insertedLen chars at editStart).
-///
-/// Strategy:
-///  - Offsets at or before editStart are unchanged.
-///  - Offsets inside the deleted region move to (editStart + insertedLen).
-///  - Offsets after the deleted region shift by (insertedLen - deleteLen).
-static NSInteger AdjustOffset(NSInteger offset,
-                               NSInteger editStart,
-                               NSInteger deleteLen,
-                               NSInteger insertedLen) {
-    if (offset < editStart) {
-        return offset;
-    } else if (offset < editStart + deleteLen) {
-        return editStart + insertedLen;
-    } else {
-        return offset - deleteLen + insertedLen;
-    }
+/// Build a UDSearchData (or nil on invalid input) from search parameters.
+static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
+                                                BOOL isRegex,
+                                                BOOL matchCase,
+                                                NSString * _Nullable wordSeparators) {
+    UDSearchParams *params =
+        [[UDSearchParams alloc] initWithSearchString:searchString
+                                             isRegex:isRegex
+                                           matchCase:matchCase
+                                      wordSeparators:wordSeparators];
+    return [params parseSearchRequest];
 }
 
 // MARK: - UDTextModel private interface
 
 @interface UDTextModel ()
-@property (nonatomic, strong) UDPieceTree *pieceTree;
-@property (nonatomic, strong) NSMutableDictionary<NSString *, UDDecoration *> *decorations;
+@property (nonatomic, strong) UDPieceTree    *pieceTree;
+@property (nonatomic, strong) UDIntervalTree *decorationTree;
 @end
 
 // MARK: - UDTextModel implementation
@@ -145,9 +126,9 @@ static NSInteger AdjustOffset(NSInteger offset,
 - (instancetype)initWithText:(NSString *)text {
     self = [super init];
     if (self) {
-        _pieceTree   = CreatePieceTreeFromText(text);
-        _undoManager = [[NSUndoManager alloc] init];
-        _decorations = [NSMutableDictionary dictionary];
+        _pieceTree      = CreatePieceTreeFromText(text);
+        _undoManager    = [[NSUndoManager alloc] init];
+        _decorationTree = [[UDIntervalTree alloc] init];
     }
     return self;
 }
@@ -185,25 +166,19 @@ static NSInteger AdjustOffset(NSInteger offset,
                                           endColumn:range.endColumn];
 }
 
-// MARK: - Internal editing
+// MARK: - EOL
 
-/// Adjust all tracked decoration offsets to account for a single edit.
-- (void)_adjustDecorationsForEditAtOffset:(NSInteger)editStart
-                                deleteLen:(NSInteger)deleteLen
-                              insertedLen:(NSInteger)insertedLen {
-    for (UDDecoration *d in self.decorations.allValues) {
-        d.startOffset = AdjustOffset(d.startOffset, editStart, deleteLen, insertedLen);
-        d.endOffset   = AdjustOffset(d.endOffset,   editStart, deleteLen, insertedLen);
-    }
+- (NSString *)getEOL {
+    return [self.pieceTree getEOL];
 }
 
+- (void)setEOL:(NSString *)eol {
+    [self.pieceTree setEOL:eol];
+}
+
+// MARK: - Internal editing
+
 /// Core editing implementation shared by -applyEdits: and the undo/redo handler.
-///
-/// Sorts edits end-to-start, applies each to the piece tree, adjusts decoration
-/// ranges, and registers a single undo action.  Undo-edit positions are tracked
-/// as raw character offsets so that each subsequent forward edit (applied to the
-/// left of prior ones) can shift them correctly before the final conversion to
-/// line/column.
 - (void)_applyEditsCore:(NSArray<UDTextModelEdit *> *)edits {
     // Sort edits end-to-start so each edit's range indexes into the unmodified document.
     NSArray<UDTextModelEdit *> *sorted =
@@ -220,9 +195,6 @@ static NSInteger AdjustOffset(NSInteger offset,
             return NSOrderedSame;
         }];
 
-    // Track each undo edit as a raw (startOffset, endOffset) pair in the
-    // evolving document.  After every forward edit we shift all previously
-    // recorded offsets so they remain valid in the current document state.
     NSMutableArray<NSNumber *> *undoStartOffsets =
         [NSMutableArray arrayWithCapacity:sorted.count];
     NSMutableArray<NSNumber *> *undoEndOffsets =
@@ -233,17 +205,15 @@ static NSInteger AdjustOffset(NSInteger offset,
     for (UDTextModelEdit *edit in sorted) {
         NSInteger startOffset =
             [self.pieceTree getOffsetAtLine:edit.range.startLineNumber
-                                     column:edit.range.startColumn];
+                                      column:edit.range.startColumn];
         NSInteger endOffset =
             [self.pieceTree getOffsetAtLine:edit.range.endLineNumber
-                                     column:edit.range.endColumn];
+                                      column:edit.range.endColumn];
         NSInteger deleteLen   = endOffset - startOffset;
         NSInteger insertedLen = (NSInteger)edit.text.length;
 
-        // Capture the text that will be overwritten (needed for undo).
         NSString *originalText = [self getValueInRange:edit.range];
 
-        // Apply the edit to the underlying piece tree.
         if (deleteLen > 0) {
             [self.pieceTree deleteAtOffset:startOffset count:deleteLen];
         }
@@ -253,31 +223,38 @@ static NSInteger AdjustOffset(NSInteger offset,
                              eolNormalized:NO];
         }
 
-        // Adjust previously recorded undo offsets for this edit.
-        // This edit is always to the LEFT of the previously recorded edits
-        // (because we process end-to-start), so their offsets shift by
-        // (insertedLen - deleteLen).
+        // Shift previously accumulated undo offsets (they are in the evolving document).
         NSUInteger prevCount = undoStartOffsets.count;
         for (NSUInteger k = 0; k < prevCount; k++) {
-            undoStartOffsets[k] = @(AdjustOffset(undoStartOffsets[k].integerValue,
-                                                  startOffset, deleteLen, insertedLen));
-            undoEndOffsets[k]   = @(AdjustOffset(undoEndOffsets[k].integerValue,
-                                                  startOffset, deleteLen, insertedLen));
+            NSInteger s = undoStartOffsets[k].integerValue;
+            NSInteger e = undoEndOffsets[k].integerValue;
+            NSInteger newS = s, newE = e;
+            if (s >= startOffset + deleteLen) {
+                newS = s - deleteLen + insertedLen;
+            } else if (s >= startOffset) {
+                newS = startOffset + insertedLen;
+            }
+            if (e >= startOffset + deleteLen) {
+                newE = e - deleteLen + insertedLen;
+            } else if (e >= startOffset) {
+                newE = startOffset + insertedLen;
+            }
+            undoStartOffsets[k] = @(newS);
+            undoEndOffsets[k]   = @(newE);
         }
 
-        // Record the undo for this edit in the current document state.
         [undoStartOffsets addObject:@(startOffset)];
         [undoEndOffsets   addObject:@(startOffset + insertedLen)];
         [undoTexts        addObject:originalText];
 
-        // Track decoration offsets through this edit.
-        [self _adjustDecorationsForEditAtOffset:startOffset
-                                      deleteLen:deleteLen
-                                    insertedLen:insertedLen];
+        // Adjust all decoration ranges through this edit via the interval tree.
+        [self.decorationTree acceptEdit:startOffset
+                            deleteCount:deleteLen
+                            insertCount:insertedLen
+                       forceMoveMarkers:NO];
     }
 
-    // All undo offsets are now expressed in the FINAL document state.
-    // Convert them to line/column ranges for the undo action.
+    // Build undo edits from the final-state offsets.
     NSMutableArray<UDTextModelEdit *> *undoEdits =
         [NSMutableArray arrayWithCapacity:undoTexts.count];
     for (NSUInteger k = 0; k < undoTexts.count; k++) {
@@ -291,7 +268,6 @@ static NSInteger AdjustOffset(NSInteger offset,
                                                                text:undoTexts[k]]];
     }
 
-    // Register a single undo action that reapplies the inverse edits.
     NSArray<UDTextModelEdit *> *undoArray = [undoEdits copy];
     [self.undoManager registerUndoWithTarget:self
                                      handler:^(UDTextModel *target) {
@@ -316,19 +292,18 @@ static NSInteger AdjustOffset(NSInteger offset,
 - (NSArray<NSString *> *)deltaDecorations:(nullable NSArray<NSString *> *)oldDecorations
                            newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations
                                     owner:(nullable NSString *)owner {
-    // Remove old decorations that belong to this owner (ignore foreign IDs).
+    // Remove old decorations that belong to this owner.
     for (NSString *oldID in oldDecorations) {
-        UDDecoration *existing = self.decorations[oldID];
+        UDIntervalNode *existing = [self.decorationTree nodeWithIdentifier:oldID];
         if (!existing) { continue; }
-        // Treat nil owner as the anonymous owner: only remove if owners match.
         BOOL sameOwner = (owner == nil && existing.owner == nil)
                       || [owner isEqualToString:existing.owner];
         if (sameOwner) {
-            [self.decorations removeObjectForKey:oldID];
+            [self.decorationTree remove:existing];
         }
     }
 
-    // Add new decorations tagged with this owner.
+    // Add new decorations.
     NSMutableArray<NSString *> *newIDs =
         [NSMutableArray arrayWithCapacity:newDecorations.count];
     for (UDModelDeltaDecoration *delta in newDecorations) {
@@ -337,13 +312,14 @@ static NSInteger AdjustOffset(NSInteger offset,
                                            column:delta.range.startColumn];
         NSInteger endOffset   = [self getOffsetAt:delta.range.endLineNumber
                                            column:delta.range.endColumn];
-        UDDecoration *decor =
-            [[UDDecoration alloc] initWithIdentifier:identifier
-                                         startOffset:startOffset
-                                           endOffset:endOffset
-                                             options:delta.options
-                                               owner:owner];
-        self.decorations[identifier] = decor;
+        UDIntervalNode *node =
+            [[UDIntervalNode alloc] initWithIdentifier:identifier
+                                                 start:startOffset
+                                                   end:endOffset
+                                               options:delta.options
+                                                 owner:owner
+                                            stickiness:delta.stickiness];
+        [self.decorationTree insert:node];
         [newIDs addObject:identifier];
     }
     return [newIDs copy];
@@ -358,28 +334,38 @@ static NSInteger AdjustOffset(NSInteger offset,
 
 - (NSArray<NSString *> *)decorationsForOwner:(nullable NSString *)owner {
     NSMutableArray<NSString *> *result = [NSMutableArray array];
-    for (UDDecoration *d in self.decorations.allValues) {
-        BOOL sameOwner = (owner == nil && d.owner == nil)
-                      || [owner isEqualToString:d.owner];
+    for (UDIntervalNode *n in [self.decorationTree allNodes]) {
+        BOOL sameOwner = (owner == nil && n.owner == nil)
+                      || [owner isEqualToString:n.owner];
         if (sameOwner) {
-            [result addObject:d.identifier];
+            [result addObject:n.identifier];
         }
     }
     return [result copy];
 }
 
+- (NSArray<NSString *> *)decorationsInRange:(UDRange)range {
+    NSInteger startOffset = [self getOffsetAt:range.startLineNumber column:range.startColumn];
+    NSInteger endOffset   = [self getOffsetAt:range.endLineNumber   column:range.endColumn];
+    NSArray<UDIntervalNode *> *nodes =
+        [self.decorationTree nodesInRange:startOffset end:endOffset];
+    NSMutableArray<NSString *> *ids = [NSMutableArray arrayWithCapacity:nodes.count];
+    for (UDIntervalNode *n in nodes) {
+        [ids addObject:n.identifier];
+    }
+    return [ids copy];
+}
+
 - (UDRange)rangeForDecoration:(NSString *)decorationID {
-    UDDecoration *decor = self.decorations[decorationID];
-    // Return an all-zero sentinel (all fields 0) for an unknown ID.
-    // Valid ranges always use 1-based line/column, so 0 is unambiguous.
-    if (!decor) { return PTRangeMake(0, 0, 0, 0); }
-    UDPosition startPos = [self.pieceTree getPositionAt:decor.startOffset];
-    UDPosition endPos   = [self.pieceTree getPositionAt:decor.endOffset];
+    UDIntervalNode *node = [self.decorationTree nodeWithIdentifier:decorationID];
+    if (!node) { return PTRangeMake(0, 0, 0, 0); }
+    UDPosition startPos = [self.pieceTree getPositionAt:node.start];
+    UDPosition endPos   = [self.pieceTree getPositionAt:node.end];
     return PTRangeMake(startPos.line, startPos.column, endPos.line, endPos.column);
 }
 
 - (nullable UDDecorationOptions *)optionsForDecoration:(NSString *)decorationID {
-    return self.decorations[decorationID].options;
+    return [self.decorationTree nodeWithIdentifier:decorationID].options;
 }
 
 // MARK: - Search
@@ -389,18 +375,13 @@ static NSInteger AdjustOffset(NSInteger offset,
                               matchCase:(BOOL)matchCase
                          wordSeparators:(nullable NSString *)wordSeparators
                        limitResultCount:(NSInteger)limitResultCount {
-    UDSearchParams *params =
-        [[UDSearchParams alloc] initWithSearchString:searchString
-                                             isRegex:isRegex
-                                           matchCase:matchCase
-                                      wordSeparators:wordSeparators];
-    UDSearchData *data = [params parseSearchRequest];
+    UDSearchData *data = BuildSearchData(searchString, isRegex, matchCase, wordSeparators);
     if (!data) {
         NSLog(@"UDTextModel: -findMatches: invalid or empty search string '%@'", searchString);
         return @[];
     }
 
-    NSInteger lineCount  = [self.pieceTree getLineCount];
+    NSInteger lineCount   = [self.pieceTree getLineCount];
     NSInteger lastLineLen = [self.pieceTree getLineLength:lineCount];
     UDRange fullRange = PTRangeMake(1, 1, lineCount, lastLineLen + 1);
 
@@ -408,6 +389,70 @@ static NSInteger AdjustOffset(NSInteger offset,
                                      searchData:data
                                  captureMatches:NO
                                limitResultCount:limitResultCount];
+}
+
+- (nullable UDFindMatch *)findNextMatch:(NSString *)searchString
+                                isRegex:(BOOL)isRegex
+                              matchCase:(BOOL)matchCase
+                         wordSeparators:(nullable NSString *)wordSeparators
+                                   from:(UDPosition)startPosition {
+    UDSearchData *data = BuildSearchData(searchString, isRegex, matchCase, wordSeparators);
+    if (!data) { return nil; }
+
+    NSInteger lineCount   = [self.pieceTree getLineCount];
+    NSInteger lastLineLen = [self.pieceTree getLineLength:lineCount];
+
+    // Search from startPosition to end of document.
+    UDRange forwardRange = PTRangeMake(startPosition.line, startPosition.column,
+                                      lineCount, lastLineLen + 1);
+    NSArray<UDFindMatch *> *forward =
+        [self.pieceTree findMatchesLineByLine:forwardRange
+                                   searchData:data
+                               captureMatches:NO
+                             limitResultCount:1];
+    if (forward.count > 0) { return forward[0]; }
+
+    // Wrap around: search from beginning to startPosition.
+    UDRange wrapRange = PTRangeMake(1, 1,
+                                    startPosition.line, startPosition.column);
+    NSArray<UDFindMatch *> *wrap =
+        [self.pieceTree findMatchesLineByLine:wrapRange
+                                   searchData:data
+                               captureMatches:NO
+                             limitResultCount:1];
+    return wrap.firstObject;
+}
+
+- (nullable UDFindMatch *)findPreviousMatch:(NSString *)searchString
+                                    isRegex:(BOOL)isRegex
+                                  matchCase:(BOOL)matchCase
+                             wordSeparators:(nullable NSString *)wordSeparators
+                                       from:(UDPosition)startPosition {
+    UDSearchData *data = BuildSearchData(searchString, isRegex, matchCase, wordSeparators);
+    if (!data) { return nil; }
+
+    NSInteger lineCount   = [self.pieceTree getLineCount];
+    NSInteger lastLineLen = [self.pieceTree getLineLength:lineCount];
+
+    // Search from start of document to startPosition; return the last match.
+    UDRange beforeRange = PTRangeMake(1, 1,
+                                      startPosition.line, startPosition.column);
+    NSArray<UDFindMatch *> *before =
+        [self.pieceTree findMatchesLineByLine:beforeRange
+                                   searchData:data
+                               captureMatches:NO
+                             limitResultCount:1000000];
+    if (before.count > 0) { return before.lastObject; }
+
+    // Wrap around: search from startPosition to end of document; return the last match.
+    UDRange afterRange = PTRangeMake(startPosition.line, startPosition.column,
+                                     lineCount, lastLineLen + 1);
+    NSArray<UDFindMatch *> *after =
+        [self.pieceTree findMatchesLineByLine:afterRange
+                                   searchData:data
+                               captureMatches:NO
+                             limitResultCount:1000000];
+    return after.lastObject;
 }
 
 @end

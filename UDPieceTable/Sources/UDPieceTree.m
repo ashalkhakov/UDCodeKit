@@ -865,6 +865,7 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
             if (cnt == startNode.piece.length) {
                 UDPieceTreeNode *next = [startNode next];
                 RBDelete(self, startNode);
+                [self validateCacheWithOffset:offset];
                 [self validateCRLFWithPrevNode:next];
                 [self computeBufferMetadata];
                 return;
@@ -1824,31 +1825,35 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
 // MARK: - Tree rotation / fixup (C static functions)
 
 static void LeftRotate(UDPieceTree *tree, UDPieceTreeNode *x) {
-    UDPieceTreeNode *s = Sentinel();
-    UDPieceTreeNode *y = x.right;
+    UDPieceTreeNode *s       = Sentinel();
+    UDPieceTreeNode *y       = x.right;
+    UDPieceTreeNode *yLeft   = y.left;
+    UDPieceTreeNode *xParent = x.parent;
     y.sizeLeft += x.sizeLeft + (x.piece ? x.piece.length : 0);
     y.lfLeft   += x.lfLeft   + (x.piece ? x.piece.lineFeedCnt : 0);
-    x.right = y.left;
-    if (y.left != s) { y.left.parent = x; }
-    y.parent = x.parent;
-    if (x.parent == s) { tree.root = y; }
-    else if (x.parent.left == x) { x.parent.left = y; }
-    else { x.parent.right = y; }
+    x.right = yLeft;
+    if (yLeft != s) { yLeft.parent = x; }
+    y.parent = xParent;
+    if (xParent == s) { tree.root = y; }
+    else if (xParent.left == x) { xParent.left = y; }
+    else { xParent.right = y; }
     y.left = x;
     x.parent = y;
 }
 
 static void RightRotate(UDPieceTree *tree, UDPieceTreeNode *y) {
-    UDPieceTreeNode *s = Sentinel();
-    UDPieceTreeNode *x = y.left;
-    y.left = x.right;
-    if (x.right != s) { x.right.parent = y; }
-    x.parent = y.parent;
+    UDPieceTreeNode *s       = Sentinel();
+    UDPieceTreeNode *x       = y.left;
+    UDPieceTreeNode *xRight  = x.right;
+    UDPieceTreeNode *yParent = y.parent;
+    y.left = xRight;
+    if (xRight != s) { xRight.parent = y; }
+    x.parent = yParent;
     y.sizeLeft -= x.sizeLeft + (x.piece ? x.piece.length : 0);
     y.lfLeft   -= x.lfLeft   + (x.piece ? x.piece.lineFeedCnt : 0);
-    if (y.parent == s) { tree.root = x; }
-    else if (y == y.parent.right) { y.parent.right = x; }
-    else { y.parent.left = x; }
+    if (yParent == s) { tree.root = x; }
+    else if (y == yParent.right) { yParent.right = x; }
+    else { yParent.left = x; }
     x.right = y;
     y.parent = x;
 }
@@ -1856,18 +1861,23 @@ static void RightRotate(UDPieceTree *tree, UDPieceTreeNode *y) {
 static void UpdateTreeMetadata(UDPieceTree *tree, UDPieceTreeNode *x, NSInteger delta, NSInteger lfDelta) {
     UDPieceTreeNode *s = Sentinel();
     while (x != tree.root && x != s) {
-        if (x.parent.left == x) {
-            x.parent.sizeLeft += delta;
-            x.parent.lfLeft   += lfDelta;
+        UDPieceTreeNode *xParent = x.parent;
+        if (xParent.left == x) {
+            xParent.sizeLeft += delta;
+            xParent.lfLeft   += lfDelta;
         }
-        x = x.parent;
+        x = xParent;
     }
 }
 
 static void RecomputeTreeMetadata(UDPieceTree *tree, UDPieceTreeNode *x) {
     UDPieceTreeNode *s = Sentinel();
     if (x == tree.root) { return; }
-    while (x != tree.root && x == x.parent.right) { x = x.parent; }
+    while (x != tree.root) {
+        UDPieceTreeNode *xParent = x.parent;
+        if (x != xParent.right) { break; }
+        x = xParent;
+    }
     if (x == tree.root) { return; }
     x = x.parent;
     NSInteger delta   = CalculateSize(x.left) - x.sizeLeft;
@@ -1875,11 +1885,12 @@ static void RecomputeTreeMetadata(UDPieceTree *tree, UDPieceTreeNode *x) {
     x.sizeLeft += delta;
     x.lfLeft   += lfDelta;
     while (x != tree.root && (delta != 0 || lfDelta != 0)) {
-        if (x.parent.left == x) {
-            x.parent.sizeLeft += delta;
-            x.parent.lfLeft   += lfDelta;
+        UDPieceTreeNode *xParent = x.parent;
+        if (xParent.left == x) {
+            xParent.sizeLeft += delta;
+            xParent.lfLeft   += lfDelta;
         }
-        x = x.parent;
+        x = xParent;
     }
 }
 
@@ -1887,31 +1898,37 @@ static void FixInsert(UDPieceTree *tree, UDPieceTreeNode *x) {
     RecomputeTreeMetadata(tree, x);
     UDPieceTreeNode *s = Sentinel();
     while (x != tree.root && x.parent.color == PTNodeColorRed) {
-        if (x.parent == x.parent.parent.left) {
-            UDPieceTreeNode *y = x.parent.parent.right;
+        UDPieceTreeNode *xParent      = x.parent;
+        UDPieceTreeNode *xGrandParent = xParent.parent;
+        if (xParent == xGrandParent.left) {
+            UDPieceTreeNode *y = xGrandParent.right;
             if (y.color == PTNodeColorRed) {
-                x.parent.color = PTNodeColorBlack;
-                y.color = PTNodeColorBlack;
-                x.parent.parent.color = PTNodeColorRed;
-                x = x.parent.parent;
+                xParent.color      = PTNodeColorBlack;
+                y.color            = PTNodeColorBlack;
+                xGrandParent.color = PTNodeColorRed;
+                x = xGrandParent;
             } else {
-                if (x == x.parent.right) { x = x.parent; LeftRotate(tree, x); }
-                x.parent.color = PTNodeColorBlack;
-                x.parent.parent.color = PTNodeColorRed;
-                RightRotate(tree, x.parent.parent);
+                if (x == xParent.right) { x = xParent; LeftRotate(tree, x); }
+                UDPieceTreeNode *xp  = x.parent;
+                UDPieceTreeNode *xgp = xp.parent;
+                xp.color  = PTNodeColorBlack;
+                xgp.color = PTNodeColorRed;
+                RightRotate(tree, xgp);
             }
         } else {
-            UDPieceTreeNode *y = x.parent.parent.left;
+            UDPieceTreeNode *y = xGrandParent.left;
             if (y.color == PTNodeColorRed) {
-                x.parent.color = PTNodeColorBlack;
-                y.color = PTNodeColorBlack;
-                x.parent.parent.color = PTNodeColorRed;
-                x = x.parent.parent;
+                xParent.color      = PTNodeColorBlack;
+                y.color            = PTNodeColorBlack;
+                xGrandParent.color = PTNodeColorRed;
+                x = xGrandParent;
             } else {
-                if (x == x.parent.left) { x = x.parent; RightRotate(tree, x); }
-                x.parent.color = PTNodeColorBlack;
-                x.parent.parent.color = PTNodeColorRed;
-                LeftRotate(tree, x.parent.parent);
+                if (x == xParent.left) { x = xParent; RightRotate(tree, x); }
+                UDPieceTreeNode *xp  = x.parent;
+                UDPieceTreeNode *xgp = xp.parent;
+                xp.color  = PTNodeColorBlack;
+                xgp.color = PTNodeColorRed;
+                LeftRotate(tree, xgp);
             }
         }
     }
@@ -1922,9 +1939,11 @@ static void RBDelete(UDPieceTree *tree, UDPieceTreeNode *z) {
     UDPieceTreeNode *s = Sentinel();
     UDPieceTreeNode *x, *y;
 
-    if (z.left == s) { y = z; x = y.right; }
-    else if (z.right == s) { y = z; x = y.left; }
-    else { y = Leftest(z.right); x = y.right; }
+    UDPieceTreeNode *zLeft  = z.left;
+    UDPieceTreeNode *zRight = z.right;
+    if (zLeft == s) { y = z; x = y.right; }
+    else if (zRight == s) { y = z; x = y.left; }
+    else { y = Leftest(zRight); x = y.right; }
 
     if (y == tree.root) {
         tree.root = x;
@@ -1936,23 +1955,26 @@ static void RBDelete(UDPieceTree *tree, UDPieceTreeNode *z) {
     }
 
     BOOL yWasRed = (y.color == PTNodeColorRed);
-    if (y == y.parent.left) { y.parent.left = x; }
-    else { y.parent.right = x; }
+    UDPieceTreeNode *yParent = y.parent;
+    if (y == yParent.left) { yParent.left = x; }
+    else { yParent.right = x; }
 
     if (y == z) {
-        x.parent = y.parent;
+        x.parent = yParent;
         RecomputeTreeMetadata(tree, x);
     } else {
-        x.parent = (y.parent == z) ? y : y.parent;
+        UDPieceTreeNode *zParent = z.parent;
+        x.parent = (yParent == z) ? y : yParent;
         RecomputeTreeMetadata(tree, x);
-        y.left = z.left; y.right = z.right; y.parent = z.parent; y.color = z.color;
+        y.left = zLeft; y.parent = zParent; y.color = z.color;
+        if (yParent != z) { y.right = zRight; }
         if (z == tree.root) { tree.root = y; }
         else {
-            if (z == z.parent.left) { z.parent.left = y; }
-            else { z.parent.right = y; }
+            if (z == zParent.left) { zParent.left = y; }
+            else { zParent.right = y; }
         }
-        if (y.left != s) { y.left.parent = y; }
-        if (y.right != s) { y.right.parent = y; }
+        if (zLeft  != s) { zLeft.parent  = y; }
+        if (yParent != z && zRight != s) { zRight.parent = y; }
         y.sizeLeft = z.sizeLeft;
         y.lfLeft   = z.lfLeft;
         RecomputeTreeMetadata(tree, y);
@@ -1960,70 +1982,82 @@ static void RBDelete(UDPieceTree *tree, UDPieceTreeNode *z) {
 
     [z detach];
 
-    if (x.parent.left == x) {
+    UDPieceTreeNode *xParent = x.parent;
+    if (xParent.left == x) {
         NSInteger newSizeLeft = CalculateSize(x);
         NSInteger newLFLeft   = CalculateLF(x);
-        if (newSizeLeft != x.parent.sizeLeft || newLFLeft != x.parent.lfLeft) {
-            NSInteger delta   = newSizeLeft - x.parent.sizeLeft;
-            NSInteger lfDelta = newLFLeft   - x.parent.lfLeft;
-            x.parent.sizeLeft = newSizeLeft;
-            x.parent.lfLeft   = newLFLeft;
-            UpdateTreeMetadata(tree, x.parent, delta, lfDelta);
+        if (newSizeLeft != xParent.sizeLeft || newLFLeft != xParent.lfLeft) {
+            NSInteger delta   = newSizeLeft - xParent.sizeLeft;
+            NSInteger lfDelta = newLFLeft   - xParent.lfLeft;
+            xParent.sizeLeft = newSizeLeft;
+            xParent.lfLeft   = newLFLeft;
+            UpdateTreeMetadata(tree, xParent, delta, lfDelta);
         }
     }
-    RecomputeTreeMetadata(tree, x.parent);
+    RecomputeTreeMetadata(tree, xParent);
 
     if (yWasRed) { ResetSentinel(); return; }
 
     // RB-DELETE-FIXUP
     UDPieceTreeNode *w;
     while (x != tree.root && x.color == PTNodeColorBlack) {
-        if (x == x.parent.left) {
-            w = x.parent.right;
+        UDPieceTreeNode *xp = x.parent;
+        if (x == xp.left) {
+            w = xp.right;
             if (w.color == PTNodeColorRed) {
-                w.color = PTNodeColorBlack;
-                x.parent.color = PTNodeColorRed;
-                LeftRotate(tree, x.parent);
-                w = x.parent.right;
+                w.color  = PTNodeColorBlack;
+                xp.color = PTNodeColorRed;
+                LeftRotate(tree, xp);
+                xp = x.parent;
+                w  = xp.right;
             }
-            if (w.left.color == PTNodeColorBlack && w.right.color == PTNodeColorBlack) {
+            UDPieceTreeNode *wLeft  = w.left;
+            UDPieceTreeNode *wRight = w.right;
+            if (wLeft.color == PTNodeColorBlack && wRight.color == PTNodeColorBlack) {
                 w.color = PTNodeColorRed;
-                x = x.parent;
+                x = xp;
             } else {
-                if (w.right.color == PTNodeColorBlack) {
-                    w.left.color = PTNodeColorBlack;
-                    w.color = PTNodeColorRed;
+                if (wRight.color == PTNodeColorBlack) {
+                    wLeft.color = PTNodeColorBlack;
+                    w.color     = PTNodeColorRed;
                     RightRotate(tree, w);
-                    w = x.parent.right;
+                    xp    = x.parent;
+                    w     = xp.right;
+                    wRight = w.right;
                 }
-                w.color = x.parent.color;
-                x.parent.color = PTNodeColorBlack;
-                w.right.color = PTNodeColorBlack;
-                LeftRotate(tree, x.parent);
+                w.color  = xp.color;
+                xp.color = PTNodeColorBlack;
+                wRight.color = PTNodeColorBlack;
+                LeftRotate(tree, xp);
                 x = tree.root;
             }
         } else {
-            w = x.parent.left;
+            w = xp.left;
             if (w.color == PTNodeColorRed) {
-                w.color = PTNodeColorBlack;
-                x.parent.color = PTNodeColorRed;
-                RightRotate(tree, x.parent);
-                w = x.parent.left;
+                w.color  = PTNodeColorBlack;
+                xp.color = PTNodeColorRed;
+                RightRotate(tree, xp);
+                xp = x.parent;
+                w  = xp.left;
             }
-            if (w.left.color == PTNodeColorBlack && w.right.color == PTNodeColorBlack) {
+            UDPieceTreeNode *wLeft  = w.left;
+            UDPieceTreeNode *wRight = w.right;
+            if (wLeft.color == PTNodeColorBlack && wRight.color == PTNodeColorBlack) {
                 w.color = PTNodeColorRed;
-                x = x.parent;
+                x = xp;
             } else {
-                if (w.left.color == PTNodeColorBlack) {
-                    w.right.color = PTNodeColorBlack;
-                    w.color = PTNodeColorRed;
+                if (wLeft.color == PTNodeColorBlack) {
+                    wRight.color = PTNodeColorBlack;
+                    w.color      = PTNodeColorRed;
                     LeftRotate(tree, w);
-                    w = x.parent.left;
+                    xp   = x.parent;
+                    w    = xp.left;
+                    wLeft = w.left;
                 }
-                w.color = x.parent.color;
-                x.parent.color = PTNodeColorBlack;
-                w.left.color = PTNodeColorBlack;
-                RightRotate(tree, x.parent);
+                w.color  = xp.color;
+                xp.color = PTNodeColorBlack;
+                wLeft.color = PTNodeColorBlack;
+                RightRotate(tree, xp);
                 x = tree.root;
             }
         }

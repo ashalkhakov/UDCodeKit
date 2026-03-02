@@ -627,6 +627,20 @@ static NSString *SubstringDelete(NSString *orig, NSInteger pos, NSInteger count)
     AssertTreeInvariants(pt, self);
 }
 
+- (void)testRBDeleteYParentEqualsZ {
+    // Regression test: RBDelete self-loop when yParent == z.
+    // With 6 single-char chunks the RB-tree ends up as:
+    //   node2(black,root) / node1(black) \ node4(red) / node3(black) \ node5(black) \ node6(red)
+    // Deleting node4 ("D") triggers y!=z with yParent==z:
+    //   y = Leftest(node5) = node5, yParent = node4 = z.
+    // Before the fix, y.right and y.parent got a self-reference causing an infinite loop.
+    UDPieceTree *pt = CreatePieceTree(@[@"A", @"B", @"C", @"D", @"E", @"F"], YES);
+    XCTAssertEqualObjects([pt getLinesRawContent], @"ABCDEF");
+    [pt deleteAtOffset:3 count:1];
+    XCTAssertEqualObjects([pt getLinesRawContent], @"ABCEF");
+    AssertTreeInvariants(pt, self);
+}
+
 // MARK: - offset → position
 
 - (void)testOffsetToPositionBug1 {
@@ -1106,6 +1120,51 @@ static NSString *SubstringDelete(NSString *orig, NSInteger pos, NSInteger count)
     XCTAssertEqualObjects([pt getLinesRawContent], str);
     TestLineStarts(str, pt, self);
     TestLinesContent(str, pt, self);
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testDeleteWholeNodeInvalidatesCache {
+    // Regression: when an entire piece-node is deleted in one call
+    // (cnt == piece.length) the search cache must be cleared. If it isn't,
+    // the next nodeAtOffset call gets a cache hit on the detached node whose
+    // left/right pointers are nil, causing Leftest() to loop forever.
+    NSString *str = @"";
+    UDPieceTree *pt = CreatePieceTree(@[@""], YES);
+    // Build a few pieces so the tree has some structure.
+    str = SubstringInsert(str, 0, @"abc"); [pt insertAtOffset:0 value:@"abc" eolNormalized:YES];
+    str = SubstringInsert(str, 3, @"def"); [pt insertAtOffset:3 value:@"def" eolNormalized:YES];
+    // Delete exactly the first piece (whole-node deletion sets the stale-cache path).
+    str = SubstringDelete(str, 0, 3); [pt deleteAtOffset:0 count:3];
+    XCTAssertEqualObjects([pt getLinesRawContent], str);
+    // This insert must not loop: it calls nodeAtOffset which would hit the stale cache
+    // on the detached node and then call Leftest(nil) without the fix.
+    str = SubstringInsert(str, 0, @"x"); [pt insertAtOffset:0 value:@"x" eolNormalized:YES];
+    XCTAssertEqualObjects([pt getLinesRawContent], str);
+    AssertTreeInvariants(pt, self);
+}
+
+- (void)testRandomInsertDeleteSmallPieces {
+    // Stress test that maximises whole-node deletions by using small (1-4 char)
+    // inserts and deletes, exercising the cache-invalidation path on every
+    // deletion that removes an entire piece-node.
+    NSString *str = @"";
+    UDPieceTree *pt = CreatePieceTree(@[@""], YES);
+    for (NSInteger i = 0; i < 500; i++) {
+        if (str.length == 0 || arc4random_uniform(2) == 0) {
+            NSInteger len  = 1 + (NSInteger)arc4random_uniform(4);
+            NSString *text = RandomString(len);
+            NSInteger pos  = (NSInteger)arc4random_uniform((uint32_t)(str.length + 1));
+            str = SubstringInsert(str, pos, text);
+            [pt insertAtOffset:pos value:text eolNormalized:YES];
+        } else {
+            NSInteger pos = (NSInteger)arc4random_uniform((uint32_t)str.length);
+            NSInteger len = 1 + (NSInteger)arc4random_uniform(
+                (uint32_t)MIN((NSInteger)4, (NSInteger)str.length - pos));
+            str = SubstringDelete(str, pos, len);
+            [pt deleteAtOffset:pos count:len];
+        }
+        XCTAssertEqualObjects([pt getLinesRawContent], str);
+    }
     AssertTreeInvariants(pt, self);
 }
 

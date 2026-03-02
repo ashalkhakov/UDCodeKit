@@ -18,6 +18,7 @@
 static CGFloat const kSearchBarHeight  = 28.0;
 static CGFloat const kFindGutterWidth  = 12.0;
 static CGFloat const kLineGutterWidth  = 48.0; // UDLineNumberGutterWidth
+static CGFloat const kErrorsViewWidth  = 180.0;
 
 // macOS virtual key codes for arrow keys (same values as <Carbon/Carbon.h>
 // kVK_UpArrow etc., duplicated here to avoid importing Carbon).
@@ -117,6 +118,11 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     // 5. Build line-number gutter, folding controller, bracket highlighter.
     // ------------------------------------------------------------------
     [self _buildEditorAccessories];
+
+    // ------------------------------------------------------------------
+    // 6. Build the errors panel (left side) and populate it.
+    // ------------------------------------------------------------------
+    [self _buildErrorsView];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
@@ -146,11 +152,12 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         NSViewMinXMargin | NSViewHeightSizable | NSViewMaxYMargin;
     [contentView addSubview:_gutterView];
 
-    // --- Resize scroll view to leave room for both gutters and the search bar ---
-    // The XIB placed the scroll view at (0,0,W,H); we shrink and shift it.
+    // --- Resize scroll view to leave room for the errors panel, both gutters,
+    //     and the search bar.  The XIB placed the scroll view at (0,0,W,H);
+    //     we shrink and shift it.
     NSScrollView *sv = (NSScrollView *)self.textView.enclosingScrollView;
-    CGFloat svX = kLineGutterWidth;
-    CGFloat svW = W - kLineGutterWidth - kFindGutterWidth;
+    CGFloat svX = kErrorsViewWidth + kLineGutterWidth;
+    CGFloat svW = W - kErrorsViewWidth - kLineGutterWidth - kFindGutterWidth;
     sv.frame = NSMakeRect(svX, 0, svW, editorH);
     sv.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
@@ -189,14 +196,14 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     CGFloat   editorH     = H - kSearchBarHeight;
     NSScrollView *sv      = (NSScrollView *)self.textView.enclosingScrollView;
 
-    // --- Line-number gutter (left strip) ---
+    // --- Line-number gutter (left of scroll view, right of errors panel) ---
     _lineNumberGutterView =
         [[UDLineNumberGutterView alloc]
              initWithScrollView:sv
                        textView:self.textView
                       textModel:_textStorage.textModel];
     _lineNumberGutterView.frame =
-        NSMakeRect(0, 0, kLineGutterWidth, editorH);
+        NSMakeRect(kErrorsViewWidth, 0, kLineGutterWidth, editorH);
     _lineNumberGutterView.autoresizingMask =
         NSViewMaxXMargin | NSViewHeightSizable | NSViewMaxYMargin;
     _lineNumberGutterView.delegate = self;
@@ -279,6 +286,45 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
            selector:@selector(_documentDidChange:)
                name:NSTextStorageDidProcessEditingNotification
              object:_textStorage];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Errors view setup
+// ---------------------------------------------------------------------------
+
+- (void)_buildErrorsView {
+    NSView  *contentView = self.window.contentView;
+    CGFloat  H           = NSHeight(contentView.bounds);
+    CGFloat  editorH     = H - kSearchBarHeight;
+
+    _errorsViewController =
+        [[UDErrorsViewController alloc] initWithHighlighter:_textStorage.highlighter];
+
+    NSView *errorsView = _errorsViewController.view;
+    errorsView.frame = NSMakeRect(0, 0, kErrorsViewWidth, editorH);
+    // Fixed width on the left; grows vertically with the window.
+    errorsView.autoresizingMask = NSViewHeightSizable | NSViewMaxXMargin;
+    [contentView addSubview:errorsView];
+
+    // Populate with any errors from the initial parse.
+    [_errorsViewController update];
+    [self _updateGutterErrorMarks];
+}
+
+- (void)_updateGutterErrorMarks {
+    UDTextModel *model       = _textStorage.textModel;
+    NSInteger    totalLines  = [model getLineCount];
+    if (totalLines <= 0) { _gutterView.errorFractions = @[]; return; }
+
+    NSMutableArray<NSNumber *> *fracs =
+        [NSMutableArray arrayWithCapacity:_errorsViewController.errors.count];
+    for (UDParseErrorItem *err in _errorsViewController.errors) {
+        // (line-1)/total mirrors the find-gutter formula so both use the same
+        // coordinate space: line 1 → 0.0 (top), last line → just below 1.0.
+        CGFloat frac = (CGFloat)(err.line - 1) / (CGFloat)totalLines;
+        [fracs addObject:@(MAX(0.0, MIN(1.0, frac)))];
+    }
+    _gutterView.errorFractions = fracs;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,6 +427,8 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         [self->_foldingController update];
         [self->_bracketMatchHighlighter update];
         [self->_missingNodeHighlighter update];
+        [self->_errorsViewController update];
+        [self _updateGutterErrorMarks];
     });
 }
 

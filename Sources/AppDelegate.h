@@ -13,6 +13,7 @@
 #import "UDMissingNodeHighlighter.h"
 #import "UDStructuredNavigator.h"
 #import "UDAutoIndenter.h"
+#import "UDErrorsViewController.h"
 
 @interface AppDelegate : NSObject <NSApplicationDelegate, NSSearchFieldDelegate,
                                    UDLineNumberGutterViewDelegate>
@@ -42,6 +43,9 @@
 
 /// Tree-sitter-driven auto-indenter.
 @property (nonatomic, strong) UDAutoIndenter *autoIndenter;
+
+/// Errors view controller (left panel).
+@property (nonatomic, strong) UDErrorsViewController *errorsViewController;
 
 @end
 

@@ -22,6 +22,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Pass -1 for "no current match".
 @property (nonatomic) NSInteger currentMatchIndex;
 
+/// Each element is an NSNumber (0.0 … 1.0) giving the fractional vertical
+/// position of a parse error (0.0 = top of document, 1.0 = bottom).
+/// Error ticks are drawn in red, behind the find-match ticks.
+@property (nonatomic, copy) NSArray<NSNumber *> *errorFractions;
+
 @end
 
 NS_ASSUME_NONNULL_END

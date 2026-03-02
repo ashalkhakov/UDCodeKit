@@ -10,6 +10,7 @@
     self = [super initWithFrame:frame];
     if (self) {
         _matchFractions    = @[];
+        _errorFractions    = @[];
         _currentMatchIndex = -1;
     }
     return self;
@@ -28,12 +29,20 @@
     [[NSColor separatorColor] setFill];
     NSRectFill(NSMakeRect(0.0, 0.0, 1.0, NSHeight(self.bounds)));
 
-    if (_matchFractions.count == 0) { return; }
-
     CGFloat totalH = NSHeight(self.bounds);
     CGFloat tickW  = NSWidth(self.bounds) - 4.0;
     CGFloat tickH  = 3.0;
 
+    // Draw error ticks first (red), so find-match ticks appear on top.
+    if (_errorFractions.count > 0) {
+        [[NSColor systemRedColor] setFill];
+        for (NSNumber *frac in _errorFractions) {
+            CGFloat y = (1.0 - frac.doubleValue) * (totalH - tickH);
+            NSRectFill(NSMakeRect(2.0, y, tickW, tickH));
+        }
+    }
+
+    // Draw find-match ticks (orange for current, yellow for the rest).
     for (NSUInteger i = 0; i < _matchFractions.count; i++) {
         CGFloat frac = [_matchFractions[i] doubleValue]; // 0 = top, 1 = bottom
         // Map frac → y origin (AppKit y-axis grows upward):
@@ -58,6 +67,11 @@
 
 - (void)setCurrentMatchIndex:(NSInteger)currentMatchIndex {
     _currentMatchIndex = currentMatchIndex;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)setErrorFractions:(NSArray<NSNumber *> *)errorFractions {
+    _errorFractions = [errorFractions copy];
     [self setNeedsDisplay:YES];
 }
 

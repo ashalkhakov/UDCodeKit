@@ -101,7 +101,9 @@ static NSString * const kJSONHighlightsQuery =
     [self _buildFindUI];
 }
 
-- (void)applicationWillTerminate:(NSNotification *)aNotification {}
+- (void)applicationWillTerminate:(NSNotification *)aNotification {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
 
 - (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app {
     return YES;
@@ -144,6 +146,17 @@ static NSString * const kJSONHighlightsQuery =
         ((NSSearchFieldCell *)_findField.cell).sendsSearchStringImmediately = YES;
     }
     [contentView addSubview:_findField];
+
+    // Re-run the active search whenever the document text is edited.
+    [[NSNotificationCenter defaultCenter]
+        removeObserver:self
+                  name:NSTextStorageDidProcessEditingNotification
+                object:_textStorage];
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_textStorageDidEdit:)
+               name:NSTextStorageDidProcessEditingNotification
+             object:_textStorage];
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +232,18 @@ static NSString * const kJSONHighlightsQuery =
     if (obj.object == _findField) {
         [self _findFieldDidChange:_findField];
     }
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Re-run find on document change
+// ---------------------------------------------------------------------------
+
+- (void)_textStorageDidEdit:(NSNotification *)note {
+    NSTextStorage *textStorage = note.object;
+    // Only re-search when the string itself changed (not just attributes).
+    if (!(textStorage.editedMask & NSTextStorageEditedCharacters)) return;
+    if (_findField.stringValue.length == 0) return;
+    [self _findFieldDidChange:_findField];
 }
 
 @end

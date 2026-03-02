@@ -9,6 +9,7 @@
 #import <Foundation/Foundation.h>
 #import <UDPieceTable/UDTypes.h>
 #import <UDPieceTable/UDTextModelSearch.h>
+#import <UDPieceTable/UDIntervalTree.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -51,6 +52,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// Posted after each successful -applyEdits: call (including undo/redo).
 /// The userInfo dictionary contains @"edits": NSArray<UDTextModelEdit *>.
 extern NSNotificationName const UDTextModelDidChangeNotification;
+
+/// Posted after -deltaDecorations:newDecorations:owner: whenever any decoration
+/// is added or removed.  The userInfo contains:
+///   @"range": NSValue wrapping an NSRange of the union of all changed decoration
+///             character offsets (0-based).  Only present when dirtyRange.length > 0.
+extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
 
 /// A minimal port of VS Code's TextModel backed by UDPieceTree.
 ///
@@ -135,6 +142,11 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
 
 /// Returns the IDs of all decorations whose ranges intersect the given range.
 - (NSArray<NSString *> *)decorationsInRange:(UDRange)range;
+
+/// Returns all decoration interval nodes whose offset range intersects [start, end).
+/// Unlike -decorationsInRange:, this method works directly with 0-based character
+/// offsets, avoiding the line/column conversion overhead.
+- (NSArray<UDIntervalNode *> *)decorationNodesInOffsetRange:(NSInteger)start end:(NSInteger)end;
 
 /// Returns the current (possibly edit-adjusted) range of a decoration.
 /// Returns an all-zero range (0,0,0,0) if the ID is unknown (valid ranges

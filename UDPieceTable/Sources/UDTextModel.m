@@ -52,9 +52,10 @@
 }
 @end
 
-// MARK: - Notification name
+// MARK: - Notification names
 
 NSNotificationName const UDTextModelDidChangeNotification = @"UDTextModelDidChangeNotification";
+NSNotificationName const UDTextModelDecorationsDidChangeNotification = @"UDTextModelDecorationsDidChangeNotification";
 
 // MARK: - Helpers
 
@@ -296,18 +297,24 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
 - (NSArray<NSString *> *)deltaDecorations:(nullable NSArray<NSString *> *)oldDecorations
                            newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations
                                     owner:(nullable NSString *)owner {
-    // Remove old decorations that belong to this owner.
+    // Track the union of all affected character offset ranges for the notification.
+    NSInteger dirtyStart = NSIntegerMax;
+    NSInteger dirtyEnd   = NSIntegerMin;
+
+    // Remove old decorations that belong to this owner; collect their ranges.
     for (NSString *oldID in oldDecorations) {
         UDIntervalNode *existing = [self.decorationTree nodeWithIdentifier:oldID];
         if (!existing) { continue; }
         BOOL sameOwner = (owner == nil && existing.owner == nil)
                       || [owner isEqualToString:existing.owner];
         if (sameOwner) {
+            dirtyStart = MIN(dirtyStart, existing.start);
+            dirtyEnd   = MAX(dirtyEnd,   existing.end);
             [self.decorationTree remove:existing];
         }
     }
 
-    // Add new decorations.
+    // Add new decorations; collect their ranges.
     NSMutableArray<NSString *> *newIDs =
         [NSMutableArray arrayWithCapacity:newDecorations.count];
     for (UDModelDeltaDecoration *delta in newDecorations) {
@@ -316,6 +323,8 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
                                            column:delta.range.startColumn];
         NSInteger endOffset   = [self getOffsetAt:delta.range.endLineNumber
                                            column:delta.range.endColumn];
+        dirtyStart = MIN(dirtyStart, startOffset);
+        dirtyEnd   = MAX(dirtyEnd,   endOffset);
         UDIntervalNode *node =
             [[UDIntervalNode alloc] initWithIdentifier:identifier
                                                  start:startOffset
@@ -326,6 +335,17 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
         [self.decorationTree insert:node];
         [newIDs addObject:identifier];
     }
+
+    // Post notification for the union of changed decoration ranges.
+    if (dirtyStart < dirtyEnd) {
+        NSRange dirty = NSMakeRange((NSUInteger)MAX(0LL, dirtyStart),
+                                    (NSUInteger)(dirtyEnd - MAX(0LL, dirtyStart)));
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:UDTextModelDecorationsDidChangeNotification
+                          object:self
+                        userInfo:@{@"range": [NSValue valueWithRange:dirty]}];
+    }
+
     return [newIDs copy];
 }
 
@@ -370,6 +390,10 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
 
 - (nullable UDDecorationOptions *)optionsForDecoration:(NSString *)decorationID {
     return [self.decorationTree nodeWithIdentifier:decorationID].options;
+}
+
+- (NSArray<UDIntervalNode *> *)decorationNodesInOffsetRange:(NSInteger)start end:(NSInteger)end {
+    return [self.decorationTree nodesInRange:start end:end];
 }
 
 // MARK: - Search

@@ -50,6 +50,10 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 @property (nonatomic, copy)   NSString      *tsPreviousString;
 
 @property (nonatomic, strong) NSArray<NSString *> *highlightDecorationIDs;
+
+// Character ranges that actually changed in the last incremental re-parse.
+// Nil after a full re-parse so consumers know the whole document may have changed.
+@property (nonatomic, copy, nullable) NSArray<NSValue *> *lastChangedCharRanges;
 @end
 
 @implementation UDTreeSitterHighlighter
@@ -170,14 +174,25 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
         TSRange *ranges = ts_tree_get_changed_ranges(oldTree, newTree, &count);
         if (count > 0) {
             NSMutableArray<UDModelDeltaDecoration *> *newDecors = [NSMutableArray array];
+            NSMutableArray<NSValue *> *changedCharRanges =
+                [NSMutableArray arrayWithCapacity:count];
             for (uint32_t i = 0; i < count; i++) {
                 [self _collectDecorationsForRange:ranges[i] tree:newTree into:newDecors];
+                NSUInteger cs = charIdxFromByte(ranges[i].start_byte);
+                NSUInteger ce = charIdxFromByte(ranges[i].end_byte);
+                [changedCharRanges addObject:
+                    [NSValue valueWithRange:NSMakeRange(cs, ce > cs ? ce - cs : 0)]];
             }
             [self _replaceDecorationsInRanges:ranges count:count withNewOnes:newDecors];
+            _lastChangedCharRanges = [changedCharRanges copy];
+        } else {
+            _lastChangedCharRanges = @[];
         }
         free(ranges);
         ts_tree_delete(oldTree);
     } else {
+        // Full (non-incremental) re-parse: signal that the entire document may differ.
+        _lastChangedCharRanges = nil;
         NSMutableArray<UDModelDeltaDecoration *> *all = [NSMutableArray array];
         TSNode root = ts_tree_root_node(newTree);
         TSRange full;

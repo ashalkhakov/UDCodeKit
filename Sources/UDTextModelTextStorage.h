@@ -49,6 +49,10 @@ extern NSString * const UDMissingNodeDecorationOwner;
 /// Call after any batch of deltaDecorations changes.
 - (void)applyDecorationHighlights;
 
+/// Signal to layout managers that attributes changed in a specific range.
+/// More efficient than -applyDecorationHighlights when the dirty range is known.
+- (void)applyDecorationHighlightsInRange:(NSRange)range;
+
 @end
 
 NS_ASSUME_NONNULL_END

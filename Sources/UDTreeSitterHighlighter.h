@@ -35,6 +35,13 @@ typedef const void *_Nullable(*LanguageFunc)(void);
 /// Returns NULL when no language is active.
 @property (nonatomic, readonly, nullable) const void *currentParseTree;
 
+/// Character ranges (as NSValue-wrapped NSRanges, 0-based character offsets)
+/// that changed during the most recent *incremental* re-parse.
+/// Nil / empty after a full re-parse (e.g. undo/redo or initial load).
+/// Consumers such as UDMissingNodeHighlighter use this to restrict their
+/// post-parse scan to only the regions that actually changed.
+@property (nonatomic, readonly, copy, nullable) NSArray<NSValue *> *lastChangedCharRanges;
+
 - (instancetype)initWithTextModel:(UDTextModel *)model;
 
 /// Configure (or replace) the tree-sitter language and highlights query.

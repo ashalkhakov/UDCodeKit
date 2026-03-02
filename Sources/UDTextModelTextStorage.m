@@ -5,6 +5,7 @@
 #import "UDTextModelTextStorage.h"
 #import "UDTextModelString.h"
 #import "UDTreeSitterHighlighter.h"
+#import <UDPieceTable/UDIntervalTree.h>
 
 NSString * const UDFindDecorationOwner         = @"find";
 NSString * const UDFoldDecorationOwner         = @"fold";
@@ -25,6 +26,58 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Per-layer attribute helpers
+// ---------------------------------------------------------------------------
+
+/// Returns the decoration layer (0–4) for the given owner string, or -1 if unknown.
+static inline NSInteger LayerForOwner(NSString * _Nullable owner) {
+    if (!owner) return -1;
+    if ([owner isEqualToString:@"highlight"])     return 0;
+    if ([owner isEqualToString:@"find"])          return 1;
+    if ([owner isEqualToString:@"bracket.match"]) return 2;
+    if ([owner isEqualToString:@"fold"])          return 3;
+    if ([owner isEqualToString:@"missing"])       return 4;
+    return -1;
+}
+
+static NSColor *BracketMatchBGColor(void) {
+    static NSColor *c;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        c = [NSColor colorWithRed:0.38 green:0.60 blue:0.90 alpha:0.35];
+    });
+    return c;
+}
+
+static NSColor *MissingNodeBGColor(void) {
+    static NSColor *c;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        c = [NSColor colorWithRed:0.95 green:0.42 blue:0.13 alpha:0.85];
+    });
+    return c;
+}
+
+static NSDictionary *FoldAttributes(void) {
+    static NSDictionary *d;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableParagraphStyle *s = [[NSMutableParagraphStyle alloc] init];
+        s.minimumLineHeight = 1.0;
+        s.maximumLineHeight = 1.0;
+        s.lineSpacing = 0.0;
+        s.paragraphSpacing = 0.0;
+        s.paragraphSpacingBefore = 0.0;
+        d = @{
+            NSForegroundColorAttributeName: [NSColor clearColor],
+            NSFontAttributeName:            [NSFont systemFontOfSize:0.1],
+            NSParagraphStyleAttributeName:  s,
+        };
+    });
+    return d;
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Private interface
 // ---------------------------------------------------------------------------
 
@@ -35,9 +88,12 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 @property (nonatomic)         BOOL                      suppressModelNotification;
 @property (nonatomic)         NSUInteger                lastKnownLength;
 
-// Cached attribute run partition: parallel arrays covering [0, docLen).
-@property (nonatomic, strong) NSArray<NSValue *>      *attrRunRanges;
-@property (nonatomic, strong) NSArray<NSDictionary *> *attrRunAttrs;
+// Union of decoration change ranges that have been recorded since the last
+// -applyDecorationHighlights flush.  _hasPendingDirty tracks whether any dirty
+// range has accumulated; _pendingDirtyStart/_pendingDirtyEnd carry the bounds.
+@property (nonatomic)         BOOL                      hasPendingDirty;
+@property (nonatomic)         NSInteger                 pendingDirtyStart;
+@property (nonatomic)         NSInteger                 pendingDirtyEnd;
 @end
 
 @implementation UDTextModelTextStorage
@@ -55,16 +111,22 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     _highlighter            = [[UDTreeSitterHighlighter alloc] initWithTextModel:_textModel];
     _suppressModelNotification = NO;
     _lastKnownLength        = initialText.length;
-    _attrRunRanges          = @[];
-    _attrRunAttrs           = @[];
-
-    [self _rebuildAttributeRuns];
+    _hasPendingDirty        = NO;
+    _pendingDirtyStart      = 0;
+    _pendingDirtyEnd        = 0;
 
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(_modelDidChange:)
                name:UDTextModelDidChangeNotification
              object:_textModel];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_decorationsDidChange:)
+               name:UDTextModelDecorationsDidChangeNotification
+             object:_textModel];
+
     return self;
 }
 
@@ -82,6 +144,32 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 
 - (TreeSitterTheme *)theme {
     return _highlighter.theme;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Decoration change notification
+// ---------------------------------------------------------------------------
+
+/// Called synchronously from UDTextModel.deltaDecorations:newDecorations:owner: with
+/// the union character range of all added/removed decorations.  We simply accumulate
+/// the dirty range here; the actual NSTextStorage notification is deferred to the
+/// next -applyDecorationHighlights call so that batched decoration updates produce
+/// a single layout pass rather than one per deltaDecorations: call.
+- (void)_decorationsDidChange:(NSNotification *)note {
+    NSValue *rv = note.userInfo[@"range"];
+    if (!rv) return;
+    NSRange dirty = [rv rangeValue];
+    if (dirty.length == 0) return;
+    NSInteger s = (NSInteger)dirty.location;
+    NSInteger e = (NSInteger)NSMaxRange(dirty);
+    if (!_hasPendingDirty) {
+        _hasPendingDirty   = YES;
+        _pendingDirtyStart = s;
+        _pendingDirtyEnd   = e;
+    } else {
+        _pendingDirtyStart = MIN(_pendingDirtyStart, s);
+        _pendingDirtyEnd   = MAX(_pendingDirtyEnd,   e);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,30 +204,83 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     return _modelString;
 }
 
+/// Compute attributes for the character at @c location on-the-fly by querying
+/// the interval tree for decoration nodes that cover this position.
+///
+/// This replaces the former precomputed _attrRunRanges/_attrRunAttrs cache.
+/// Work is proportional to the number of decorations covering the queried
+/// range, not the total document size.
 - (NSDictionary<NSAttributedStringKey, id> *)attributesAtIndex:(NSUInteger)location
                                                 effectiveRange:(NSRangePointer)outRange {
-    NSUInteger len = _lastKnownLength;
-    if (len == 0 || location >= len) {
+    NSUInteger docLen = _lastKnownLength;
+    if (docLen == 0 || location >= docLen) {
         if (outRange) *outRange = NSMakeRange(location, 0);
         return BaseAttributes();
     }
 
-    NSUInteger lo = 0, hi = _attrRunRanges.count;
-    while (lo < hi) {
-        NSUInteger mid = (lo + hi) / 2;
-        NSRange r = [_attrRunRanges[mid] rangeValue];
-        if (location < r.location) {
-            hi = mid;
-        } else if (location >= NSMaxRange(r)) {
-            lo = mid + 1;
-        } else {
-            if (outRange) *outRange = r;
-            return _attrRunAttrs[mid];
+    // Query interval nodes that cover this single character position.
+    // nodesInRange(s, e) returns nodes where start < e AND end > s, so
+    // with e = location+1 we get exactly start <= location AND end > location.
+    NSArray<UDIntervalNode *> *covering =
+        [_textModel decorationNodesInOffsetRange:(NSInteger)location
+                                             end:(NSInteger)location + 1];
+
+    // Merge attributes in layer order (lower layer first; higher layer overrides).
+    NSMutableDictionary *merged = [NSMutableDictionary dictionaryWithDictionary:BaseAttributes()];
+    NSUInteger effStart = 0;
+    NSUInteger effEnd   = docLen;
+
+    for (NSInteger layer = 0; layer <= 4; layer++) {
+        for (UDIntervalNode *node in covering) {
+            if (LayerForOwner(node.owner) != layer) continue;
+            // node.start <= location AND node.end > location is guaranteed by
+            // nodesInRange(location, location+1); no additional guard needed.
+
+            // Tighten effective range to the intersection of all covering spans.
+            effStart = MAX(effStart, (NSUInteger)MAX(0LL, node.start));
+            effEnd   = MIN(effEnd,   (NSUInteger)MAX(0LL, node.end));
+
+            NSDictionary *attrs = [self _attrsForNode:node];
+            if (attrs) [merged addEntriesFromDictionary:attrs];
         }
     }
 
-    if (outRange) *outRange = NSMakeRange(location, len - location);
-    return BaseAttributes();
+    if (outRange) {
+        // Narrow effEnd: find the nearest decoration that STARTS after location
+        // (within our current effEnd) — it marks a future attribute boundary.
+        // nodesInRange returns nodes in insertion order (sorted by start per
+        // UDIntervalTree.insert), so we scan all and take the minimum start > location.
+        if (effEnd > location + 1) {
+            NSArray<UDIntervalNode *> *rightBoundary =
+                [_textModel decorationNodesInOffsetRange:(NSInteger)location + 1
+                                                     end:(NSInteger)effEnd];
+            for (UDIntervalNode *node in rightBoundary) {
+                if (node.start > (NSInteger)location) {
+                    NSUInteger ns = (NSUInteger)MAX(0LL, node.start);
+                    if (ns < effEnd) effEnd = ns;
+                }
+            }
+        }
+
+        // Narrow effStart: find the nearest decoration that ENDS at or before
+        // location (within our current effStart) — it marks a past boundary.
+        if (effStart < location) {
+            NSArray<UDIntervalNode *> *leftBoundary =
+                [_textModel decorationNodesInOffsetRange:(NSInteger)effStart
+                                                     end:(NSInteger)location + 1];
+            for (UDIntervalNode *node in leftBoundary) {
+                if (node.end > (NSInteger)effStart && node.end <= (NSInteger)location) {
+                    NSUInteger ne = (NSUInteger)MAX(0LL, node.end);
+                    if (ne > effStart) effStart = ne;
+                }
+            }
+        }
+
+        if (effEnd <= effStart) effEnd = MIN(effStart + 1, docLen);
+        *outRange = NSMakeRange(effStart, effEnd - effStart);
+    }
+
+    return [merged copy];
 }
 
 - (void)replaceCharactersInRange:(NSRange)range withString:(NSString *)str {
@@ -209,166 +350,79 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Decoration highlights
+// MARK: - Decoration highlight signalling
 // ---------------------------------------------------------------------------
 
 - (void)applyDecorationHighlights {
-    [self _rebuildAttributeRuns];
+    // Flush any accumulated dirty ranges recorded by _decorationsDidChange:.
+    // If no decoration changes have been recorded since the last flush, this
+    // is a no-op (avoids forcing a full document re-layout unnecessarily).
+    if (!_hasPendingDirty) return;
 
-    NSUInteger len = _lastKnownLength;
+    NSUInteger docLen = _lastKnownLength;
+    if (docLen == 0) { [self _resetPendingDirty]; return; }
+
+    NSUInteger ds = (NSUInteger)MAX(0LL, _pendingDirtyStart);
+    NSUInteger de = (NSUInteger)MIN((NSInteger)docLen, _pendingDirtyEnd);
+    [self _resetPendingDirty];
+
+    if (de <= ds) return;
+
+    [self beginEditing];
+    [self edited:NSTextStorageEditedAttributes
+           range:NSMakeRange(ds, de - ds)
+ changeInLength:0];
+    [self endEditing];
+}
+
+- (void)applyDecorationHighlightsInRange:(NSRange)range {
+    NSUInteger docLen = _lastKnownLength;
+    if (docLen == 0 || range.length == 0) return;
+    NSUInteger loc = MIN(range.location, docLen);
+    NSUInteger len = MIN(range.length, docLen - loc);
     if (len == 0) return;
 
     [self beginEditing];
     [self edited:NSTextStorageEditedAttributes
-           range:NSMakeRange(0, len)
+           range:NSMakeRange(loc, len)
  changeInLength:0];
     [self endEditing];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Attribute run cache
+// MARK: - Attribute helpers
 // ---------------------------------------------------------------------------
 
-- (void)_rebuildAttributeRuns {
-    NSUInteger docLen = _lastKnownLength;
-    if (docLen == 0) {
-        _attrRunRanges = @[];
-        _attrRunAttrs  = @[];
-        return;
+/// Map a decoration interval node to its visual attribute dict based on owner.
+- (nullable NSDictionary *)_attrsForNode:(UDIntervalNode *)node {
+    NSString *owner = node.owner;
+    if ([owner isEqualToString:UDHighlightDecorationOwner]) {
+        TreeSitterTheme *theme = _highlighter.theme;
+        if (!theme || !node.options.className) return nil;
+        return [theme styleAttributesForName:node.options.className];
     }
-
-    NSDictionary *base = BaseAttributes();
-    NSMutableArray *tuples = [NSMutableArray array];
-
-    // Layer 0: syntax highlights (foreground) from the highlighter's theme.
-    TreeSitterTheme *theme = _highlighter.theme;
-    if (theme) {
-        for (NSString *did in [_textModel decorationsForOwner:UDHighlightDecorationOwner]) {
-            UDRange r = [_textModel rangeForDecoration:did];
-            if (r.startLineNumber == 0) continue;
-            UDDecorationOptions *opts = [_textModel optionsForDecoration:did];
-            if (!opts.className) continue;
-            NSDictionary *ta = [theme styleAttributesForName:opts.className];
-            if (!ta) continue;
-            NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
-            NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
-            if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
-            [tuples addObject:@{ @"s":@(s), @"e":@(e), @"a":ta, @"l":@0 }];
-        }
+    if ([owner isEqualToString:UDFindDecorationOwner]) {
+        return @{ NSBackgroundColorAttributeName: [NSColor systemYellowColor] };
     }
-
-    // Layer 1: find-match highlights (yellow background).
-    NSColor *findBG = [NSColor systemYellowColor];
-    for (NSString *did in [_textModel decorationsForOwner:UDFindDecorationOwner]) {
-        UDRange r = [_textModel rangeForDecoration:did];
-        if (r.startLineNumber == 0) continue;
-        NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
-        NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
-        if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
-        [tuples addObject:@{ @"s":@(s), @"e":@(e),
-                             @"a":@{ NSBackgroundColorAttributeName: findBG },
-                             @"l":@1 }];
+    if ([owner isEqualToString:UDBracketMatchDecorationOwner]) {
+        return @{ NSBackgroundColorAttributeName: BracketMatchBGColor() };
     }
-
-    // Layer 2: bracket-match highlights (semi-transparent blue background).
-    NSColor *bracketBG = [NSColor colorWithRed:0.38 green:0.60 blue:0.90 alpha:0.35];
-    for (NSString *did in [_textModel decorationsForOwner:UDBracketMatchDecorationOwner]) {
-        UDRange r = [_textModel rangeForDecoration:did];
-        if (r.startLineNumber == 0) continue;
-        NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
-        NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
-        if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
-        [tuples addObject:@{ @"s":@(s), @"e":@(e),
-                             @"a":@{ NSBackgroundColorAttributeName: bracketBG },
-                             @"l":@2 }];
+    if ([owner isEqualToString:UDFoldDecorationOwner]) {
+        return FoldAttributes();
     }
-
-    // Layer 3: fold regions (visually collapsed: tiny font, 1-pt line height, clear colour).
-    // Font size of 0.1 pt makes glyph metrics negligible; combined with a capped
-    // paragraph line height this visually collapses each folded line to ~1 pt.
-    static const CGFloat kFoldedTextFontSize = 0.1;
-    static NSMutableParagraphStyle *sFoldStyle = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        sFoldStyle = [[NSMutableParagraphStyle alloc] init];
-        sFoldStyle.minimumLineHeight = 1.0;
-        sFoldStyle.maximumLineHeight = 1.0;
-        sFoldStyle.lineSpacing = 0.0;
-        sFoldStyle.paragraphSpacing = 0.0;
-        sFoldStyle.paragraphSpacingBefore = 0.0;
-    });
-    NSDictionary *foldAttrs = @{
-        NSForegroundColorAttributeName: [NSColor clearColor],
-        NSFontAttributeName:            [NSFont systemFontOfSize:kFoldedTextFontSize],
-        NSParagraphStyleAttributeName:  sFoldStyle,
-    };
-    for (NSString *did in [_textModel decorationsForOwner:UDFoldDecorationOwner]) {
-        UDRange r = [_textModel rangeForDecoration:did];
-        if (r.startLineNumber == 0) continue;
-        NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
-        NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
-        if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
-        [tuples addObject:@{ @"s":@(s), @"e":@(e), @"a":foldAttrs, @"l":@3 }];
+    if ([owner isEqualToString:UDMissingNodeDecorationOwner]) {
+        return @{
+            NSBackgroundColorAttributeName: MissingNodeBGColor(),
+            NSForegroundColorAttributeName: [NSColor whiteColor],
+        };
     }
+    return nil;
+}
 
-    // Layer 4: MISSING-node pills (bright orange background, white text).
-    // Marks the character adjacent to a zero-width MISSING token to show the
-    // user that the parser expected something at this position.
-    NSColor *missingBG = [NSColor colorWithRed:0.95 green:0.42 blue:0.13 alpha:0.85];
-    NSDictionary *missingAttrs = @{
-        NSBackgroundColorAttributeName: missingBG,
-        NSForegroundColorAttributeName: [NSColor whiteColor],
-    };
-    for (NSString *did in [_textModel decorationsForOwner:UDMissingNodeDecorationOwner]) {
-        UDRange r = [_textModel rangeForDecoration:did];
-        if (r.startLineNumber == 0) continue;
-        NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
-        NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
-        if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
-        [tuples addObject:@{ @"s":@(s), @"e":@(e), @"a":missingAttrs, @"l":@4 }];
-    }
-
-    // Collect boundary offsets and build the partition.
-    NSMutableSet<NSNumber *> *boundSet = [NSMutableSet set];
-    [boundSet addObject:@0];
-    [boundSet addObject:@(docLen)];
-    for (NSDictionary *t in tuples) {
-        [boundSet addObject:t[@"s"]];
-        [boundSet addObject:t[@"e"]];
-    }
-    NSArray<NSNumber *> *bounds =
-        [[boundSet allObjects] sortedArrayUsingSelector:@selector(compare:)];
-
-    NSMutableArray<NSValue *>      *rrs = [NSMutableArray array];
-    NSMutableArray<NSDictionary *> *ras = [NSMutableArray array];
-
-    for (NSUInteger i = 0; i + 1 < bounds.count; i++) {
-        NSUInteger segS = [bounds[i]     unsignedIntegerValue];
-        NSUInteger segE = [bounds[i + 1] unsignedIntegerValue];
-        if (segS >= segE) continue;
-
-        NSMutableDictionary *merged = [NSMutableDictionary dictionaryWithDictionary:base];
-        for (NSInteger layer = 0; layer <= 4; layer++) {
-            for (NSDictionary *t in tuples) {
-                if ([t[@"l"] integerValue] != layer) continue;
-                NSUInteger ts_ = [t[@"s"] unsignedIntegerValue];
-                NSUInteger te_ = [t[@"e"] unsignedIntegerValue];
-                if (ts_ <= segS && te_ >= segE) {
-                    [merged addEntriesFromDictionary:t[@"a"]];
-                }
-            }
-        }
-        [rrs addObject:[NSValue valueWithRange:NSMakeRange(segS, segE - segS)]];
-        [ras addObject:[merged copy]];
-    }
-
-    if (rrs.count == 0) {
-        [rrs addObject:[NSValue valueWithRange:NSMakeRange(0, docLen)]];
-        [ras addObject:base];
-    }
-
-    _attrRunRanges = [rrs copy];
-    _attrRunAttrs  = [ras copy];
+- (void)_resetPendingDirty {
+    _hasPendingDirty   = NO;
+    _pendingDirtyStart = 0;
+    _pendingDirtyEnd   = 0;
 }
 
 @end

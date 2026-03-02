@@ -17,7 +17,7 @@
 
 static CGFloat const kSearchBarHeight  = 28.0;
 static CGFloat const kFindGutterWidth  = 12.0;
-static CGFloat const kLineGutterWidth  = UDLineNumberGutterWidth;
+static CGFloat const kLineGutterWidth  = 48.0; // UDLineNumberGutterWidth
 
 // ---------------------------------------------------------------------------
 // MARK: - Initial demo text

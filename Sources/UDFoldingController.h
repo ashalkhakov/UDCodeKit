@@ -26,13 +26,13 @@ NS_ASSUME_NONNULL_BEGIN
 ///        defaults: @["object", "array"].
 - (instancetype)initWithTextView:(NSTextView *)textView
                      textStorage:(UDTextModelTextStorage *)textStorage
-                      highlighter:(UDTreeSitterHighlighter *)highlighter
+                     highlighter:(UDTreeSitterHighlighter *)highlighter
                foldableNodeTypes:(nullable NSArray<NSString *> *)foldableNodeTypes;
 
 /// Convenience initialiser using the built-in default foldable node types.
 - (instancetype)initWithTextView:(NSTextView *)textView
                      textStorage:(UDTextModelTextStorage *)textStorage
-                      highlighter:(UDTreeSitterHighlighter *)highlighter;
+                     highlighter:(UDTreeSitterHighlighter *)highlighter;
 
 /// Optional reference to the line-number gutter; updated automatically when
 /// fold state or foldable regions change.

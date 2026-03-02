@@ -11,6 +11,8 @@
 		CE2635DE2F5497A90008B1BC /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE89CA1E2F54B6F300327916 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; };
 		CE89CA1F2F54B6F300327916 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B39A3C4D5E6F7A8B9C0D1E2F /* TreeSitter in Frameworks */ = {isa = PBXBuildFile; productRef = B29A3C4D5E6F7A8B9C0D1E2F /* TreeSitter */; };
+		C39A3C4D5E6F7A8B9C0D1E2F /* TreeSitterJSON in Frameworks */ = {isa = PBXBuildFile; productRef = C29A3C4D5E6F7A8B9C0D1E2F /* TreeSitterJSON */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +76,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				CE89CA1E2F54B6F300327916 /* UDPieceTable.framework in Frameworks */,
+				B39A3C4D5E6F7A8B9C0D1E2F /* TreeSitter in Frameworks */,
+				C39A3C4D5E6F7A8B9C0D1E2F /* TreeSitterJSON in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,6 +149,8 @@
 			);
 			name = TestApp;
 			packageProductDependencies = (
+				B29A3C4D5E6F7A8B9C0D1E2F /* TreeSitter */,
+				C29A3C4D5E6F7A8B9C0D1E2F /* TreeSitterJSON */,
 			);
 			productName = UDPieceTable;
 			productReference = A46FAAAB2F5441C80079BB37 /* TestApp.app */;
@@ -229,6 +235,10 @@
 			);
 			mainGroup = A46FAAA22F5441C80079BB37;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B19A3C4D5E6F7A8B9C0D1E2F /* XCRemoteSwiftPackageReference "tree-sitter" */,
+				C19A3C4D5E6F7A8B9C0D1E2F /* XCRemoteSwiftPackageReference "tree-sitter-json" */,
+			);
 			productRefGroup = A46FAAAC2F5441C80079BB37 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -577,6 +587,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B19A3C4D5E6F7A8B9C0D1E2F /* XCRemoteSwiftPackageReference "tree-sitter" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tree-sitter/tree-sitter";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.24.0;
+			};
+		};
+		C19A3C4D5E6F7A8B9C0D1E2F /* XCRemoteSwiftPackageReference "tree-sitter-json" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tree-sitter/tree-sitter-json";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.24.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B29A3C4D5E6F7A8B9C0D1E2F /* TreeSitter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B19A3C4D5E6F7A8B9C0D1E2F /* XCRemoteSwiftPackageReference "tree-sitter" */;
+			productName = TreeSitter;
+		};
+		C29A3C4D5E6F7A8B9C0D1E2F /* TreeSitterJSON */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C19A3C4D5E6F7A8B9C0D1E2F /* XCRemoteSwiftPackageReference "tree-sitter-json" */;
+			productName = TreeSitterJSON;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A46FAAA32F5441C80079BB37 /* Project object */;
 }

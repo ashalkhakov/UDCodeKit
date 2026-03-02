@@ -7,6 +7,7 @@
 
 #import <UDPieceTable/UDPieceTree.h>
 #import "UDPieceTreeNode.h"
+#import "UDIntervalTree.h"
 
 @interface UDPieceTree ()
 @property (nonatomic, strong) UDPieceTreeNode *root;

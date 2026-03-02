@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CE2635DD2F5497A90008B1BC /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; };
-		CE2635DE2F5497A90008B1BC /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		CE89CA1E2F54B6F300327916 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; };
-		CE89CA1F2F54B6F300327916 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE2635DD2F5497A90008B1BC /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		CE2635DE2F5497A90008B1BC /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE89CA1E2F54B6F300327916 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		D19A3C4D5E6F7A8B9C0D1E03 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */; };
+		D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,7 +39,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				CE2635DE2F5497A90008B1BC /* UDPieceTable.framework in Embed Frameworks */,
+				CE2635DE2F5497A90008B1BC /* (null) in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -48,7 +50,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				CE89CA1F2F54B6F300327916 /* UDPieceTable.framework in Embed Frameworks */,
+				CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -59,7 +61,8 @@
 		A46FAAAB2F5441C80079BB37 /* TestApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAABC2F5441CB0079BB37 /* TestAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAAC62F5441CB0079BB37 /* TestAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "tree-sitter/src/lib.c"; sourceTree = "<group>"; };
+		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -73,7 +76,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE89CA1E2F54B6F300327916 /* UDPieceTable.framework in Frameworks */,
+				CE89CA1E2F54B6F300327916 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,7 +91,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE2635DD2F5497A90008B1BC /* UDPieceTable.framework in Frameworks */,
+				CE2635DD2F5497A90008B1BC /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -102,6 +105,7 @@
 				A46FAABF2F5441CB0079BB37 /* Tests */,
 				A46FAAC92F5441CB0079BB37 /* UITests */,
 				CE2635DB2F5497A90008B1BC /* Frameworks */,
+				D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */,
 				A46FAAAC2F5441C80079BB37 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -119,9 +123,17 @@
 		CE2635DB2F5497A90008B1BC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */ = {
+			isa = PBXGroup;
+			children = (
+				D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */,
+				D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */,
+			);
+			name = "tree-sitter";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -229,6 +241,8 @@
 			);
 			mainGroup = A46FAAA22F5441C80079BB37;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			productRefGroup = A46FAAAC2F5441C80079BB37 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -269,6 +283,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D19A3C4D5E6F7A8B9C0D1E03 /* lib.c in Sources */,
+				D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -428,6 +444,11 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/tree-sitter-json/src",
+				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -455,6 +476,11 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/tree-sitter-json/src",
+				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainNibFile = MainMenu;
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;

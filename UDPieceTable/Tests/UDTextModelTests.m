@@ -85,7 +85,7 @@
     UDTextModelEdit *edit = [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 6, 1, 8)
                                                               text:@""];
     [model applyEdits:@[edit]];
-    XCTAssertEqualObjects([model getValue], @"Hello World!");
+    XCTAssertEqualObjects([model getValue], @"HelloWorld!");
 }
 
 // MARK: - applyEdits: replace

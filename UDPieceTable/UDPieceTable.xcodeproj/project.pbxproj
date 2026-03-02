@@ -29,6 +29,7 @@
 		CE8CFD5B2F5492DD0011C202 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			publicHeaders = (
+				UDAnnotatedString.h,
 				UDPieceTable.h,
 				UDPieceTree.h,
 				UDStringBuffer.h,

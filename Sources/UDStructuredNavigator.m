@@ -49,8 +49,14 @@ static inline TSNode TSNullNode(void) {
 - (void)moveToParent {
     TSNode current = [self _nodeForCurrentSelection];
     if (ts_node_is_null(current)) return;
+    // Walk up through any anonymous CST intermediaries to reach the nearest
+    // named ancestor.  ts_node_parent() returns the immediate CST parent which
+    // may itself be anonymous (e.g. a bracketing group or punctuation wrapper).
     TSNode parent = ts_node_parent(current);
-    if (ts_node_is_null(parent)) return;
+    while (!ts_node_is_null(parent) && !ts_node_is_named(parent)) {
+        parent = ts_node_parent(parent);
+    }
+    if (ts_node_is_null(parent)) return; // already at root — stay put
     [self _selectNode:parent];
 }
 
@@ -84,9 +90,16 @@ static inline TSNode TSNullNode(void) {
 // MARK: - Node ↔ selection mapping
 // ---------------------------------------------------------------------------
 
-/// Returns the deepest *named* tree-sitter node that fully covers the current
-/// NSTextView selection.  Returns a null TSNode if no tree is available or the
-/// document is empty.
+/// Returns the deepest named AST node that contains the current cursor position
+/// or selection — this is the "hole" in Sufrin's modeless structure editing model.
+///
+/// The cursor/selection is treated as a character-range query [start, end).  When
+/// the cursor is a bare insertion point (zero-length selection) start == end; in
+/// that case we extend the query by one UTF-16 code unit so that
+/// ts_node_named_descendant_for_byte_range receives a non-empty range and returns
+/// the deepest node that properly contains the cursor, rather than the root.
+///
+/// Returns a null TSNode when no parse tree is available or the document is empty.
 - (TSNode)_nodeForCurrentSelection {
     const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
     if (!tree) return TSNullNode();
@@ -101,10 +114,18 @@ static inline TSNode TSNullNode(void) {
 
     uint32_t startByte = byteFromChar(selStart);
     uint32_t endByte   = byteFromChar(selEnd);
+    // For a bare cursor (zero-length selection) startByte == endByte.
+    // ts_node_named_descendant_for_byte_range with an empty range returns the
+    // root; extend by one code unit to get the correct innermost node.
+    // Clamp to the actual document byte length so we never exceed the tree's
+    // valid range (tree-sitter uses UTF-16: 2 bytes per BMP code unit).
+    if (endByte == startByte) {
+        uint32_t docByteLen = byteFromChar((NSUInteger)docLen);
+        endByte = MIN(startByte + 2, docByteLen);
+        if (endByte == startByte) endByte = docByteLen; // cursor is at doc end
+    }
 
     TSNode root = ts_tree_root_node((TSTree *)tree);
-    // ts_node_named_descendant_for_byte_range returns the deepest NAMED node
-    // whose range contains [startByte, endByte).
     TSNode node = ts_node_named_descendant_for_byte_range(root, startByte, endByte);
     return node;
 }

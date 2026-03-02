@@ -1,20 +1,44 @@
 /*---------------------------------------------------------------------------------------------
  *  UDStructuredNavigator.h
  *
- *  Provides tree-structured navigation through the current tree-sitter parse tree.
- *  Each navigation step moves the NSTextView selection to cover the corresponding
- *  AST node's character range, mirroring the "modeless structured navigation"
- *  concept described in the ATStead project.
+ *  Provides tree-structured navigation through the current tree-sitter parse tree,
+ *  following the "modeless structure editing" model described by Bernard Sufrin
+ *  (Oxford, ATStead project).
  *
- *  Key bindings (wired from AppDelegate via a local NSEvent monitor):
- *    Option-Up    → move to parent node
- *    Option-Down  → move to first named child
- *    Option-Left  → move to previous named sibling
- *    Option-Right → move to next named sibling
+ *  HOLE
+ *  ----
+ *  The "hole" (focus) is always derived from the NSTextView's current cursor position
+ *  or selection: the deepest named AST node that fully contains the cursor/selection
+ *  is treated as the current node for each navigation step.  No separate navigation
+ *  state is maintained — the text cursor IS the hole.
  *
- *  The "current node" is always derived from the NSTextView's current selection:
- *  the deepest named node that fully contains the selection is used as the
- *  starting point for each navigation step.
+ *  NAVIGATION OPERATIONS (Option + arrow key)
+ *  ------------------------------------------
+ *    Option-Up    (Up)    Move to the nearest named parent.
+ *                         Stays put when already at the root (no parent).
+ *
+ *    Option-Down  (Down)  Move to the first named child.
+ *                         Stays put when the node has no named children (leaf).
+ *
+ *    Option-Left  (Left)  Move to the previous named sibling.
+ *                         Stays put when already the leftmost child (no previous
+ *                         named sibling), or when there is no parent.
+ *
+ *    Option-Right (Right) Move to the next named sibling.
+ *                         Stays put when already the rightmost child (no next
+ *                         named sibling), or when there is no parent.
+ *
+ *  IDENTITIES (Sufrin §2)
+ *  ----------------------
+ *    down, then up  = identity   — when the starting node is not a leaf
+ *                                  (going to first child and back always returns
+ *                                   to the same parent)
+ *
+ *    up, then down  = identity   — when the starting node is NOT the root AND
+ *                                  IS the leftmost child of its parent
+ *                                  (going to parent then down to first child
+ *                                   lands back at the same node iff it was
+ *                                   already the first child)
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -30,16 +54,20 @@ NS_ASSUME_NONNULL_BEGIN
                       highlighter:(UDTreeSitterHighlighter *)highlighter
                         textModel:(UDTextModel *)textModel;
 
-/// Move to the parent of the currently selected node.
+/// Up: move to the nearest named parent.
+/// Stays put when already at the root.
 - (void)moveToParent;
 
-/// Move to the first *named* child of the currently selected node.
+/// Down: move to the first named child.
+/// Stays put when the node has no named children.
 - (void)moveToFirstChild;
 
-/// Move to the previous *named* sibling of the currently selected node.
+/// Left: move to the previous named sibling.
+/// Stays put when already the leftmost child.
 - (void)moveToPrevSibling;
 
-/// Move to the next *named* sibling of the currently selected node.
+/// Right: move to the next named sibling.
+/// Stays put when already the rightmost child.
 - (void)moveToNextSibling;
 
 @end

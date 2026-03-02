@@ -21,10 +21,12 @@ static CGFloat const kLineGutterWidth  = 48.0; // UDLineNumberGutterWidth
 
 // macOS virtual key codes for arrow keys (same values as <Carbon/Carbon.h>
 // kVK_UpArrow etc., duplicated here to avoid importing Carbon).
-static const unsigned short kKeyCodeUpArrow    = 126;
-static const unsigned short kKeyCodeDownArrow  = 125;
-static const unsigned short kKeyCodeLeftArrow  = 123;
-static const unsigned short kKeyCodeRightArrow = 124;
+static const unsigned short kKeyCodeUpArrow      = 126;
+static const unsigned short kKeyCodeDownArrow    = 125;
+static const unsigned short kKeyCodeLeftArrow    = 123;
+static const unsigned short kKeyCodeRightArrow   = 124;
+static const unsigned short kKeyCodeReturn       = 36;  // main-keyboard Return
+static const unsigned short kKeyCodeKeypadReturn = 76;  // numeric-keypad Enter
 
 // ---------------------------------------------------------------------------
 // MARK: - Initial demo text
@@ -58,6 +60,9 @@ static NSString * const kJSONHighlightsQuery =
     @"(escape_sequence) @escape\n"
     @"(comment) @comment\n"
     @"(ERROR) @error";
+
+// indents.scm for JSON: object and array nodes indent their contents.
+static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
 // ---------------------------------------------------------------------------
 
@@ -223,8 +228,16 @@ static NSString * const kJSONHighlightsQuery =
                                              highlighter:_textStorage.highlighter
                                                textModel:_textStorage.textModel];
 
-    // --- Option-arrow key monitor for structured navigation ---
-    // Returns nil to consume the event (preventing NSTextView default word-move).
+    // --- Auto-indenter ---
+    _autoIndenter =
+        [[UDAutoIndenter alloc] initWithTextView:self.textView
+                                      highlighter:_textStorage.highlighter
+                                        textModel:_textStorage.textModel];
+    [_autoIndenter configureWithLanguageFunc:(LanguageFunc)tree_sitter_json
+                                indentsQuery:kJSONIndentsQuery];
+
+    // --- Key monitor: Option-arrows (structured navigation) + Return (auto-indent) ---
+    // Returns nil to consume the event; returns the original event to pass it through.
     __weak typeof(self) weakSelf = self;
     [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
                                           handler:^NSEvent *(NSEvent *event) {
@@ -232,8 +245,23 @@ static NSString * const kJSONHighlightsQuery =
         if (!strongSelf) return event;
         // Only intercept when the text view is first responder.
         if (strongSelf.textView.window.firstResponder != strongSelf.textView) return event;
-        // Only intercept Option-arrow combinations.
-        if (!(event.modifierFlags & NSEventModifierFlagOption)) return event;
+
+        // Return / Enter: auto-indent — only for unmodified Return (no Cmd/Ctrl/Option/Shift).
+        NSEventModifierFlags relevantMods =
+            event.modifierFlags & (NSEventModifierFlagCommand  |
+                                   NSEventModifierFlagControl  |
+                                   NSEventModifierFlagOption   |
+                                   NSEventModifierFlagShift);
+        if (relevantMods == 0) {
+            switch (event.keyCode) {
+                case kKeyCodeReturn:
+                case kKeyCodeKeypadReturn:
+                    if ([strongSelf->_autoIndenter handleReturnKey]) return nil;
+                    return event;
+            }
+        }
+
+        // Option-arrows: structured navigation.
         switch (event.keyCode) {
             case kKeyCodeUpArrow:    [strongSelf->_structuredNavigator moveToParent];       return nil;
             case kKeyCodeDownArrow:  [strongSelf->_structuredNavigator moveToFirstChild];   return nil;

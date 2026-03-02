@@ -12,6 +12,7 @@
 #import "UDBracketMatchHighlighter.h"
 #import "UDMissingNodeHighlighter.h"
 #import "UDStructuredNavigator.h"
+#import "UDAutoIndenter.h"
 
 @interface AppDelegate : NSObject <NSApplicationDelegate, NSSearchFieldDelegate,
                                    UDLineNumberGutterViewDelegate>
@@ -38,6 +39,9 @@
 
 /// Structured (tree) navigator.
 @property (nonatomic, strong) UDStructuredNavigator *structuredNavigator;
+
+/// Tree-sitter-driven auto-indenter.
+@property (nonatomic, strong) UDAutoIndenter *autoIndenter;
 
 @end
 

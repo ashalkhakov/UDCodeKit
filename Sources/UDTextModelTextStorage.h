@@ -2,47 +2,38 @@
  *  UDTextModelTextStorage.h — NSTextStorage backed by UDTextModel.
  *
  *  Edits flow through UDTextModel (enabling undo/redo and interval-tree
- *  decoration tracking).  Search-match highlights are applied as
- *  NSBackgroundColorAttributeName attributes derived from the model's "find" owner
- *  decorations.  Tree-sitter syntax highlights are stored as decorations under the
- *  "highlight" owner and rendered as foreground-color attributes.
+ *  decoration tracking).  Attributes are computed on-the-fly from decorations:
+ *  - "highlight" owner  → syntax-highlight foreground colours (via tree-sitter)
+ *  - "find" owner       → search-match yellow background
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
 #import <UDPieceTable/UDPieceTable.h>
-#import "TreeSitterTheme.h"
+#import "UDTreeSitterHighlighter.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Owner string used when registering search-match decorations via deltaDecorations.
+/// Owner string for search-match decorations registered via deltaDecorations.
 extern NSString * const UDFindDecorationOwner;
-
-/// Owner string used when registering tree-sitter syntax-highlight decorations.
-extern NSString * const UDHighlightDecorationOwner;
-
-/// C function pointer type that returns a TSLanguage — matches the signature of all
-/// generated tree-sitter language functions (e.g. tree_sitter_json).
-typedef const void *(*LanguageFunc)(void);
 
 @interface UDTextModelTextStorage : NSTextStorage
 
-/// The underlying text model.  Use this to run searches, manipulate decorations, etc.
+/// The underlying text model.  Use for searches, decorations, undo/redo.
 @property (nonatomic, readonly, strong) UDTextModel *textModel;
 
-/// The theme used to map Tree-sitter capture names to text attributes.
-/// Assign at any time; the next parse will use it.
+/// Theme used to map Tree-sitter capture names to text attributes.
 @property (nonatomic, strong, nullable) TreeSitterTheme *theme;
 
 /// Creates a new text storage initialised with the given text.
 - (instancetype)initWithText:(NSString *)initialText;
 
-/// Set the Tree-sitter language function and highlights query (highlights.scm content).
-/// Passing NULL for languageFunc disables syntax highlighting.
+/// Configure tree-sitter syntax highlighting.
+/// Delegates to the internal UDTreeSitterHighlighter.
 - (void)setLanguageFunc:(nullable LanguageFunc)languageFunc
     withHighlightsQuery:(NSString *)queryText;
 
-/// Recomputes all "find" and "highlight" decoration attributes from the model and
-/// schedules a layout pass.  Call this after a batch of deltaDecorations changes.
+/// Rebuild attribute runs from decorations and notify layout managers.
+/// Call after any batch of deltaDecorations changes.
 - (void)applyDecorationHighlights;
 
 @end

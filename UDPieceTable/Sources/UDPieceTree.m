@@ -865,6 +865,7 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
             if (cnt == startNode.piece.length) {
                 UDPieceTreeNode *next = [startNode next];
                 RBDelete(self, startNode);
+                [self validateCacheWithOffset:offset];
                 [self validateCRLFWithPrevNode:next];
                 [self computeBufferMetadata];
                 return;

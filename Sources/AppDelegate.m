@@ -10,7 +10,7 @@
 #import "AppDelegate.h"
 #import "TreeSitterTextStorage.h"
 #import "TreeSitterTheme.h"
-#import <TreeSitterJSON/json.h>
+#import "tree_sitter_json.h"
 
 // ---------------------------------------------------------------------------
 // Initial demo text — valid JSON so every token is highlighted.

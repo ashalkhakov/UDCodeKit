@@ -73,11 +73,21 @@ static NSString * const kInitialText =
     // 3. Share the window's undo manager so Cmd+Z undoes model edits.
     self.textStorage.textModel.undoManager = self.textView.window.undoManager;
 
-    // 4. Build the search bar and gutter programmatically.
+    // 4. Re-run the active search whenever the document changes so that newly
+    //    typed occurrences get highlighted immediately (VS Code behaviour).
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_modelTextDidChange:)
+               name:UDTextModelDidChangeNotification
+             object:self.textStorage.textModel];
+
+    // 5. Build the search bar and gutter programmatically.
     [self _buildSearchBarAndGutter];
 }
 
-- (void)applicationWillTerminate:(NSNotification *)aNotification {}
+- (void)applicationWillTerminate:(NSNotification *)aNotification {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
 
 - (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app {
     return YES;
@@ -144,6 +154,62 @@ static NSString * const kInitialText =
     nextBtn.frame             = NSMakeRect(sv.size.width - 82.0, 4, 76, 24);
     nextBtn.autoresizingMask  = NSViewMinXMargin;
     [bar addSubview:nextBtn];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Document-change observer (re-run active search after each edit)
+// ---------------------------------------------------------------------------
+
+- (void)_modelTextDidChange:(NSNotification *)note {
+    NSString *query = self.searchField.stringValue;
+    if (query.length == 0) { return; }
+
+    // Defer to the next run-loop turn so the text storage's beginEditing /
+    // endEditing cycle is fully complete before we modify it again.
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [weakSelf _refreshSearchHighlightsForQuery:query];
+    });
+}
+
+/// Re-runs findMatches: and updates decorations/gutter without scrolling.
+/// Used when the document content changes while a query is already active.
+- (void)_refreshSearchHighlightsForQuery:(NSString *)query {
+    UDTextModel *model = self.textStorage.textModel;
+
+    self.findMatches = [model findMatches:query
+                                  isRegex:NO
+                                matchCase:NO
+                           wordSeparators:nil
+                         limitResultCount:500];
+
+    NSArray<NSString *> *oldIDs = [model decorationsForOwner:UDFindDecorationOwner];
+    NSMutableArray<UDModelDeltaDecoration *> *newDecors =
+        [NSMutableArray arrayWithCapacity:self.findMatches.count];
+    for (UDFindMatch *m in self.findMatches) {
+        UDDecorationOptions *opts = [[UDDecorationOptions alloc]
+            initWithClassName:@"find-match" userInfo:nil];
+        UDModelDeltaDecoration *d = [[UDModelDeltaDecoration alloc]
+            initWithRange:m.range options:opts];
+        d.stickiness = UDTrackedRangeAlwaysGrowsWhenTypingAtEdges;
+        [newDecors addObject:d];
+    }
+    [model deltaDecorations:oldIDs newDecorations:newDecors owner:UDFindDecorationOwner];
+
+    [self.textStorage applyDecorationHighlights];
+    [self _refreshGutter];
+
+    // Clamp the current match index to the new result count; do NOT scroll —
+    // the user is actively editing and we don't want to interrupt their cursor.
+    if (self.findMatches.count == 0) {
+        self.currentMatchIndex = -1;
+        self.gutterView.currentMatchIndex = -1;
+    } else if (self.currentMatchIndex >= 0) {
+        NSInteger clamped = MIN(self.currentMatchIndex,
+                                (NSInteger)self.findMatches.count - 1);
+        self.currentMatchIndex = clamped;
+        self.gutterView.currentMatchIndex = clamped;
+    }
 }
 
 // ---------------------------------------------------------------------------

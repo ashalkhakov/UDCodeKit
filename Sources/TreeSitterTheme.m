@@ -5,6 +5,7 @@
 //  Created by artyom on 12/17/25.
 //
 
+#import <AppKit/AppKit.h>
 #import "TreeSitterTheme.h"
 
 @interface TreeSitterTheme ()

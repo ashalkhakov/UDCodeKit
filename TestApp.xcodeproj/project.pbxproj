@@ -7,10 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CE2635DD2F5497A90008B1BC /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; };
-		CE2635DE2F5497A90008B1BC /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		CE89CA1E2F54B6F300327916 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; };
-		CE89CA1F2F54B6F300327916 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE2635DD2F5497A90008B1BC /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		CE2635DE2F5497A90008B1BC /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE89CA1E2F54B6F300327916 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
+		CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D19A3C4D5E6F7A8B9C0D1E03 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */; };
 		D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */; };
 /* End PBXBuildFile section */
@@ -39,7 +39,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				CE2635DE2F5497A90008B1BC /* UDPieceTable.framework in Embed Frameworks */,
+				CE2635DE2F5497A90008B1BC /* (null) in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -50,7 +50,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				CE89CA1F2F54B6F300327916 /* UDPieceTable.framework in Embed Frameworks */,
+				CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -61,8 +61,8 @@
 		A46FAAAB2F5441C80079BB37 /* TestApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAABC2F5441CB0079BB37 /* TestAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAAC62F5441CB0079BB37 /* TestAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "../tree-sitter/src/lib.c"; sourceTree = "<group>"; };
-		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "parser.c (tree-sitter-json)"; path = "../tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
+		D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "tree-sitter/src/lib.c"; sourceTree = "<group>"; };
+		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -76,7 +76,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE89CA1E2F54B6F300327916 /* UDPieceTable.framework in Frameworks */,
+				CE89CA1E2F54B6F300327916 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -91,7 +91,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE2635DD2F5497A90008B1BC /* UDPieceTable.framework in Frameworks */,
+				CE2635DD2F5497A90008B1BC /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -123,7 +123,6 @@
 		CE2635DB2F5497A90008B1BC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				CE2635DC2F5497A90008B1BC /* UDPieceTable.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -604,7 +603,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = A46FAAA32F5441C80079BB37 /* Project object */;
 }

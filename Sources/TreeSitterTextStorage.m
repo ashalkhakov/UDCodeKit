@@ -64,7 +64,7 @@ const char *readCallback(void *payload, uint32_t byte_offset, TSPoint position, 
 @property (nonatomic, copy) NSString *parsePreviousString; // previous string for parser
 @property (nonatomic) TSTree *parseCurrentTree;            // current tree owned by parseQueue
 @property (nonatomic) TSParser *parser;                    // parser instance (access on parseQueue)
-@property (nonatomic, copy) TSParseCompletionBlock parseCompletionHandler;
+//@property (nonatomic, copy) TSParseCompletionBlock parseCompletionHandler;
 
 // language func pointer (call site: setter dispatches change to parseQueue)
 @property (nonatomic, assign) LanguageFunc _languageFunc_internal;
@@ -306,7 +306,7 @@ const char *readCallback(void *payload, uint32_t byte_offset, TSPoint position, 
     TSInput input = {
         .payload = &context,
         .read = readCallback,
-        .encoding = TSInputEncodingUTF16LE
+        .encoding = TSInputEncodingUTF16
     };
 
     if (!self.parser) {

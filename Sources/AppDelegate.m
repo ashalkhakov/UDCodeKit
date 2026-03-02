@@ -261,12 +261,14 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
             }
         }
 
-        // Option-arrows: structured navigation.
-        switch (event.keyCode) {
-            case kKeyCodeUpArrow:    [strongSelf->_structuredNavigator moveToParent];       return nil;
-            case kKeyCodeDownArrow:  [strongSelf->_structuredNavigator moveToFirstChild];   return nil;
-            case kKeyCodeLeftArrow:  [strongSelf->_structuredNavigator moveToPrevSibling];  return nil;
-            case kKeyCodeRightArrow: [strongSelf->_structuredNavigator moveToNextSibling];  return nil;
+        // Option-arrows: structured navigation (Option modifier required).
+        if (event.modifierFlags & NSEventModifierFlagOption) {
+            switch (event.keyCode) {
+                case kKeyCodeUpArrow:    [strongSelf->_structuredNavigator moveToParent];       return nil;
+                case kKeyCodeDownArrow:  [strongSelf->_structuredNavigator moveToFirstChild];   return nil;
+                case kKeyCodeLeftArrow:  [strongSelf->_structuredNavigator moveToPrevSibling];  return nil;
+                case kKeyCodeRightArrow: [strongSelf->_structuredNavigator moveToNextSibling];  return nil;
+            }
         }
         return event;
     }];

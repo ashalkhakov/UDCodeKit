@@ -6,7 +6,9 @@
 #import "UDTextModelString.h"
 #import "UDTreeSitterHighlighter.h"
 
-NSString * const UDFindDecorationOwner = @"find";
+NSString * const UDFindDecorationOwner         = @"find";
+NSString * const UDFoldDecorationOwner         = @"fold";
+NSString * const UDBracketMatchDecorationOwner = @"bracket.match";
 
 // ---------------------------------------------------------------------------
 // MARK: - Base attributes
@@ -267,6 +269,47 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
                              @"l":@1 }];
     }
 
+    // Layer 2: bracket-match highlights (semi-transparent blue background).
+    NSColor *bracketBG = [NSColor colorWithRed:0.38 green:0.60 blue:0.90 alpha:0.35];
+    for (NSString *did in [_textModel decorationsForOwner:UDBracketMatchDecorationOwner]) {
+        UDRange r = [_textModel rangeForDecoration:did];
+        if (r.startLineNumber == 0) continue;
+        NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
+        NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
+        if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
+        [tuples addObject:@{ @"s":@(s), @"e":@(e),
+                             @"a":@{ NSBackgroundColorAttributeName: bracketBG },
+                             @"l":@2 }];
+    }
+
+    // Layer 3: fold regions (visually collapsed: tiny font, 1-pt line height, clear colour).
+    // Font size of 0.1 pt makes glyph metrics negligible; combined with a capped
+    // paragraph line height this visually collapses each folded line to ~1 pt.
+    static const CGFloat kFoldedTextFontSize = 0.1;
+    static NSMutableParagraphStyle *sFoldStyle = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sFoldStyle = [[NSMutableParagraphStyle alloc] init];
+        sFoldStyle.minimumLineHeight = 1.0;
+        sFoldStyle.maximumLineHeight = 1.0;
+        sFoldStyle.lineSpacing = 0.0;
+        sFoldStyle.paragraphSpacing = 0.0;
+        sFoldStyle.paragraphSpacingBefore = 0.0;
+    });
+    NSDictionary *foldAttrs = @{
+        NSForegroundColorAttributeName: [NSColor clearColor],
+        NSFontAttributeName:            [NSFont systemFontOfSize:kFoldedTextFontSize],
+        NSParagraphStyleAttributeName:  sFoldStyle,
+    };
+    for (NSString *did in [_textModel decorationsForOwner:UDFoldDecorationOwner]) {
+        UDRange r = [_textModel rangeForDecoration:did];
+        if (r.startLineNumber == 0) continue;
+        NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
+        NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
+        if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
+        [tuples addObject:@{ @"s":@(s), @"e":@(e), @"a":foldAttrs, @"l":@3 }];
+    }
+
     // Collect boundary offsets and build the partition.
     NSMutableSet<NSNumber *> *boundSet = [NSMutableSet set];
     [boundSet addObject:@0];
@@ -287,7 +330,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         if (segS >= segE) continue;
 
         NSMutableDictionary *merged = [NSMutableDictionary dictionaryWithDictionary:base];
-        for (NSInteger layer = 0; layer <= 1; layer++) {
+        for (NSInteger layer = 0; layer <= 3; layer++) {
             for (NSDictionary *t in tuples) {
                 if ([t[@"l"] integerValue] != layer) continue;
                 NSUInteger ts_ = [t[@"s"] unsignedIntegerValue];

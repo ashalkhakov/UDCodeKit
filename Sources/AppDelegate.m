@@ -15,8 +15,9 @@
 // MARK: - Constants
 // ---------------------------------------------------------------------------
 
-static CGFloat const kSearchBarHeight = 28.0;
-static CGFloat const kGutterWidth     = 12.0;
+static CGFloat const kSearchBarHeight  = 28.0;
+static CGFloat const kFindGutterWidth  = 12.0;
+static CGFloat const kLineGutterWidth  = UDLineNumberGutterWidth;
 
 // ---------------------------------------------------------------------------
 // MARK: - Initial demo text
@@ -96,9 +97,14 @@ static NSString * const kJSONHighlightsQuery =
               withHighlightsQuery:kJSONHighlightsQuery];
 
     // ------------------------------------------------------------------
-    // 4. Build find UI (search field + gutter) programmatically.
+    // 4. Build find UI (search field + find-results gutter) programmatically.
     // ------------------------------------------------------------------
     [self _buildFindUI];
+
+    // ------------------------------------------------------------------
+    // 5. Build line-number gutter, folding controller, bracket highlighter.
+    // ------------------------------------------------------------------
+    [self _buildEditorAccessories];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
@@ -118,19 +124,22 @@ static NSString * const kJSONHighlightsQuery =
     CGFloat W = NSWidth(contentView.bounds);
     CGFloat H = NSHeight(contentView.bounds);
 
-    // --- Gutter view (right strip, full height below search bar) ---
     CGFloat editorH = H - kSearchBarHeight;
+
+    // --- Find-results gutter (right strip, full height below search bar) ---
     _gutterView = [[UDFindResultsGutterView alloc]
-                   initWithFrame:NSMakeRect(W - kGutterWidth, 0, kGutterWidth, editorH)];
+                   initWithFrame:NSMakeRect(W - kFindGutterWidth, 0,
+                                            kFindGutterWidth, editorH)];
     _gutterView.autoresizingMask =
         NSViewMinXMargin | NSViewHeightSizable | NSViewMaxYMargin;
     [contentView addSubview:_gutterView];
 
-    // --- Resize scroll view to leave room for the search bar and gutter ---
-    // The XIB placed the scroll view at (0,0,W,H); shrink it.
+    // --- Resize scroll view to leave room for both gutters and the search bar ---
+    // The XIB placed the scroll view at (0,0,W,H); we shrink and shift it.
     NSScrollView *sv = (NSScrollView *)self.textView.enclosingScrollView;
-    CGFloat svW = W - kGutterWidth;
-    sv.frame = NSMakeRect(0, 0, svW, editorH);
+    CGFloat svX = kLineGutterWidth;
+    CGFloat svW = W - kLineGutterWidth - kFindGutterWidth;
+    sv.frame = NSMakeRect(svX, 0, svW, editorH);
     sv.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
     // --- Search field (top bar, spanning full width) ---
@@ -139,9 +148,8 @@ static NSString * const kJSONHighlightsQuery =
     _findField.placeholderString = @"Find…";
     _findField.autoresizingMask  = NSViewWidthSizable | NSViewMinYMargin;
     _findField.delegate = self;
-    // Also fire on every keystroke.
-    _findField.target = self;
-    _findField.action = @selector(_findFieldDidChange:);
+    _findField.target   = self;
+    _findField.action   = @selector(_findFieldDidChange:);
     if (@available(macOS 10.0, *)) {
         ((NSSearchFieldCell *)_findField.cell).sendsSearchStringImmediately = YES;
     }
@@ -155,6 +163,51 @@ static NSString * const kJSONHighlightsQuery =
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(_textStorageDidEdit:)
+               name:NSTextStorageDidProcessEditingNotification
+             object:_textStorage];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Editor accessories (line numbers, folding, bracket matching)
+// ---------------------------------------------------------------------------
+
+- (void)_buildEditorAccessories {
+    NSView   *contentView = self.window.contentView;
+    CGFloat   H           = NSHeight(contentView.bounds);
+    CGFloat   editorH     = H - kSearchBarHeight;
+    NSScrollView *sv      = (NSScrollView *)self.textView.enclosingScrollView;
+
+    // --- Line-number gutter (left strip) ---
+    _lineNumberGutterView =
+        [[UDLineNumberGutterView alloc]
+             initWithScrollView:sv
+                       textView:self.textView
+                      textModel:_textStorage.textModel];
+    _lineNumberGutterView.frame =
+        NSMakeRect(0, 0, kLineGutterWidth, editorH);
+    _lineNumberGutterView.autoresizingMask =
+        NSViewMaxXMargin | NSViewHeightSizable | NSViewMaxYMargin;
+    _lineNumberGutterView.delegate = self;
+    [contentView addSubview:_lineNumberGutterView];
+
+    // --- Folding controller ---
+    _foldingController =
+        [[UDFoldingController alloc] initWithTextView:self.textView
+                                          textStorage:_textStorage
+                                           highlighter:_textStorage.highlighter];
+    _foldingController.lineNumberGutterView = _lineNumberGutterView;
+    [_foldingController update];
+
+    // --- Bracket-match highlighter ---
+    _bracketMatchHighlighter =
+        [[UDBracketMatchHighlighter alloc] initWithTextView:self.textView
+                                                textStorage:_textStorage
+                                                 highlighter:_textStorage.highlighter];
+
+    // Re-run folding + bracket match after each document change.
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_documentDidChange:)
                name:NSTextStorageDidProcessEditingNotification
              object:_textStorage];
 }
@@ -244,6 +297,30 @@ static NSString * const kJSONHighlightsQuery =
     if (!(textStorage.editedMask & NSTextStorageEditedCharacters)) return;
     if (_findField.stringValue.length == 0) return;
     [self _findFieldDidChange:_findField];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Document change → update folding + bracket match
+// ---------------------------------------------------------------------------
+
+- (void)_documentDidChange:(NSNotification *)note {
+    NSTextStorage *textStorage = note.object;
+    if (!(textStorage.editedMask & NSTextStorageEditedCharacters)) return;
+    // Defer until the tree-sitter re-parse (triggered by UDTextModelTextStorage
+    // processEditing) has completed and decorations are applied.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self->_foldingController update];
+        [self->_bracketMatchHighlighter update];
+    });
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - UDLineNumberGutterViewDelegate
+// ---------------------------------------------------------------------------
+
+- (void)lineNumberGutterView:(UDLineNumberGutterView *)view
+    didClickFoldIndicatorAtLine:(NSInteger)lineNumber {
+    [_foldingController toggleFoldAtLine:lineNumber];
 }
 
 @end

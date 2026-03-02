@@ -86,6 +86,10 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
     return _tsParser != NULL;
 }
 
+- (const void *)currentParseTree {
+    return _tsCurrentTree;
+}
+
 - (void)setLanguageFunc:(nullable LanguageFunc)languageFunc
     withHighlightsQuery:(NSString *)queryText {
     _languageFuncInternal = languageFunc;

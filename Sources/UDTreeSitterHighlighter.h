@@ -30,6 +30,11 @@ typedef const void *_Nullable(*LanguageFunc)(void);
 /// The IDs of all "highlight" decorations currently registered on the model.
 @property (nonatomic, readonly, copy) NSArray<NSString *> *highlightDecorationIDs;
 
+/// The current parse tree (opaque TSTree*).  Valid until the next edit.
+/// Import <tree_sitter/api.h> and cast to TSTree* to use.  Do NOT free.
+/// Returns NULL when no language is active.
+@property (nonatomic, readonly, nullable) const void *currentParseTree;
+
 - (instancetype)initWithTextModel:(UDTextModel *)model;
 
 /// Configure (or replace) the tree-sitter language and highlights query.

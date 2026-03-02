@@ -16,10 +16,20 @@ NS_ASSUME_NONNULL_BEGIN
 /// Owner string for search-match decorations registered via deltaDecorations.
 extern NSString * const UDFindDecorationOwner;
 
+/// Owner string for fold (collapsed) decorations registered via deltaDecorations.
+extern NSString * const UDFoldDecorationOwner;
+
+/// Owner string for bracket-match decorations registered via deltaDecorations.
+extern NSString * const UDBracketMatchDecorationOwner;
+
 @interface UDTextModelTextStorage : NSTextStorage
 
 /// The underlying text model.  Use for searches, decorations, undo/redo.
 @property (nonatomic, readonly, strong) UDTextModel *textModel;
+
+/// The tree-sitter highlighter.  Use to access the current parse tree
+/// for folding and bracket-match features.
+@property (nonatomic, readonly, strong) UDTreeSitterHighlighter *highlighter;
 
 /// Theme used to map Tree-sitter capture names to text attributes.
 @property (nonatomic, strong, nullable) TreeSitterTheme *theme;

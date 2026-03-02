@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "C4A0F81D-F4A9-4FE0-AFE5-7851D3A9FB26",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:UDPieceTable.xcodeproj",
+        "identifier" : "CE8CFD532F5492DD0011C202",
+        "name" : "UDPieceTableTests"
+      }
+    }
+  ],
+  "version" : 1
+}

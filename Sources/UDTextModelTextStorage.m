@@ -9,6 +9,7 @@
 NSString * const UDFindDecorationOwner         = @"find";
 NSString * const UDFoldDecorationOwner         = @"fold";
 NSString * const UDBracketMatchDecorationOwner = @"bracket.match";
+NSString * const UDMissingNodeDecorationOwner  = @"missing";
 
 // ---------------------------------------------------------------------------
 // MARK: - Base attributes
@@ -310,6 +311,23 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         [tuples addObject:@{ @"s":@(s), @"e":@(e), @"a":foldAttrs, @"l":@3 }];
     }
 
+    // Layer 4: MISSING-node pills (bright orange background, white text).
+    // Marks the character adjacent to a zero-width MISSING token to show the
+    // user that the parser expected something at this position.
+    NSColor *missingBG = [NSColor colorWithRed:0.95 green:0.42 blue:0.13 alpha:0.85];
+    NSDictionary *missingAttrs = @{
+        NSBackgroundColorAttributeName: missingBG,
+        NSForegroundColorAttributeName: [NSColor whiteColor],
+    };
+    for (NSString *did in [_textModel decorationsForOwner:UDMissingNodeDecorationOwner]) {
+        UDRange r = [_textModel rangeForDecoration:did];
+        if (r.startLineNumber == 0) continue;
+        NSInteger s = [_textModel getOffsetAt:r.startLineNumber column:r.startColumn];
+        NSInteger e = [_textModel getOffsetAt:r.endLineNumber   column:r.endColumn];
+        if (s < 0 || e <= s || (NSUInteger)e > docLen) continue;
+        [tuples addObject:@{ @"s":@(s), @"e":@(e), @"a":missingAttrs, @"l":@4 }];
+    }
+
     // Collect boundary offsets and build the partition.
     NSMutableSet<NSNumber *> *boundSet = [NSMutableSet set];
     [boundSet addObject:@0];
@@ -330,7 +348,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         if (segS >= segE) continue;
 
         NSMutableDictionary *merged = [NSMutableDictionary dictionaryWithDictionary:base];
-        for (NSInteger layer = 0; layer <= 3; layer++) {
+        for (NSInteger layer = 0; layer <= 4; layer++) {
             for (NSDictionary *t in tuples) {
                 if ([t[@"l"] integerValue] != layer) continue;
                 NSUInteger ts_ = [t[@"s"] unsignedIntegerValue];

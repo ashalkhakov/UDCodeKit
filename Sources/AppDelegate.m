@@ -19,6 +19,13 @@ static CGFloat const kSearchBarHeight  = 28.0;
 static CGFloat const kFindGutterWidth  = 12.0;
 static CGFloat const kLineGutterWidth  = 48.0; // UDLineNumberGutterWidth
 
+// macOS virtual key codes for arrow keys (same values as <Carbon/Carbon.h>
+// kVK_UpArrow etc., duplicated here to avoid importing Carbon).
+static const unsigned short kKeyCodeUpArrow    = 126;
+static const unsigned short kKeyCodeDownArrow  = 125;
+static const unsigned short kKeyCodeLeftArrow  = 123;
+static const unsigned short kKeyCodeRightArrow = 124;
+
 // ---------------------------------------------------------------------------
 // MARK: - Initial demo text
 // ---------------------------------------------------------------------------
@@ -204,7 +211,39 @@ static NSString * const kJSONHighlightsQuery =
                                                 textStorage:_textStorage
                                                  highlighter:_textStorage.highlighter];
 
-    // Re-run folding + bracket match after each document change.
+    // --- MISSING-node pill highlighter ---
+    _missingNodeHighlighter =
+        [[UDMissingNodeHighlighter alloc] initWithTextStorage:_textStorage
+                                                   highlighter:_textStorage.highlighter];
+    [_missingNodeHighlighter update];
+
+    // --- Structured navigator ---
+    _structuredNavigator =
+        [[UDStructuredNavigator alloc] initWithTextView:self.textView
+                                             highlighter:_textStorage.highlighter
+                                               textModel:_textStorage.textModel];
+
+    // --- Option-arrow key monitor for structured navigation ---
+    // Returns nil to consume the event (preventing NSTextView default word-move).
+    __weak typeof(self) weakSelf = self;
+    [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                          handler:^NSEvent *(NSEvent *event) {
+        AppDelegate *strongSelf = weakSelf;
+        if (!strongSelf) return event;
+        // Only intercept when the text view is first responder.
+        if (strongSelf.textView.window.firstResponder != strongSelf.textView) return event;
+        // Only intercept Option-arrow combinations.
+        if (!(event.modifierFlags & NSEventModifierFlagOption)) return event;
+        switch (event.keyCode) {
+            case kKeyCodeUpArrow:    [strongSelf->_structuredNavigator moveToParent];       return nil;
+            case kKeyCodeDownArrow:  [strongSelf->_structuredNavigator moveToFirstChild];   return nil;
+            case kKeyCodeLeftArrow:  [strongSelf->_structuredNavigator moveToPrevSibling];  return nil;
+            case kKeyCodeRightArrow: [strongSelf->_structuredNavigator moveToNextSibling];  return nil;
+        }
+        return event;
+    }];
+
+    // Re-run folding + bracket match + missing-node after each document change.
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(_documentDidChange:)
@@ -311,6 +350,7 @@ static NSString * const kJSONHighlightsQuery =
     dispatch_async(dispatch_get_main_queue(), ^{
         [self->_foldingController update];
         [self->_bracketMatchHighlighter update];
+        [self->_missingNodeHighlighter update];
     });
 }
 

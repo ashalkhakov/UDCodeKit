@@ -22,6 +22,9 @@ extern NSString * const UDFoldDecorationOwner;
 /// Owner string for bracket-match decorations registered via deltaDecorations.
 extern NSString * const UDBracketMatchDecorationOwner;
 
+/// Owner string for MISSING-node "pill" decorations registered via deltaDecorations.
+extern NSString * const UDMissingNodeDecorationOwner;
+
 @interface UDTextModelTextStorage : NSTextStorage
 
 /// The underlying text model.  Use for searches, decorations, undo/redo.

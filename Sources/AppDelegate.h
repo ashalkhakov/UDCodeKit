@@ -10,6 +10,8 @@
 #import "UDLineNumberGutterView.h"
 #import "UDFoldingController.h"
 #import "UDBracketMatchHighlighter.h"
+#import "UDMissingNodeHighlighter.h"
+#import "UDStructuredNavigator.h"
 
 @interface AppDelegate : NSObject <NSApplicationDelegate, NSSearchFieldDelegate,
                                    UDLineNumberGutterViewDelegate>
@@ -30,6 +32,12 @@
 
 /// Bracket-match highlighter.
 @property (nonatomic, strong) UDBracketMatchHighlighter *bracketMatchHighlighter;
+
+/// MISSING-node pill highlighter.
+@property (nonatomic, strong) UDMissingNodeHighlighter *missingNodeHighlighter;
+
+/// Structured (tree) navigator.
+@property (nonatomic, strong) UDStructuredNavigator *structuredNavigator;
 
 @end
 

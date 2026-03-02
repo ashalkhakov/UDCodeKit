@@ -152,7 +152,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 
 - (NSString *)string {
     // Return the live UDTextModelString — reads directly from the model
-    // without materialising a full copy, exactly as UDPieceTreeTextStorage does.
+    // without materialising a full copy
     return _modelString;
 }
 
@@ -446,8 +446,13 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     } else {
         NSMutableArray<UDModelDeltaDecoration *> *all = [NSMutableArray array];
         TSNode root = ts_tree_root_node(newTree);
-        TSRange full = { ts_node_start_byte(root), ts_node_end_byte(root),
-                         ts_node_start_point(root), ts_node_end_point(root) };
+        TSRange full;
+        
+        full.start_point = ts_node_start_point(root);
+        full.end_point = ts_node_end_point(root);
+        full.start_byte = ts_node_start_byte(root);
+        full.end_byte = ts_node_end_byte(root);
+
         [self _collectDecorationsForRange:full tree:newTree into:all];
         _highlightDecorationIDs =
             [_textModel deltaDecorations:_highlightDecorationIDs

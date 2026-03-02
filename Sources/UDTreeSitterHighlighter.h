@@ -12,9 +12,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+extern NSString * const UDHighlightDecorationOwner;
+
 /// C function pointer type matching all generated tree-sitter language functions
 /// (e.g. tree_sitter_json).
-typedef const void *(*LanguageFunc)(void);
+typedef const void *_Nullable(*LanguageFunc)(void);
 
 @interface UDTreeSitterHighlighter : NSObject
 

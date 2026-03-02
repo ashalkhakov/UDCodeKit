@@ -627,6 +627,20 @@ static NSString *SubstringDelete(NSString *orig, NSInteger pos, NSInteger count)
     AssertTreeInvariants(pt, self);
 }
 
+- (void)testRBDeleteYParentEqualsZ {
+    // Regression test: RBDelete self-loop when yParent == z.
+    // With 6 single-char chunks the RB-tree ends up as:
+    //   node2(black,root) / node1(black) \ node4(red) / node3(black) \ node5(black) \ node6(red)
+    // Deleting node4 ("D") triggers y!=z with yParent==z:
+    //   y = Leftest(node5) = node5, yParent = node4 = z.
+    // Before the fix, y.right and y.parent got a self-reference causing an infinite loop.
+    UDPieceTree *pt = CreatePieceTree(@[@"A", @"B", @"C", @"D", @"E", @"F"], YES);
+    XCTAssertEqualObjects([pt getLinesRawContent], @"ABCDEF");
+    [pt deleteAtOffset:3 count:1];
+    XCTAssertEqualObjects([pt getLinesRawContent], @"ABCEF");
+    AssertTreeInvariants(pt, self);
+}
+
 // MARK: - offset → position
 
 - (void)testOffsetToPositionBug1 {

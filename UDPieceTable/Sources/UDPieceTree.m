@@ -1966,14 +1966,15 @@ static void RBDelete(UDPieceTree *tree, UDPieceTreeNode *z) {
         UDPieceTreeNode *zParent = z.parent;
         x.parent = (yParent == z) ? y : yParent;
         RecomputeTreeMetadata(tree, x);
-        y.left = zLeft; y.right = zRight; y.parent = zParent; y.color = z.color;
+        y.left = zLeft; y.parent = zParent; y.color = z.color;
+        if (yParent != z) { y.right = zRight; }
         if (z == tree.root) { tree.root = y; }
         else {
             if (z == zParent.left) { zParent.left = y; }
             else { zParent.right = y; }
         }
         if (zLeft  != s) { zLeft.parent  = y; }
-        if (zRight != s) { zRight.parent = y; }
+        if (yParent != z && zRight != s) { zRight.parent = y; }
         y.sizeLeft = z.sizeLeft;
         y.lfLeft   = z.lfLeft;
         RecomputeTreeMetadata(tree, y);

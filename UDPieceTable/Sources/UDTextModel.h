@@ -74,6 +74,8 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
 - (NSString *)getValue;
 /// Returns the total number of characters.
 - (NSInteger)getLength;
+/// Returns the UTF-16 code unit at the given 0-based character offset.
+- (unichar)getCharacterAtOffset:(NSUInteger)offset;
 /// Returns the number of lines (always >= 1).
 - (NSInteger)getLineCount;
 /// Returns the content of the given 1-based line, without the line-ending.

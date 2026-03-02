@@ -143,6 +143,10 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
     return [self.pieceTree getLength];
 }
 
+- (unichar)getCharacterAtOffset:(NSUInteger)offset {
+    return (unichar)[self.pieceTree getCharCode:(NSInteger)offset];
+}
+
 - (NSInteger)getLineCount {
     return [self.pieceTree getLineCount];
 }

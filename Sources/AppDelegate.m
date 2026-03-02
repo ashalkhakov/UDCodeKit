@@ -2,13 +2,13 @@
  *  AppDelegate.m — TestApp entry point.
  *
  *  Demonstrates Tree-sitter incremental syntax highlighting integrated with
- *  the NSTextView text-storage pipeline.  The JSON grammar is used so that
- *  the demo text is immediately coloured on launch and stays highlighted as
+ *  the UDTextModelTextStorage text-storage pipeline.  The JSON grammar is used so
+ *  that the demo text is immediately coloured on launch and stays highlighted as
  *  you edit.
  *--------------------------------------------------------------------------------------------*/
 
 #import "AppDelegate.h"
-#import "TreeSitterTextStorage.h"
+#import "UDTextModelTextStorage.h"
 #import "TreeSitterTheme.h"
 #import "tree_sitter_json.h"
 
@@ -57,8 +57,9 @@ static NSString * const kJSONHighlightsQuery =
 // ---------------------------------------------------------------------------
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-    // 1. Create the Tree-sitter text storage seeded with the JSON demo text.
-    TreeSitterTextStorage *storage = [[TreeSitterTextStorage alloc] initWithString:kInitialText];
+    // 1. Create the UDTextModelTextStorage seeded with the JSON demo text.
+    UDTextModelTextStorage *storage = [[UDTextModelTextStorage alloc]
+                                       initWithText:kInitialText];
 
     // 2. Pick a theme that matches the current macOS appearance.
     NSAppearanceName bestMatch =
@@ -68,8 +69,6 @@ static NSString * const kJSONHighlightsQuery =
     storage.theme = [[TreeSitterTheme alloc] initWithMode:darkMode];
 
     // 3. Replace the text view's layout-manager → text-storage chain.
-    //    We keep the existing NSLayoutManager and NSTextContainer (which the
-    //    NSTextView already owns) and redirect them to our custom storage.
     NSLayoutManager *lm = [self.textView layoutManager];
     [[lm textStorage] removeLayoutManager:lm];
     [storage addLayoutManager:lm];

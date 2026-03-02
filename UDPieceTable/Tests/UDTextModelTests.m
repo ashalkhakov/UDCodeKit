@@ -241,7 +241,131 @@
     XCTAssertEqual(r.endColumn,   (NSInteger)6);
 }
 
-// MARK: - Change notification
+// MARK: - Decoration owners
+
+- (void)testOwner_addWithOwner {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"highlight"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *delta =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 6)
+                                              options:opts];
+    NSArray<NSString *> *ids = [model deltaDecorations:nil
+                                        newDecorations:@[delta]
+                                                 owner:@"syntax"];
+    XCTAssertEqual(ids.count, (NSUInteger)1);
+
+    UDRange r = [model rangeForDecoration:ids[0]];
+    XCTAssertEqual(r.startColumn, (NSInteger)1);
+    XCTAssertEqual(r.endColumn,   (NSInteger)6);
+}
+
+- (void)testOwner_isolation_cannotRemoveForeignDecoration {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+
+    // ownerA adds a decoration
+    UDModelDeltaDecoration *d =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 6)
+                                              options:opts];
+    NSArray<NSString *> *idsA = [model deltaDecorations:nil
+                                         newDecorations:@[d]
+                                                  owner:@"ownerA"];
+
+    // ownerB tries to remove ownerA's ID — should be silently ignored
+    [model deltaDecorations:idsA newDecorations:@[] owner:@"ownerB"];
+
+    // ownerA's decoration is still present
+    XCTAssertNotNil([model optionsForDecoration:idsA[0]]);
+}
+
+- (void)testOwner_canRemoveOwnDecoration {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+    UDModelDeltaDecoration *d =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 6)
+                                              options:opts];
+    NSArray<NSString *> *ids = [model deltaDecorations:nil
+                                        newDecorations:@[d]
+                                                 owner:@"ownerA"];
+
+    // Same owner removes it
+    [model deltaDecorations:ids newDecorations:@[] owner:@"ownerA"];
+    XCTAssertNil([model optionsForDecoration:ids[0]]);
+}
+
+- (void)testOwner_differentOwnersCoexist {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+
+    UDModelDeltaDecoration *dA =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 6)
+                                              options:opts];
+    UDModelDeltaDecoration *dB =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12)
+                                              options:opts];
+    NSArray<NSString *> *idsA = [model deltaDecorations:nil
+                                         newDecorations:@[dA]
+                                                  owner:@"ownerA"];
+    NSArray<NSString *> *idsB = [model deltaDecorations:nil
+                                         newDecorations:@[dB]
+                                                  owner:@"ownerB"];
+
+    // Both decorations exist independently
+    XCTAssertNotNil([model optionsForDecoration:idsA[0]]);
+    XCTAssertNotNil([model optionsForDecoration:idsB[0]]);
+}
+
+- (void)testDecorationsForOwner {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+
+    UDModelDeltaDecoration *d1 =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 3)
+                                              options:opts];
+    UDModelDeltaDecoration *d2 =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 4, 1, 6)
+                                              options:opts];
+    UDModelDeltaDecoration *d3 =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 7, 1, 12)
+                                              options:opts];
+
+    NSArray<NSString *> *idsA = [model deltaDecorations:nil
+                                         newDecorations:@[d1, d2]
+                                                  owner:@"ownerA"];
+    [model deltaDecorations:nil newDecorations:@[d3] owner:@"ownerB"];
+
+    NSArray<NSString *> *forA = [model decorationsForOwner:@"ownerA"];
+    XCTAssertEqual(forA.count, (NSUInteger)2);
+    NSSet<NSString *> *forASet = [NSSet setWithArray:forA];
+    XCTAssertTrue([forASet containsObject:idsA[0]]);
+    XCTAssertTrue([forASet containsObject:idsA[1]]);
+
+    NSArray<NSString *> *forB = [model decorationsForOwner:@"ownerB"];
+    XCTAssertEqual(forB.count, (NSUInteger)1);
+}
+
+- (void)testDecorationsForOwner_nil {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDDecorationOptions *opts = [[UDDecorationOptions alloc] initWithClassName:@"x"
+                                                                      userInfo:nil];
+
+    UDModelDeltaDecoration *d =
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 1, 1, 6)
+                                              options:opts];
+    // Anonymous owner (nil)
+    NSArray<NSString *> *anonIds = [model deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray<NSString *> *forNil = [model decorationsForOwner:nil];
+    XCTAssertEqual(forNil.count, (NSUInteger)1);
+    XCTAssertEqualObjects(forNil[0], anonIds[0]);
+}
+
+
 
 - (void)testChangeNotificationIsPosted {
     UDTextModel *model = [[UDTextModel alloc] initWithText:@"Hello"];

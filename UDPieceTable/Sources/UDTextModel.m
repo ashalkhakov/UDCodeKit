@@ -17,23 +17,27 @@
 @property (nonatomic) NSInteger startOffset;
 @property (nonatomic) NSInteger endOffset;
 @property (nonatomic, strong) UDDecorationOptions *options;
+@property (nonatomic, copy, nullable) NSString *owner;
 - (instancetype)initWithIdentifier:(NSString *)identifier
                        startOffset:(NSInteger)startOffset
                          endOffset:(NSInteger)endOffset
-                           options:(UDDecorationOptions *)options;
+                           options:(UDDecorationOptions *)options
+                             owner:(nullable NSString *)owner;
 @end
 
 @implementation UDDecoration
 - (instancetype)initWithIdentifier:(NSString *)identifier
                        startOffset:(NSInteger)startOffset
                          endOffset:(NSInteger)endOffset
-                           options:(UDDecorationOptions *)options {
+                           options:(UDDecorationOptions *)options
+                             owner:(nullable NSString *)owner {
     self = [super init];
     if (self) {
         _identifier   = [identifier copy];
         _startOffset  = startOffset;
         _endOffset    = endOffset;
         _options      = options;
+        _owner        = [owner copy];
     }
     return self;
 }
@@ -310,13 +314,21 @@ static NSInteger AdjustOffset(NSInteger offset,
 // MARK: - Decorations
 
 - (NSArray<NSString *> *)deltaDecorations:(nullable NSArray<NSString *> *)oldDecorations
-                           newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations {
-    // Remove old decorations.
+                           newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations
+                                    owner:(nullable NSString *)owner {
+    // Remove old decorations that belong to this owner (ignore foreign IDs).
     for (NSString *oldID in oldDecorations) {
-        [self.decorations removeObjectForKey:oldID];
+        UDDecoration *existing = self.decorations[oldID];
+        if (!existing) { continue; }
+        // Treat nil owner as the anonymous owner: only remove if owners match.
+        BOOL sameOwner = (owner == nil && existing.owner == nil)
+                      || [owner isEqualToString:existing.owner];
+        if (sameOwner) {
+            [self.decorations removeObjectForKey:oldID];
+        }
     }
 
-    // Add new decorations.
+    // Add new decorations tagged with this owner.
     NSMutableArray<NSString *> *newIDs =
         [NSMutableArray arrayWithCapacity:newDecorations.count];
     for (UDModelDeltaDecoration *delta in newDecorations) {
@@ -329,11 +341,31 @@ static NSInteger AdjustOffset(NSInteger offset,
             [[UDDecoration alloc] initWithIdentifier:identifier
                                          startOffset:startOffset
                                            endOffset:endOffset
-                                             options:delta.options];
+                                             options:delta.options
+                                               owner:owner];
         self.decorations[identifier] = decor;
         [newIDs addObject:identifier];
     }
     return [newIDs copy];
+}
+
+- (NSArray<NSString *> *)deltaDecorations:(nullable NSArray<NSString *> *)oldDecorations
+                           newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations {
+    return [self deltaDecorations:oldDecorations
+                   newDecorations:newDecorations
+                            owner:nil];
+}
+
+- (NSArray<NSString *> *)decorationsForOwner:(nullable NSString *)owner {
+    NSMutableArray<NSString *> *result = [NSMutableArray array];
+    for (UDDecoration *d in self.decorations.allValues) {
+        BOOL sameOwner = (owner == nil && d.owner == nil)
+                      || [owner isEqualToString:d.owner];
+        if (sameOwner) {
+            [result addObject:d.identifier];
+        }
+    }
+    return [result copy];
 }
 
 - (UDRange)rangeForDecoration:(NSString *)decorationID {

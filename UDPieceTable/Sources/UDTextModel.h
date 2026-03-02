@@ -92,12 +92,28 @@ extern NSNotificationName const UDTextModelDidChangeNotification;
 
 // MARK: Decorations
 
-/// VS Code-style deltaDecorations: removes decorations with the given IDs and
-/// adds the new decorations.  Returns the IDs of the newly created decorations.
+/// VS Code-style deltaDecorations scoped to an owner.
+///
+/// @param owner        An arbitrary string identifying the caller (e.g. @"syntax",
+///                     @"linter").  Pass nil to use a shared, anonymous owner.
+///                     An owner can only remove decorations it created: IDs that
+///                     belong to a different owner are silently ignored.
+/// @param oldDecorations   IDs previously returned by this method for the same owner.
+/// @param newDecorations   Decorations to add.
+/// @return The IDs of the newly created decorations.
 ///
 /// Decoration ranges are automatically updated as subsequent edits are applied.
 - (NSArray<NSString *> *)deltaDecorations:(nullable NSArray<NSString *> *)oldDecorations
+                           newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations
+                                    owner:(nullable NSString *)owner;
+
+/// Convenience wrapper – equivalent to passing @c nil as the owner.
+- (NSArray<NSString *> *)deltaDecorations:(nullable NSArray<NSString *> *)oldDecorations
                            newDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations;
+
+/// Returns the IDs of all decorations that belong to the given owner.
+/// Pass nil to get decorations belonging to the anonymous owner.
+- (NSArray<NSString *> *)decorationsForOwner:(nullable NSString *)owner;
 
 /// Returns the current (possibly edit-adjusted) range of a decoration.
 /// Returns an all-zero range (0,0,0,0) if the ID is unknown (valid ranges

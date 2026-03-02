@@ -32,12 +32,12 @@
         return Leftest(self.right);
     }
     UDPieceTreeNode *node = self;
-    while (node.parent != s) {
-        if (node.parent.left == node) { break; }
-        node = node.parent;
+    while (YES) {
+        UDPieceTreeNode *nodeParent = node.parent;
+        if (nodeParent == s) { return s; }
+        if (nodeParent.left == node) { return nodeParent; }
+        node = nodeParent;
     }
-    if (node.parent == s) { return s; }
-    return node.parent;
 }
 
 - (UDPieceTreeNode *)prev {
@@ -46,12 +46,12 @@
         return Rightest(self.left);
     }
     UDPieceTreeNode *node = self;
-    while (node.parent != s) {
-        if (node.parent.right == node) { break; }
-        node = node.parent;
+    while (YES) {
+        UDPieceTreeNode *nodeParent = node.parent;
+        if (nodeParent == s) { return s; }
+        if (nodeParent.right == node) { return nodeParent; }
+        node = nodeParent;
     }
-    if (node.parent == s) { return s; }
-    return node.parent;
 }
 
 - (void)detach {

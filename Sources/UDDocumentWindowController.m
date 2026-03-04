@@ -112,9 +112,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     UDDocument *doc = (UDDocument *)self.document;
 
     // 1. Build text storage from the document's initial content and set the theme.
-    NSString *content = doc.initialContent;
-
-    _textStorage = [[UDTextModelTextStorage alloc] initWithText:content];
+    _textStorage = [[UDTextModelTextStorage alloc] initWithText:doc.initialContent];
 
     // Register the text storage back on the document so writeToURL: can access it.
     doc.textStorage = _textStorage;
@@ -274,7 +272,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
              object:_textStorage];
 
     // 17. LSP coordinator — additive on top of tree-sitter.
-    [self _setupLSPCoordinator:content documentURL:fileURL];
+    [self _setupLSPCoordinator:doc.initialContent documentURL:fileURL];
 }
 
 // ---------------------------------------------------------------------------

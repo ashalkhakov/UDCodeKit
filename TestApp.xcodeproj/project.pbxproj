@@ -18,20 +18,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = D13EB15121EA5B1600E56DC9;
-			remoteInfo = LSPKit;
-		};
-		BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
-			proxyType = 1;
-			remoteGlobalIDString = D13EB15021EA5B1600E56DC9;
-			remoteInfo = LSPKit;
-		};
 		A46FAABD2F5441CB0079BB37 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A46FAAA32F5441C80079BB37 /* Project object */;
@@ -45,6 +31,20 @@
 			proxyType = 1;
 			remoteGlobalIDString = A46FAAAA2F5441C80079BB37;
 			remoteInfo = UDPieceTable;
+		};
+		BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = D13EB15121EA5B1600E56DC9;
+			remoteInfo = LSPKit;
+		};
+		BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = D13EB15021EA5B1600E56DC9;
+			remoteInfo = LSPKit;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -75,16 +75,26 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
 		A46FAAAB2F5441C80079BB37 /* TestApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAABC2F5441CB0079BB37 /* TestAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAAC62F5441CB0079BB37 /* TestAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "tree-sitter/src/lib.c"; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				InfoPlist.plist,
+			);
+			target = A46FAAAA2F5441C80079BB37 /* TestApp */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A46FAAAD2F5441C80079BB37 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+		A46FAAAD2F5441C80079BB37 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
 		A46FAABF2F5441CB0079BB37 /* Tests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Tests; sourceTree = "<group>"; };
 		A46FAAC92F5441CB0079BB37 /* UITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = UITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -140,6 +150,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		BB22CAFE2F5492DC002200A2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BB22CAFE2F5492DC002200A3 /* LSPKit.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		CE2635DB2F5497A90008B1BC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -156,25 +174,7 @@
 			name = "tree-sitter";
 			sourceTree = "<group>";
 		};
-		BB22CAFE2F5492DC002200A2 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				BB22CAFE2F5492DC002200A3 /* LSPKit.framework */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
-
-/* Begin PBXReferenceProxy section */
-		BB22CAFE2F5492DC002200A3 /* LSPKit.framework */ = {
-			isa = PBXReferenceProxy;
-			fileType = wrapper.framework;
-			path = LSPKit.framework;
-			remoteRef = BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-/* End PBXReferenceProxy section */
 
 /* Begin PBXNativeTarget section */
 		A46FAAAA2F5441C80079BB37 /* TestApp */ = {
@@ -299,6 +299,16 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXReferenceProxy section */
+		BB22CAFE2F5492DC002200A3 /* LSPKit.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = LSPKit.framework;
+			remoteRef = BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
+
 /* Begin PBXResourcesBuildPhase section */
 		A46FAAA92F5441C80079BB37 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
@@ -350,11 +360,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = LSPKit;
-			targetProxy = BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */;
-		};
 		A46FAABE2F5441CB0079BB37 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A46FAAAA2F5441C80079BB37 /* TestApp */;
@@ -364,6 +369,11 @@
 			isa = PBXTargetDependency;
 			target = A46FAAAA2F5441C80079BB37 /* TestApp */;
 			targetProxy = A46FAAC72F5441CB0079BB37 /* PBXContainerItemProxy */;
+		};
+		BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LSPKit;
+			targetProxy = BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 

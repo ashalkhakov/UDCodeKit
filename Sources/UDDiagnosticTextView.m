@@ -107,7 +107,7 @@ static const CGFloat    kLabelFontSize     = 10.5;
         NSUInteger glyphIdx = [lm glyphIndexForCharacterAtIndex:charOffset];
 
         NSRect usedRect =
-            [lm lineFragmentUsedRectForGlyphAtIndex:glyphIdx actualGlyphRange:nil];
+        [lm lineFragmentUsedRectForGlyphAtIndex:glyphIdx effectiveRange:nil];
         if (NSIsEmptyRect(usedRect)) continue;
 
         // Convert to view coordinates.

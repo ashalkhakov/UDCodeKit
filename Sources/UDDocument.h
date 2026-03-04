@@ -1,22 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  UDDocument.h
+ *  UDDocument.h — NSDocument subclass for the TestApp.
  *
- *  NSDocument subclass for the TestApp.
- *
- *  Owns the complete editor stack:
- *    - UDTextModelTextStorage (piece-table storage + tree-sitter syntax)
- *    - All editor accessories: line numbers, find, folding, bracket match,
- *      missing-node highlights, structured navigation, auto-indent
- *    - UDErrorsViewController (tree-sitter parse errors — unchanged)
- *    - UDLSPCoordinator (additive LSP layer; diagnostics appear on top)
- *    - UDDiagnosticTextView (inline LSP diagnostic labels)
+ *  Responsible only for reading and writing the file.  All per-window editor
+ *  setup lives in UDDocumentWindowController.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Cocoa/Cocoa.h>
+#import "UDTextModelTextStorage.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface UDDocument : NSDocument
+
+/// The text storage that backs all editor windows for this document.
+/// Set by UDDocumentWindowController in -windowDidLoad; nil before that.
+@property (nonatomic, readwrite, nullable) UDTextModelTextStorage *textStorage;
+
+/// The initial file content for new documents or files just read from disk.
+/// Consumed by UDDocumentWindowController in -windowDidLoad; nil thereafter.
+@property (nonatomic, readonly, nullable) NSString *initialContent;
 
 @end
 

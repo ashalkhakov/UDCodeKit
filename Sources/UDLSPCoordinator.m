@@ -151,7 +151,6 @@ static inline UDRange UDRangeMakeFromOffsets(UDTextModel *model,
     if (!ts) return;
 
     UDTextModel *model   = ts.textModel;
-    NSString    *docText = [model getValue];
     NSUInteger   docLen  = (NSUInteger)MAX(0LL, [model getLength]);
 
     NSMutableArray<UDModelDeltaDecoration *> *newDecors =
@@ -160,12 +159,21 @@ static inline UDRange UDRangeMakeFromOffsets(UDTextModel *model,
     for (LSPDiagnostic *diag in diagnostics) {
         if (!diag.range) continue;
 
-        // Convert LSP character range to absolute character offsets.
-        NSRange charRange = [diag.range convertToRangeInText:docText];
-
-        // Clamp and ensure at least 1 character wide so the decoration is visible.
-        NSUInteger loc = MIN(charRange.location, docLen > 0 ? docLen - 1 : 0);
-        NSUInteger end = MIN(NSMaxRange(charRange), docLen);
+        // Convert LSP 0-based line/character positions to model offsets.
+        // UDTextModel uses 1-based line/column, LSP uses 0-based.
+        NSInteger startOff =
+            [model getOffsetAt:(NSInteger)diag.range.start.line + 1
+                        column:(NSInteger)diag.range.start.character + 1];
+        NSInteger endOff =
+            [model getOffsetAt:(NSInteger)diag.range.end.line + 1
+                        column:(NSInteger)diag.range.end.character + 1];
+        NSUInteger loc = (NSUInteger)MAX(0LL, startOff);
+        NSUInteger end = (NSUInteger)MAX(0LL, endOff);
+        // Clamp to document bounds.
+        if (docLen > 0) {
+            loc = MIN(loc, docLen - 1);
+            end = MIN(end, docLen);
+        }
         if (end <= loc) end = MIN(loc + 1, docLen);
         if (docLen == 0) continue;
 

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; };
+		BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE2635DD2F5497A90008B1BC /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		CE2635DE2F5497A90008B1BC /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE89CA1E2F54B6F300327916 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
@@ -16,6 +18,20 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = D13EB15121EA5B1600E56DC9;
+			remoteInfo = LSPKit;
+		};
+		BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = D13EB15021EA5B1600E56DC9;
+			remoteInfo = LSPKit;
+		};
 		A46FAABD2F5441CB0079BB37 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A46FAAA32F5441C80079BB37 /* Project object */;
@@ -50,6 +66,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */,
 				CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -58,6 +75,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
 		A46FAAAB2F5441C80079BB37 /* TestApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAABC2F5441CB0079BB37 /* TestAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAAC62F5441CB0079BB37 /* TestAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -76,6 +94,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */,
 				CE89CA1E2F54B6F300327916 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -106,6 +125,7 @@
 				A46FAAC92F5441CB0079BB37 /* UITests */,
 				CE2635DB2F5497A90008B1BC /* Frameworks */,
 				D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */,
+				BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */,
 				A46FAAAC2F5441C80079BB37 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -136,7 +156,25 @@
 			name = "tree-sitter";
 			sourceTree = "<group>";
 		};
+		BB22CAFE2F5492DC002200A2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BB22CAFE2F5492DC002200A3 /* LSPKit.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
+
+/* Begin PBXReferenceProxy section */
+		BB22CAFE2F5492DC002200A3 /* LSPKit.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = LSPKit.framework;
+			remoteRef = BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
 
 /* Begin PBXNativeTarget section */
 		A46FAAAA2F5441C80079BB37 /* TestApp */ = {
@@ -151,6 +189,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A46FAAAD2F5441C80079BB37 /* Sources */,
@@ -245,6 +284,12 @@
 			);
 			productRefGroup = A46FAAAC2F5441C80079BB37 /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = BB22CAFE2F5492DC002200A2 /* Products */;
+					ProjectRef = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				A46FAAAA2F5441C80079BB37 /* TestApp */,
@@ -305,6 +350,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LSPKit;
+			targetProxy = BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */;
+		};
 		A46FAABE2F5441CB0079BB37 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A46FAAAA2F5441C80079BB37 /* TestApp */;

@@ -5,18 +5,39 @@
 #import "UDLSPCoordinator.h"
 #import <UDPieceTable/UDPieceTable.h>
 
-// Decoration owner constant used for LSP diagnostic highlights.
-// Defined here (not in UDTextModelTextStorage) so the text-storage layer
-// remains unaware of LSP.
-NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
+// ---------------------------------------------------------------------------
+// MARK: - Helpers (forward declarations before @implementation)
+// ---------------------------------------------------------------------------
+
+/// Convert an absolute character offset to a 1-based UDPosition using the model.
+static inline UDPosition UDPositionAtOffset(UDTextModel *model, NSUInteger offset) {
+    NSInteger safeOffset = (NSInteger)MIN(offset, (NSUInteger)MAX(0LL, [model getLength]));
+    return [model getPositionAt:safeOffset];
+}
+
+/// Build a UDRange (1-based) from two character offsets.
+static inline UDRange UDRangeMakeFromOffsets(UDTextModel *model,
+                                              NSUInteger startOffset,
+                                              NSUInteger endOffset) {
+    UDPosition s = UDPositionAtOffset(model, startOffset);
+    UDPosition e = UDPositionAtOffset(model, endOffset);
+    return PTRangeMake(s.line, s.column, e.line, e.column);
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Private interface
+// ---------------------------------------------------------------------------
 
 @interface UDLSPCoordinator ()
-@property (nonatomic, weak)   UDTextModelTextStorage          *textStorage;
-@property (nonatomic, strong) LSPClient                       *client;
-@property (nonatomic, copy)   NSURL                           *documentURL;
-@property (nonatomic, copy)   NSArray<NSString *>             *decorationIDs;
-@property (nonatomic, copy)   NSArray<LSPDiagnostic *>        *diagnostics;
+@property (nonatomic, weak)   UDTextModelTextStorage   *textStorage;
+@property (nonatomic, strong) LSPClient                *client;
+@property (nonatomic, copy)   NSURL                    *documentURL;
+@property (nonatomic, copy)   NSArray<NSString *>      *decorationIDs;
+@property (nonatomic, copy)   NSArray<LSPDiagnostic *> *diagnostics;
+@property (nonatomic)         BOOL                      clientInitialized;
 @end
+
+// ---------------------------------------------------------------------------
 
 @implementation UDLSPCoordinator
 
@@ -29,11 +50,12 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
                          documentURL:(NSURL *)url {
     self = [super init];
     if (!self) return nil;
-    _textStorage   = textStorage;
-    _client        = client;
-    _documentURL   = [url copy];
-    _decorationIDs = @[];
-    _diagnostics   = @[];
+    _textStorage       = textStorage;
+    _client            = client;
+    _documentURL       = [url copy];
+    _decorationIDs     = @[];
+    _diagnostics       = @[];
+    _clientInitialized = NO;
     return self;
 }
 
@@ -42,6 +64,10 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 // ---------------------------------------------------------------------------
 
 - (void)openDocument:(NSString *)content {
+    if (!_client) return;
+    [_client addObserver:self];
+
+    NSString *snapshot = [content copy];
     __weak typeof(self) weakSelf = self;
     [_client initialWithCompletionHandler:^(NSError *error) {
         __strong typeof(self) strongSelf = weakSelf;
@@ -50,14 +76,15 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
             NSLog(@"[UDLSPCoordinator] LSP initialize failed: %@", error);
             return;
         }
+        strongSelf->_clientInitialized = YES;
         [strongSelf->_client documentDidOpen:strongSelf->_documentURL
-                                      content:content];
+                                      content:snapshot];
     }];
-    [_client addObserver:self];
 }
 
 - (void)textWillChangeInRange:(NSRange)range
               replacementString:(NSString *)replacement {
+    if (!_clientInitialized) return;
     if (!replacement) replacement = @"";
     [_client document:_documentURL
     changeTextInRange:range
@@ -65,16 +92,31 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 }
 
 - (void)documentWillSave {
+    if (!_clientInitialized) return;
     [_client documentWillSave:_documentURL];
 }
 
 - (void)documentDidSave {
+    if (!_clientInitialized) return;
     [_client documentDidSave:_documentURL];
 }
 
 - (void)closeDocument {
-    [_client documentDidClose:_documentURL];
+    if (_clientInitialized) {
+        [_client documentDidClose:_documentURL];
+    }
     [_client removeObserver:self];
+    _clientInitialized = NO;
+
+    // Clear any LSP decorations.
+    UDTextModelTextStorage *ts = _textStorage;
+    if (ts) {
+        UDTextModel *model = ts.textModel;
+        _decorationIDs =
+            [model deltaDecorations:_decorationIDs
+                     newDecorations:@[]
+                              owner:UDLSPDiagnosticDecorationOwner];
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -85,17 +127,17 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
               document:(NSURL *)url
            diagnostics:(NSArray<LSPDiagnostic *> *)diagnostics {
     // Only handle diagnostics for our document.
-    if (![url.path isEqualToString:_documentURL.path]) return;
+    if (url && _documentURL && ![url.path isEqualToString:_documentURL.path]) return;
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self _applyDiagnostics:diagnostics];
+        [self _applyDiagnostics:diagnostics ?: @[]];
     });
 }
 
 - (void)languageServer:(LSPClient *)client
             logMessage:(NSString *)message
                   type:(LSPMessageType)type {
-    NSLog(@"[LSP] log: %@", message);
+    NSLog(@"[LSP log] %@", message);
 }
 
 // ---------------------------------------------------------------------------
@@ -103,42 +145,43 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 // ---------------------------------------------------------------------------
 
 - (void)_applyDiagnostics:(NSArray<LSPDiagnostic *> *)diagnostics {
-    _diagnostics = diagnostics ?: @[];
+    _diagnostics = diagnostics;
 
     UDTextModelTextStorage *ts = _textStorage;
     if (!ts) return;
 
-    UDTextModel *model      = ts.textModel;
-    NSString    *docText    = [model getValue];
-    NSUInteger   docLen     = (NSUInteger)[model getLength];
+    UDTextModel *model   = ts.textModel;
+    NSString    *docText = [model getValue];
+    NSUInteger   docLen  = (NSUInteger)MAX(0LL, [model getLength]);
 
-    // Build new decoration set – one decoration per diagnostic covering its
-    // full character range.
     NSMutableArray<UDModelDeltaDecoration *> *newDecors =
         [NSMutableArray arrayWithCapacity:diagnostics.count];
 
     for (LSPDiagnostic *diag in diagnostics) {
         if (!diag.range) continue;
+
+        // Convert LSP character range to absolute character offsets.
         NSRange charRange = [diag.range convertToRangeInText:docText];
 
-        // Clamp to document bounds and ensure non-empty (at least 1 char).
+        // Clamp and ensure at least 1 character wide so the decoration is visible.
         NSUInteger loc = MIN(charRange.location, docLen > 0 ? docLen - 1 : 0);
         NSUInteger end = MIN(NSMaxRange(charRange), docLen);
         if (end <= loc) end = MIN(loc + 1, docLen);
         if (docLen == 0) continue;
 
-        NSUInteger severity = (NSUInteger)diag.severity;
-        // Store severity in className for UDTextModelTextStorage to use.
-        NSString *className = (severity == LSPDiagnosticSeverityError) ?
-            @"lsp.error" : @"lsp.warning";
+        // Convert to 1-based UDRange for UDTextModel.
+        UDRange udRange = UDRangeMakeFromOffsets(model, loc, end);
 
+        // Store the severity in className so UDTextModelTextStorage can pick a colour.
+        NSString *className = (diag.severity == LSPDiagnosticSeverityWarning) ?
+            @"lsp.warning" : @"lsp.error";
+
+        // Store the full diagnostic message for inline label display.
         UDDecorationOptions *opts =
             [[UDDecorationOptions alloc] initWithClassName:className
-                                                  userInfo:nil];
+                                                  userInfo:diag.message ?: @""];
         UDModelDeltaDecoration *d =
-            [[UDModelDeltaDecoration alloc]
-                initWithRange:PTRangeFromNSRange(PTRangeMake(0,0,0,0), loc, end - loc, docText)
-                      options:opts];
+            [[UDModelDeltaDecoration alloc] initWithRange:udRange options:opts];
         d.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
         [newDecors addObject:d];
     }
@@ -150,9 +193,10 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 
     [ts applyDecorationHighlights];
 
-    // Notify delegate so the text view can refresh inline labels.
+    // Notify the delegate (e.g. UDDiagnosticTextView) that diagnostics changed.
     id<UDLSPCoordinatorDelegate> delegate = _delegate;
-    if ([delegate respondsToSelector:@selector(lspCoordinator:didUpdateDiagnostics:forDocument:)]) {
+    if ([delegate respondsToSelector:
+            @selector(lspCoordinator:didUpdateDiagnostics:forDocument:)]) {
         [delegate lspCoordinator:self
             didUpdateDiagnostics:_diagnostics
                      forDocument:_documentURL];
@@ -160,33 +204,3 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 }
 
 @end
-
-// ---------------------------------------------------------------------------
-// MARK: - PTRangeFromNSRange helper
-// ---------------------------------------------------------------------------
-
-/// Convert an NSRange (character-offset based) into a UDRange (line/column).
-static UDRange PTRangeFromNSRange(UDRange unused, NSUInteger loc, NSUInteger len,
-                                  NSString *text) {
-    (void)unused;
-    NSUInteger docLen = text.length;
-    if (docLen == 0) return PTRangeMake(0, 0, 0, 0);
-    NSUInteger safeLoc = MIN(loc, docLen);
-    NSUInteger safeEnd = MIN(loc + len, docLen);
-
-    // Count lines / columns for start.
-    NSUInteger line   = 0, col = 0, idx = 0;
-    while (idx < safeLoc) {
-        unichar c = [text characterAtIndex:idx++];
-        if (c == '\n') { line++; col = 0; } else { col++; }
-    }
-    NSUInteger startLine = line, startCol = col;
-
-    // Continue for end.
-    while (idx < safeEnd) {
-        unichar c = [text characterAtIndex:idx++];
-        if (c == '\n') { line++; col = 0; } else { col++; }
-    }
-    return PTRangeMake((NSInteger)startLine, (NSInteger)startCol,
-                       (NSInteger)line,      (NSInteger)col);
-}

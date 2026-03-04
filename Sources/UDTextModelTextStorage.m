@@ -11,6 +11,7 @@ NSString * const UDFindDecorationOwner         = @"find";
 NSString * const UDFoldDecorationOwner         = @"fold";
 NSString * const UDBracketMatchDecorationOwner = @"bracket.match";
 NSString * const UDMissingNodeDecorationOwner  = @"missing";
+NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 
 // ---------------------------------------------------------------------------
 // MARK: - Base attributes
@@ -37,6 +38,7 @@ static inline NSInteger LayerForOwner(NSString * _Nullable owner) {
     if ([owner isEqualToString:@"bracket.match"]) return 2;
     if ([owner isEqualToString:@"fold"])          return 3;
     if ([owner isEqualToString:@"missing"])       return 4;
+    if ([owner isEqualToString:@"lsp.diagnostic"]) return 5;
     return -1;
 }
 
@@ -54,6 +56,24 @@ static NSColor *MissingNodeBGColor(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         c = [NSColor colorWithRed:0.95 green:0.42 blue:0.13 alpha:0.85];
+    });
+    return c;
+}
+
+static NSColor *LSPErrorBGColor(void) {
+    static NSColor *c;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        c = [NSColor colorWithRed:0.95 green:0.20 blue:0.20 alpha:0.18];
+    });
+    return c;
+}
+
+static NSColor *LSPWarningBGColor(void) {
+    static NSColor *c;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        c = [NSColor colorWithRed:0.95 green:0.75 blue:0.10 alpha:0.22];
     });
     return c;
 }
@@ -230,7 +250,7 @@ static NSDictionary *FoldAttributes(void) {
     NSUInteger effStart = 0;
     NSUInteger effEnd   = docLen;
 
-    for (NSInteger layer = 0; layer <= 4; layer++) {
+    for (NSInteger layer = 0; layer <= 5; layer++) {
         for (UDIntervalNode *node in covering) {
             if (LayerForOwner(node.owner) != layer) continue;
             // node.start <= location AND node.end > location is guaranteed by
@@ -414,6 +434,14 @@ static NSDictionary *FoldAttributes(void) {
         return @{
             NSBackgroundColorAttributeName: MissingNodeBGColor(),
             NSForegroundColorAttributeName: [NSColor whiteColor],
+        };
+    }
+    if ([owner isEqualToString:UDLSPDiagnosticDecorationOwner]) {
+        NSString *className = node.options.className;
+        BOOL isWarning = [className isEqualToString:@"lsp.warning"];
+        return @{
+            NSBackgroundColorAttributeName:
+                isWarning ? LSPWarningBGColor() : LSPErrorBGColor(),
         };
     }
     return nil;

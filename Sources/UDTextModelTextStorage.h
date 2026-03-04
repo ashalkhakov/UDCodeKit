@@ -25,6 +25,10 @@ extern NSString * const UDBracketMatchDecorationOwner;
 /// Owner string for MISSING-node "pill" decorations registered via deltaDecorations.
 extern NSString * const UDMissingNodeDecorationOwner;
 
+/// Owner string for LSP-sourced diagnostic decorations (layer 5, above all local layers).
+/// Errors use className "lsp.error"; warnings use className "lsp.warning".
+extern NSString * const UDLSPDiagnosticDecorationOwner;
+
 @interface UDTextModelTextStorage : NSTextStorage
 
 /// The underlying text model.  Use for searches, decorations, undo/redo.

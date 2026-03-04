@@ -1,9 +1,12 @@
 /*---------------------------------------------------------------------------------------------
  *  UDDiagnosticTextView.m
  *
- *  Diagnostic data is read from the UDTextModel's "lsp.diagnostic" decoration
- *  layer instead of a local cache, so this class contains no diagnostics state
- *  of its own — it is purely a rendering concern.
+ *  Diagnostic data is read from the UDTextModel decoration layers instead of a
+ *  local cache.  Two decoration owners are rendered:
+ *    • UDLSPDiagnosticDecorationOwner  ("lsp.diagnostic") — from the LSP server
+ *    • UDParseErrorDecorationOwner     ("ts.error")        — from Tree-sitter
+ *  Both appear as pill-shaped inline labels at the end of the affected line,
+ *  similar to how Xcode shows inline compiler / clang-tidy diagnostics.
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDDiagnosticTextView.h"
@@ -22,6 +25,28 @@ static const CGFloat    kLabelCornerRadius = 3.0;
 static const CGFloat    kLabelFontSize     = 10.5;
 
 // ---------------------------------------------------------------------------
+
+/// Returns YES if the decoration node represents any inline diagnostic that
+/// should be rendered as a pill label (LSP diagnostics OR TreeSitter errors).
+static inline BOOL IsDiagnosticNode(UDIntervalNode *node) {
+    return [node.owner isEqualToString:UDLSPDiagnosticDecorationOwner] ||
+           [node.owner isEqualToString:UDParseErrorDecorationOwner];
+}
+
+/// Returns the pill background colour for a diagnostic node, keyed by className.
+static NSColor *PillColorForNode(UDIntervalNode *node) {
+    NSString *cls = node.options.className;
+    // LSP warnings and TreeSitter MISSING → amber
+    if ([cls isEqualToString:@"lsp.warning"] || [cls isEqualToString:@"ts.missing"]) {
+        return [NSColor colorWithRed:0.70 green:0.55 blue:0.00 alpha:0.85];
+    }
+    // TreeSitter ERROR → orange-red (distinct from the bright red of LSP errors)
+    if ([cls isEqualToString:@"ts.error"]) {
+        return [NSColor colorWithRed:0.85 green:0.40 blue:0.00 alpha:0.85];
+    }
+    // LSP errors and any unknown → red
+    return [NSColor colorWithRed:0.80 green:0.12 blue:0.12 alpha:0.85];
+}
 
 @interface UDDiagnosticTextView () <NSLayoutManagerDelegate>
 @end
@@ -67,7 +92,7 @@ static const CGFloat    kLabelFontSize     = 10.5;
                                         end:(NSInteger)NSMaxRange(charRange)];
 
     for (UDIntervalNode *node in nodes) {
-        if (![node.owner isEqualToString:UDLSPDiagnosticDecorationOwner]) continue;
+        if (!IsDiagnosticNode(node)) continue;
         NSString *msg = [self _truncatedMessage:node.options.userInfo];
         lineFragmentUsedRect->size.width +=
             kLabelGap + (CGFloat)msg.length * kLabelWidthPerChar + 8.0;
@@ -98,7 +123,7 @@ static const CGFloat    kLabelFontSize     = 10.5;
         [NSFont monospacedSystemFontOfSize:kLabelFontSize weight:NSFontWeightRegular];
 
     for (UDIntervalNode *node in nodes) {
-        if (![node.owner isEqualToString:UDLSPDiagnosticDecorationOwner]) continue;
+        if (!IsDiagnosticNode(node)) continue;
 
         NSUInteger charOffset = (NSUInteger)MAX(0LL, node.start);
         if (charOffset >= (NSUInteger)docLen) continue;
@@ -118,20 +143,13 @@ static const CGFloat    kLabelFontSize     = 10.5;
         // Skip if this line is outside the dirty rect.
         if (!NSIntersectsRect(viewRect, rect)) continue;
 
-        // Choose label colour by severity (className).
-        BOOL isError =
-            [node.options.className isEqualToString:@"lsp.error"] ||
-            !node.options.className;
-        NSColor *bgColor = isError
-            ? [NSColor colorWithRed:0.80 green:0.12 blue:0.12 alpha:0.85]
-            : [NSColor colorWithRed:0.70 green:0.55 blue:0.00 alpha:0.85];
-
-        NSString *msg   = [self _truncatedMessage:node.options.userInfo];
-        CGFloat   labelX = viewRect.origin.x + viewRect.size.width + kLabelGap;
-        CGFloat   labelY = viewRect.origin.y +
-                           (viewRect.size.height - kLabelHeight) / 2.0;
-        CGFloat   labelW = MIN((CGFloat)msg.length * kLabelWidthPerChar + 8.0,
-                               self.bounds.size.width - labelX - 4.0);
+        NSColor  *bgColor = PillColorForNode(node);
+        NSString *msg     = [self _truncatedMessage:node.options.userInfo];
+        CGFloat   labelX  = viewRect.origin.x + viewRect.size.width + kLabelGap;
+        CGFloat   labelY  = viewRect.origin.y +
+                            (viewRect.size.height - kLabelHeight) / 2.0;
+        CGFloat   labelW  = MIN((CGFloat)msg.length * kLabelWidthPerChar + 8.0,
+                                self.bounds.size.width - labelX - 4.0);
         if (labelW < 20.0) continue;
 
         NSRect labelRect = NSMakeRect(labelX, labelY, labelW, kLabelHeight);

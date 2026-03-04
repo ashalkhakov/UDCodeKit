@@ -29,6 +29,10 @@ extern NSString * const UDMissingNodeDecorationOwner;
 /// Errors use className "lsp.error"; warnings use className "lsp.warning".
 extern NSString * const UDLSPDiagnosticDecorationOwner;
 
+/// Owner string for Tree-sitter parse-error decorations (layer 6, above LSP).
+/// ERROR nodes use className "ts.error"; MISSING nodes use className "ts.missing".
+extern NSString * const UDParseErrorDecorationOwner;
+
 @interface UDTextModelTextStorage : NSTextStorage
 
 /// The underlying text model.  Use for searches, decorations, undo/redo.

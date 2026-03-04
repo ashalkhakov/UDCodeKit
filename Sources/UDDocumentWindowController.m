@@ -85,6 +85,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 @property (nonatomic, strong) UDAutoIndenter               *autoIndenter;
 @property (nonatomic, strong) UDErrorsViewController       *errorsViewController;
 @property (nonatomic, strong) NSArray<NSString *>          *findDecorationIDs;
+@property (nonatomic, strong) NSArray<NSString *>          *parseErrorDecorationIDs;
 @property (nonatomic, strong, nullable) UDLSPCoordinator   *lspCoordinator;
 
 @end
@@ -107,7 +108,8 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
 - (void)windowDidLoad {
     [super windowDidLoad];
-    _findDecorationIDs = @[];
+    _findDecorationIDs       = @[];
+    _parseErrorDecorationIDs = @[];
 
     UDDocument *doc = (UDDocument *)self.document;
 
@@ -136,8 +138,13 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     // 3. Point the text view's diagnostics draw code at the text model.
     _textView.textModel = _textStorage.textModel;
 
-    // 4. Configure the text view.
+    // 4. Configure the text view and the find search field.
     _textView.delegate = self;
+
+    _findField.delegate = self;
+    _findField.target   = self;
+    _findField.action   = @selector(_findFieldDidChange:);
+    ((NSSearchFieldCell *)_findField.cell).sendsSearchStringImmediately = YES;
 
     // 5. Synchronise the window title.
     NSURL *fileURL = doc.fileURL;
@@ -227,6 +234,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     [content addSubview:errorsView];
     [_errorsViewController update];
     [self _updateGutterErrorMarks];
+    [self _applyTreeSitterErrorDecorations];
 
     // 15. Key monitor for structured navigation + auto-indent.
     __weak typeof(self) weakSelf = self;
@@ -380,7 +388,63 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         [self->_missingNodeHighlighter update];
         [self->_errorsViewController update];
         [self _updateGutterErrorMarks];
+        [self _applyTreeSitterErrorDecorations];
     });
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Tree-sitter inline-error decorations
+// ---------------------------------------------------------------------------
+
+/// Converts the most recently scanned Tree-sitter errors (from _errorsViewController)
+/// into UDParseErrorDecorationOwner decorations on the text model, so that
+/// UDDiagnosticTextView can render them as Xcode-style inline pill labels.
+- (void)_applyTreeSitterErrorDecorations {
+    UDTextModel *model  = _textStorage.textModel;
+    NSInteger    docLen = [model getLength];
+
+    NSArray<UDParseErrorItem *> *errors = _errorsViewController.errors;
+    NSMutableArray<UDModelDeltaDecoration *> *newDecors =
+        [NSMutableArray arrayWithCapacity:errors.count];
+
+    for (UDParseErrorItem *err in errors) {
+        // err.line is 1-based; err.column is 0-based.
+        // getOffsetAt:column: expects 1-based line AND 1-based column, so add 1 to column.
+        NSInteger offset = [model getOffsetAt:err.line column:err.column + 1];
+        if (offset < 0 || offset >= docLen) continue;
+
+        // Make the decoration 1 character wide (sufficient for pill placement).
+        NSInteger endOffset = MIN(offset + 1, docLen);
+
+        UDPosition sp = [model getPositionAt:offset];
+        UDPosition ep = [model getPositionAt:endOffset];
+        UDRange udRange = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
+
+        // className distinguishes ERROR nodes from MISSING nodes so the view
+        // can choose different pill colours (matching the inline label style).
+        BOOL isMissing = [err.message hasPrefix:@"Missing"];
+        NSString *className = isMissing ? @"ts.missing" : @"ts.error";
+
+        UDDecorationOptions *opts =
+            [[UDDecorationOptions alloc] initWithClassName:className
+                                                  userInfo:err.message];
+        UDModelDeltaDecoration *d =
+            [[UDModelDeltaDecoration alloc] initWithRange:udRange options:opts];
+        d.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
+        [newDecors addObject:d];
+    }
+
+    _parseErrorDecorationIDs =
+        [model deltaDecorations:_parseErrorDecorationIDs
+                 newDecorations:newDecors
+                          owner:UDParseErrorDecorationOwner];
+    [_textStorage applyDecorationHighlights];
+
+    // Force the text view to re-layout and re-draw the diagnostic pills.
+    [_textView.layoutManager
+        invalidateLayoutForCharacterRange:NSMakeRange(0, _textStorage.length)
+                     actualCharacterRange:nil];
+    [_textView setNeedsDisplay:YES];
 }
 
 // ---------------------------------------------------------------------------

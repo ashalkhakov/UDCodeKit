@@ -1,17 +1,16 @@
 /*---------------------------------------------------------------------------------------------
  *  UDErrorsViewController.h
  *
- *  Displays a two-level NSOutlineView of TreeSitter parse errors, modelled
+ *  Displays a two-level NSOutlineView of parse / LSP diagnostics, modelled
  *  after Xcode's Issue Navigator:
  *
- *    ▼ current.json  (N errors)
+ *    ▼ my-file.json  (N errors)
  *        Line 4: Unexpected token
  *        Line 7: Missing "}"
  *
- *  Level 0 — the source file (always "current.json").
- *  Level 1 — individual parse errors (ERROR + MISSING tree-sitter nodes).
+ *  Level 0 — the source file (display name provided by the caller).
+ *  Level 1 — individual diagnostics (ERROR + MISSING tree-sitter nodes, LSP items).
  *
- *  Call -update after every parse to refresh the list.
  *  The view is built entirely in code — no XIB.
  *--------------------------------------------------------------------------------------------*/
 
@@ -26,12 +25,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithDiagnosticStore:(UDDiagnosticStore *)store;
 
-/// Switch the view to show diagnostics from a different store.
+/// Switch the view to show diagnostics from a different store and update the
+/// filename shown in the root row of the outline view.
 ///
 /// Removes the existing notification subscription, rebinds to the new store,
-/// and reloads the outline view.  Calling with the current store is a no-op.
-/// Safe to call before the view has loaded (the reload happens lazily).
-- (void)bindToStore:(UDDiagnosticStore *)store;
+/// and reloads the outline view.  Calling with the same store and name is a
+/// no-op.  Safe to call before the view has loaded (the reload happens lazily).
+- (void)bindToStore:(UDDiagnosticStore *)store displayName:(NSString *)displayName;
 
 @end
 

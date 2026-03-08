@@ -265,7 +265,9 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     }
 
     // 4. Bind the errors panel to the first (active) tab's store.
-    [_errorsViewController bindToStore:_tabContexts.firstObject.diagnosticStore];
+    UDEditorTabContext *firstCtx = _tabContexts.firstObject;
+    [_errorsViewController bindToStore:firstCtx.diagnosticStore
+                           displayName:firstCtx.tabTitle];
 
     // 5. Window title — workspace filename or generic name.
     self.window.title = workspace.fileURL
@@ -531,7 +533,8 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
                        context:(void *)context {
     if (context == kTabSelectionKVOContext) {
         UDEditorTabContext *ctx = [self _activeContext];
-        if (ctx) [_errorsViewController bindToStore:ctx.diagnosticStore];
+        if (ctx) [_errorsViewController bindToStore:ctx.diagnosticStore
+                                        displayName:ctx.tabTitle];
         return;
     }
     [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];

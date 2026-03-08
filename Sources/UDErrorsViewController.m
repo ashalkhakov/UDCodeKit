@@ -10,8 +10,9 @@
 // Dividing by 2 gives the 0-based character column for ASCII/BMP-only content.
 static inline NSInteger columnFromTSColumn(uint32_t col) { return (NSInteger)(col / 2); }
 
-/// The single root item shown in the outline view.
-static NSString * const kFileGroupItem = @"current.json";
+/// The single root item shown in the outline view — the display name of the
+/// file currently bound to this panel.  Updated by -bindToStore:displayName:.
+static NSString * const kFileGroupItem = @"__file_group__";
 
 /// Maximum number of errors collected (mirrors VS Code's maxNumberOfProblems).
 static const NSUInteger kMaxParseErrors = 100;
@@ -41,6 +42,9 @@ static const NSUInteger kMaxParseErrors = 100;
 
 @interface UDErrorsViewController ()
 @property (nonatomic, strong)  UDDiagnosticStore                 *diagnosticStore;
+/// Display name shown in the root row of the outline view (filename of the
+/// active document).  Set by -bindToStore:displayName:.
+@property (nonatomic, copy)    NSString                          *displayName;
 @property (nonatomic, weak) IBOutlet NSOutlineView              *outlineView;
 @property (nonatomic, strong) NSArray<UDDiagnosticItem *>       *diagnostics;
 
@@ -57,6 +61,7 @@ static const NSUInteger kMaxParseErrors = 100;
     if (self) {
         _diagnosticStore = store;
         _diagnostics     = @[];
+        _displayName     = @"Untitled";
         
         // 19. Diagnostic-store change notification.
         [[NSNotificationCenter defaultCenter]
@@ -132,14 +137,14 @@ static const NSUInteger kMaxParseErrors = 100;
     }
 
     if ([item isKindOfClass:[NSString class]]) {
-        // File-group row: "current.json (N error(s))"
+        // File-group row: "<filename> (N error(s))"
         NSUInteger count = _diagnostics.count;
         NSString *label;
         if (count == 0) {
-            label = (NSString *)item;
+            label = _displayName;
         } else {
             label = [NSString stringWithFormat:@"%@ (%lu %@)",
-                     (NSString *)item,
+                     _displayName,
                      (unsigned long)count,
                      count == 1 ? @"error" : @"errors"];
         }
@@ -172,23 +177,33 @@ static const NSUInteger kMaxParseErrors = 100;
 // MARK: - Store binding
 // ---------------------------------------------------------------------------
 
-- (void)bindToStore:(UDDiagnosticStore *)store {
-    if (store == _diagnosticStore) return;
+- (void)bindToStore:(UDDiagnosticStore *)store displayName:(NSString *)displayName {
+    NSString *safeName   = displayName ?: @"Untitled";
+    BOOL storeChanged = (store != _diagnosticStore);
+    BOOL nameChanged  = ![safeName isEqualToString:_displayName];
+    if (!storeChanged && !nameChanged) return;
 
-    [[NSNotificationCenter defaultCenter]
-        removeObserver:self
-                  name:UDDiagnosticsDidChangeNotification
-                object:_diagnosticStore];
+    if (storeChanged) {
+        [[NSNotificationCenter defaultCenter]
+            removeObserver:self
+                      name:UDDiagnosticsDidChangeNotification
+                    object:_diagnosticStore];
 
-    _diagnosticStore = store;
+        _diagnosticStore = store;
 
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector(_diagnosticsDidChange:)
-               name:UDDiagnosticsDidChangeNotification
-             object:_diagnosticStore];
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+               selector:@selector(_diagnosticsDidChange:)
+                   name:UDDiagnosticsDidChangeNotification
+                 object:_diagnosticStore];
 
-    self.diagnostics = [store.allDiagnostics copy];
+        self.diagnostics = [store.allDiagnostics copy];
+    }
+
+    if (nameChanged) {
+        _displayName = [safeName copy];
+    }
+
     [_outlineView reloadData];
     [_outlineView expandItem:kFileGroupItem];
 }

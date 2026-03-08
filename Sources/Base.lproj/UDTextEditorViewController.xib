@@ -7,6 +7,7 @@
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="UDTextEditorViewController">
             <connections>
+                <outlet property="view"       destination="TE-container-view" id="TE-view-outlet"/>
                 <outlet property="findField"  destination="TE-find-field"  id="TE-find-outlet"/>
                 <outlet property="scrollView" destination="TE-scroll-view" id="TE-scroll-outlet"/>
                 <outlet property="textView"   destination="TE-text-view"   id="TE-text-outlet"/>

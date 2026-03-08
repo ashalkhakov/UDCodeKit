@@ -13,14 +13,33 @@
 #import "UDDiagnosticStore.h"
 #import "UDDiagnosticItem.h"
 #import "tree_sitter_json.h"
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 // ---------------------------------------------------------------------------
-// MARK: - Constants
+// MARK: - Module-level constants
 // ---------------------------------------------------------------------------
 
 static CGFloat const kErrorsPaneWidth = 180.0;
 
-static NSToolbarItemIdentifier const kToolbarAddEditorTab = @"addEditorTab";
+static NSToolbarItemIdentifier const kToolbarAddTab    = @"addEditorTab";
+static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
+
+static void * const kTabSelectionKVOContext = (void *)&kTabSelectionKVOContext;
+
+/// Default content for a blank new-document tab.
+static NSString * const kDefaultNewDocumentText =
+    @"{\n"
+    @"  \"name\": \"UDPieceTable\",\n"
+    @"  \"version\": 1,\n"
+    @"  \"description\": \"Piece-table editor with Tree-sitter + LSP.\",\n"
+    @"  \"features\": [\n"
+    @"    \"piece-table editing\",\n"
+    @"    \"incremental parsing\",\n"
+    @"    \"syntax highlighting\"\n"
+    @"  ],\n"
+    @"  \"isAwesome\": true,\n"
+    @"  \"author\": null\n"
+    @"}";
 
 static NSString * const kJSONHighlightsQuery =
     @"(pair\n"
@@ -39,22 +58,129 @@ static NSString * const kJSONHighlightsQuery =
 static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
 // ---------------------------------------------------------------------------
-// MARK: - Private interface
+// MARK: - UDEditorTabContext  (private — lives entirely in this translation unit)
+// ---------------------------------------------------------------------------
+
+/// Encapsulates all per-document state for one editor tab (or a group of tabs
+/// that all show the same document).
+///
+/// Multiple UDTextEditorViewControllers may be wired to the same context: each
+/// adds its own NSLayoutManager to the shared UDTextModelTextStorage, so edits
+/// in any view appear immediately in all others.
+///
+/// Lifecycle:
+///   1. -initWithContent:fileURL:        — create before any editor VC loads.
+///   2. -activateWithTheme:…             — call AFTER the first editor VC's
+///      -viewDidLoad has run so its layout manager is attached to textStorage
+///      before the first tree-sitter parse fires.
+///   3. Set lspCoordinator if available.
+@interface UDEditorTabContext : NSObject
+
+@property (nonatomic, strong, readonly) UDTextModelTextStorage  *textStorage;
+@property (nonatomic, strong, readonly) UDDiagnosticStore       *diagnosticStore;
+/// File URL this context is editing, or nil for an unsaved scratch buffer.
+@property (nonatomic, copy,   readonly, nullable) NSURL         *fileURL;
+/// Display title derived from fileURL.lastPathComponent, or "Untitled".
+@property (nonatomic, copy,   readonly)           NSString      *tabTitle;
+/// Optional LSP coordinator; set by the owner after -activateWithTheme:…
+@property (nonatomic, strong, nullable)           UDLSPCoordinator *lspCoordinator;
+
+- (instancetype)initWithContent:(NSString *)content
+                        fileURL:(nullable NSURL *)fileURL NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+
+/// Wire tree-sitter, run the first parse, and start the diagnostic pipeline.
+/// MUST be called after at least one editor VC's -viewDidLoad has executed.
+- (void)activateWithTheme:(nullable TreeSitterTheme *)theme
+             languageFunc:(LanguageFunc)languageFunc
+          highlightsQuery:(NSString *)highlightsQuery;
+
+@end
+
+// ---- Private extension ----
+
+@interface UDEditorTabContext ()
+@property (nonatomic, strong) UDMissingNodeHighlighter *missingNodeHighlighter;
+@property (nonatomic, strong) UDParseErrorHighlighter  *parseErrorHighlighter;
+@property (nonatomic, strong) UDParseErrorCollector    *parseErrorCollector;
+@end
+
+@implementation UDEditorTabContext
+
+- (instancetype)initWithContent:(NSString *)content fileURL:(NSURL *)fileURL {
+    self = [super init];
+    if (!self) return nil;
+    _textStorage     = [[UDTextModelTextStorage alloc] initWithText:content ?: @""];
+    _diagnosticStore = [[UDDiagnosticStore alloc] init];
+    _fileURL         = [fileURL copy];
+    _tabTitle        = fileURL.lastPathComponent ?: @"Untitled";
+    return self;
+}
+
+- (void)activateWithTheme:(TreeSitterTheme *)theme
+             languageFunc:(LanguageFunc)languageFunc
+          highlightsQuery:(NSString *)highlightsQuery {
+    if (theme) _textStorage.theme = theme;
+    [_textStorage setLanguageFunc:languageFunc withHighlightsQuery:highlightsQuery];
+
+    UDTreeSitterHighlighter *hl = _textStorage.highlighter;
+    _missingNodeHighlighter =
+        [[UDMissingNodeHighlighter alloc] initWithTextStorage:_textStorage highlighter:hl];
+    [_missingNodeHighlighter update];
+
+    _parseErrorHighlighter =
+        [[UDParseErrorHighlighter alloc] initWithTextStorage:_textStorage highlighter:hl];
+    [_parseErrorHighlighter update];
+
+    _parseErrorCollector =
+        [[UDParseErrorCollector alloc] initWithTextStorage:_textStorage
+                                                highlighter:hl
+                                                      store:_diagnosticStore];
+    [_parseErrorCollector update];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_textStorageDidEdit:)
+               name:NSTextStorageDidProcessEditingNotification
+             object:_textStorage];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)_textStorageDidEdit:(NSNotification *)note {
+    NSTextStorage *ts = note.object;
+    if (!(ts.editedMask & NSTextStorageEditedCharacters)) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self->_missingNodeHighlighter update];
+        [self->_parseErrorHighlighter  update];
+        [self->_parseErrorCollector    update];
+    });
+}
+
+@end
+
+// ---------------------------------------------------------------------------
+// MARK: - UDDocumentWindowController  (private extension)
 // ---------------------------------------------------------------------------
 
 @interface UDDocumentWindowController () <NSTextViewDelegate, NSToolbarDelegate>
 
-// Created in -windowDidLoad.
-@property (nonatomic, strong) UDTextModelTextStorage     *textStorage;
-/// The NSTabViewController that hosts one or more UDTextEditorViewController tabs
-/// in the right-hand (editor) pane of the split view.
-@property (nonatomic, strong) NSTabViewController        *editorTabViewController;
-@property (nonatomic, strong) UDErrorsViewController     *errorsViewController;
-@property (nonatomic, strong) UDMissingNodeHighlighter   *missingNodeHighlighter;
-@property (nonatomic, strong) UDParseErrorHighlighter    *parseErrorHighlighter;
-@property (nonatomic, strong) UDParseErrorCollector      *parseErrorCollector;
-@property (nonatomic, strong) UDDiagnosticStore          *diagnosticStore;
-@property (nonatomic, strong, nullable) UDLSPCoordinator *lspCoordinator;
+/// Parallel to _editorTabViewController.tabViewItems: _tabContexts[i] is the
+/// context for tab i.  The SAME context may appear at multiple indices (when
+/// the user opens a second view of an already-open file).
+@property (nonatomic, strong) NSMutableArray<UDEditorTabContext *> *tabContexts;
+
+@property (nonatomic, strong) NSTabViewController   *editorTabViewController;
+@property (nonatomic, strong) UDErrorsViewController *errorsViewController;
+
+/// Diagnostic stores we have already registered NSNotificationCenter observers
+/// for.  Prevents duplicate callbacks when a context appears in more than one tab.
+@property (nonatomic, strong) NSMutableSet<UDDiagnosticStore *> *observedStores;
+
+/// Cached theme (used when adding new tabs after initial load).
+@property (nonatomic, strong) TreeSitterTheme *currentTheme;
 
 @end
 
@@ -77,204 +203,294 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 - (void)windowDidLoad {
     [super windowDidLoad];
 
-    UDDocument *doc = (UDDocument *)self.document;
-    NSURL      *fileURL = doc.fileURL;
+    UDWorkspace *workspace = (UDWorkspace *)self.document;
 
-    // 1. Build text storage and apply the theme.
-    _textStorage = [[UDTextModelTextStorage alloc] initWithText:doc.initialContent];
-    doc.textStorage = _textStorage;
+    _tabContexts    = [NSMutableArray array];
+    _observedStores = [NSMutableSet set];
 
+    // 1. Resolve the effective colour theme.
     NSAppearanceName best =
-        [NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:
-             @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
+        [NSApp.effectiveAppearance
+            bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua,
+                                                NSAppearanceNameDarkAqua]];
     BOOL dark = [best isEqualToString:NSAppearanceNameDarkAqua];
-    _textStorage.theme = [[TreeSitterTheme alloc] initWithMode:dark];
+    _currentTheme = [[TreeSitterTheme alloc] initWithMode:dark];
 
-    // 2. Create the first editor VC and force view load so the layout manager
-    //    is wired BEFORE the first parse is triggered.
-    UDTextEditorViewController *firstEditorVC =
-        [[UDTextEditorViewController alloc] initWithTextStorage:_textStorage];
-    [self _configureEditorVC:firstEditorVC];
-
-    // 3. Now safe to parse — the layout chain is complete.
-    [_textStorage setLanguageFunc:(LanguageFunc)tree_sitter_json
-               withHighlightsQuery:kJSONHighlightsQuery];
-
-    // 4. Window title.
-    self.window.title = fileURL ? fileURL.lastPathComponent : @"Untitled";
-
-    // 5. Diagnostic store — shared by the parse-error collector and LSP.
-    _diagnosticStore = [[UDDiagnosticStore alloc] init];
-
-    // 6. MISSING-node pill highlighter.
-    _missingNodeHighlighter =
-        [[UDMissingNodeHighlighter alloc] initWithTextStorage:_textStorage
-                                                   highlighter:_textStorage.highlighter];
-    [_missingNodeHighlighter update];
-
-    // 7. Parse-error inline pill highlighter.
-    _parseErrorHighlighter =
-        [[UDParseErrorHighlighter alloc] initWithTextStorage:_textStorage
-                                                  highlighter:_textStorage.highlighter];
-    [_parseErrorHighlighter update];
-
-    // 8. Parse-error collector → writes to the diagnostic store.
-    _parseErrorCollector =
-        [[UDParseErrorCollector alloc] initWithTextStorage:_textStorage
-                                                highlighter:_textStorage.highlighter
-                                                      store:_diagnosticStore];
-    [_parseErrorCollector update];
-
-    // 9. Errors panel view controller.
-    _errorsViewController =
-        [[UDErrorsViewController alloc] initWithDiagnosticStore:_diagnosticStore];
-
-    // 10. Build the tab view controller that holds all editor tabs.
-    //     Using NSTabViewControllerTabStyleTopmost gives a tab bar at the top
-    //     of the editor pane.  Each tab item wraps one UDTextEditorViewController;
-    //     all tabs share the same UDTextModelTextStorage (via independent
-    //     NSLayoutManagers added to the shared storage in -viewDidLoad).
+    // 2. Build the tab view controller and the errors panel BEFORE setting
+    //    contentViewController, so the view hierarchy is live when the first
+    //    editor VC's -viewDidLoad runs.
     _editorTabViewController = [[NSTabViewController alloc] init];
-    _editorTabViewController.tabStyle =
-        NSTabViewControllerTabStyleTopmost;
+    _editorTabViewController.tabStyle = NSTabViewControllerTabStyleTopmost;
 
-    NSTabViewItem *firstTab =
-        [[NSTabViewItem alloc] initWithIdentifier:@"editor-1"];
-    firstTab.label          = @"Editor 1";
-    firstTab.viewController = firstEditorVC;
-    [_editorTabViewController addTabViewItem:firstTab];
+    // Placeholder diagnostic store for the errors panel; rebound after tabs open.
+    _errorsViewController =
+        [[UDErrorsViewController alloc] initWithDiagnosticStore:
+            [[UDDiagnosticStore alloc] init]];
 
-    // 11. Build the two-pane split: errors (left, fixed) + tab editor (right).
     NSSplitViewController *splitVC = [[NSSplitViewController alloc] init];
-
     NSSplitViewItem *errorsItem =
         [NSSplitViewItem splitViewItemWithViewController:_errorsViewController];
     errorsItem.minimumThickness = kErrorsPaneWidth;
     errorsItem.maximumThickness = kErrorsPaneWidth;
     [splitVC addSplitViewItem:errorsItem];
-
-    NSSplitViewItem *editorItem =
-        [NSSplitViewItem splitViewItemWithViewController:_editorTabViewController];
-    [splitVC addSplitViewItem:editorItem];
-
+    [splitVC addSplitViewItem:
+        [NSSplitViewItem splitViewItemWithViewController:_editorTabViewController]];
     self.contentViewController = splitVC;
 
-    // 12. Toolbar with "New Editor Tab" button.
+    // 3. Open workspace tabs.
+    NSArray<NSURL *> *tabURLs = workspace.initialTabURLs;
+    if (tabURLs.count > 0) {
+        for (NSURL *url in tabURLs) {
+            NSError *err = nil;
+            NSString *content = [NSString stringWithContentsOfURL:url
+                                                         encoding:NSUTF8StringEncoding
+                                                            error:&err];
+            if (!content) {
+                NSLog(@"[UDDocumentWindowController] Cannot open %@: %@",
+                      url.lastPathComponent, err);
+                content = @"";  // open empty tab rather than silently dropping it
+            }
+            [self _openNewTabWithContent:content
+                                 fileURL:url
+                                   label:url.lastPathComponent];
+        }
+        // Wire the workspace to the first tab's storage so Cmd+S works for
+        // the plain-file case (single JSON opened directly).
+        workspace.primaryTextStorage = _tabContexts.firstObject.textStorage;
+    } else {
+        // Fresh workspace — open one blank editor tab.
+        [self _openNewTabWithContent:kDefaultNewDocumentText
+                             fileURL:nil
+                               label:@"Untitled"];
+    }
+
+    // 4. Bind the errors panel to the first (active) tab's store.
+    [_errorsViewController bindToStore:_tabContexts.firstObject.diagnosticStore];
+
+    // 5. Window title — workspace filename or generic name.
+    self.window.title = workspace.fileURL
+        ? workspace.fileURL.lastPathComponent
+        : @"Untitled Workspace";
+
+    // 6. Toolbar with "New Tab" and "Open in New Tab" items.
     NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"UDEditorToolbar"];
-    toolbar.delegate     = self;
-    toolbar.displayMode  = NSToolbarDisplayModeIconOnly;
+    toolbar.delegate             = self;
+    toolbar.displayMode          = NSToolbarDisplayModeIconOnly;
     toolbar.allowsUserCustomization = NO;
     self.window.toolbar = toolbar;
 
-    // 13. Text-storage edit notification (document-level highlighters only;
-    //     the editor VCs each handle their own folding/bracket-match/find).
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector(_textStorageDidEdit:)
-               name:NSTextStorageDidProcessEditingNotification
-             object:_textStorage];
-
-    // 14. Diagnostic-store change notification.
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector(_diagnosticsDidChange:)
-               name:UDDiagnosticsDidChangeNotification
-             object:_diagnosticStore];
-
-    // 15. LSP coordinator.
-    [self _setupLSPCoordinator:doc.initialContent documentURL:fileURL];
+    // 7. KVO: rebind the errors panel when the active tab changes.
+    [_editorTabViewController addObserver:self
+                               forKeyPath:@"selectedTabViewItemIndex"
+                                  options:NSKeyValueObservingOptionNew
+                                  context:kTabSelectionKVOContext];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Tab management
+// MARK: - Tab management — public actions
 // ---------------------------------------------------------------------------
 
 - (IBAction)addEditorTab:(nullable id)sender {
+    NSUInteger n     = _editorTabViewController.tabViewItems.count + 1;
+    NSString  *label = [NSString stringWithFormat:@"Untitled %lu", (unsigned long)n];
+    [self _openNewTabWithContent:kDefaultNewDocumentText fileURL:nil label:label];
+}
+
+- (IBAction)openFileInNewTab:(nullable id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseFiles          = YES;
+    panel.canChooseDirectories    = NO;
+    panel.allowsMultipleSelection = YES;
+    if (@available(macOS 11.0, *)) {
+        panel.allowedContentTypes = @[UTTypeJSON];
+    } else {
+        panel.allowedFileTypes = @[@"json"];
+    }
+    [panel beginSheetModalForWindow:self.window
+                  completionHandler:^(NSModalResponse result) {
+        if (result != NSModalResponseOK) return;
+        for (NSURL *url in panel.URLs) {
+            [self openURLInNewTab:url];
+        }
+    }];
+}
+
+- (void)openURLInNewTab:(NSURL *)url {
+    // If this file is already open, add a new *view* of the same context so
+    // edits in the two tabs are immediately synchronised.
+    for (UDEditorTabContext *ctx in _tabContexts) {
+        if ([ctx.fileURL isEqual:url]) {
+            [self _addViewTabForContext:ctx];
+            return;
+        }
+    }
+
+    // New file — create an independent context.
+    NSError  *err     = nil;
+    NSString *content = [NSString stringWithContentsOfURL:url
+                                                 encoding:NSUTF8StringEncoding
+                                                    error:&err];
+    if (!content) {
+        NSLog(@"[UDDocumentWindowController] Cannot open %@: %@",
+              url.lastPathComponent, err);
+        return;
+    }
+    [self _openNewTabWithContent:content fileURL:url label:url.lastPathComponent];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Workspace state (used by UDWorkspace for serialisation)
+// ---------------------------------------------------------------------------
+
+- (NSArray<NSURL *> *)currentOpenFileURLs {
+    NSMutableArray<NSURL *> *seen = [NSMutableArray array];
+    for (UDEditorTabContext *ctx in _tabContexts) {
+        if (ctx.fileURL && ![seen containsObject:ctx.fileURL]) {
+            [seen addObject:ctx.fileURL];
+        }
+    }
+    return [seen copy];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Tab management — private helpers
+// ---------------------------------------------------------------------------
+
+/// Create a brand-new context + editor VC, activate the context, and add a
+/// tab.  The caller can immediately access the new tab as the last item in
+/// _editorTabViewController.tabViewItems.
+- (void)_openNewTabWithContent:(NSString *)content
+                       fileURL:(nullable NSURL *)fileURL
+                         label:(NSString *)label {
+    // a. Build context.
+    UDEditorTabContext *ctx =
+        [[UDEditorTabContext alloc] initWithContent:content fileURL:fileURL];
+
+    // b. Wire an editor VC.  Calling -view forces -viewDidLoad which attaches
+    //    a new NSLayoutManager to ctx.textStorage.  This MUST happen before
+    //    -activateWithTheme:… fires the first parse.
+    UDTextEditorViewController *editorVC =
+        [[UDTextEditorViewController alloc] initWithTextStorage:ctx.textStorage];
+    [self _configureEditorVC:editorVC];     // forces -viewDidLoad
+
+    // c. Activate: first parse, diagnostic pipeline, edit notifications.
+    [ctx activateWithTheme:_currentTheme
+              languageFunc:(LanguageFunc)tree_sitter_json
+           highlightsQuery:kJSONHighlightsQuery];
+
+    // d. LSP coordinator.
+    [self _setupLSPCoordinatorForContext:ctx];
+
+    // e. Register diagnostics observer (once per unique store).
+    if (![_observedStores containsObject:ctx.diagnosticStore]) {
+        [_observedStores addObject:ctx.diagnosticStore];
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+               selector:@selector(_diagnosticsDidChange:)
+                   name:UDDiagnosticsDidChangeNotification
+                 object:ctx.diagnosticStore];
+    }
+
+    // f. Track and display.
+    [_tabContexts addObject:ctx];
+    [self _appendTabItem:label viewController:editorVC identifier:
+        fileURL.absoluteString
+            ?: [NSString stringWithFormat:@"untitled-%lu",
+                (unsigned long)_editorTabViewController.tabViewItems.count + 1]];
+}
+
+/// Add a second (or further) view of an already-active context.  The new tab
+/// shares the context's textStorage, diagnosticStore, and lspCoordinator;
+/// edits in either tab appear immediately in both.
+- (void)_addViewTabForContext:(UDEditorTabContext *)ctx {
+    UDTextEditorViewController *editorVC =
+        [[UDTextEditorViewController alloc] initWithTextStorage:ctx.textStorage];
+    [self _configureEditorVC:editorVC];  // adds another NSLayoutManager to shared storage
+
+    [_tabContexts addObject:ctx];        // same context object, new slot
+
     NSUInteger n = _editorTabViewController.tabViewItems.count + 1;
+    [self _appendTabItem:ctx.tabTitle
+          viewController:editorVC
+              identifier:[NSString stringWithFormat:@"%@-view%lu",
+                          ctx.fileURL.absoluteString ?: @"untitled", (unsigned long)n]];
+}
 
-    UDTextEditorViewController *newVC =
-        [[UDTextEditorViewController alloc] initWithTextStorage:_textStorage];
-    [self _configureEditorVC:newVC];
-
-    NSTabViewItem *tab = [[NSTabViewItem alloc]
-        initWithIdentifier:[NSString stringWithFormat:@"editor-%lu", (unsigned long)n]];
-    tab.label          = [NSString stringWithFormat:@"Editor %lu", (unsigned long)n];
-    tab.viewController = newVC;
-
+/// Low-level: create an NSTabViewItem and append it, then select it.
+- (void)_appendTabItem:(NSString *)label
+        viewController:(NSViewController *)vc
+            identifier:(NSString *)identifier {
+    NSTabViewItem *tab = [[NSTabViewItem alloc] initWithIdentifier:identifier];
+    tab.label          = label;
+    tab.viewController = vc;
     [_editorTabViewController addTabViewItem:tab];
-
-    // Switch to the new tab immediately.
     _editorTabViewController.selectedTabViewItemIndex =
         (NSInteger)(_editorTabViewController.tabViewItems.count - 1);
 }
 
-/// Returns all UDTextEditorViewController instances currently open as tabs.
-- (NSArray<UDTextEditorViewController *> *)_allEditorViewControllers {
-    NSMutableArray<UDTextEditorViewController *> *result = [NSMutableArray array];
-    for (NSTabViewItem *item in _editorTabViewController.tabViewItems) {
-        if ([item.viewController isKindOfClass:[UDTextEditorViewController class]]) {
-            [result addObject:(UDTextEditorViewController *)item.viewController];
-        }
-    }
-    return result;
+- (UDEditorTabContext *)_activeContext {
+    NSInteger  idx = _editorTabViewController.selectedTabViewItemIndex;
+    NSUInteger i   = (idx >= 0) ? (NSUInteger)idx : 0;
+    return (i < _tabContexts.count) ? _tabContexts[i] : _tabContexts.firstObject;
 }
 
-/// Shared setup called for every new editor tab VC.
-/// Forces the view to load (wires its layout manager to _textStorage),
-/// sets this window controller as the NSTextViewDelegate (needed by LSP),
-/// and configures the auto-indenter for JSON.
+/// Configure a freshly created editor VC:
+///   • Forces -viewDidLoad (attaches its NSLayoutManager to textStorage).
+///   • Sets this window controller as the text-view delegate (LSP).
+///   • Configures the auto-indenter for JSON.
 - (void)_configureEditorVC:(UDTextEditorViewController *)vc {
-    (void)vc.view; // triggers -viewDidLoad → adds layout manager to _textStorage
+    (void)vc.view;    // triggers -viewDidLoad
     vc.textView.delegate = self;
-    [vc.autoIndenter
-        configureWithLanguageFunc:(LanguageFunc)tree_sitter_json
-                     indentsQuery:kJSONIndentsQuery];
+    [vc.autoIndenter configureWithLanguageFunc:(LanguageFunc)tree_sitter_json
+                                  indentsQuery:kJSONIndentsQuery];
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - LSP setup
 // ---------------------------------------------------------------------------
 
-- (void)_setupLSPCoordinator:(NSString *)initialContent documentURL:(NSURL *)fileURL {
-    NSURL *docURL = fileURL ?: [NSURL fileURLWithPath:
-        [NSTemporaryDirectory() stringByAppendingPathComponent:@"untitled.json"]];
+- (void)_setupLSPCoordinatorForContext:(UDEditorTabContext *)ctx {
+    NSURL *docURL = ctx.fileURL
+        ?: [NSURL fileURLWithPath:
+               [NSTemporaryDirectory()
+                   stringByAppendingPathComponent:@"untitled.json"]];
 
     NSString *serverPath = [UDLSPServerLocator findJSONLanguageServerPath];
     if (!serverPath) {
         NSLog(@"[UDDocumentWindowController] No JSON language server found; "
-              @"LSP layer inactive.  Tree-sitter errors still active.");
+              @"LSP inactive for \"%@\".", ctx.tabTitle);
         return;
     }
 
+    UDTextModelTextStorage *ts = ctx.textStorage;
     LSPClient *client =
         [[LSPClient alloc] initWithPath:serverPath
                               arguments:@[@"--stdio"]
                    currentDirectoryPath:docURL.URLByDeletingLastPathComponent.path
                              languageID:@"json"];
 
-    UDLSPDiagnosticHighlighter *lspHighlighter =
-        [[UDLSPDiagnosticHighlighter alloc] initWithTextStorage:_textStorage
-                                                     highlighter:_textStorage.highlighter
-                                                           store:_diagnosticStore];
-
-    _lspCoordinator =
-        [[UDLSPCoordinator alloc] initWithTextStorage:_textStorage
+    UDLSPDiagnosticHighlighter *lspHL =
+        [[UDLSPDiagnosticHighlighter alloc] initWithTextStorage:ts
+                                                     highlighter:ts.highlighter
+                                                           store:ctx.diagnosticStore];
+    ctx.lspCoordinator =
+        [[UDLSPCoordinator alloc] initWithTextStorage:ts
                                                client:client
                                           documentURL:docURL
-                                diagnosticHighlighter:lspHighlighter];
-    [_lspCoordinator openDocument:initialContent];
+                                diagnosticHighlighter:lspHL];
+    [ctx.lspCoordinator openDocument:[ts.textModel getValue]];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Save notifications
+// MARK: - Save notifications (called by UDWorkspace)
 // ---------------------------------------------------------------------------
 
 - (void)documentWillSave {
-    [_lspCoordinator documentWillSave];
+    [_tabContexts.firstObject.lspCoordinator documentWillSave];
 }
 
 - (void)documentDidSave:(BOOL)success {
-    [_lspCoordinator documentDidSave];
+    [_tabContexts.firstObject.lspCoordinator documentDidSave];
     if (!success) {
         NSLog(@"[UDDocumentWindowController] File save failed; "
               @"LSP server has been notified of the save attempt.");
@@ -286,38 +502,56 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (void)close {
-    [_lspCoordinator closeDocument];
+    // Remove KVO before any other teardown to avoid callbacks during shutdown.
+    @try {
+        [_editorTabViewController removeObserver:self
+                                      forKeyPath:@"selectedTabViewItemIndex"
+                                         context:kTabSelectionKVOContext];
+    } @catch (NSException *) {}
+
+    // Close each unique context's LSP coordinator exactly once.
+    NSMutableSet<UDEditorTabContext *> *seen = [NSMutableSet set];
+    for (UDEditorTabContext *ctx in _tabContexts) {
+        if (![seen containsObject:ctx]) {
+            [ctx.lspCoordinator closeDocument];
+            [seen addObject:ctx];
+        }
+    }
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [super close];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - NSTextViewDelegate (for LSP pre-change tracking)
+// MARK: - KVO  (tab selection → rebind errors panel)
 // ---------------------------------------------------------------------------
 
-// Called for whichever editor tab's text view has focus.  Since all tabs share
-// the same UDTextModelTextStorage the change is reflected in every tab.
-- (BOOL)textView:(NSTextView *)textView
-    shouldChangeTextInRange:(NSRange)affectedCharRange
-          replacementString:(nullable NSString *)replacementString {
-    [_lspCoordinator textWillChangeInRange:affectedCharRange
-                         replacementString:replacementString ?: @""];
-    return YES;
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
+                       context:(void *)context {
+    if (context == kTabSelectionKVOContext) {
+        UDEditorTabContext *ctx = [self _activeContext];
+        if (ctx) [_errorsViewController bindToStore:ctx.diagnosticStore];
+        return;
+    }
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - NSTextStorageDidProcessEditingNotification
+// MARK: - NSTextViewDelegate  (LSP pre-change tracking)
 // ---------------------------------------------------------------------------
 
-- (void)_textStorageDidEdit:(NSNotification *)note {
-    NSTextStorage *ts = note.object;
-    if (!(ts.editedMask & NSTextStorageEditedCharacters)) return;
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self->_missingNodeHighlighter update];
-        [self->_parseErrorHighlighter update];
-        [self->_parseErrorCollector update];
-    });
+// The window controller is the NSTextViewDelegate for ALL editor text views.
+// Only the focused (active) tab's view can have focus, so we forward to the
+// active context's coordinator.  All tabs share the same storage, so changes
+// from any tab are visible everywhere.
+- (BOOL)textView:(NSTextView *)textView
+    shouldChangeTextInRange:(NSRange)affectedCharRange
+          replacementString:(nullable NSString *)replacementString {
+    [[self _activeContext].lspCoordinator
+        textWillChangeInRange:affectedCharRange
+            replacementString:replacementString ?: @""];
+    return YES;
 }
 
 // ---------------------------------------------------------------------------
@@ -325,16 +559,24 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (void)_diagnosticsDidChange:(NSNotification *)note {
-    NSArray<UDDiagnosticItem *> *all = _diagnosticStore.allDiagnostics;
+    UDDiagnosticStore       *store = (UDDiagnosticStore *)note.object;
+    NSArray<UDDiagnosticItem *> *all  = store.allDiagnostics;
+    NSArray<NSTabViewItem *>    *items = _editorTabViewController.tabViewItems;
 
-    // Refresh every open editor tab.
-    for (UDTextEditorViewController *editorVC in [self _allEditorViewControllers]) {
-        [self _updateGutterErrorMarks:all forEditorVC:editorVC];
+    // Update every tab that uses this store (there may be more than one if the
+    // same document is open in multiple tabs).
+    for (NSUInteger i = 0; i < MIN(_tabContexts.count, items.count); i++) {
+        if (_tabContexts[i].diagnosticStore != store) continue;
 
-        // Force re-layout so diagnostic pills redraw in this tab's text view.
+        UDTextEditorViewController *editorVC =
+            (UDTextEditorViewController *)items[i].viewController;
+        [self _updateGutterErrorMarks:all
+                           forEditorVC:editorVC
+                               context:_tabContexts[i]];
+
         NSTextView *tv = editorVC.textView;
         [tv.layoutManager
-            invalidateLayoutForCharacterRange:NSMakeRange(0, _textStorage.length)
+            invalidateLayoutForCharacterRange:NSMakeRange(0, _tabContexts[i].textStorage.length)
                          actualCharacterRange:nil];
         [tv setNeedsDisplay:YES];
     }
@@ -345,9 +587,9 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (void)_updateGutterErrorMarks:(NSArray<UDDiagnosticItem *> *)diagnostics
-                     forEditorVC:(UDTextEditorViewController *)editorVC {
-    UDTextModel *model      = _textStorage.textModel;
-    NSInteger    totalLines = [model getLineCount];
+                     forEditorVC:(UDTextEditorViewController *)editorVC
+                         context:(UDEditorTabContext *)ctx {
+    NSInteger    totalLines = [ctx.textStorage.textModel getLineCount];
     UDFindResultsGutterView *gutter = editorVC.gutterView;
     if (totalLines <= 0) { gutter.errorFractions = @[]; return; }
 
@@ -367,27 +609,43 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 - (NSToolbarItem *)toolbar:(NSToolbar *)toolbar
      itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
  willBeInsertedIntoToolbar:(BOOL)flag {
-    if ([itemIdentifier isEqualToString:kToolbarAddEditorTab]) {
+
+    if ([itemIdentifier isEqualToString:kToolbarAddTab]) {
         NSToolbarItem *item =
             [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
-        item.label        = @"New Editor Tab";
+        item.label        = @"New Tab";
         item.paletteLabel = @"New Editor Tab";
-        item.toolTip      = @"Open a new tab showing the same document";
-        item.image        = [NSImage imageWithSystemSymbolName:@"plus.rectangle.on.rectangle"
-                                       accessibilityDescription:@"New editor tab"];
+        item.toolTip      = @"Open a new blank editor tab";
+        item.image        = [NSImage imageWithSystemSymbolName:@"plus.square"
+                                       accessibilityDescription:@"New tab"];
         item.target       = self;
         item.action       = @selector(addEditorTab:);
         return item;
     }
+
+    if ([itemIdentifier isEqualToString:kToolbarOpenInTab]) {
+        NSToolbarItem *item =
+            [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+        item.label        = @"Open in Tab";
+        item.paletteLabel = @"Open File in New Tab";
+        item.toolTip      = @"Open a file in a new editor tab";
+        item.image        = [NSImage imageWithSystemSymbolName:@"plus.rectangle.on.folder"
+                                       accessibilityDescription:@"Open file in new tab"];
+        item.target       = self;
+        item.action       = @selector(openFileInNewTab:);
+        return item;
+    }
+
     return nil;
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    return @[NSToolbarFlexibleSpaceItem, kToolbarAddEditorTab];
+    return @[NSToolbarFlexibleSpaceItem, kToolbarOpenInTab, kToolbarAddTab];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
-    return @[kToolbarAddEditorTab, NSToolbarFlexibleSpaceItem, NSToolbarSpaceItem];
+    return @[kToolbarAddTab, kToolbarOpenInTab,
+             NSToolbarFlexibleSpaceItem, NSToolbarSpaceItem];
 }
 
 @end

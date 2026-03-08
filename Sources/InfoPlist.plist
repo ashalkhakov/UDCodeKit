@@ -8,6 +8,22 @@
     <string>TestApp</string>
     <key>CFBundleDocumentTypes</key>
     <array>
+        <!-- UDPieceTable workspace file (.udworkspace) — primary document type -->
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>UDPieceTable Workspace</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.ud.workspace</string>
+            </array>
+            <key>NSDocumentClass</key>
+            <string>UDWorkspace</string>
+        </dict>
+        <!-- JSON files can be opened directly as a single-tab workspace -->
         <dict>
             <key>CFBundleTypeName</key>
             <string>JSON Document</string>
@@ -20,7 +36,7 @@
                 <string>public.json</string>
             </array>
             <key>NSDocumentClass</key>
-            <string>UDDocument</string>
+            <string>UDWorkspace</string>
         </dict>
     </array>
     <key>CFBundleExecutable</key>
@@ -51,5 +67,26 @@
     <string>MainMenu</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <!-- Declare the com.ud.workspace UTI so Finder and Launch Services recognise it -->
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.ud.workspace</string>
+            <key>UTTypeDescription</key>
+            <string>UDPieceTable Workspace</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>udworkspace</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
 </dict>
 </plist>

@@ -24,8 +24,6 @@ static CGFloat const kErrorsPaneWidth = 180.0;
 static NSToolbarItemIdentifier const kToolbarAddTab    = @"addEditorTab";
 static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 
-static void * const kTabSelectionKVOContext = (void *)&kTabSelectionKVOContext;
-
 /// Default content for a blank new-document tab.
 static NSString * const kDefaultNewDocumentText =
     @"{\n"
@@ -222,10 +220,8 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     _editorTabViewController = [[NSTabViewController alloc] init];
     _editorTabViewController.tabStyle = NSTabViewControllerTabStyleSegmentedControlOnTop;
 
-    // Placeholder diagnostic store for the errors panel; rebound after tabs open.
-    _errorsViewController =
-        [[UDErrorsViewController alloc] initWithDiagnosticStore:
-            [[UDDiagnosticStore alloc] init]];
+    // Errors panel — no store yet; populated by _refreshErrorsPanel after tabs open.
+    _errorsViewController = [[UDErrorsViewController alloc] init];
 
     NSSplitViewController *splitVC = [[NSSplitViewController alloc] init];
     NSSplitViewItem *errorsItem =
@@ -264,10 +260,8 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
                                label:@"Untitled"];
     }
 
-    // 4. Bind the errors panel to the first (active) tab's store.
-    UDEditorTabContext *firstCtx = _tabContexts.firstObject;
-    [_errorsViewController bindToStore:firstCtx.diagnosticStore
-                           displayName:firstCtx.tabTitle];
+    // 4. Populate errors panel with all open documents' stores.
+    [self _refreshErrorsPanel];
 
     // 5. Window title — workspace filename or generic name.
     self.window.title = workspace.fileURL
@@ -280,12 +274,6 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     toolbar.displayMode          = NSToolbarDisplayModeIconOnly;
     toolbar.allowsUserCustomization = NO;
     self.window.toolbar = toolbar;
-
-    // 7. KVO: rebind the errors panel when the active tab changes.
-    [_editorTabViewController addObserver:self
-                               forKeyPath:@"selectedTabViewItemIndex"
-                                  options:NSKeyValueObservingOptionNew
-                                  context:kTabSelectionKVOContext];
 }
 
 // ---------------------------------------------------------------------------
@@ -399,6 +387,9 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         fileURL.absoluteString
             ?: [NSString stringWithFormat:@"untitled-%lu",
                 (unsigned long)_editorTabViewController.tabViewItems.count + 1]];
+
+    // g. Refresh the errors panel so the new document appears immediately.
+    [self _refreshErrorsPanel];
 }
 
 /// Add a second (or further) view of an already-active context.  The new tab
@@ -434,6 +425,24 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     NSInteger  idx = _editorTabViewController.selectedTabViewItemIndex;
     NSUInteger i   = (idx >= 0) ? (NSUInteger)idx : 0;
     return (i < _tabContexts.count) ? _tabContexts[i] : _tabContexts.firstObject;
+}
+
+/// Rebuild the errors panel from the current set of unique tab contexts so
+/// every open document is visible as its own file-group row — like Xcode's
+/// Issue Navigator.  Duplicate contexts (multiple views of the same file)
+/// are shown only once.
+- (void)_refreshErrorsPanel {
+    NSMutableArray<UDDiagnosticStore *> *stores = [NSMutableArray array];
+    NSMutableArray<NSString *>          *names  = [NSMutableArray array];
+    NSMutableSet<UDDiagnosticStore *>   *seen   = [NSMutableSet set];
+
+    for (UDEditorTabContext *ctx in _tabContexts) {
+        if ([seen containsObject:ctx.diagnosticStore]) continue;
+        [seen addObject:ctx.diagnosticStore];
+        [stores addObject:ctx.diagnosticStore];
+        [names  addObject:ctx.tabTitle];
+    }
+    [_errorsViewController setStores:stores displayNames:names];
 }
 
 /// Configure a freshly created editor VC:
@@ -504,13 +513,6 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (void)close {
-    // Remove KVO before any other teardown to avoid callbacks during shutdown.
-    @try {
-        [_editorTabViewController removeObserver:self
-                                      forKeyPath:@"selectedTabViewItemIndex"
-                                         context:kTabSelectionKVOContext];
-    } @catch (NSException *) {}
-
     // Close each unique context's LSP coordinator exactly once.
     NSMutableSet<UDEditorTabContext *> *seen = [NSMutableSet set];
     for (UDEditorTabContext *ctx in _tabContexts) {
@@ -521,23 +523,6 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     }
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [super close];
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - KVO  (tab selection → rebind errors panel)
-// ---------------------------------------------------------------------------
-
-- (void)observeValueForKeyPath:(NSString *)keyPath
-                      ofObject:(id)object
-                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
-                       context:(void *)context {
-    if (context == kTabSelectionKVOContext) {
-        UDEditorTabContext *ctx = [self _activeContext];
-        if (ctx) [_errorsViewController bindToStore:ctx.diagnosticStore
-                                        displayName:ctx.tabTitle];
-        return;
-    }
-    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
 }
 
 // ---------------------------------------------------------------------------

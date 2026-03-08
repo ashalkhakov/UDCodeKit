@@ -3,19 +3,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDErrorsViewController.h"
-#import <tree_sitter/api.h>
 
-// Tree-sitter stores column offsets as UTF-16 code-unit counts (2 bytes per
-// BMP code unit; surrogate pairs use 4 bytes for supplementary characters).
-// Dividing by 2 gives the 0-based character column for ASCII/BMP-only content.
-static inline NSInteger columnFromTSColumn(uint32_t col) { return (NSInteger)(col / 2); }
+// ---------------------------------------------------------------------------
+// MARK: - UDErrorsEntry  (private model object for one file group)
+// ---------------------------------------------------------------------------
 
-/// The single root item shown in the outline view — the display name of the
-/// file currently bound to this panel.  Updated by -bindToStore:displayName:.
-static NSString * const kFileGroupItem = @"__file_group__";
+/// Represents one open document in the outline view.  Acts as the level-0
+/// item identity object that NSOutlineView tracks.
+@interface UDErrorsEntry : NSObject
 
-/// Maximum number of errors collected (mirrors VS Code's maxNumberOfProblems).
-static const NSUInteger kMaxParseErrors = 100;
+@property (nonatomic, copy)   NSString                          *displayName;
+@property (nonatomic, strong) UDDiagnosticStore                 *store;
+@property (nonatomic, copy)   NSArray<UDDiagnosticItem *>       *diagnostics;
+
+- (instancetype)initWithDisplayName:(NSString *)displayName
+                              store:(UDDiagnosticStore *)store;
+@end
+
+@implementation UDErrorsEntry
+
+- (instancetype)initWithDisplayName:(NSString *)displayName
+                              store:(UDDiagnosticStore *)store {
+    self = [super init];
+    if (self) {
+        _displayName = [displayName copy];
+        _store       = store;
+        _diagnostics = [store.allDiagnostics copy];
+    }
+    return self;
+}
+
+@end
 
 // ---------------------------------------------------------------------------
 // MARK: - Private container view (draws a 1-px right-side separator)
@@ -41,34 +59,21 @@ static const NSUInteger kMaxParseErrors = 100;
 // ---------------------------------------------------------------------------
 
 @interface UDErrorsViewController ()
-@property (nonatomic, strong)  UDDiagnosticStore                 *diagnosticStore;
-/// Display name shown in the root row of the outline view (filename of the
-/// active document).  Set by -bindToStore:displayName:.
-@property (nonatomic, copy)    NSString                          *displayName;
-@property (nonatomic, weak) IBOutlet NSOutlineView              *outlineView;
-@property (nonatomic, strong) NSArray<UDDiagnosticItem *>       *diagnostics;
-
+/// Ordered list of file-group entries, one per unique open document.
+@property (nonatomic, strong) NSMutableArray<UDErrorsEntry *> *entries;
+@property (nonatomic, weak) IBOutlet NSOutlineView            *outlineView;
 @end
 
 @implementation UDErrorsViewController
 
 // ---------------------------------------------------------------------------
-// MARK: - Init
+// MARK: - Init / dealloc
 // ---------------------------------------------------------------------------
 
-- (instancetype)initWithDiagnosticStore:(UDDiagnosticStore *)store {
+- (instancetype)init {
     self = [super initWithNibName:@"UDErrorsView" bundle:nil];
     if (self) {
-        _diagnosticStore = store;
-        _diagnostics     = @[];
-        _displayName     = @"Untitled";
-        
-        // 19. Diagnostic-store change notification.
-        [[NSNotificationCenter defaultCenter]
-            addObserver:self
-               selector:@selector(_diagnosticsDidChange:)
-                   name:UDDiagnosticsDidChangeNotification
-                 object:_diagnosticStore];
+        _entries = [NSMutableArray array];
     }
     return self;
 }
@@ -78,16 +83,68 @@ static const NSUInteger kMaxParseErrors = 100;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Parse-tree scanning
+// MARK: - Public API
+// ---------------------------------------------------------------------------
+
+- (void)setStores:(NSArray<UDDiagnosticStore *> *)stores
+     displayNames:(NSArray<NSString *> *)displayNames {
+
+    // Unsubscribe from every previously observed store.
+    for (UDErrorsEntry *entry in _entries) {
+        [[NSNotificationCenter defaultCenter]
+            removeObserver:self
+                      name:UDDiagnosticsDidChangeNotification
+                    object:entry.store];
+    }
+
+    // Build de-duplicated entries (first occurrence of each store wins).
+    NSMutableArray<UDErrorsEntry *> *newEntries = [NSMutableArray array];
+    NSMutableSet<UDDiagnosticStore *> *seen = [NSMutableSet set];
+    NSUInteger n = MIN(stores.count, displayNames.count);
+
+    for (NSUInteger i = 0; i < n; i++) {
+        UDDiagnosticStore *store = stores[i];
+        if ([seen containsObject:store]) continue;
+        [seen addObject:store];
+
+        NSString *name = displayNames[i] ?: @"Untitled";
+        [newEntries addObject:[[UDErrorsEntry alloc] initWithDisplayName:name store:store]];
+
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+               selector:@selector(_diagnosticsDidChange:)
+                   name:UDDiagnosticsDidChangeNotification
+                 object:store];
+    }
+
+    _entries = newEntries;
+    [self _reloadAndExpand];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Notification handler
 // ---------------------------------------------------------------------------
 
 - (void)_diagnosticsDidChange:(NSNotification *)note {
-    // note.object is _diagnosticStore.
-    NSArray<UDDiagnosticItem *> *all = _diagnosticStore.allDiagnostics;
+    UDDiagnosticStore *store = (UDDiagnosticStore *)note.object;
+    for (UDErrorsEntry *entry in _entries) {
+        if (entry.store == store) {
+            entry.diagnostics = [store.allDiagnostics copy];
+            break;
+        }
+    }
+    [self _reloadAndExpand];
+}
 
-    self.diagnostics = [all copy];
+// ---------------------------------------------------------------------------
+// MARK: - Private helpers
+// ---------------------------------------------------------------------------
+
+- (void)_reloadAndExpand {
     [_outlineView reloadData];
-    [_outlineView expandItem:kFileGroupItem];
+    for (UDErrorsEntry *entry in _entries) {
+        [_outlineView expandItem:entry];
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -96,20 +153,23 @@ static const NSUInteger kMaxParseErrors = 100;
 
 - (NSInteger)outlineView:(NSOutlineView *)outlineView
   numberOfChildrenOfItem:(nullable id)item {
-    if (item == nil)                           return 1;   // one file group
-    if ([item isKindOfClass:[NSString class]]) return (NSInteger)_diagnostics.count;
+    if (item == nil)
+        return (NSInteger)_entries.count;
+    if ([item isKindOfClass:[UDErrorsEntry class]])
+        return (NSInteger)((UDErrorsEntry *)item).diagnostics.count;
     return 0;
 }
 
 - (id)outlineView:(NSOutlineView *)outlineView
             child:(NSInteger)index
            ofItem:(nullable id)item {
-    if (item == nil) return kFileGroupItem;
-    return _diagnostics[(NSUInteger)index];
+    if (item == nil)
+        return _entries[(NSUInteger)index];
+    return ((UDErrorsEntry *)item).diagnostics[(NSUInteger)index];
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item {
-    return [item isKindOfClass:[NSString class]];
+    return [item isKindOfClass:[UDErrorsEntry class]];
 }
 
 // ---------------------------------------------------------------------------
@@ -136,18 +196,16 @@ static const NSUInteger kMaxParseErrors = 100;
         cell.identifier = kCellID;
     }
 
-    if ([item isKindOfClass:[NSString class]]) {
-        // File-group row: "<filename> (N error(s))"
-        NSUInteger count = _diagnostics.count;
-        NSString *label;
-        if (count == 0) {
-            label = _displayName;
-        } else {
-            label = [NSString stringWithFormat:@"%@ (%lu %@)",
-                     _displayName,
-                     (unsigned long)count,
-                     count == 1 ? @"error" : @"errors"];
-        }
+    if ([item isKindOfClass:[UDErrorsEntry class]]) {
+        // File-group row: "<filename> (N error(s))" — bold, red when errors present.
+        UDErrorsEntry *entry = (UDErrorsEntry *)item;
+        NSUInteger count = entry.diagnostics.count;
+        NSString *label = (count == 0)
+            ? entry.displayName
+            : [NSString stringWithFormat:@"%@ (%lu %@)",
+               entry.displayName,
+               (unsigned long)count,
+               count == 1 ? @"error" : @"errors"];
         cell.textField.stringValue = label;
         cell.textField.font        = [NSFont boldSystemFontOfSize:NSFont.smallSystemFontSize];
         cell.textField.textColor   = (count > 0)
@@ -169,43 +227,8 @@ static const NSUInteger kMaxParseErrors = 100;
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView shouldSelectItem:(id)item {
-    // Allow selection of individual error items; disallow the file-group row.
+    // Allow selection of individual error items; disallow file-group rows.
     return [item isKindOfClass:[UDDiagnosticItem class]];
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - Store binding
-// ---------------------------------------------------------------------------
-
-- (void)bindToStore:(UDDiagnosticStore *)store displayName:(NSString *)displayName {
-    NSString *safeName   = displayName ?: @"Untitled";
-    BOOL storeChanged = (store != _diagnosticStore);
-    BOOL nameChanged  = ![safeName isEqualToString:_displayName];
-    if (!storeChanged && !nameChanged) return;
-
-    if (storeChanged) {
-        [[NSNotificationCenter defaultCenter]
-            removeObserver:self
-                      name:UDDiagnosticsDidChangeNotification
-                    object:_diagnosticStore];
-
-        _diagnosticStore = store;
-
-        [[NSNotificationCenter defaultCenter]
-            addObserver:self
-               selector:@selector(_diagnosticsDidChange:)
-                   name:UDDiagnosticsDidChangeNotification
-                 object:_diagnosticStore];
-
-        self.diagnostics = [store.allDiagnostics copy];
-    }
-
-    if (nameChanged) {
-        _displayName = [safeName copy];
-    }
-
-    [_outlineView reloadData];
-    [_outlineView expandItem:kFileGroupItem];
 }
 
 @end

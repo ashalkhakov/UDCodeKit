@@ -32,6 +32,11 @@ static NSString * const kParseErrorCollectorOwner = @"__parseErrorCollector__";
     self = [super initWithTextStorage:textStorage highlighter:highlighter];
     if (!self) return nil;
     _store = store;
+    // Diagnostic items store static line/column positions that are not tracked
+    // by the interval tree — they become stale when the document is edited.
+    // A full tree walk on every update ensures the store always reflects the
+    // current parse tree exactly.
+    self.alwaysFullScan = YES;
     return self;
 }
 
@@ -89,9 +94,9 @@ static NSString * const kParseErrorCollectorOwner = @"__parseErrorCollector__";
 }
 
 - (void)didFinishUpdate {
-    // Replace the parser's partition in the store with whatever we found.
-    // If the walk was incremental we might be called per-subtree, so we
-    // accumulate in _pendingErrors and flush only once here.
+    // With alwaysFullScan = YES the walk always covers the full tree, so
+    // _pendingErrors contains every current parse error.  Replacing the whole
+    // parser partition in one shot is correct and cheap.
     [_store setDiagnostics:_pendingErrors
                  forSource:UDDiagnosticSourceParser];
     _pendingErrors = nil;

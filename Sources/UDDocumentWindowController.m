@@ -220,7 +220,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     //    contentViewController, so the view hierarchy is live when the first
     //    editor VC's -viewDidLoad runs.
     _editorTabViewController = [[NSTabViewController alloc] init];
-    _editorTabViewController.tabStyle = NSTabViewControllerTabStyleTopmost;
+    _editorTabViewController.tabStyle = NSTabViewControllerTabStyleSegmentedControlOnTop;
 
     // Placeholder diagnostic store for the errors panel; rebound after tabs open.
     _errorsViewController =
@@ -640,12 +640,12 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
-    return @[NSToolbarFlexibleSpaceItem, kToolbarOpenInTab, kToolbarAddTab];
+    return @[NSToolbarFlexibleSpaceItemIdentifier, kToolbarOpenInTab, kToolbarAddTab];
 }
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
     return @[kToolbarAddTab, kToolbarOpenInTab,
-             NSToolbarFlexibleSpaceItem, NSToolbarSpaceItem];
+             NSToolbarFlexibleSpaceItemIdentifier, NSToolbarSpaceItemIdentifier];
 }
 
 @end

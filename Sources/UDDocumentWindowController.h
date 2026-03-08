@@ -31,6 +31,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// not it succeeded.  The LSP server is informed either way.
 - (void)documentDidSave:(BOOL)success;
 
+/// Open a new editor tab that shows the same underlying document.
+/// Multiple tabs may be open simultaneously; they all share one UDTextModelTextStorage
+/// (via separate NSLayoutManager instances) so edits in any tab are reflected in all.
+/// Can be wired from a menu item or toolbar button.
+- (IBAction)addEditorTab:(nullable id)sender;
+
 @end
 
 NS_ASSUME_NONNULL_END

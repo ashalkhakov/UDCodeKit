@@ -47,7 +47,7 @@ static NSString * const kParseErrorCollectorOwner = @"__parseErrorCollector__";
 
 - (NSUInteger)defaultMaxDecorations {
     // Re-purpose the budget as the max error count.
-    return _store.maxItemsPerSource;
+    return _store ? _store.maxItemsPerSource : 100;
 }
 
 - (BOOL)willVisitNode:(TSNode)node depth:(NSUInteger)depth {

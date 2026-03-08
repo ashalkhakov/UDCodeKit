@@ -26,6 +26,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithDiagnosticStore:(UDDiagnosticStore *)store;
 
+/// Switch the view to show diagnostics from a different store.
+///
+/// Removes the existing notification subscription, rebinds to the new store,
+/// and reloads the outline view.  Calling with the current store is a no-op.
+/// Safe to call before the view has loaded (the reload happens lazily).
+- (void)bindToStore:(UDDiagnosticStore *)store;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -40,7 +40,7 @@ static const NSUInteger kMaxParseErrors = 100;
 // ---------------------------------------------------------------------------
 
 @interface UDErrorsViewController ()
-@property (nonatomic, weak)   UDDiagnosticStore                 *diagnosticStore;
+@property (nonatomic, strong)  UDDiagnosticStore                 *diagnosticStore;
 @property (nonatomic, weak) IBOutlet NSOutlineView              *outlineView;
 @property (nonatomic, strong) NSArray<UDDiagnosticItem *>       *diagnostics;
 
@@ -56,6 +56,7 @@ static const NSUInteger kMaxParseErrors = 100;
     self = [super initWithNibName:@"UDErrorsView" bundle:nil];
     if (self) {
         _diagnosticStore = store;
+        _diagnostics     = @[];
         
         // 19. Diagnostic-store change notification.
         [[NSNotificationCenter defaultCenter]
@@ -165,6 +166,31 @@ static const NSUInteger kMaxParseErrors = 100;
 - (BOOL)outlineView:(NSOutlineView *)outlineView shouldSelectItem:(id)item {
     // Allow selection of individual error items; disallow the file-group row.
     return [item isKindOfClass:[UDDiagnosticItem class]];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Store binding
+// ---------------------------------------------------------------------------
+
+- (void)bindToStore:(UDDiagnosticStore *)store {
+    if (store == _diagnosticStore) return;
+
+    [[NSNotificationCenter defaultCenter]
+        removeObserver:self
+                  name:UDDiagnosticsDidChangeNotification
+                object:_diagnosticStore];
+
+    _diagnosticStore = store;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_diagnosticsDidChange:)
+               name:UDDiagnosticsDidChangeNotification
+             object:_diagnosticStore];
+
+    self.diagnostics = [store.allDiagnostics copy];
+    [_outlineView reloadData];
+    [_outlineView expandItem:kFileGroupItem];
 }
 
 @end

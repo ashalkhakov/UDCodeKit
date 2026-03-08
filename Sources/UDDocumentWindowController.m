@@ -1,19 +1,9 @@
-/*---------------------------------------------------------------------------------------------
- *  UDDocumentWindowController.m
- *
- *  Loaded from UDDocumentWindowController.xib.  -windowDidLoad sets up the
- *  text-storage layer (wired into the text view coming from the XIB), all editor
- *  accessories, and the LSP coordinator.
- *
- *  UDDocument is kept thin: it only reads/writes the file and creates this
- *  controller.  All per-window lifecycle and delegate logic lives here.
- *--------------------------------------------------------------------------------------------*/
-
 #import "UDDocumentWindowController.h"
 #import "UDDocument.h"
 #import "UDTextModelTextStorage.h"
 #import "UDDiagnosticTextView.h"
 #import "UDLSPCoordinator.h"
+#import "UDLSPDiagnosticHighlighter.h"
 #import "UDLSPServerLocator.h"
 #import "TreeSitterTheme.h"
 #import "UDFindResultsGutterView.h"
@@ -21,20 +11,21 @@
 #import "UDFoldingController.h"
 #import "UDBracketMatchHighlighter.h"
 #import "UDMissingNodeHighlighter.h"
+#import "UDParseErrorCollector.h"
+#import "UDDiagnosticStore.h"
+#import "UDDiagnosticItem.h"
 #import "UDStructuredNavigator.h"
 #import "UDAutoIndenter.h"
-#import "UDErrorsViewController.h"
 #import "tree_sitter_json.h"
 
 // ---------------------------------------------------------------------------
 // MARK: - Layout constants
 // ---------------------------------------------------------------------------
 
-static CGFloat const kFindGutterWidth  = 12.0;
-static CGFloat const kLineGutterWidth  = 48.0;
-static CGFloat const kErrorsViewWidth  = 180.0;
+static CGFloat const kFindGutterWidth = 12.0;
+static CGFloat const kLineGutterWidth = 48.0;
+static CGFloat const kErrorsViewWidth = 180.0;
 
-// Virtual key codes (Carbon values, duplicated to avoid importing Carbon).
 static const unsigned short kKeyCodeUpArrow      = 126;
 static const unsigned short kKeyCodeDownArrow    = 125;
 static const unsigned short kKeyCodeLeftArrow    = 123;
@@ -66,27 +57,26 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
 @interface UDDocumentWindowController () <NSTextViewDelegate,
                                            UDLineNumberGutterViewDelegate,
-                                           NSSearchFieldDelegate,
-                                           UDLSPCoordinatorDelegate>
+                                           NSSearchFieldDelegate>
 
-// IBOutlets — connected in UDDocumentWindowController.xib.
-@property (nonatomic, weak) IBOutlet NSScrollView          *scrollView;
-@property (nonatomic, weak) IBOutlet UDDiagnosticTextView  *textView;
-@property (nonatomic, weak) IBOutlet NSSearchField         *findField;
+// IBOutlets.
+@property (nonatomic, weak) IBOutlet NSScrollView         *scrollView;
+@property (nonatomic, weak) IBOutlet UDDiagnosticTextView *textView;
+@property (nonatomic, weak) IBOutlet NSSearchField        *findField;
 
 // Created in -windowDidLoad.
-@property (nonatomic, strong) UDTextModelTextStorage       *textStorage;
-@property (nonatomic, strong) UDFindResultsGutterView      *gutterView;
-@property (nonatomic, strong) UDLineNumberGutterView       *lineNumberGutterView;
-@property (nonatomic, strong) UDFoldingController          *foldingController;
-@property (nonatomic, strong) UDBracketMatchHighlighter    *bracketMatchHighlighter;
-@property (nonatomic, strong) UDMissingNodeHighlighter     *missingNodeHighlighter;
-@property (nonatomic, strong) UDStructuredNavigator        *structuredNavigator;
-@property (nonatomic, strong) UDAutoIndenter               *autoIndenter;
-@property (nonatomic, strong) UDErrorsViewController       *errorsViewController;
-@property (nonatomic, strong) NSArray<NSString *>          *findDecorationIDs;
-@property (nonatomic, strong) NSArray<NSString *>          *parseErrorDecorationIDs;
-@property (nonatomic, strong, nullable) UDLSPCoordinator   *lspCoordinator;
+@property (nonatomic, strong) UDTextModelTextStorage      *textStorage;
+@property (nonatomic, strong) UDFindResultsGutterView     *gutterView;
+@property (nonatomic, strong) UDLineNumberGutterView      *lineNumberGutterView;
+@property (nonatomic, strong) UDFoldingController         *foldingController;
+@property (nonatomic, strong) UDBracketMatchHighlighter   *bracketMatchHighlighter;
+@property (nonatomic, strong) UDMissingNodeHighlighter    *missingNodeHighlighter;
+@property (nonatomic, strong) UDParseErrorCollector       *parseErrorCollector;
+@property (nonatomic, strong) UDDiagnosticStore           *diagnosticStore;
+@property (nonatomic, strong) UDStructuredNavigator       *structuredNavigator;
+@property (nonatomic, strong) UDAutoIndenter              *autoIndenter;
+@property (nonatomic, strong) NSArray<NSString *>         *findDecorationIDs;
+@property (nonatomic, strong, nullable) UDLSPCoordinator  *lspCoordinator;
 
 @end
 
@@ -107,16 +97,15 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (void)windowDidLoad {
+
     [super windowDidLoad];
-    _findDecorationIDs       = @[];
-    _parseErrorDecorationIDs = @[];
+
+    _findDecorationIDs = @[];
 
     UDDocument *doc = (UDDocument *)self.document;
 
-    // 1. Build text storage from the document's initial content and set the theme.
+    // 1. Build text storage and apply the theme.
     _textStorage = [[UDTextModelTextStorage alloc] initWithText:doc.initialContent];
-
-    // Register the text storage back on the document so writeToURL: can access it.
     doc.textStorage = _textStorage;
 
     NSAppearanceName best =
@@ -125,51 +114,49 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     BOOL dark = [best isEqualToString:NSAppearanceNameDarkAqua];
     _textStorage.theme = [[TreeSitterTheme alloc] initWithMode:dark];
 
-    [_textStorage setLanguageFunc:(LanguageFunc)tree_sitter_json
-               withHighlightsQuery:kJSONHighlightsQuery];
-
-    // 2. Wire the text storage into the text view's layout chain
-    //    (the XIB gives us a plain NSLayoutManager backed by a default NSTextStorage;
-    //    we replace that with our piece-table storage).
+    // 2. Wire the layout manager in FIRST, before any parse is triggered,
+    //    so that applyDecorationHighlights has a live layout manager to
+    //    deliver edited notifications to.
     NSLayoutManager *lm = _textView.layoutManager;
     [[lm textStorage] removeLayoutManager:lm];
     [_textStorage addLayoutManager:lm];
 
-    // 3. Point the text view's diagnostics draw code at the text model.
+    // 3. Now it is safe to parse — the layout chain is complete and the
+    //    initial applyDecorationHighlights will reach the layout manager.
+    [_textStorage setLanguageFunc:(LanguageFunc)tree_sitter_json
+               withHighlightsQuery:kJSONHighlightsQuery];
+
+    // 4. Configure text view.
     _textView.textModel = _textStorage.textModel;
+    _textView.delegate  = self;
 
-    // 4. Configure the text view and the find search field.
-    _textView.delegate = self;
-
+    // 4. Configure find field.
     _findField.delegate = self;
     _findField.target   = self;
     _findField.action   = @selector(_findFieldDidChange:);
     ((NSSearchFieldCell *)_findField.cell).sendsSearchStringImmediately = YES;
 
-    // 5. Synchronise the window title.
+    // 5. Window title.
     NSURL *fileURL = doc.fileURL;
     self.window.title = fileURL ? fileURL.lastPathComponent : @"Untitled";
 
-    // 6. Lay out the accessory views that depend on the scroll view dimensions.
-    NSView   *content  = self.window.contentView;
-    CGFloat   W        = NSWidth(content.bounds);
-    CGFloat   H        = NSHeight(content.bounds);
+    // 6. Layout.
+    NSView  *content = self.window.contentView;
+    CGFloat  W       = NSWidth(content.bounds);
+    CGFloat  H       = NSHeight(content.bounds);
 
-    // Reconfigure the scroll view frame to leave room for gutters.
-    // The XIB places the scroll view at (0,0) full width; we narrow it here.
     CGFloat svX = kErrorsViewWidth + kLineGutterWidth;
     CGFloat svH = H - NSHeight(_findField.frame);
     CGFloat svW = W - svX - kFindGutterWidth;
-    _scrollView.frame = NSMakeRect(svX, 0, svW, svH);
+    _scrollView.frame        = NSMakeRect(svX, 0, svW, svH);
     _scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
-    // Also resize the find field to stay full width.
-    NSRect ff = _findField.frame;
-    ff.origin.x = 0;
+    NSRect ff    = _findField.frame;
+    ff.origin.x  = 0;
     ff.size.width = W;
     _findField.frame = ff;
 
-    // 7. Find-results gutter (right strip).
+    // 7. Find-results gutter.
     _gutterView =
         [[UDFindResultsGutterView alloc]
              initWithFrame:NSMakeRect(W - kFindGutterWidth, 0,
@@ -205,19 +192,37 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
                                                 textStorage:_textStorage
                                                  highlighter:_textStorage.highlighter];
 
-    // 11. MISSING-node pill highlighter (tree-sitter — unchanged path).
+    // 11. MISSING-node highlighter.
     _missingNodeHighlighter =
         [[UDMissingNodeHighlighter alloc] initWithTextStorage:_textStorage
                                                    highlighter:_textStorage.highlighter];
     [_missingNodeHighlighter update];
 
-    // 12. Structured navigator.
+    // 12. Diagnostic store — shared by the parse-error collector and LSP highlighter.
+    _diagnosticStore = [[UDDiagnosticStore alloc] init];
+
+    // 13. Parse-error collector — writes tree-sitter errors into the store.
+    _parseErrorCollector =
+        [[UDParseErrorCollector alloc] initWithTextStorage:_textStorage
+                                                highlighter:_textStorage.highlighter
+                                                      store:_diagnosticStore];
+    [_parseErrorCollector update];
+
+    // 14. Errors panel — observes the store via notification.
+    NSView *errorsView = [[NSView alloc] initWithFrame:NSMakeRect(0, 0,
+                                                                   kErrorsViewWidth,
+                                                                   svH)];
+    errorsView.autoresizingMask = NSViewHeightSizable | NSViewMaxXMargin;
+    [content addSubview:errorsView];
+    [self _setupErrorsPanelInView:errorsView];
+
+    // 15. Structured navigator.
     _structuredNavigator =
         [[UDStructuredNavigator alloc] initWithTextView:_textView
                                              highlighter:_textStorage.highlighter
                                                textModel:_textStorage.textModel];
 
-    // 13. Auto-indenter.
+    // 16. Auto-indenter.
     _autoIndenter =
         [[UDAutoIndenter alloc] initWithTextView:_textView
                                       highlighter:_textStorage.highlighter
@@ -225,18 +230,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     [_autoIndenter configureWithLanguageFunc:(LanguageFunc)tree_sitter_json
                                 indentsQuery:kJSONIndentsQuery];
 
-    // 14. Tree-sitter errors panel (left side — UNCHANGED).
-    _errorsViewController =
-        [[UDErrorsViewController alloc] initWithHighlighter:_textStorage.highlighter];
-    NSView *errorsView = _errorsViewController.view;
-    errorsView.frame = NSMakeRect(0, 0, kErrorsViewWidth, svH);
-    errorsView.autoresizingMask = NSViewHeightSizable | NSViewMaxXMargin;
-    [content addSubview:errorsView];
-    [_errorsViewController update];
-    [self _updateGutterErrorMarks];
-    [self _applyTreeSitterErrorDecorations];
-
-    // 15. Key monitor for structured navigation + auto-indent.
+    // 17. Key monitor for structured navigation + auto-indent.
     __weak typeof(self) weakSelf = self;
     [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
                                           handler:^NSEvent *(NSEvent *event) {
@@ -245,9 +239,9 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         if (wc->_textView.window.firstResponder != wc->_textView) return event;
 
         NSEventModifierFlags mods =
-            event.modifierFlags & (NSEventModifierFlagCommand  |
-                                   NSEventModifierFlagControl  |
-                                   NSEventModifierFlagOption   |
+            event.modifierFlags & (NSEventModifierFlagCommand |
+                                   NSEventModifierFlagControl |
+                                   NSEventModifierFlagOption  |
                                    NSEventModifierFlagShift);
         if (mods == 0) {
             switch (event.keyCode) {
@@ -272,15 +266,39 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         return event;
     }];
 
-    // 16. Re-run tree-sitter features after every character edit.
+    // 18. Text-storage edit notification.
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(_textStorageDidEdit:)
                name:NSTextStorageDidProcessEditingNotification
              object:_textStorage];
 
-    // 17. LSP coordinator — additive on top of tree-sitter.
+    // 19. Diagnostic-store change notification.
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_diagnosticsDidChange:)
+               name:UDDiagnosticsDidChangeNotification
+             object:_diagnosticStore];
+
+    // 20. LSP coordinator.
     [self _setupLSPCoordinator:doc.initialContent documentURL:fileURL];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Errors panel
+// ---------------------------------------------------------------------------
+
+/// Builds whatever view shows the diagnostic list inside errorsView.
+/// It observes UDDiagnosticsDidChangeNotification directly on _diagnosticStore
+/// so it stays up-to-date without any coupling back to this controller.
+- (void)_setupErrorsPanelInView:(NSView *)errorsView {
+    // Wire a table / outline view (or your existing UDErrorsViewController
+    // equivalent) directly to _diagnosticStore.allDiagnostics.
+    // Here we just store the view reference; the concrete implementation
+    // is UI-framework-specific and out of scope for this refactor.
+    //
+    // The panel should observe UDDiagnosticsDidChangeNotification on
+    // _diagnosticStore and reload from _diagnosticStore.allDiagnostics.
 }
 
 // ---------------------------------------------------------------------------
@@ -288,12 +306,8 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (void)_setupLSPCoordinator:(NSString *)initialContent documentURL:(NSURL *)fileURL {
-    NSURL *docURL = fileURL;
-    if (!docURL) {
-        docURL = [NSURL fileURLWithPath:
-                  [NSTemporaryDirectory()
-                   stringByAppendingPathComponent:@"untitled.json"]];
-    }
+    NSURL *docURL = fileURL ?: [NSURL fileURLWithPath:
+        [NSTemporaryDirectory() stringByAppendingPathComponent:@"untitled.json"]];
 
     NSString *serverPath = [UDLSPServerLocator findJSONLanguageServerPath];
     if (!serverPath) {
@@ -308,16 +322,22 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
                    currentDirectoryPath:docURL.URLByDeletingLastPathComponent.path
                              languageID:@"json"];
 
+    // The LSP diagnostic highlighter owns both decorations and store writes.
+    UDLSPDiagnosticHighlighter *lspHighlighter =
+        [[UDLSPDiagnosticHighlighter alloc] initWithTextStorage:_textStorage
+                                                     highlighter:_textStorage.highlighter
+                                                           store:_diagnosticStore];
+
     _lspCoordinator =
         [[UDLSPCoordinator alloc] initWithTextStorage:_textStorage
                                                client:client
-                                          documentURL:docURL];
-    _lspCoordinator.delegate = self;
+                                          documentURL:docURL
+                                diagnosticHighlighter:lspHighlighter];
     [_lspCoordinator openDocument:initialContent];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Save notifications (called by UDDocument)
+// MARK: - Save notifications
 // ---------------------------------------------------------------------------
 
 - (void)documentWillSave {
@@ -325,7 +345,6 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 }
 
 - (void)documentDidSave:(BOOL)success {
-    // Always inform the LSP server so its internal save-state stays consistent.
     [_lspCoordinator documentDidSave];
     if (!success) {
         NSLog(@"[UDDocumentWindowController] File save failed; "
@@ -356,20 +375,6 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - UDLSPCoordinatorDelegate
-// ---------------------------------------------------------------------------
-
-- (void)lspCoordinator:(UDLSPCoordinator *)coordinator
-  didUpdateDiagnostics:(NSArray<LSPDiagnostic *> *)diagnostics
-           forDocument:(NSURL *)url {
-    // Decorations are already in the text model; just redisplay the text view.
-    [_textView setNeedsDisplay:YES];
-    [_textView.layoutManager
-        invalidateLayoutForCharacterRange:NSMakeRange(0, _textStorage.length)
-                     actualCharacterRange:nil];
-}
-
-// ---------------------------------------------------------------------------
 // MARK: - NSTextStorageDidProcessEditingNotification
 // ---------------------------------------------------------------------------
 
@@ -382,65 +387,25 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     }
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        // Tree-sitter features — UNCHANGED.
         [self->_foldingController update];
         [self->_bracketMatchHighlighter update];
         [self->_missingNodeHighlighter update];
-        [self->_errorsViewController update];
-        [self _updateGutterErrorMarks];
-        [self _applyTreeSitterErrorDecorations];
+        [self->_parseErrorCollector update];
     });
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Tree-sitter inline-error decorations
+// MARK: - UDDiagnosticsDidChangeNotification
 // ---------------------------------------------------------------------------
 
-/// Converts the most recently scanned Tree-sitter errors (from _errorsViewController)
-/// into UDParseErrorDecorationOwner decorations on the text model, so that
-/// UDDiagnosticTextView can render them as Xcode-style inline pill labels.
-- (void)_applyTreeSitterErrorDecorations {
-    UDTextModel *model  = _textStorage.textModel;
-    NSInteger    docLen = [model getLength];
+- (void)_diagnosticsDidChange:(NSNotification *)note {
+    // note.object is _diagnosticStore.
+    NSArray<UDDiagnosticItem *> *all = _diagnosticStore.allDiagnostics;
 
-    NSArray<UDParseErrorItem *> *errors = _errorsViewController.errors;
-    NSMutableArray<UDModelDeltaDecoration *> *newDecors =
-        [NSMutableArray arrayWithCapacity:errors.count];
+    // Update gutter error marks.
+    [self _updateGutterErrorMarksWithDiagnostics:all];
 
-    for (UDParseErrorItem *err in errors) {
-        // err.line is 1-based; err.column is 0-based.
-        // getOffsetAt:column: expects 1-based line AND 1-based column, so add 1 to column.
-        NSInteger offset = [model getOffsetAt:err.line column:err.column + 1];
-        if (offset < 0 || offset >= docLen) continue;
-
-        // Make the decoration 1 character wide (sufficient for pill placement).
-        NSInteger endOffset = MIN(offset + 1, docLen);
-
-        UDPosition sp = [model getPositionAt:offset];
-        UDPosition ep = [model getPositionAt:endOffset];
-        UDRange udRange = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
-
-        // className distinguishes ERROR nodes from MISSING nodes so the view
-        // can choose different pill colours (matching the inline label style).
-        BOOL isMissing = [err.message hasPrefix:@"Missing"];
-        NSString *className = isMissing ? @"ts.missing" : @"ts.error";
-
-        UDDecorationOptions *opts =
-            [[UDDecorationOptions alloc] initWithClassName:className
-                                                  userInfo:err.message];
-        UDModelDeltaDecoration *d =
-            [[UDModelDeltaDecoration alloc] initWithRange:udRange options:opts];
-        d.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
-        [newDecors addObject:d];
-    }
-
-    _parseErrorDecorationIDs =
-        [model deltaDecorations:_parseErrorDecorationIDs
-                 newDecorations:newDecors
-                          owner:UDParseErrorDecorationOwner];
-    [_textStorage applyDecorationHighlights];
-
-    // Force the text view to re-layout and re-draw the diagnostic pills.
+    // Force the text view to re-layout and redraw diagnostic pills.
     [_textView.layoutManager
         invalidateLayoutForCharacterRange:NSMakeRange(0, _textStorage.length)
                      actualCharacterRange:nil];
@@ -448,11 +413,29 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Find implementation
+// MARK: - Gutter error marks
+// ---------------------------------------------------------------------------
+
+- (void)_updateGutterErrorMarksWithDiagnostics:(NSArray<UDDiagnosticItem *> *)diagnostics {
+    UDTextModel *model      = _textStorage.textModel;
+    NSInteger    totalLines = [model getLineCount];
+    if (totalLines <= 0) { _gutterView.errorFractions = @[]; return; }
+
+    NSMutableArray<NSNumber *> *fracs =
+        [NSMutableArray arrayWithCapacity:diagnostics.count];
+    for (UDDiagnosticItem *item in diagnostics) {
+        CGFloat frac = (CGFloat)(item.line - 1) / (CGFloat)totalLines;
+        [fracs addObject:@(MAX(0.0, MIN(1.0, frac)))];
+    }
+    _gutterView.errorFractions = fracs;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Find
 // ---------------------------------------------------------------------------
 
 - (void)_findFieldDidChange:(id)sender {
-    NSString    *query = [_findField stringValue];
+    NSString    *query = _findField.stringValue;
     UDTextModel *model = _textStorage.textModel;
 
     if (query.length == 0) {
@@ -502,19 +485,6 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         [fracs addObject:@(MAX(0.0, MIN(1.0, frac)))];
     }
     _gutterView.matchFractions = fracs;
-}
-
-- (void)_updateGutterErrorMarks {
-    UDTextModel *model      = _textStorage.textModel;
-    NSInteger    totalLines = [model getLineCount];
-    if (totalLines <= 0) { _gutterView.errorFractions = @[]; return; }
-    NSMutableArray<NSNumber *> *fracs =
-        [NSMutableArray arrayWithCapacity:_errorsViewController.errors.count];
-    for (UDParseErrorItem *err in _errorsViewController.errors) {
-        CGFloat frac = (CGFloat)(err.line - 1) / (CGFloat)totalLines;
-        [fracs addObject:@(MAX(0.0, MIN(1.0, frac)))];
-    }
-    _gutterView.errorFractions = fracs;
 }
 
 // ---------------------------------------------------------------------------

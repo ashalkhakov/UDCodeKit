@@ -40,9 +40,10 @@ static const NSUInteger kMaxParseErrors = 100;
 // ---------------------------------------------------------------------------
 
 @interface UDErrorsViewController ()
-@property (nonatomic, weak)   UDTreeSitterHighlighter    *highlighter;
-@property (nonatomic, strong) NSOutlineView              *outlineView;
-@property (nonatomic, copy)   NSArray<UDParseErrorItem *> *errors;
+@property (nonatomic, weak)   UDDiagnosticStore                 *diagnosticStore;
+@property (nonatomic, weak) IBOutlet NSOutlineView              *outlineView;
+@property (nonatomic, strong) NSArray<UDDiagnosticItem *>       *diagnostics;
+
 @end
 
 @implementation UDErrorsViewController
@@ -51,115 +52,34 @@ static const NSUInteger kMaxParseErrors = 100;
 // MARK: - Init
 // ---------------------------------------------------------------------------
 
-- (instancetype)initWithHighlighter:(UDTreeSitterHighlighter *)highlighter {
-    self = [super initWithNibName:nil bundle:nil];
+- (instancetype)initWithDiagnosticStore:(UDDiagnosticStore *)store {
+    self = [super initWithNibName:@"UDErrorsView" bundle:nil];
     if (self) {
-        _highlighter = highlighter;
-        _errors      = @[];
+        _diagnosticStore = store;
+        
+        // 19. Diagnostic-store change notification.
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+               selector:@selector(_diagnosticsDidChange:)
+                   name:UDDiagnosticsDidChangeNotification
+                 object:_diagnosticStore];
     }
     return self;
 }
 
-// ---------------------------------------------------------------------------
-// MARK: - View loading
-// ---------------------------------------------------------------------------
-
-- (void)loadView {
-    UDErrorsPanelContainerView *container =
-        [[UDErrorsPanelContainerView alloc] initWithFrame:NSZeroRect];
-
-    // --- Outline view ---
-    NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"main"];
-    col.resizingMask = NSTableColumnAutoresizingMask;
-
-    _outlineView = [[NSOutlineView alloc] initWithFrame:NSZeroRect];
-    _outlineView.headerView                  = nil;
-    _outlineView.rowSizeStyle                = NSTableViewRowSizeStyleSmall;
-    [_outlineView addTableColumn:col];
-    _outlineView.outlineTableColumn          = col;
-    _outlineView.dataSource                  = self;
-    _outlineView.delegate                    = self;
-    _outlineView.selectionHighlightStyle     = NSTableViewSelectionHighlightStyleSourceList;
-    _outlineView.allowsEmptySelection        = YES;
-    _outlineView.indentationPerLevel         = 10.0;
-    _outlineView.backgroundColor             = [NSColor controlBackgroundColor];
-
-    // --- Scroll view ---
-    NSScrollView *sv = [[NSScrollView alloc] initWithFrame:NSZeroRect];
-    sv.documentView          = _outlineView;
-    sv.hasVerticalScroller   = YES;
-    sv.hasHorizontalScroller = NO;
-    sv.autohidesScrollers    = YES;
-    sv.borderType            = NSNoBorder;
-    sv.autoresizingMask      = NSViewWidthSizable | NSViewHeightSizable;
-    sv.frame                 = container.bounds;
-    [container addSubview:sv];
-
-    self.view = container;
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - Public API
-// ---------------------------------------------------------------------------
-
-- (void)update {
-    _errors = [self _scanErrors];
-    [_outlineView reloadData];
-    [_outlineView expandItem:kFileGroupItem];
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - Parse-tree scanning
 // ---------------------------------------------------------------------------
 
-- (NSArray<UDParseErrorItem *> *)_scanErrors {
-    const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
-    if (!tree) return @[];
+- (void)_diagnosticsDidChange:(NSNotification *)note {
+    // note.object is _diagnosticStore.
+    NSArray<UDDiagnosticItem *> *all = _diagnosticStore.allDiagnostics;
 
-    NSMutableArray<UDParseErrorItem *> *result = [NSMutableArray array];
-    TSNode root    = ts_tree_root_node((TSTree *)tree);
-    NSUInteger budget = kMaxParseErrors;
-    [self _collectErrors:root budget:&budget into:result];
-    return result;
-}
-
-- (void)_collectErrors:(TSNode)node
-                budget:(NSUInteger *)budget
-                  into:(NSMutableArray<UDParseErrorItem *> *)out {
-    if (*budget == 0) return;
-
-    // Prune subtrees that contain no errors.
-    if (!ts_node_is_error(node) && !ts_node_is_missing(node) &&
-        !ts_node_has_error(node)) {
-        return;
-    }
-
-    if (ts_node_is_error(node)) {
-        TSPoint pt = ts_node_start_point(node);
-        [out addObject:[[UDParseErrorItem alloc]
-                            initWithLine:(NSInteger)pt.row + 1
-                                  column:columnFromTSColumn(pt.column)
-                                 message:@"Unexpected token"]];
-        (*budget)--;
-        // Still recurse — ERROR children may contain MISSING sub-nodes.
-    } else if (ts_node_is_missing(node)) {
-        TSPoint pt = ts_node_start_point(node);
-        const char *typeCStr = ts_node_type(node);
-        NSString *typeStr    = typeCStr
-            ? [NSString stringWithUTF8String:typeCStr] : @"<unknown>";
-        [out addObject:[[UDParseErrorItem alloc]
-                            initWithLine:(NSInteger)pt.row + 1
-                                  column:columnFromTSColumn(pt.column)
-                                 message:[NSString stringWithFormat:@"Missing %@", typeStr]]];
-        (*budget)--;
-        return; // MISSING nodes have no meaningful children.
-    }
-
-    uint32_t count = ts_node_child_count(node);
-    for (uint32_t i = 0; i < count; i++) {
-        if (*budget == 0) break;
-        [self _collectErrors:ts_node_child(node, i) budget:budget into:out];
-    }
+    self.diagnostics = [all copy];
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +89,7 @@ static const NSUInteger kMaxParseErrors = 100;
 - (NSInteger)outlineView:(NSOutlineView *)outlineView
   numberOfChildrenOfItem:(nullable id)item {
     if (item == nil)                           return 1;   // one file group
-    if ([item isKindOfClass:[NSString class]]) return (NSInteger)_errors.count;
+    if ([item isKindOfClass:[NSString class]]) return (NSInteger)_diagnostics.count;
     return 0;
 }
 
@@ -177,7 +97,7 @@ static const NSUInteger kMaxParseErrors = 100;
             child:(NSInteger)index
            ofItem:(nullable id)item {
     if (item == nil) return kFileGroupItem;
-    return _errors[(NSUInteger)index];
+    return _diagnostics[(NSUInteger)index];
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item {
@@ -210,7 +130,7 @@ static const NSUInteger kMaxParseErrors = 100;
 
     if ([item isKindOfClass:[NSString class]]) {
         // File-group row: "current.json (N error(s))"
-        NSUInteger count = _errors.count;
+        NSUInteger count = _diagnostics.count;
         NSString *label;
         if (count == 0) {
             label = (NSString *)item;
@@ -226,9 +146,9 @@ static const NSUInteger kMaxParseErrors = 100;
             ? [NSColor systemRedColor] : [NSColor secondaryLabelColor];
     } else {
         // Error row: "Line L: message"
-        UDParseErrorItem *err = (UDParseErrorItem *)item;
+        UDDiagnosticItem *diag = (UDDiagnosticItem *)item;
         cell.textField.stringValue =
-            [NSString stringWithFormat:@"Line %ld: %@", (long)err.line, err.message];
+            [NSString stringWithFormat:@"Line %ld: %@", (long)diag.line, diag.message];
         cell.textField.font      = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
         cell.textField.textColor = [NSColor labelColor];
     }
@@ -242,7 +162,7 @@ static const NSUInteger kMaxParseErrors = 100;
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView shouldSelectItem:(id)item {
     // Allow selection of individual error items; disallow the file-group row.
-    return [item isKindOfClass:[UDParseErrorItem class]];
+    return [item isKindOfClass:[UDDiagnosticItem class]];
 }
 
 @end

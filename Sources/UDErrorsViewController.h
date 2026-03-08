@@ -17,21 +17,14 @@
 
 #import <Cocoa/Cocoa.h>
 #import "UDTreeSitterHighlighter.h"
-#import "UDParseErrorItem.h"
+#import "UDDiagnosticStore.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface UDErrorsViewController : NSViewController <NSOutlineViewDataSource,
                                                       NSOutlineViewDelegate>
 
-- (instancetype)initWithHighlighter:(UDTreeSitterHighlighter *)highlighter;
-
-/// Re-scan the current parse tree and refresh the outline view.
-- (void)update;
-
-/// The errors found during the last -update call.
-/// Callers (e.g. AppDelegate) use this array to compute gutter tick positions.
-@property (nonatomic, readonly, copy) NSArray<UDParseErrorItem *> *errors;
+- (instancetype)initWithDiagnosticStore:(UDDiagnosticStore *)store;
 
 @end
 

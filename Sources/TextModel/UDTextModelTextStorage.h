@@ -11,6 +11,8 @@
 #import <UDPieceTable/UDPieceTable.h>
 #import "UDTreeSitterHighlighter.h"
 
+@class TreeSitterTheme;
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Owner string for search-match decorations registered via deltaDecorations.

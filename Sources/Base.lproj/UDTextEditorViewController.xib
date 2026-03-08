@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDTextEditorViewController">
+            <connections>
+                <outlet property="findField"  destination="TE-find-field"  id="TE-find-outlet"/>
+                <outlet property="scrollView" destination="TE-scroll-view" id="TE-scroll-outlet"/>
+                <outlet property="textView"   destination="TE-text-view"   id="TE-text-outlet"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <customView id="TE-container-view">
+            <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <searchField placeholderString="Find…" textCompletion="NO" id="TE-find-field">
+                    <rect key="frame" x="0.0" y="572" width="900" height="28"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" minYMargin="YES"/>
+                </searchField>
+                <scrollView borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="TE-scroll-view">
+                    <rect key="frame" x="0.0" y="0.0" width="900" height="572"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" drawsBackground="NO" id="TE-clip-view">
+                        <rect key="frame" x="0.0" y="0.0" width="885" height="572"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <textView wantsLayer="YES" importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="YES" smartInsertDelete="YES" id="TE-text-view" customClass="UDDiagnosticTextView">
+                                <rect key="frame" x="0.0" y="0.0" width="885" height="572"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
+                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <size key="minSize" width="885" height="572"/>
+                                <size key="maxSize" width="10000000" height="10000000"/>
+                            </textView>
+                        </subviews>
+                    </clipView>
+                    <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="TE-hscroll">
+                        <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="TE-vscroll">
+                        <rect key="frame" x="885" y="0.0" width="15" height="572"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                </scrollView>
+            </subviews>
+            <point key="canvasLocation" x="200" y="200"/>
+        </customView>
+    </objects>
+</document>

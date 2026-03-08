@@ -2,13 +2,19 @@
  *  UDDocumentWindowController.h
  *
  *  NSWindowController subclass for UDDocument.  Loaded from
- *  UDDocumentWindowController.xib, which supplies the window, the main scroll
- *  view with the text view, and the find search field.  The line-number gutter,
- *  find-results gutter, and errors panel are added programmatically in
- *  -windowDidLoad because their frames depend on the window size at run time.
+ *  UDDocumentWindowController.xib, which supplies only the bare window.
+ *  The content is built entirely in -windowDidLoad:
  *
- *  Owns the LSP coordinator and all editor-feature controllers (folding,
- *  bracket-match, missing-node highlights, structured navigation, auto-indent).
+ *    • UDTextEditorViewController (from UDTextEditorViewController.xib) —
+ *      text view, gutters, find field, folding, bracket-match, etc.
+ *    • UDErrorsViewController (from UDErrorsView.xib) — diagnostic list.
+ *
+ *  These two view controllers are placed inside an NSSplitViewController
+ *  that is set as the window's contentViewController, so no manual frame
+ *  layout is required in this file.
+ *
+ *  Owns the diagnostic pipeline (missing-node / parse-error highlighters,
+ *  parse-error collector, diagnostic store) and the LSP coordinator.
  *  UDDocument is kept intentionally thin — it only reads/writes the file.
  *--------------------------------------------------------------------------------------------*/
 

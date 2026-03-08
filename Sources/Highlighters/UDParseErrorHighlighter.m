@@ -35,28 +35,47 @@ static inline NSUInteger charFromByte(uint32_t b) { return (NSUInteger)(b / 2); 
 // ---------------------------------------------------------------------------
 
 - (NSString *)decorationOwner {
-    return UDMissingNodeDecorationOwner;
+    return UDParseErrorDecorationOwner;
 }
 
 - (BOOL)willVisitNode:(TSNode)node depth:(NSUInteger)depth {
-    if (!ts_node_is_missing(node)) return YES; // not a MISSING node — descend
+    BOOL isError   = ts_node_is_error(node);
+    BOOL isMissing = ts_node_is_missing(node);
+
+    if (!isError && !isMissing) return YES; // not an error node — descend
 
     NSUInteger pos    = charFromByte(ts_node_start_byte(node));
     NSUInteger docLen = self.currentDocLen;
-    NSUInteger start  = (pos < docLen) ? pos : docLen - 1;
+    NSUInteger start;
+    if (pos < docLen) {
+        start = pos;
+    } else if (docLen > 0) {
+        start = docLen - 1;
+    } else {
+        start = 0;
+    }
 
     UDTextModel *model = self.textStorage.textModel;
     UDPosition sp = [model getPositionAt:(NSInteger)start];
     UDPosition ep = [model getPositionAt:(NSInteger)(start + 1)];
     UDRange ur = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
 
-    const char *typeCStr = ts_node_type(node);
-    NSString   *typeStr  = typeCStr
-        ? [NSString stringWithUTF8String:typeCStr] : @"<unknown>";
+    NSString *className;
+    NSString *message;
+    if (isMissing) {
+        const char *typeCStr = ts_node_type(node);
+        NSString   *typeStr  = typeCStr
+            ? [NSString stringWithUTF8String:typeCStr] : @"<unknown>";
+        className = @"ts.missing";
+        message   = [NSString stringWithFormat:@"Missing %@", typeStr];
+    } else {
+        className = @"ts.error";
+        message   = @"Unexpected token";
+    }
 
     UDDecorationOptions *opts =
-        [[UDDecorationOptions alloc] initWithClassName:@"missing"
-                                              userInfo:typeStr];
+        [[UDDecorationOptions alloc] initWithClassName:className
+                                              userInfo:message];
     UDModelDeltaDecoration *d =
         [[UDModelDeltaDecoration alloc] initWithRange:ur options:opts];
     d.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
@@ -64,7 +83,9 @@ static inline NSUInteger charFromByte(uint32_t b) { return (NSUInteger)(b / 2); 
     [self.pendingDecorations addObject:d];
     self.remainingBudget--;
 
-    return NO; // MISSING nodes have no meaningful children
+    // For ERROR nodes: still descend — may contain nested MISSING children.
+    // For MISSING nodes: no meaningful children.
+    return isError;
 }
 
 @end

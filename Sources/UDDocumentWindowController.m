@@ -11,9 +11,11 @@
 #import "UDFoldingController.h"
 #import "UDBracketMatchHighlighter.h"
 #import "UDMissingNodeHighlighter.h"
+#import "UDParseErrorHighlighter.h"
 #import "UDParseErrorCollector.h"
 #import "UDDiagnosticStore.h"
 #import "UDDiagnosticItem.h"
+#import "UDErrorsViewController.h"
 #import "UDStructuredNavigator.h"
 #import "UDAutoIndenter.h"
 #import "tree_sitter_json.h"
@@ -71,8 +73,10 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 @property (nonatomic, strong) UDFoldingController         *foldingController;
 @property (nonatomic, strong) UDBracketMatchHighlighter   *bracketMatchHighlighter;
 @property (nonatomic, strong) UDMissingNodeHighlighter    *missingNodeHighlighter;
+@property (nonatomic, strong) UDParseErrorHighlighter     *parseErrorHighlighter;
 @property (nonatomic, strong) UDParseErrorCollector       *parseErrorCollector;
 @property (nonatomic, strong) UDDiagnosticStore           *diagnosticStore;
+@property (nonatomic, strong) UDErrorsViewController      *errorsViewController;
 @property (nonatomic, strong) UDStructuredNavigator       *structuredNavigator;
 @property (nonatomic, strong) UDAutoIndenter              *autoIndenter;
 @property (nonatomic, strong) NSArray<NSString *>         *findDecorationIDs;
@@ -198,6 +202,13 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
                                                    highlighter:_textStorage.highlighter];
     [_missingNodeHighlighter update];
 
+    // 11a. Parse-error pill highlighter — creates UDParseErrorDecorationOwner
+    //      decorations for inline Xcode-style error pills.
+    _parseErrorHighlighter =
+        [[UDParseErrorHighlighter alloc] initWithTextStorage:_textStorage
+                                                  highlighter:_textStorage.highlighter];
+    [_parseErrorHighlighter update];
+
     // 12. Diagnostic store — shared by the parse-error collector and LSP highlighter.
     _diagnosticStore = [[UDDiagnosticStore alloc] init];
 
@@ -288,17 +299,17 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // MARK: - Errors panel
 // ---------------------------------------------------------------------------
 
-/// Builds whatever view shows the diagnostic list inside errorsView.
-/// It observes UDDiagnosticsDidChangeNotification directly on _diagnosticStore
-/// so it stays up-to-date without any coupling back to this controller.
+/// Builds the diagnostic-list panel inside errorsView using UDErrorsViewController.
+/// The controller observes UDDiagnosticsDidChangeNotification on _diagnosticStore
+/// and refreshes its outline view automatically.
 - (void)_setupErrorsPanelInView:(NSView *)errorsView {
-    // Wire a table / outline view (or your existing UDErrorsViewController
-    // equivalent) directly to _diagnosticStore.allDiagnostics.
-    // Here we just store the view reference; the concrete implementation
-    // is UI-framework-specific and out of scope for this refactor.
-    //
-    // The panel should observe UDDiagnosticsDidChangeNotification on
-    // _diagnosticStore and reload from _diagnosticStore.allDiagnostics.
+    _errorsViewController =
+        [[UDErrorsViewController alloc] initWithDiagnosticStore:_diagnosticStore];
+    [self addChildViewController:_errorsViewController];
+    NSView *ev = _errorsViewController.view;
+    ev.frame             = errorsView.bounds;
+    ev.autoresizingMask  = NSViewWidthSizable | NSViewHeightSizable;
+    [errorsView addSubview:ev];
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +401,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         [self->_foldingController update];
         [self->_bracketMatchHighlighter update];
         [self->_missingNodeHighlighter update];
+        [self->_parseErrorHighlighter update];
         [self->_parseErrorCollector update];
     });
 }

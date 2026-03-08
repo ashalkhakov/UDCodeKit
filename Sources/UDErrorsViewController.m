@@ -80,6 +80,8 @@ static const NSUInteger kMaxParseErrors = 100;
     NSArray<UDDiagnosticItem *> *all = _diagnosticStore.allDiagnostics;
 
     self.diagnostics = [all copy];
+    [_outlineView reloadData];
+    [_outlineView expandItem:kFileGroupItem];
 }
 
 // ---------------------------------------------------------------------------

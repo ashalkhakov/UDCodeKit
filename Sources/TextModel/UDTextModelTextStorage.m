@@ -32,6 +32,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 @property (nonatomic, strong) UDTextModel             *textModel;
 @property (nonatomic, strong) UDTextModelString       *modelString;
 @property (nonatomic, strong) UDTreeSitterHighlighter *highlighter;
+@property (nonatomic, strong) UDSyntaxHighlighter     *syntaxHighlighter;
 @property (nonatomic)         BOOL                     suppressModelNotification;
 @property (nonatomic)         NSUInteger               lastKnownLength;
 @property (nonatomic)         BOOL                     hasPendingDirty;
@@ -84,6 +85,8 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     _textModel   = [[UDTextModel alloc] initWithText:initialText];
     _modelString = [[UDTextModelString alloc] initWithTextModel:_textModel];
     _highlighter = [[UDTreeSitterHighlighter alloc] initWithTextModel:_textModel];
+    _syntaxHighlighter = [[UDSyntaxHighlighter alloc] initWithTextStorage:self
+                                                               highlighter:_highlighter];
     _lastKnownLength = initialText.length;
     _hasPendingDirty = NO;
     _pendingDirtyStart = 0;
@@ -147,6 +150,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 
     dispatch_async(dispatch_get_main_queue(), ^{
         [self->_highlighter reparseFullString:[self->_textModel getValue]];
+        [self->_syntaxHighlighter update];
         [self applyDecorationHighlights];
     });
 }
@@ -278,6 +282,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
                                          changeInLength:delta
                                           currentString:snap];
         dispatch_async(dispatch_get_main_queue(), ^{
+            [self->_syntaxHighlighter update];
             [self applyDecorationHighlights];
         });
     }
@@ -292,6 +297,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     [_highlighter setLanguageFunc:languageFunc withHighlightsQuery:queryText];
     if (languageFunc) {
         [_highlighter reparseFullString:[_textModel getValue]];
+        [_syntaxHighlighter update];
     }
     // Force a full redraw regardless of whether decoration notifications fired,
     // since on first parse _hasPendingDirty may still be NO.

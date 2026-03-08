@@ -31,11 +31,20 @@ NS_ASSUME_NONNULL_BEGIN
 /// not it succeeded.  The LSP server is informed either way.
 - (void)documentDidSave:(BOOL)success;
 
-/// Open a new editor tab that shows the same underlying document.
-/// Multiple tabs may be open simultaneously; they all share one UDTextModelTextStorage
-/// (via separate NSLayoutManager instances) so edits in any tab are reflected in all.
+/// Open a new blank editor tab (new empty JSON document).
 /// Can be wired from a menu item or toolbar button.
 - (IBAction)addEditorTab:(nullable id)sender;
+
+/// Open a file in a new editor tab.
+///
+/// If the URL is already open in another tab a second *view* of the same
+/// document is created (the two tabs share one UDTextModelTextStorage, so
+/// edits in either are immediately visible in both).  If the URL has not been
+/// opened yet a new independent document context is created.
+///
+/// If the file cannot be read the method logs an error and returns without
+/// adding a tab.
+- (void)openURLInNewTab:(NSURL *)url;
 
 @end
 

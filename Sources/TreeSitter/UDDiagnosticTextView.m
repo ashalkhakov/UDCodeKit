@@ -49,24 +49,92 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 }
 
 @interface UDDiagnosticTextView () <NSLayoutManagerDelegate>
+/// Character offset of the cursor position from the last selection-change
+/// notification; used to look up the previous line rect so only that rect
+/// is invalidated when the cursor moves to a different line.
+@property (nonatomic) NSUInteger lastCursorCharOffset;
+/// Whether lastCursorCharOffset has been set yet.
+@property (nonatomic) BOOL       hasLastCursorCharOffset;
 @end
 
 @implementation UDDiagnosticTextView
 
 // ---------------------------------------------------------------------------
-// MARK: - Init
+// MARK: - Init / dealloc
 // ---------------------------------------------------------------------------
 
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
-    if (self) self.layoutManager.delegate = self;
+    if (self) [self _commonInit];
     return self;
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
     self = [super initWithCoder:coder];
-    if (self) self.layoutManager.delegate = self;
+    if (self) [self _commonInit];
     return self;
+}
+
+- (void)_commonInit {
+    self.layoutManager.delegate = self;
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_selectionDidChange:)
+               name:NSTextViewDidChangeSelectionNotification
+             object:self];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Selection change → invalidate current-line highlight
+// ---------------------------------------------------------------------------
+
+- (void)_selectionDidChange:(NSNotification *)note {
+    NSLayoutManager *lm = self.layoutManager;
+    if (!lm) return;
+
+    NSString *str = self.string;
+    NSUInteger len = str.length;
+
+    // Helper: returns the line-fragment rect (in view coordinates) for the
+    // line that contains charOffset, or NSZeroRect if unavailable.
+    NSRect (^lineRect)(NSUInteger) = ^NSRect(NSUInteger charOffset) {
+        if (len == 0) return NSZeroRect;
+        NSUInteger safe = (charOffset < len) ? charOffset : len - 1;
+        NSUInteger gi   = [lm glyphIndexForCharacterAtIndex:safe];
+        NSRange    er;
+        NSRect     r  = [lm lineFragmentRectForGlyphAtIndex:gi effectiveRange:&er];
+        if (NSIsEmptyRect(r)) return NSZeroRect;
+        NSPoint origin = self.textContainerOrigin;
+        r.origin.y += origin.y;
+        r.origin.x  = 0;
+        r.size.width = self.bounds.size.width;
+        return r;
+    };
+
+    // Character offset of the cursor (insertion point) in the new selection.
+    NSRange sel = self.selectedRange;
+    NSUInteger cursorOffset = sel.location < len ? sel.location : (len > 0 ? len - 1 : 0);
+
+    // Invalidate only the old current-line rect (so it loses its highlight).
+    if (_hasLastCursorCharOffset && _lastCursorCharOffset != cursorOffset) {
+        NSRect oldRect = lineRect(_lastCursorCharOffset);
+        if (!NSIsEmptyRect(oldRect)) {
+            [self setNeedsDisplayInRect:oldRect];
+        }
+    }
+
+    // Invalidate the new current-line rect.
+    NSRect newRect = lineRect(cursorOffset);
+    if (!NSIsEmptyRect(newRect)) {
+        [self setNeedsDisplayInRect:newRect];
+    }
+
+    _lastCursorCharOffset    = cursorOffset;
+    _hasLastCursorCharOffset = YES;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +176,10 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 - (void)drawViewBackgroundInRect:(NSRect)rect {
     [super drawViewBackgroundInRect:rect];
 
+    // --- Current-line highlight -------------------------------------------
+    [self _drawCurrentLineHighlightInRect:rect];
+
+    // --- Diagnostic pill labels -------------------------------------------
     UDTextModel *model = _textModel;
     if (!model) return;
 
@@ -178,6 +250,41 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 // ---------------------------------------------------------------------------
 // MARK: - Private helpers
 // ---------------------------------------------------------------------------
+
+/// Draws a full-width background highlight behind the line that contains the
+/// insertion point.  Called from drawViewBackgroundInRect: before diagnostic
+/// pills so the pills remain visible on top.
+- (void)_drawCurrentLineHighlightInRect:(NSRect)rect {
+    NSLayoutManager *lm  = self.layoutManager;
+    NSString        *str = self.string;
+    if (!lm || str.length == 0) return;
+
+    NSRange    sel      = self.selectedRange;
+    NSUInteger charIdx  = (sel.location < str.length) ? sel.location
+                                                       : str.length - 1;
+
+    NSUInteger glyphIdx = [lm glyphIndexForCharacterAtIndex:charIdx];
+    if (glyphIdx == NSNotFound) return;
+
+    NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:glyphIdx
+                                           effectiveRange:nil];
+    if (NSIsEmptyRect(lineRect)) return;
+
+    // Translate to view coordinates and stretch to full view width.
+    NSPoint origin  = self.textContainerOrigin;
+    lineRect.origin.y += origin.y;
+    lineRect.origin.x  = 0;
+    lineRect.size.width = self.bounds.size.width;
+
+    if (!NSIntersectsRect(lineRect, rect)) return;
+
+    // A very subtle highlight that looks good in both light and dark mode.
+    // We use a semi-transparent mid-gray; on a white bg this produces a soft
+    // warm-gray band, and on a dark bg it produces a slightly brighter band.
+    [[NSColor colorWithWhite:0.5 alpha:0.10] setFill];
+    NSRectFillUsingOperation(NSIntersectionRect(lineRect, rect),
+                             NSCompositingOperationSourceOver);
+}
 
 /// Returns the diagnostic message from a decoration's @c userInfo value,
 /// truncated to @c kMaxLabelChars characters.

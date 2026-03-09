@@ -42,13 +42,20 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 // Attribute-run cache.
 //
 // Rebuilt lazily whenever attrCacheDirty is YES.  Runs are sorted and cover
-// [0, lastKnownLength) without gaps.  attrRunRanges[i] and attrRunAttrs[i]
-// represent the i-th attribute run: all characters in that range share the
-// same merged attribute dictionary.
+// [0, lastKnownLength) without gaps.  attrRunRangesData holds a plain C
+// NSRange[] (stored as raw bytes in an NSData); attrRunAttrs[i] is the
+// attribute dictionary for the i-th run.
+//
+// Storing ranges as a raw C array instead of NSArray<NSValue *> eliminates
+// two ObjC message dispatches (objectAtIndexedSubscript: + rangeValue) and
+// one NSValue struct-extraction per binary-search step.  For a 330 KB JSON
+// file with ~50 000 syntax runs and O(log 50000) ≈ 16 comparisons per
+// -attributesAtIndex:effectiveRange: call, this saves ~800 000 ObjC message
+// sends per full-document layout pass.
 // ---------------------------------------------------------------------------
-@property (nonatomic, strong, nullable) NSArray<NSValue *>      *attrRunRanges;
+@property (nonatomic, strong, nullable) NSData             *attrRunRangesData; // raw NSRange[]
 @property (nonatomic, strong, nullable) NSArray<NSDictionary *> *attrRunAttrs;
-@property (nonatomic)                  BOOL                      attrCacheDirty;
+@property (nonatomic)                  BOOL                     attrCacheDirty;
 @end
 
 @implementation UDTextModelTextStorage
@@ -191,17 +198,25 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     }
 
     // Rebuild the attribute-run cache if it is stale.
-    if (_attrCacheDirty || !_attrRunRanges) {
+    if (_attrCacheDirty || !_attrRunRangesData) {
         [self _rebuildAttrRunCache];
     }
 
     // Binary-search for the cached run that contains 'location'.
-    NSArray<NSValue *> *runs   = _attrRunRanges;
-    NSArray            *attrs  = _attrRunAttrs;
-    NSUInteger lo = 0, hi = runs.count;
+    // _attrRunRangesData holds a plain NSRange[] — direct C-struct access,
+    // no ObjC message dispatch per step (vs. the old NSArray<NSValue*> path).
+    // NSData bytes are guaranteed to be suitably aligned for any standard C
+    // type, so the cast to NSRange * is safe on all supported platforms.
+    NSCAssert(_attrRunRangesData.length % sizeof(NSRange) == 0,
+              @"attrRunRangesData must contain whole NSRange structs");
+    const NSRange *runs  = (const NSRange *)_attrRunRangesData.bytes;
+    NSUInteger     count = _attrRunRangesData.length / sizeof(NSRange);
+    NSArray       *attrs = _attrRunAttrs;
+
+    NSUInteger lo = 0, hi = count;
     while (lo < hi) {
         NSUInteger mid = lo + (hi - lo) / 2;
-        NSRange r = [runs[mid] rangeValue];
+        NSRange r = runs[mid];
         if (NSMaxRange(r) <= location) {
             lo = mid + 1;
         } else if (r.location > location) {
@@ -407,15 +422,15 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 ///     attributes of the active set.
 ///
 /// After this method the cache is clean.  All subsequent calls to
-/// -attributesAtIndex:effectiveRange: are O(log K) binary searches, where K is
-/// the number of distinct runs (≤ 2N+1).
+/// -attributesAtIndex:effectiveRange: are O(log K) binary searches over a
+/// plain C NSRange[] (no ObjC message dispatch per comparison step).
 - (void)_rebuildAttrRunCache {
     _attrCacheDirty = NO;
 
     NSUInteger docLen = _lastKnownLength;
     if (docLen == 0) {
-        _attrRunRanges = @[];
-        _attrRunAttrs  = @[];
+        _attrRunRangesData = [NSData data];
+        _attrRunAttrs      = @[];
         return;
     }
 
@@ -424,8 +439,9 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         [_textModel decorationNodesInOffsetRange:0 end:(NSInteger)docLen];
 
     if (allNodes.count == 0) {
-        _attrRunRanges = @[ [NSValue valueWithRange:NSMakeRange(0, docLen)] ];
-        _attrRunAttrs  = @[ BaseAttributes() ];
+        NSRange whole = NSMakeRange(0, docLen);
+        _attrRunRangesData = [NSData dataWithBytes:&whole length:sizeof(NSRange)];
+        _attrRunAttrs      = @[ BaseAttributes() ];
         return;
     }
 
@@ -447,19 +463,24 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 
     NSUInteger numSeg = bounds.count > 1 ? bounds.count - 1 : 0;
     if (numSeg == 0) {
-        _attrRunRanges = @[ [NSValue valueWithRange:NSMakeRange(0, docLen)] ];
-        _attrRunAttrs  = @[ BaseAttributes() ];
+        NSRange whole = NSMakeRange(0, docLen);
+        _attrRunRangesData = [NSData dataWithBytes:&whole length:sizeof(NSRange)];
+        _attrRunAttrs      = @[ BaseAttributes() ];
         return;
     }
 
     // ── 3. Sweep left-to-right ───────────────────────────────────────────────
     // 'active' holds nodes whose ranges overlap the current segment.
     // 'nodeIdx' advances through allNodes (sorted by start) as the sweep moves.
-    NSMutableArray<NSValue *>      *runRanges =
+    //
+    // Ranges are appended as raw NSRange structs into an NSMutableData so the
+    // binary search in -attributesAtIndex:effectiveRange: can access them via
+    // a plain C pointer — no ObjC message dispatch or NSValue unboxing.
+    NSMutableData            *runRangesData =
+        [NSMutableData dataWithCapacity:numSeg * sizeof(NSRange)];
+    NSMutableArray<NSDictionary *> *runAttrs =
         [NSMutableArray arrayWithCapacity:numSeg];
-    NSMutableArray<NSDictionary *> *runAttrs  =
-        [NSMutableArray arrayWithCapacity:numSeg];
-    NSMutableArray<UDIntervalNode *> *active   =
+    NSMutableArray<UDIntervalNode *> *active =
         [NSMutableArray arrayWithCapacity:4];
     NSUInteger nodeIdx   = 0;
     NSUInteger nodeCount = allNodes.count;
@@ -480,14 +501,14 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
             if (n.end > segStart) [active addObject:n];
         }
 
-        [runRanges addObject:
-            [NSValue valueWithRange:NSMakeRange((NSUInteger)segStart,
-                                               (NSUInteger)(segEnd - segStart))]];
+        NSRange r = NSMakeRange((NSUInteger)segStart,
+                                (NSUInteger)(segEnd - segStart));
+        [runRangesData appendBytes:&r length:sizeof(NSRange)];
         [runAttrs addObject:[self _mergedAttrsForCovering:active]];
     }
 
-    _attrRunRanges = [runRanges copy];
-    _attrRunAttrs  = [runAttrs  copy];
+    _attrRunRangesData = [runRangesData copy];
+    _attrRunAttrs      = [runAttrs copy];
 }
 
 @end

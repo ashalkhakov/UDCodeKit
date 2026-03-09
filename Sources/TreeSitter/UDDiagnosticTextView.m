@@ -10,6 +10,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDDiagnosticTextView.h"
+#import "UDCodeEditorLayoutManager.h"
 
 // Horizontal gap between the end of line content and the label.
 static const CGFloat    kLabelGap          = 12.0;
@@ -76,6 +77,13 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 }
 
 - (void)_commonInit {
+    // Replace the default NSLayoutManager with our optimised subclass BEFORE
+    // anything else touches it.  This installs allowsNonContiguousLayout and
+    // backgroundLayoutEnabled so that subsequent calls to
+    // -glyphRangeForBoundingRect:inTextContainer: (e.g. from the gutter view)
+    // only lay out the requested area instead of the full document.
+    [self _replaceLayoutManager];
+
     self.layoutManager.delegate = self;
     [[NSNotificationCenter defaultCenter]
         addObserver:self
@@ -86,6 +94,35 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Layout manager setup
+// ---------------------------------------------------------------------------
+
+/// Replaces the NSTextView's default NSLayoutManager with a
+/// UDCodeEditorLayoutManager.  Must be called before any text-storage or
+/// gutter code has a chance to touch the layout manager.
+- (void)_replaceLayoutManager {
+    NSLayoutManager *oldLM = self.layoutManager;
+    if ([oldLM isKindOfClass:[UDCodeEditorLayoutManager class]]) return;
+
+    NSTextStorage *ts = oldLM.textStorage;
+
+    UDCodeEditorLayoutManager *newLM = [[UDCodeEditorLayoutManager alloc] init];
+
+    // Move all text containers from the old manager to the new one.
+    // (NSTextView normally has exactly one text container.)
+    NSArray<NSTextContainer *> *containers = [oldLM.textContainers copy];
+    for (NSUInteger i = 0; i < containers.count; i++) {
+        [oldLM removeTextContainerAtIndex:0];
+        [newLM addTextContainer:containers[i]];
+    }
+
+    // Swap the layout managers inside the shared text storage.
+    [ts addLayoutManager:newLM];
+    [ts removeLayoutManager:oldLM];
+    // self.layoutManager now returns newLM via the text container reference.
 }
 
 // ---------------------------------------------------------------------------

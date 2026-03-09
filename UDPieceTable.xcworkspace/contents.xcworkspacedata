@@ -13,4 +13,7 @@
    <FileRef
       location = "group:LSPKit/LSPKit.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:Tests/TestApp.xctestplan">
+   </FileRef>
 </Workspace>

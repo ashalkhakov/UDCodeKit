@@ -68,40 +68,109 @@ After the script finishes you need to:
    changes to `UDLanguageModeRegistry.m` (e.g., updated queries or new
    language modes).
 
+## Build system: per-language macOS bundles
+
+Each grammar is compiled as a standalone **macOS loadable bundle**
+(`*.bundle`) rather than being compiled directly into the main app.  The
+bundle contains both the tree-sitter runtime (`lib.c`) and the grammar
+sources (`parser.c`, `scanner.c`/`scanner.cc`), making it completely
+self-contained.
+
+### Why bundles?
+
+Bundling each grammar separately solves two problems that arise when all
+grammars share a single compilation unit:
+
+1. **Header shadowing** — different grammar versions ship different copies of
+   `src/tree_sitter/parser.h`.  When all grammar `src/` directories are
+   listed in a shared `HEADER_SEARCH_PATHS`, the first matching copy wins
+   for every file.  Per-bundle compilation gives each grammar an isolated
+   search path.
+2. **ABI versioning** — grammars generated with tree-sitter ≥ 0.25 use a
+   new `TSLanguage` ABI (version 15) that differs from earlier grammars.
+   Because each bundle links its own copy of the runtime, the runtime and
+   grammar always match.
+
+### Bundle products
+
+| Bundle name               | Grammar    | Exported symbol        |
+|---------------------------|------------|------------------------|
+| `TreeSitterBash.bundle`   | bash       | `tree_sitter_bash`     |
+| `TreeSitterC.bundle`      | c          | `tree_sitter_c`        |
+| `TreeSitterHtml.bundle`   | html       | `tree_sitter_html`     |
+| `TreeSitterJson.bundle`   | json       | `tree_sitter_json`     |
+| `TreeSitterMake.bundle`   | make       | `tree_sitter_make`     |
+| `TreeSitterMarkdown.bundle`| markdown  | `tree_sitter_markdown` |
+| `TreeSitterObjc.bundle`   | objc       | `tree_sitter_objc`     |
+| `TreeSitterXml.bundle`    | xml        | `tree_sitter_xml`      |
+| `TreeSitterYaml.bundle`   | yaml       | `tree_sitter_yaml`     |
+
+At build time Xcode copies all bundles into `TestApp.app/Contents/PlugIns/`
+via an **Embed PlugIns** copy-files phase on the TestApp target.
+
+### Xcode targets per bundle
+
+Each bundle target in `TestApp.xcodeproj` has:
+
+| Setting                 | Value                                                     |
+|-------------------------|-----------------------------------------------------------|
+| Product type            | `com.apple.product-type.bundle`                           |
+| Source files            | `tree-sitter/src/lib.c`, `tree-sitter-<lang>/src/parser.c`, (optional scanner) |
+| `HEADER_SEARCH_PATHS`   | `$(SRCROOT)/tree-sitter/include`, `$(SRCROOT)/tree-sitter/src`, `$(SRCROOT)/tree-sitter-<lang>/src` |
+| `PRODUCT_BUNDLE_IDENTIFIER` | `org.underivable.treesitter.<lang>`                  |
+| `WRAPPER_EXTENSION`     | `bundle`                                                  |
+
+### Runtime loading
+
+`UDLanguageModeRegistry` loads each bundle from the app's `PlugIns` directory
+at startup using `NSBundle` + `dlsym`:
+
+```objc
+NSString *plugInsPath = [[NSBundle mainBundle] builtInPlugInsPath];
+NSBundle *bundle = [NSBundle bundleWithPath:
+    [plugInsPath stringByAppendingPathComponent:@"TreeSitterBash.bundle"]];
+[bundle load];
+// resolve the C factory function
+LanguageFunc f = (LanguageFunc)(uintptr_t)dlsym(
+    dlopen(bundle.executablePath.fileSystemRepresentation, RTLD_NOW|RTLD_GLOBAL),
+    "tree_sitter_bash");
+```
+
+If a bundle is missing at runtime the mode still registers but with
+`languageFunc == NULL` (plain-text fallback).
+
 ## Adding a new grammar bundle
 
 1. **Add an entry** to the `GRAMMARS` associative array in
-   `scripts/update-grammars.sh`:
+   `scripts/update-grammars.sh` and run it to vendor the files:
 
    ```bash
    ["<id>"]="<git-url>|<src-subdir>|<queries-subdir>|<c-function-name>"
    ```
 
-2. **Run the script** to vendor the files:
+   Then run:
 
    ```sh
    bash scripts/update-grammars.sh <id>
    ```
 
-3. **Register the grammar** in the Xcode project:
-   - Add `tree-sitter-<id>/src/parser.c` (and `scanner.c` / `scanner.cc` if
-     present) to the `Sources` build phase of the **TestApp** target in
-     `TestApp.xcodeproj/project.pbxproj`.
-   - Add `"$(SRCROOT)/tree-sitter-<id>/src"` to `HEADER_SEARCH_PATHS` in
-     both the Debug and Release build configurations of the TestApp target.
+2. **Add a bundle target** to `TestApp.xcodeproj`:
+   - New `PBXNativeTarget` with product type `com.apple.product-type.bundle`
+   - Sources build phase: `tree-sitter/src/lib.c` + grammar source files
+   - `HEADER_SEARCH_PATHS`: `tree-sitter/include`, `tree-sitter/src`,
+     `tree-sitter-<lang>/src`
+   - `PRODUCT_NAME`: `TreeSitter<Lang>` (PascalCase)
+   - Add as a dependency of TestApp and add to the Embed PlugIns copy-files phase
 
-4. **Import the header** and **register the mode** in
-   `Sources/Model/UDLanguageModeRegistry.m`:
+3. **Register the mode** in `Sources/Model/UDLanguageModeRegistry.m`:
 
    ```objc
-   #import "tree_sitter_<id>.h"
-
-   // inside _initWithBuiltins:
    UDLanguageMode *myLang = [[UDLanguageMode alloc]
        initWithIdentifier:@"<id>"
               displayName:@"My Language"
            fileExtensions:@[@"ext"]
-             languageFunc:(LanguageFunc)tree_sitter_<id>
+             languageFunc:[self _langFuncNamed:"tree_sitter_<id>"
+                                   bundleName:@"TreeSitter<Lang>.bundle"]
           highlightsQuery:kMyLangHighlightsQuery
              indentsQuery:nil
             lspLanguageID:nil
@@ -109,10 +178,8 @@ After the script finishes you need to:
    [self _registerModeUnsafe:myLang];
    ```
 
-5. **Add tests** in `Tests/UDLanguageModeTests.m` covering at minimum:
-   - Mode registration (`modeForIdentifier:` returns the correct identifier)
-   - `languageFunc != NULL`
-   - Extension lookup (`modeForFileExtension:`)
+4. **Add tests** in `Tests/UDLanguageModeTests.m`.
+
 
 ## Notes on grammar size
 

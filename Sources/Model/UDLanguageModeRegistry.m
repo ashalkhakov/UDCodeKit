@@ -3,15 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDLanguageModeRegistry.h"
-#import "tree_sitter_json.h"
-#import "tree_sitter_html.h"
-#import "tree_sitter_markdown.h"
-#import "tree_sitter_xml.h"
-#import "tree_sitter_yaml.h"
-#import "tree_sitter_c.h"
-#import "tree_sitter_objc.h"
-#import "tree_sitter_bash.h"
-#import "tree_sitter_make.h"
+#import <dlfcn.h>
 
 // ---------------------------------------------------------------------------
 // MARK: - Built-in: JSON
@@ -474,6 +466,53 @@ static NSString * const kMakeDefaultText =
     return instance;
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - Bundle loading
+// ---------------------------------------------------------------------------
+
+/// Load a C symbol from a language bundle stored in the app's PlugIns directory.
+/// Returns NULL and logs a warning when the bundle cannot be found or loaded.
+- (LanguageFunc)_langFuncNamed:(const char *)symName
+                    bundleName:(NSString *)bundleName
+{
+    NSString *plugInsPath = [[NSBundle mainBundle] builtInPlugInsPath];
+    NSString *bundlePath  = [plugInsPath stringByAppendingPathComponent:bundleName];
+    NSBundle *bundle      = [NSBundle bundleWithPath:bundlePath];
+    if (!bundle) {
+        NSLog(@"UDLanguageModeRegistry: bundle not found: %@", bundlePath);
+        return NULL;
+    }
+    NSError *err = nil;
+    if (![bundle loadAndReturnError:&err]) {
+        NSLog(@"UDLanguageModeRegistry: failed to load %@: %@", bundleName, err);
+        return NULL;
+    }
+    NSString *execPath = bundle.executablePath;
+    if (!execPath) {
+        NSLog(@"UDLanguageModeRegistry: no executable in %@", bundleName);
+        return NULL;
+    }
+    void *handle = dlopen(execPath.fileSystemRepresentation,
+                          RTLD_NOW | RTLD_LOCAL | RTLD_NOLOAD);
+    if (!handle) {
+        // Bundle was loaded by NSBundle but dlopen with RTLD_NOLOAD failed;
+        // retry without RTLD_NOLOAD to get the handle.
+        handle = dlopen(execPath.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);
+    }
+    if (!handle) {
+        NSLog(@"UDLanguageModeRegistry: dlopen failed for %@: %s",
+              bundleName, dlerror());
+        return NULL;
+    }
+    void *sym = dlsym(handle, symName);
+    if (!sym) {
+        NSLog(@"UDLanguageModeRegistry: symbol '%s' not found in %@",
+              symName, bundleName);
+        dlclose(handle);
+    }
+    return (LanguageFunc)(uintptr_t)sym;
+}
+
 - (instancetype)_initWithBuiltins {
     self = [super init];
     if (!self) return nil;
@@ -501,7 +540,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"json"
                displayName:@"JSON"
             fileExtensions:@[@"json", @"jsonc", @"geojson"]
-              languageFunc:(LanguageFunc)tree_sitter_json
+              languageFunc:[self _langFuncNamed:"tree_sitter_json"
+                                    bundleName:@"TreeSitterJson.bundle"]
            highlightsQuery:kJSONHighlightsQuery
               indentsQuery:kJSONIndentsQuery
              lspLanguageID:@"json"
@@ -513,7 +553,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"html"
                displayName:@"HTML"
             fileExtensions:@[@"html", @"htm", @"xhtml", @"shtml"]
-              languageFunc:(LanguageFunc)tree_sitter_html
+              languageFunc:[self _langFuncNamed:"tree_sitter_html"
+                                    bundleName:@"TreeSitterHtml.bundle"]
            highlightsQuery:kHTMLHighlightsQuery
               indentsQuery:nil
              lspLanguageID:@"html"
@@ -525,7 +566,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"markdown"
                displayName:@"Markdown"
             fileExtensions:@[@"md", @"markdown", @"mdown", @"mkd"]
-              languageFunc:(LanguageFunc)tree_sitter_markdown
+              languageFunc:[self _langFuncNamed:"tree_sitter_markdown"
+                                    bundleName:@"TreeSitterMarkdown.bundle"]
            highlightsQuery:kMarkdownHighlightsQuery
               indentsQuery:nil
              lspLanguageID:nil
@@ -537,7 +579,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"xml"
                displayName:@"XML"
             fileExtensions:@[@"xml", @"xsl", @"xslt", @"svg", @"rss", @"atom", @"plist"]
-              languageFunc:(LanguageFunc)tree_sitter_xml
+              languageFunc:[self _langFuncNamed:"tree_sitter_xml"
+                                    bundleName:@"TreeSitterXml.bundle"]
            highlightsQuery:kXMLHighlightsQuery
               indentsQuery:nil
              lspLanguageID:@"xml"
@@ -549,7 +592,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"yaml"
                displayName:@"YAML"
             fileExtensions:@[@"yaml", @"yml"]
-              languageFunc:(LanguageFunc)tree_sitter_yaml
+              languageFunc:[self _langFuncNamed:"tree_sitter_yaml"
+                                    bundleName:@"TreeSitterYaml.bundle"]
            highlightsQuery:kYAMLHighlightsQuery
               indentsQuery:nil
              lspLanguageID:@"yaml"
@@ -561,7 +605,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"c"
                displayName:@"C"
             fileExtensions:@[@"c"]
-              languageFunc:(LanguageFunc)tree_sitter_c
+              languageFunc:[self _langFuncNamed:"tree_sitter_c"
+                                    bundleName:@"TreeSitterC.bundle"]
            highlightsQuery:kCHighlightsQuery
               indentsQuery:kCIndentsQuery
              lspLanguageID:@"c"
@@ -574,7 +619,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"objc"
                displayName:@"Objective-C"
             fileExtensions:@[@"m", @"mm", @"h"]
-              languageFunc:(LanguageFunc)tree_sitter_objc
+              languageFunc:[self _langFuncNamed:"tree_sitter_objc"
+                                    bundleName:@"TreeSitterObjc.bundle"]
            highlightsQuery:kObjCHighlightsQuery
               indentsQuery:kObjCIndentsQuery
              lspLanguageID:@"objective-c"
@@ -586,7 +632,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"bash"
                displayName:@"Bash"
             fileExtensions:@[@"sh", @"bash", @"zsh", @"ksh"]
-              languageFunc:(LanguageFunc)tree_sitter_bash
+              languageFunc:[self _langFuncNamed:"tree_sitter_bash"
+                                    bundleName:@"TreeSitterBash.bundle"]
            highlightsQuery:kBashHighlightsQuery
               indentsQuery:nil
              lspLanguageID:@"shellscript"
@@ -600,7 +647,8 @@ static NSString * const kMakeDefaultText =
         initWithIdentifier:@"make"
                displayName:@"Makefile"
             fileExtensions:@[@"mk"]
-              languageFunc:(LanguageFunc)tree_sitter_make
+              languageFunc:[self _langFuncNamed:"tree_sitter_make"
+                                    bundleName:@"TreeSitterMake.bundle"]
            highlightsQuery:kMakeHighlightsQuery
               indentsQuery:nil
              lspLanguageID:nil

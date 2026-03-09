@@ -12,21 +12,28 @@
  *  highlighting, diagnostics, LSP — lives in UDDocumentWindowController.
  *
  *  File I/O is the only responsibility of this class:
- *    • writeToURL: for .udworkspace  → JSON snapshot of the currently-open file list.
+ *    • writeToURL: for .udworkspace  → delegates to workspaceModel.serializeToData:
  *    • writeToURL: for a plain file  → the primary tab's text content (single-file mode).
  *--------------------------------------------------------------------------------------------*/
 
 #import <Cocoa/Cocoa.h>
 #import "UDTextModelTextStorage.h"
+#import "UDWorkspaceModel.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface UDWorkspace : NSDocument
 
 /// Ordered list of file URLs the window controller should open as tabs when
-/// the workspace loads.  Populated by -readFromURL:ofType:error: before
-/// -windowDidLoad is called.  nil or empty → open one blank editor tab.
+/// the workspace loads.  Set by -readFromURL:ofType:error: for plain-file
+/// workspaces (the workspace model path does not use this).
+/// nil or empty → open one blank editor tab.
 @property (nonatomic, copy, nullable) NSArray<NSURL *> *initialTabURLs;
+
+/// Pre-loaded workspace model for .udworkspace files.  Set by
+/// -readFromURL:ofType:error: before -windowDidLoad is called.  nil for
+/// plain-file workspaces (window controller builds the model on demand).
+@property (nonatomic, strong, nullable) UDWorkspaceModel *workspaceModel;
 
 /// Text storage of the workspace's primary tab.  Set by
 /// UDDocumentWindowController in -windowDidLoad.  Used by

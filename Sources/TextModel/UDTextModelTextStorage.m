@@ -78,16 +78,16 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 #pragma mark - Init / dealloc
 // ---------------------------------------------------------------------------
 
-- (instancetype)initWithText:(NSString *)initialText {
+- (instancetype)initWithTextModel:(UDTextModel *)textModel {
     self = [super init];
     if (!self) return nil;
 
-    _textModel   = [[UDTextModel alloc] initWithText:initialText];
+    _textModel   = textModel;
     _modelString = [[UDTextModelString alloc] initWithTextModel:_textModel];
     _highlighter = [[UDTreeSitterHighlighter alloc] initWithTextModel:_textModel];
     _syntaxHighlighter = [[UDSyntaxHighlighter alloc] initWithTextStorage:self
                                                                highlighter:_highlighter];
-    _lastKnownLength = initialText.length;
+    _lastKnownLength = (NSUInteger)[_textModel getLength];
     _hasPendingDirty = NO;
     _pendingDirtyStart = 0;
     _pendingDirtyEnd   = 0;
@@ -103,6 +103,10 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
                name:UDTextModelDecorationsDidChangeNotification
              object:_textModel];
     return self;
+}
+
+- (instancetype)initWithText:(NSString *)initialText {
+    return [self initWithTextModel:[[UDTextModel alloc] initWithText:initialText]];
 }
 
 - (void)dealloc {

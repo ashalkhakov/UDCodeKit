@@ -12,6 +12,8 @@
 #import "UDParseErrorCollector.h"
 #import "UDDiagnosticStore.h"
 #import "UDDiagnosticItem.h"
+#import "UDCodeDocument.h"
+#import "UDWorkspaceModel.h"
 #import "tree_sitter_json.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -62,29 +64,39 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 /// Encapsulates all per-document state for one editor tab (or a group of tabs
 /// that all show the same document).
 ///
+/// The model state (text content, diagnostics, file URL, display name) lives
+/// in UDCodeDocument — which is UI-independent and testable.
+/// UDEditorTabContext adds the AppKit-specific bridge layer on top:
+///   • UDTextModelTextStorage (NSTextStorage backed by the document's textModel)
+///   • tree-sitter parse highlighters and error collectors
+///   • an optional LSP coordinator
+///
 /// Multiple UDTextEditorViewControllers may be wired to the same context: each
 /// adds its own NSLayoutManager to the shared UDTextModelTextStorage, so edits
 /// in any view appear immediately in all others.
 ///
 /// Lifecycle:
-///   1. -initWithContent:fileURL:        — create before any editor VC loads.
-///   2. -activateWithTheme:…             — call AFTER the first editor VC's
+///   1. -initWithDocument:             — create before any editor VC loads.
+///   2. -activateWithTheme:…           — call AFTER the first editor VC's
 ///      -viewDidLoad has run so its layout manager is attached to textStorage
 ///      before the first tree-sitter parse fires.
 ///   3. Set lspCoordinator if available.
 @interface UDEditorTabContext : NSObject
 
+/// Pure model backing this editor tab.
+@property (nonatomic, strong, readonly) UDCodeDocument          *document;
+/// AppKit text storage wrapping document.textModel.
 @property (nonatomic, strong, readonly) UDTextModelTextStorage  *textStorage;
-@property (nonatomic, strong, readonly) UDDiagnosticStore       *diagnosticStore;
-/// File URL this context is editing, or nil for an unsaved scratch buffer.
-@property (nonatomic, copy,   readonly, nullable) NSURL         *fileURL;
-/// Display title derived from fileURL.lastPathComponent, or "Untitled".
-@property (nonatomic, copy,   readonly)           NSString      *tabTitle;
-/// Optional LSP coordinator; set by the owner after -activateWithTheme:…
-@property (nonatomic, strong, nullable)           UDLSPCoordinator *lspCoordinator;
 
-- (instancetype)initWithContent:(NSString *)content
-                        fileURL:(nullable NSURL *)fileURL NS_DESIGNATED_INITIALIZER;
+/// Convenience accessors forwarded to document.
+@property (nonatomic, readonly) UDDiagnosticStore   *diagnosticStore;
+@property (nonatomic, readonly, nullable) NSURL     *fileURL;
+@property (nonatomic, readonly) NSString            *tabTitle;
+
+/// Optional LSP coordinator; set by the owner after -activateWithTheme:…
+@property (nonatomic, strong, nullable) UDLSPCoordinator *lspCoordinator;
+
+- (instancetype)initWithDocument:(UDCodeDocument *)document NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 /// Wire tree-sitter, run the first parse, and start the diagnostic pipeline.
@@ -105,15 +117,22 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
 @implementation UDEditorTabContext
 
-- (instancetype)initWithContent:(NSString *)content fileURL:(NSURL *)fileURL {
+- (instancetype)initWithDocument:(UDCodeDocument *)document {
     self = [super init];
     if (!self) return nil;
-    _textStorage     = [[UDTextModelTextStorage alloc] initWithText:content ?: @""];
-    _diagnosticStore = [[UDDiagnosticStore alloc] init];
-    _fileURL         = [fileURL copy];
-    _tabTitle        = fileURL.lastPathComponent ?: @"Untitled";
+    _document    = document;
+    // Wrap the document's textModel in the AppKit text-storage bridge.
+    _textStorage = [[UDTextModelTextStorage alloc] initWithTextModel:document.textModel];
     return self;
 }
+
+// Convenience forwarding accessors ----------------------------------------
+
+- (UDDiagnosticStore *)diagnosticStore { return _document.diagnosticStore; }
+- (NSURL *)fileURL                     { return _document.fileURL; }
+- (NSString *)tabTitle                 { return _document.displayName; }
+
+// --------------------------------------------------------------------------
 
 - (void)activateWithTheme:(TreeSitterTheme *)theme
              languageFunc:(LanguageFunc)languageFunc
@@ -133,7 +152,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     _parseErrorCollector =
         [[UDParseErrorCollector alloc] initWithTextStorage:_textStorage
                                                 highlighter:hl
-                                                      store:_diagnosticStore];
+                                                      store:_document.diagnosticStore];
     [_parseErrorCollector update];
 
     [[NSNotificationCenter defaultCenter]
@@ -170,8 +189,12 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 /// the user opens a second view of an already-open file).
 @property (nonatomic, strong) NSMutableArray<UDEditorTabContext *> *tabContexts;
 
-@property (nonatomic, strong) NSTabViewController   *editorTabViewController;
+@property (nonatomic, strong) NSTabViewController    *editorTabViewController;
 @property (nonatomic, strong) UDErrorsViewController *errorsViewController;
+
+/// Pure model layer: owns UDCodeDocument objects, one per unique open file.
+/// The documents array is the authoritative source of open-document state.
+@property (nonatomic, strong) UDWorkspaceModel *workspaceModel;
 
 /// Diagnostic stores we have already registered NSNotificationCenter observers
 /// for.  Prevents duplicate callbacks when a context appears in more than one tab.
@@ -205,6 +228,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
     _tabContexts    = [NSMutableArray array];
     _observedStores = [NSMutableSet set];
+    _workspaceModel = [[UDWorkspaceModel alloc] init];
 
     // 1. Resolve the effective colour theme.
     NSAppearanceName best =
@@ -233,31 +257,37 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         [NSSplitViewItem splitViewItemWithViewController:_editorTabViewController]];
     self.contentViewController = splitVC;
 
-    // 3. Open workspace tabs.
-    NSArray<NSURL *> *tabURLs = workspace.initialTabURLs;
-    if (tabURLs.count > 0) {
-        for (NSURL *url in tabURLs) {
+    // 3. Open workspace tabs via workspace model documents (if any were
+    //    pre-loaded) or fall back to the legacy initialTabURLs path.
+    NSArray<UDCodeDocument *> *preloaded = workspace.workspaceModel.documents;
+    if (preloaded.count > 0) {
+        // Workspace was opened from a .udworkspace file — documents already
+        // loaded by UDWorkspace.readFromURL:ofType:error:.
+        for (UDCodeDocument *doc in preloaded) {
+            [_workspaceModel addDocumentWithText:[doc.textModel getValue]
+                                         fileURL:doc.fileURL];
+            [self _openNewTabWithDocument:_workspaceModel.documents.lastObject];
+        }
+        workspace.primaryTextStorage = _tabContexts.firstObject.textStorage;
+    } else if (workspace.initialTabURLs.count > 0) {
+        // Plain file(s) opened directly — load via workspace model.
+        for (NSURL *url in workspace.initialTabURLs) {
             NSError *err = nil;
-            NSString *content = [NSString stringWithContentsOfURL:url
-                                                         encoding:NSUTF8StringEncoding
-                                                            error:&err];
-            if (!content) {
+            UDCodeDocument *doc = [_workspaceModel addDocumentFromURL:url error:&err];
+            if (!doc) {
                 NSLog(@"[UDDocumentWindowController] Cannot open %@: %@",
                       url.lastPathComponent, err);
-                content = @"";  // open empty tab rather than silently dropping it
+                // Open an empty tab rather than silently dropping it.
+                doc = [_workspaceModel addDocumentWithText:@"" fileURL:url];
             }
-            [self _openNewTabWithContent:content
-                                 fileURL:url
-                                   label:url.lastPathComponent];
+            [self _openNewTabWithDocument:doc];
         }
-        // Wire the workspace to the first tab's storage so Cmd+S works for
-        // the plain-file case (single JSON opened directly).
         workspace.primaryTextStorage = _tabContexts.firstObject.textStorage;
     } else {
         // Fresh workspace — open one blank editor tab.
-        [self _openNewTabWithContent:kDefaultNewDocumentText
-                             fileURL:nil
-                               label:@"Untitled"];
+        UDCodeDocument *doc =
+            [_workspaceModel addDocumentWithText:kDefaultNewDocumentText fileURL:nil];
+        [self _openNewTabWithDocument:doc];
     }
 
     // 4. Populate errors panel with all open documents' stores.
@@ -281,9 +311,9 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (IBAction)addEditorTab:(nullable id)sender {
-    NSUInteger n     = _editorTabViewController.tabViewItems.count + 1;
-    NSString  *label = [NSString stringWithFormat:@"Untitled %lu", (unsigned long)n];
-    [self _openNewTabWithContent:kDefaultNewDocumentText fileURL:nil label:label];
+    UDCodeDocument *doc =
+        [_workspaceModel addDocumentWithText:kDefaultNewDocumentText fileURL:nil];
+    [self _openNewTabWithDocument:doc];
 }
 
 - (IBAction)openFileInNewTab:(nullable id)sender {
@@ -308,24 +338,25 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 - (void)openURLInNewTab:(NSURL *)url {
     // If this file is already open, add a new *view* of the same context so
     // edits in the two tabs are immediately synchronised.
-    for (UDEditorTabContext *ctx in _tabContexts) {
-        if ([ctx.fileURL isEqual:url]) {
-            [self _addViewTabForContext:ctx];
-            return;
+    UDCodeDocument *existing = [_workspaceModel documentForFileURL:url];
+    if (existing) {
+        for (UDEditorTabContext *ctx in _tabContexts) {
+            if (ctx.document == existing) {
+                [self _addViewTabForContext:ctx];
+                return;
+            }
         }
     }
 
-    // New file — create an independent context.
-    NSError  *err     = nil;
-    NSString *content = [NSString stringWithContentsOfURL:url
-                                                 encoding:NSUTF8StringEncoding
-                                                    error:&err];
-    if (!content) {
+    // New file — add to workspace model (loads from disk) and open a tab.
+    NSError *err = nil;
+    UDCodeDocument *doc = [_workspaceModel addDocumentFromURL:url error:&err];
+    if (!doc) {
         NSLog(@"[UDDocumentWindowController] Cannot open %@: %@",
               url.lastPathComponent, err);
         return;
     }
-    [self _openNewTabWithContent:content fileURL:url label:url.lastPathComponent];
+    [self _openNewTabWithDocument:doc];
 }
 
 // ---------------------------------------------------------------------------
@@ -333,28 +364,24 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (NSArray<NSURL *> *)currentOpenFileURLs {
-    NSMutableArray<NSURL *> *seen = [NSMutableArray array];
-    for (UDEditorTabContext *ctx in _tabContexts) {
-        if (ctx.fileURL && ![seen containsObject:ctx.fileURL]) {
-            [seen addObject:ctx.fileURL];
-        }
+    // Delegate to the workspace model — it already de-duplicates by file URL.
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (UDCodeDocument *doc in _workspaceModel.documents) {
+        if (doc.fileURL) [urls addObject:doc.fileURL];
     }
-    return [seen copy];
+    return [urls copy];
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - Tab management — private helpers
 // ---------------------------------------------------------------------------
 
-/// Create a brand-new context + editor VC, activate the context, and add a
-/// tab.  The caller can immediately access the new tab as the last item in
-/// _editorTabViewController.tabViewItems.
-- (void)_openNewTabWithContent:(NSString *)content
-                       fileURL:(nullable NSURL *)fileURL
-                         label:(NSString *)label {
-    // a. Build context.
-    UDEditorTabContext *ctx =
-        [[UDEditorTabContext alloc] initWithContent:content fileURL:fileURL];
+/// Create a new editor tab backed by document.  Adds the tab to the UI and
+/// registers all AppKit-side observers.  The caller must have already added
+/// the document to _workspaceModel.
+- (void)_openNewTabWithDocument:(UDCodeDocument *)document {
+    // a. Build context wrapping the document.
+    UDEditorTabContext *ctx = [[UDEditorTabContext alloc] initWithDocument:document];
 
     // b. Wire an editor VC.  Calling -view forces -viewDidLoad which attaches
     //    a new NSLayoutManager to ctx.textStorage.  This MUST happen before
@@ -383,10 +410,11 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
     // f. Track and display.
     [_tabContexts addObject:ctx];
-    [self _appendTabItem:label viewController:editorVC identifier:
-        fileURL.absoluteString
-            ?: [NSString stringWithFormat:@"untitled-%lu",
-                (unsigned long)_editorTabViewController.tabViewItems.count + 1]];
+    [self _appendTabItem:document.displayName
+          viewController:editorVC
+              identifier:document.fileURL.absoluteString
+                      ?: [NSString stringWithFormat:@"untitled-%lu",
+                              (unsigned long)_editorTabViewController.tabViewItems.count + 1]];
 
     // g. Refresh the errors panel so the new document appears immediately.
     [self _refreshErrorsPanel];
@@ -427,20 +455,14 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     return (i < _tabContexts.count) ? _tabContexts[i] : _tabContexts.firstObject;
 }
 
-/// Rebuild the errors panel from the current set of unique tab contexts so
-/// every open document is visible as its own file-group row — like Xcode's
-/// Issue Navigator.  Duplicate contexts (multiple views of the same file)
-/// are shown only once.
+/// Rebuild the errors panel from the workspace model so every open document
+/// is visible as its own file-group row — like Xcode's Issue Navigator.
 - (void)_refreshErrorsPanel {
     NSMutableArray<UDDiagnosticStore *> *stores = [NSMutableArray array];
     NSMutableArray<NSString *>          *names  = [NSMutableArray array];
-    NSMutableSet<UDDiagnosticStore *>   *seen   = [NSMutableSet set];
-
-    for (UDEditorTabContext *ctx in _tabContexts) {
-        if ([seen containsObject:ctx.diagnosticStore]) continue;
-        [seen addObject:ctx.diagnosticStore];
-        [stores addObject:ctx.diagnosticStore];
-        [names  addObject:ctx.tabTitle];
+    for (UDCodeDocument *doc in _workspaceModel.documents) {
+        [stores addObject:doc.diagnosticStore];
+        [names  addObject:doc.displayName];
     }
     [_errorsViewController setStores:stores displayNames:names];
 }

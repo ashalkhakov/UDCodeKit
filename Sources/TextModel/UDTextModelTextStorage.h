@@ -50,6 +50,14 @@ extern NSString * const UDParseErrorDecorationOwner;
 /// Creates a new text storage initialised with the given text.
 - (instancetype)initWithText:(NSString *)initialText;
 
+/// Creates a text storage that wraps an existing UDTextModel.
+///
+/// Use this when the text model is owned by a UDCodeDocument: the same
+/// UDTextModel is shared between the model layer (UDCodeDocument) and the
+/// AppKit text-system bridge (UDTextModelTextStorage), so edits made through
+/// either layer are immediately visible in both.
+- (instancetype)initWithTextModel:(UDTextModel *)textModel;
+
 /// Configure tree-sitter syntax highlighting.
 /// Delegates to the internal UDTreeSitterHighlighter.
 - (void)setLanguageFunc:(nullable LanguageFunc)languageFunc

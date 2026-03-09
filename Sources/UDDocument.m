@@ -9,6 +9,7 @@
 
 #import "UDDocument.h"
 #import "UDDocumentWindowController.h"
+#import "UDWorkspaceModel.h"
 #import <UDPieceTable/UDPieceTable.h>
 
 // ---------------------------------------------------------------------------
@@ -31,49 +32,38 @@
               error:(NSError **)outError {
 
     if ([[url.pathExtension lowercaseString] isEqualToString:@"udworkspace"]) {
-        // ---- Workspace file: parse JSON and restore the tab list ----
+        // ---- Workspace file: deserialise via UDWorkspaceModel ----
         NSData *data = [NSData dataWithContentsOfURL:url options:0 error:outError];
         if (!data) return NO;
 
-        id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:outError];
-        if (![obj isKindOfClass:[NSDictionary class]]) {
-            if (outError && !*outError) {
-                *outError = [NSError errorWithDomain:NSCocoaErrorDomain
-                                               code:NSFileReadCorruptFileError
-                                           userInfo:nil];
-            }
-            return NO;
-        }
+        UDWorkspaceModel *model =
+            [UDWorkspaceModel workspaceModelFromData:data error:outError];
+        if (!model) return NO;
 
-        NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-        NSArray *entries = obj[@"openFiles"];
-        for (id entry in ([entries isKindOfClass:[NSArray class]] ? entries : @[])) {
-            NSString *path = ([entry isKindOfClass:[NSDictionary class]])
-                                ? entry[@"path"] : nil;
-            if (path.length) [urls addObject:[NSURL fileURLWithPath:path]];
-        }
-        _initialTabURLs = [urls copy];
+        _workspaceModel = model;
 
     } else {
         // ---- Plain file (e.g. JSON): single-tab workspace ----
-        if (_primaryTextStorage) {
-            // Window is already open — replace the primary tab's content
+        if (_workspaceModel) {
+            // Window is already open — replace the primary document's content
             // (e.g. File > Revert to Saved, or external change reload).
-            NSString *content = [NSString stringWithContentsOfURL:url
-                                                         encoding:NSUTF8StringEncoding
-                                                            error:outError];
-            if (!content) return NO;
-
-            UDTextModel *model = _primaryTextStorage.textModel;
-            NSInteger    len   = [model getLength];
-            UDPosition   sp    = [model getPositionAt:0];
-            UDPosition   ep    = [model getPositionAt:len];
-            UDRange      r     = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
-            [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:r text:content]]];
-        } else {
-            // Initial load — the window controller will read the file when it opens.
-            _initialTabURLs = @[url];
+            UDCodeDocument *doc = _workspaceModel.documents.firstObject;
+            if (doc) {
+                NSString *content = [NSString stringWithContentsOfURL:url
+                                                             encoding:NSUTF8StringEncoding
+                                                                error:outError];
+                if (!content) return NO;
+                UDTextModel *model = doc.textModel;
+                NSInteger    len   = [model getLength];
+                UDPosition   sp    = [model getPositionAt:0];
+                UDPosition   ep    = [model getPositionAt:len];
+                UDRange      r     = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
+                [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:r text:content]]];
+                return YES;
+            }
         }
+        // Initial load — the window controller will open the file when it loads.
+        _initialTabURLs = @[url];
     }
     return YES;
 }
@@ -83,23 +73,19 @@
              error:(NSError **)outError {
 
     if ([[url.pathExtension lowercaseString] isEqualToString:@"udworkspace"]) {
-        // ---- Workspace file: serialise the current tab list ----
+        // ---- Workspace file: serialise via workspace model ----
         UDDocumentWindowController *wc =
             (UDDocumentWindowController *)self.windowControllers.firstObject;
-        NSArray<NSURL *> *openURLs = wc ? [wc currentOpenFileURLs] : @[];
 
-        NSMutableArray<NSDictionary *> *files =
-            [NSMutableArray arrayWithCapacity:openURLs.count];
-        for (NSURL *u in openURLs) {
-            [files addObject:@{@"path": u.path}];
+        // Build a lightweight model containing only the open file URLs so
+        // we capture any tabs opened after the workspace was first loaded.
+        UDWorkspaceModel *snapshot = [[UDWorkspaceModel alloc] init];
+        for (NSURL *u in [wc currentOpenFileURLs]) {
+            [snapshot addDocumentWithText:@"" fileURL:u];
         }
-        NSDictionary *ws = @{@"version": @1, @"openFiles": files};
 
-        NSError *jsonErr = nil;
-        NSData  *data    = [NSJSONSerialization dataWithJSONObject:ws
-                                                           options:NSJSONWritingPrettyPrinted
-                                                             error:&jsonErr];
-        if (!data) { if (outError) *outError = jsonErr; return NO; }
+        NSData *data = [snapshot serializeToDataWithError:outError];
+        if (!data) return NO;
         return [data writeToURL:url options:NSDataWritingAtomic error:outError];
 
     } else {

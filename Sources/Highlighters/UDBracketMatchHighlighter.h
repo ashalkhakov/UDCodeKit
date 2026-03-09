@@ -11,14 +11,11 @@
  *  Call -update whenever the cursor position or the document changes.
  *--------------------------------------------------------------------------------------------*/
 
-#import <Foundation/Foundation.h>
-#import <AppKit/AppKit.h>
-#import "UDTextModelTextStorage.h"
-#import "UDTreeSitterHighlighter.h"
+#import "UDDecorationHighlighter.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface UDBracketMatchHighlighter : NSObject
+@interface UDBracketMatchHighlighter : UDDecorationHighlighter
 
 - (instancetype)initWithTextView:(NSTextView *)textView
                      textStorage:(UDTextModelTextStorage *)textStorage

@@ -15,6 +15,7 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
     NSScrollView  *_scrollView;
     NSTextView    *_textView;
     UDTextModel   *_textModel;
+    BOOL           _layoutRedrawScheduled; // guards against repeated deferrals
 }
 
 // ---------------------------------------------------------------------------
@@ -93,13 +94,44 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 
     NSLayoutManager *lm = _textView.layoutManager;
     NSTextContainer *tc  = _textView.textContainer;
-    NSUInteger glyphCount = [lm numberOfGlyphs];
-    if (!lm || !tc || glyphCount == 0) return;
+    if (!lm || !tc) return;
 
     // Visible rect in the text view's own coordinate space.
     NSRect visibleInTV = _textView.visibleRect;
+
+    // ── Layout-completion guard ──────────────────────────────────────────────
+    // When NSLayoutManager has NOT yet generated glyphs for any character (e.g.
+    // immediately after a large paste), calling -glyphRangeForBoundingRect: below
+    // would force a full synchronous re-layout of the entire document.  For a
+    // 330 KB file that means O(N) work — reading every character and every
+    // attribute run (~38 s in profiling).
+    //
+    // With UDCodeEditorLayoutManager's allowsNonContiguousLayout=YES this is no
+    // longer a problem because only the visible area is laid out on demand.
+    // The guard below is a defence-in-depth measure for the case where
+    // allowsNonContiguousLayout is not available (e.g. GNUstep builds) or is
+    // somehow disabled: when zero characters have been laid out yet AND the
+    // document is non-empty we defer one run-loop cycle so the text view's own
+    // draw (which triggers layout naturally) can run first.
+    //
+    // Note: we only bail when firstUnlaidCharacterIndex == 0 (nothing at all
+    // laid out yet) to avoid suppressing line numbers for normal mid-document
+    // scroll positions where lazy layout has processed only the visible portion.
+    if ([_textModel getLength] > 0 &&
+        [lm respondsToSelector:@selector(firstUnlaidCharacterIndex)] &&
+        [lm firstUnlaidCharacterIndex] == 0) {
+        [self _scheduleLayoutCompleteRedraw];
+        return;
+    }
+
+    // glyphRangeForBoundingRect:inTextContainer: only lays out the visible area,
+    // not the entire document.  Do NOT call numberOfGlyphs before this — it
+    // would force NSLayoutManager to generate glyphs for the whole document,
+    // calling characterAtIndex: for every character and causing O(N) work on
+    // every gutter redraw after a text change.
     NSRange visibleGlyphRange = [lm glyphRangeForBoundingRect:visibleInTV
                                               inTextContainer:tc];
+    if (visibleGlyphRange.length == 0) return;
 
     NSDictionary *attrs = [self _lineNumberAttributes];
     CGFloat numberColumnRight = NSWidth(self.bounds) - kFoldColumnWidth - 2.0;
@@ -108,7 +140,7 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
     NSUInteger glyphIdx = visibleGlyphRange.location;
     NSUInteger endGlyph = NSMaxRange(visibleGlyphRange);
 
-    while (glyphIdx < endGlyph && glyphIdx < glyphCount) {
+    while (glyphIdx < endGlyph) {
         NSRange fragGlyphRange;
         NSRect fragInContainer =
             [lm lineFragmentRectForGlyphAtIndex:glyphIdx
@@ -174,6 +206,28 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
         NSFontAttributeName:            font,
         NSForegroundColorAttributeName: [NSColor secondaryLabelColor],
     };
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Deferred redraw (layout-guard helper)
+// ---------------------------------------------------------------------------
+
+/// Schedules a single setNeedsDisplay:YES for the next run-loop cycle.
+/// Used when drawRect: detects that NSLayoutManager has not yet produced
+/// glyphs for any character (firstUnlaidCharacterIndex == 0).  The one-cycle
+/// delay lets the text view's own draw (which triggers layout) run first, so
+/// the next gutter draw finds a partially-or-fully-laid-out document and can
+/// call glyphRangeForBoundingRect: without forcing expensive O(N) work.
+- (void)_scheduleLayoutCompleteRedraw {
+    if (_layoutRedrawScheduled) return;
+    _layoutRedrawScheduled = YES;
+    __weak typeof(self) weak = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        __strong typeof(weak) strong = weak;
+        if (!strong) return;
+        strong->_layoutRedrawScheduled = NO;
+        [strong setNeedsDisplay:YES];
+    });
 }
 
 // ---------------------------------------------------------------------------

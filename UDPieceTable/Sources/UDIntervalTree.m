@@ -208,11 +208,30 @@ static void UDNodeAcceptEdit(UDIntervalNode *node,
 
 - (NSArray<UDIntervalNode *> *)nodesInRange:(NSInteger)queryStart
                                         end:(NSInteger)queryEnd {
+    NSUInteger count = _nodes.count;
+    if (count == 0) return @[];
+
+    // Binary-search for the first index where node.start >= queryEnd.
+    // All nodes at indices [0, upperBound) have start < queryEnd; nodes at
+    // indices [upperBound, count) can never intersect [queryStart, queryEnd)
+    // and are therefore skipped entirely.
+    NSUInteger lo = 0, hi = count;
+    while (lo < hi) {
+        NSUInteger mid = lo + (hi - lo) / 2;
+        if (_nodes[mid].start < queryEnd) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    NSUInteger upperBound = lo;
+    if (upperBound == 0) return @[];
+
+    // A node intersects [queryStart, queryEnd) iff start < queryEnd (guaranteed by
+    // upperBound) AND end > queryStart.
     NSMutableArray<UDIntervalNode *> *result = [NSMutableArray array];
-    for (UDIntervalNode *n in _nodes) {
-        // Since _nodes is sorted by start, we can stop once start >= queryEnd.
-        if (n.start >= queryEnd) { break; }
-        // A node intersects [queryStart, queryEnd) iff n.start < queryEnd AND n.end > queryStart.
+    for (NSUInteger i = 0; i < upperBound; i++) {
+        UDIntervalNode *n = _nodes[i];
         if (n.end > queryStart) {
             [result addObject:n];
         }

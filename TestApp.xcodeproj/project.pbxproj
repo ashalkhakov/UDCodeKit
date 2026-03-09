@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; };
+		BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE2635DD2F5497A90008B1BC /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		CE2635DE2F5497A90008B1BC /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE89CA1E2F54B6F300327916 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
@@ -30,6 +32,20 @@
 			remoteGlobalIDString = A46FAAAA2F5441C80079BB37;
 			remoteInfo = UDPieceTable;
 		};
+		BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = D13EB15121EA5B1600E56DC9;
+			remoteInfo = LSPKit;
+		};
+		BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = D13EB15021EA5B1600E56DC9;
+			remoteInfo = LSPKit;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -50,6 +66,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */,
 				CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
@@ -61,12 +78,23 @@
 		A46FAAAB2F5441C80079BB37 /* TestApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TestApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAABC2F5441CB0079BB37 /* TestAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAAC62F5441CB0079BB37 /* TestAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "tree-sitter/src/lib.c"; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				InfoPlist.plist,
+			);
+			target = A46FAAAA2F5441C80079BB37 /* TestApp */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A46FAAAD2F5441C80079BB37 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+		A46FAAAD2F5441C80079BB37 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
 		A46FAABF2F5441CB0079BB37 /* Tests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Tests; sourceTree = "<group>"; };
 		A46FAAC92F5441CB0079BB37 /* UITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = UITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -76,6 +104,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */,
 				CE89CA1E2F54B6F300327916 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -106,6 +135,7 @@
 				A46FAAC92F5441CB0079BB37 /* UITests */,
 				CE2635DB2F5497A90008B1BC /* Frameworks */,
 				D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */,
+				BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */,
 				A46FAAAC2F5441C80079BB37 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -116,6 +146,14 @@
 				A46FAAAB2F5441C80079BB37 /* TestApp.app */,
 				A46FAABC2F5441CB0079BB37 /* TestAppTests.xctest */,
 				A46FAAC62F5441CB0079BB37 /* TestAppUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		BB22CAFE2F5492DC002200A2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BB22CAFE2F5492DC002200A3 /* LSPKit.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -151,6 +189,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A46FAAAD2F5441C80079BB37 /* Sources */,
@@ -245,6 +284,12 @@
 			);
 			productRefGroup = A46FAAAC2F5441C80079BB37 /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = BB22CAFE2F5492DC002200A2 /* Products */;
+					ProjectRef = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				A46FAAAA2F5441C80079BB37 /* TestApp */,
@@ -253,6 +298,16 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXReferenceProxy section */
+		BB22CAFE2F5492DC002200A3 /* LSPKit.framework */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.framework;
+			path = LSPKit.framework;
+			remoteRef = BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+/* End PBXReferenceProxy section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A46FAAA92F5441C80079BB37 /* Resources */ = {
@@ -314,6 +369,11 @@
 			isa = PBXTargetDependency;
 			target = A46FAAAA2F5441C80079BB37 /* TestApp */;
 			targetProxy = A46FAAC72F5441CB0079BB37 /* PBXContainerItemProxy */;
+		};
+		BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LSPKit;
+			targetProxy = BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -442,16 +502,13 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/tree-sitter-json/src",
 				);
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -474,16 +531,13 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/tree-sitter-json/src",
 				);
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSMainNibFile = MainMenu;
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -504,13 +558,21 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Sources",
+					"$(SRCROOT)/Sources/Diagnostics",
+					"$(SRCROOT)/Sources/Model",
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/tree-sitter-json/src",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.7;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.UDPieceTableTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/UDPieceTable.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/UDPieceTable";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TestApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TestApp";
 			};
 			name = Debug;
 		};
@@ -521,13 +583,21 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Sources",
+					"$(SRCROOT)/Sources/Diagnostics",
+					"$(SRCROOT)/Sources/Model",
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/tree-sitter-json/src",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.7;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.UDPieceTableTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/UDPieceTable.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/UDPieceTable";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TestApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TestApp";
 			};
 			name = Release;
 		};
@@ -543,7 +613,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				TEST_TARGET_NAME = UDPieceTable;
+				TEST_TARGET_NAME = TestApp;
 			};
 			name = Debug;
 		};
@@ -559,7 +629,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				TEST_TARGET_NAME = UDPieceTable;
+				TEST_TARGET_NAME = TestApp;
 			};
 			name = Release;
 		};

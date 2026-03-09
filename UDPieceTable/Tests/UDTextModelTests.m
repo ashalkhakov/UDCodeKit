@@ -683,4 +683,225 @@
     XCTAssertEqual(r.endColumn,   (NSInteger)12);
 }
 
+// MARK: - nodesInRange binary-search correctness
+
+/// Helper: create a decoration covering [startOff, endOff) (0-based offsets).
+- (UDModelDeltaDecoration *)_decorationFrom:(NSUInteger)startOff
+                                         to:(NSUInteger)endOff
+                                  inModel:(UDTextModel *)model {
+    UDDecorationOptions *opts =
+        [[UDDecorationOptions alloc] initWithClassName:@"t" userInfo:nil];
+    UDPosition sp = [model getPositionAt:(NSInteger)startOff];
+    UDPosition ep = [model getPositionAt:(NSInteger)endOff];
+    return [[UDModelDeltaDecoration alloc]
+                initWithRange:PTRangeMake(sp.line, sp.column, ep.line, ep.column)
+                      options:opts];
+}
+
+- (void)testNodesInOffsetRange_noDecorations {
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    NSArray *nodes = [m decorationNodesInOffsetRange:0 end:5];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_queryBeforeAllNodes {
+    // Single decoration covering offsets [6, 11).  Query [0, 5) should return nothing.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:6 to:11 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:0 end:5];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_queryAfterAllNodes {
+    // Single decoration covering [0, 5).  Query [6, 11) should return nothing.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:0 to:5 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:6 end:11];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_exactBoundaryMatch {
+    // Decoration [3, 7).  Query [3, 7) should return it.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:3 to:7 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:3 end:7];
+    XCTAssertEqual(nodes.count, (NSUInteger)1);
+}
+
+- (void)testNodesInOffsetRange_queryEndEqualsNodeStart {
+    // Decoration [5, 8).  Query [2, 5) must NOT include it (open interval at right end).
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:5 to:8 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:2 end:5];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_queryStartEqualsNodeEnd {
+    // Decoration [2, 5).  Query [5, 8) must NOT include it.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:2 to:5 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:5 end:8];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_manyNonOverlapping {
+    // 100 sequential non-overlapping tokens: token i covers [i*3, i*3+2).
+    // Verify that only the token(s) actually overlapping the query range
+    // are returned, not all 100.
+    NSInteger tokenCount = 100;
+    NSMutableString *text = [NSMutableString string];
+    for (NSInteger i = 0; i < tokenCount; i++) { [text appendString:@"ab "]; }
+    UDTextModel *m = [[UDTextModel alloc] initWithText:text];
+
+    NSMutableArray *decors = [NSMutableArray arrayWithCapacity:tokenCount];
+    for (NSInteger i = 0; i < tokenCount; i++) {
+        [decors addObject:[self _decorationFrom:(NSUInteger)(i * 3)
+                                             to:(NSUInteger)(i * 3 + 2)
+                                        inModel:m]];
+    }
+    [m deltaDecorations:nil newDecorations:decors];
+
+    // Query the 50th token's range (offsets [150, 152)).
+    NSArray *nodes = [m decorationNodesInOffsetRange:150 end:152];
+    XCTAssertEqual(nodes.count, (NSUInteger)1);
+
+    // Query an inter-token gap (offsets [152, 153) — the space between tokens 50 and 51).
+    nodes = [m decorationNodesInOffsetRange:152 end:153];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_largeCountPerformance {
+    // Performance smoke-test: 10,000 non-overlapping tokens.  A correct O(log N + k)
+    // query should complete in well under 1 second for any single-character position.
+    NSInteger tokenCount = 10000;
+    NSMutableString *text = [NSMutableString stringWithCapacity:(NSUInteger)tokenCount * 3];
+    for (NSInteger i = 0; i < tokenCount; i++) { [text appendString:@"ab "]; }
+    UDTextModel *m = [[UDTextModel alloc] initWithText:text];
+
+    NSMutableArray *decors = [NSMutableArray arrayWithCapacity:(NSUInteger)tokenCount];
+    for (NSInteger i = 0; i < tokenCount; i++) {
+        [decors addObject:[self _decorationFrom:(NSUInteger)(i * 3)
+                                             to:(NSUInteger)(i * 3 + 2)
+                                        inModel:m]];
+    }
+    [m deltaDecorations:nil newDecorations:decors];
+
+    // Query positions spread across the whole document.
+    // Each query should be O(log N), not O(N), so 1000 queries should be fast.
+    [self measureBlock:^{
+        for (NSInteger q = 0; q < 1000; q++) {
+            NSInteger pos = (q * 30) % (tokenCount * 3 - 1);
+            (void)[m decorationNodesInOffsetRange:pos end:pos + 1];
+        }
+    }];
+}
+
+// MARK: - getNearestChunkAtOffset: / bulk character access
+
+- (void)testGetNearestChunkAtOffset_matchesCharacterAtOffset {
+    // For every offset in a multi-line string the first character of the
+    // returned chunk must equal getCharacterAtOffset:.
+    NSString *src = @"Hello\nWorld\nFoo Bar";
+    UDTextModel *m = [[UDTextModel alloc] initWithText:src];
+    for (NSUInteger i = 0; i < src.length; i++) {
+        NSString *chunk = [m getNearestChunkAtOffset:i];
+        XCTAssertGreaterThan(chunk.length, (NSUInteger)0,
+                             @"getNearestChunkAtOffset(%lu) returned empty", (unsigned long)i);
+        unichar fromChunk  = [chunk characterAtIndex:0];
+        unichar fromDirect = [m getCharacterAtOffset:i];
+        XCTAssertEqual(fromChunk, fromDirect,
+                       @"chunk[0] != getCharacterAtOffset at offset %lu", (unsigned long)i);
+    }
+}
+
+- (void)testGetNearestChunkAtOffset_coversRunToEndOfPiece {
+    // After an insert that splits the document into two pieces, chunks must
+    // still cover the whole document without gaps or overlaps.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"ABCDE"];
+    UDTextModelEdit *edit =
+        [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 3, 1, 3) text:@"XY"];
+    [m applyEdits:@[edit]];
+    // Expected content: "ABXYCDE"
+    NSString *full = [m getValue];
+    XCTAssertEqualObjects(full, @"ABXYCDE");
+
+    // Reconstruct the full string by concatenating chunks.
+    NSMutableString *rebuilt = [NSMutableString string];
+    NSUInteger offset = 0;
+    while (offset < full.length) {
+        NSString *chunk = [m getNearestChunkAtOffset:offset];
+        XCTAssertGreaterThan(chunk.length, (NSUInteger)0,
+                             @"got empty chunk at offset %lu", (unsigned long)offset);
+        [rebuilt appendString:chunk];
+        offset += chunk.length;
+    }
+    XCTAssertEqualObjects(rebuilt, full,
+                          @"concatenated chunks do not reproduce the full document");
+}
+
+// MARK: - fillCharacters:range:
+
+- (void)testFillCharacters_fullDocument {
+    // fillCharacters:range: over the entire document must produce the same
+    // characters as getValue.
+    NSString *src = @"Hello\nWorld\nFoo Bar";
+    UDTextModel *m = [[UDTextModel alloc] initWithText:src];
+    NSUInteger len = (NSUInteger)[m getLength];
+    unichar *buf = (unichar *)malloc(len * sizeof(unichar));
+    XCTAssertTrue(buf != NULL);
+    [m fillCharacters:buf range:NSMakeRange(0, len)];
+    NSString *result = [NSString stringWithCharacters:buf length:len];
+    free(buf);
+    XCTAssertEqualObjects(result, src);
+}
+
+- (void)testFillCharacters_subrange {
+    // fillCharacters:range: over a subrange must match the corresponding
+    // characters in getValue.
+    NSString *src = @"ABCDEFGHIJ";
+    UDTextModel *m = [[UDTextModel alloc] initWithText:src];
+    NSRange sub = NSMakeRange(3, 4); // "DEFG"
+    unichar buf[4];
+    [m fillCharacters:buf range:sub];
+    NSString *result = [NSString stringWithCharacters:buf length:4];
+    XCTAssertEqualObjects(result, [src substringWithRange:sub]);
+}
+
+- (void)testFillCharacters_acrossPieceBoundary {
+    // After a mid-document insert, a range that crosses a piece boundary must
+    // still be filled correctly.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"ABCDE"];
+    UDTextModelEdit *edit =
+        [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 3, 1, 3) text:@"XY"];
+    [m applyEdits:@[edit]];
+    // Document is now "ABXYCDE" (two or more pieces).
+    NSString *expected = @"ABXYCDE";
+    NSUInteger len = (NSUInteger)[m getLength];
+    XCTAssertEqual(len, expected.length);
+    unichar *buf = (unichar *)malloc(len * sizeof(unichar));
+    [m fillCharacters:buf range:NSMakeRange(0, len)];
+    NSString *result = [NSString stringWithCharacters:buf length:len];
+    free(buf);
+    XCTAssertEqualObjects(result, expected);
+}
+
+- (void)testFillCharacters_emptyRange {
+    // An empty range must be a no-op (no crash, buffer unchanged).
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello"];
+    unichar sentinel = 0xFFFF;
+    unichar buf = sentinel;
+    [m fillCharacters:&buf range:NSMakeRange(0, 0)];
+    XCTAssertEqual(buf, sentinel, @"empty range must not write to buffer");
+}
+
 @end

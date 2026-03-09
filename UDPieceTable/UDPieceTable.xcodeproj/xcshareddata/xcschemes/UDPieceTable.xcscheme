@@ -40,21 +40,10 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A46FAABB2F5441CB0079BB37"
-               BuildableName = "TestAppTests.xctest"
-               BlueprintName = "TestAppTests"
-               ReferencedContainer = "container:../TestApp.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A46FAAC52F5441CB0079BB37"
-               BuildableName = "TestAppUITests.xctest"
-               BlueprintName = "TestAppUITests"
-               ReferencedContainer = "container:../TestApp.xcodeproj">
+               BlueprintIdentifier = "CE8CFD532F5492DD0011C202"
+               BuildableName = "UDPieceTableTests.xctest"
+               BlueprintName = "UDPieceTableTests"
+               ReferencedContainer = "container:UDPieceTable.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>

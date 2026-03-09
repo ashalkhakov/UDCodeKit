@@ -3,18 +3,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDErrorsViewController.h"
-#import <tree_sitter/api.h>
 
-// Tree-sitter stores column offsets as UTF-16 code-unit counts (2 bytes per
-// BMP code unit; surrogate pairs use 4 bytes for supplementary characters).
-// Dividing by 2 gives the 0-based character column for ASCII/BMP-only content.
-static inline NSInteger columnFromTSColumn(uint32_t col) { return (NSInteger)(col / 2); }
+// ---------------------------------------------------------------------------
+// MARK: - UDErrorsEntry  (private model object for one file group)
+// ---------------------------------------------------------------------------
 
-/// The single root item shown in the outline view.
-static NSString * const kFileGroupItem = @"current.json";
+/// Represents one open document in the outline view.  Acts as the level-0
+/// item identity object that NSOutlineView tracks.
+@interface UDErrorsEntry : NSObject
 
-/// Maximum number of errors collected (mirrors VS Code's maxNumberOfProblems).
-static const NSUInteger kMaxParseErrors = 100;
+@property (nonatomic, copy)   NSString                          *displayName;
+@property (nonatomic, strong) UDDiagnosticStore                 *store;
+@property (nonatomic, copy)   NSArray<UDDiagnosticItem *>       *diagnostics;
+
+- (instancetype)initWithDisplayName:(NSString *)displayName
+                              store:(UDDiagnosticStore *)store;
+@end
+
+@implementation UDErrorsEntry
+
+- (instancetype)initWithDisplayName:(NSString *)displayName
+                              store:(UDDiagnosticStore *)store {
+    self = [super init];
+    if (self) {
+        _displayName = [displayName copy];
+        _store       = store;
+        _diagnostics = [store.allDiagnostics copy];
+    }
+    return self;
+}
+
+@end
 
 // ---------------------------------------------------------------------------
 // MARK: - Private container view (draws a 1-px right-side separator)
@@ -40,125 +59,91 @@ static const NSUInteger kMaxParseErrors = 100;
 // ---------------------------------------------------------------------------
 
 @interface UDErrorsViewController ()
-@property (nonatomic, weak)   UDTreeSitterHighlighter    *highlighter;
-@property (nonatomic, strong) NSOutlineView              *outlineView;
-@property (nonatomic, copy)   NSArray<UDParseErrorItem *> *errors;
+/// Ordered list of file-group entries, one per unique open document.
+@property (nonatomic, strong) NSMutableArray<UDErrorsEntry *> *entries;
+@property (nonatomic, weak) IBOutlet NSOutlineView            *outlineView;
 @end
 
 @implementation UDErrorsViewController
 
 // ---------------------------------------------------------------------------
-// MARK: - Init
+// MARK: - Init / dealloc
 // ---------------------------------------------------------------------------
 
-- (instancetype)initWithHighlighter:(UDTreeSitterHighlighter *)highlighter {
-    self = [super initWithNibName:nil bundle:nil];
+- (instancetype)init {
+    self = [super initWithNibName:@"UDErrorsView" bundle:nil];
     if (self) {
-        _highlighter = highlighter;
-        _errors      = @[];
+        _entries = [NSMutableArray array];
     }
     return self;
 }
 
-// ---------------------------------------------------------------------------
-// MARK: - View loading
-// ---------------------------------------------------------------------------
-
-- (void)loadView {
-    UDErrorsPanelContainerView *container =
-        [[UDErrorsPanelContainerView alloc] initWithFrame:NSZeroRect];
-
-    // --- Outline view ---
-    NSTableColumn *col = [[NSTableColumn alloc] initWithIdentifier:@"main"];
-    col.resizingMask = NSTableColumnAutoresizingMask;
-
-    _outlineView = [[NSOutlineView alloc] initWithFrame:NSZeroRect];
-    _outlineView.headerView                  = nil;
-    _outlineView.rowSizeStyle                = NSTableViewRowSizeStyleSmall;
-    [_outlineView addTableColumn:col];
-    _outlineView.outlineTableColumn          = col;
-    _outlineView.dataSource                  = self;
-    _outlineView.delegate                    = self;
-    _outlineView.selectionHighlightStyle     = NSTableViewSelectionHighlightStyleSourceList;
-    _outlineView.allowsEmptySelection        = YES;
-    _outlineView.indentationPerLevel         = 10.0;
-    _outlineView.backgroundColor             = [NSColor controlBackgroundColor];
-
-    // --- Scroll view ---
-    NSScrollView *sv = [[NSScrollView alloc] initWithFrame:NSZeroRect];
-    sv.documentView          = _outlineView;
-    sv.hasVerticalScroller   = YES;
-    sv.hasHorizontalScroller = NO;
-    sv.autohidesScrollers    = YES;
-    sv.borderType            = NSNoBorder;
-    sv.autoresizingMask      = NSViewWidthSizable | NSViewHeightSizable;
-    sv.frame                 = container.bounds;
-    [container addSubview:sv];
-
-    self.view = container;
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - Public API
 // ---------------------------------------------------------------------------
 
-- (void)update {
-    _errors = [self _scanErrors];
+- (void)setStores:(NSArray<UDDiagnosticStore *> *)stores
+     displayNames:(NSArray<NSString *> *)displayNames {
+
+    // Unsubscribe from every previously observed store.
+    for (UDErrorsEntry *entry in _entries) {
+        [[NSNotificationCenter defaultCenter]
+            removeObserver:self
+                      name:UDDiagnosticsDidChangeNotification
+                    object:entry.store];
+    }
+
+    // Build de-duplicated entries (first occurrence of each store wins).
+    NSMutableArray<UDErrorsEntry *> *newEntries = [NSMutableArray array];
+    NSMutableSet<UDDiagnosticStore *> *seen = [NSMutableSet set];
+    NSUInteger n = MIN(stores.count, displayNames.count);
+
+    for (NSUInteger i = 0; i < n; i++) {
+        UDDiagnosticStore *store = stores[i];
+        if ([seen containsObject:store]) continue;
+        [seen addObject:store];
+
+        NSString *name = displayNames[i] ?: @"Untitled";
+        [newEntries addObject:[[UDErrorsEntry alloc] initWithDisplayName:name store:store]];
+
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+               selector:@selector(_diagnosticsDidChange:)
+                   name:UDDiagnosticsDidChangeNotification
+                 object:store];
+    }
+
+    _entries = newEntries;
+    [self _reloadAndExpand];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Notification handler
+// ---------------------------------------------------------------------------
+
+- (void)_diagnosticsDidChange:(NSNotification *)note {
+    UDDiagnosticStore *store = (UDDiagnosticStore *)note.object;
+    for (UDErrorsEntry *entry in _entries) {
+        if (entry.store == store) {
+            entry.diagnostics = [store.allDiagnostics copy];
+            break;
+        }
+    }
+    [self _reloadAndExpand];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Private helpers
+// ---------------------------------------------------------------------------
+
+- (void)_reloadAndExpand {
     [_outlineView reloadData];
-    [_outlineView expandItem:kFileGroupItem];
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - Parse-tree scanning
-// ---------------------------------------------------------------------------
-
-- (NSArray<UDParseErrorItem *> *)_scanErrors {
-    const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
-    if (!tree) return @[];
-
-    NSMutableArray<UDParseErrorItem *> *result = [NSMutableArray array];
-    TSNode root    = ts_tree_root_node((TSTree *)tree);
-    NSUInteger budget = kMaxParseErrors;
-    [self _collectErrors:root budget:&budget into:result];
-    return result;
-}
-
-- (void)_collectErrors:(TSNode)node
-                budget:(NSUInteger *)budget
-                  into:(NSMutableArray<UDParseErrorItem *> *)out {
-    if (*budget == 0) return;
-
-    // Prune subtrees that contain no errors.
-    if (!ts_node_is_error(node) && !ts_node_is_missing(node) &&
-        !ts_node_has_error(node)) {
-        return;
-    }
-
-    if (ts_node_is_error(node)) {
-        TSPoint pt = ts_node_start_point(node);
-        [out addObject:[[UDParseErrorItem alloc]
-                            initWithLine:(NSInteger)pt.row + 1
-                                  column:columnFromTSColumn(pt.column)
-                                 message:@"Unexpected token"]];
-        (*budget)--;
-        // Still recurse — ERROR children may contain MISSING sub-nodes.
-    } else if (ts_node_is_missing(node)) {
-        TSPoint pt = ts_node_start_point(node);
-        const char *typeCStr = ts_node_type(node);
-        NSString *typeStr    = typeCStr
-            ? [NSString stringWithUTF8String:typeCStr] : @"<unknown>";
-        [out addObject:[[UDParseErrorItem alloc]
-                            initWithLine:(NSInteger)pt.row + 1
-                                  column:columnFromTSColumn(pt.column)
-                                 message:[NSString stringWithFormat:@"Missing %@", typeStr]]];
-        (*budget)--;
-        return; // MISSING nodes have no meaningful children.
-    }
-
-    uint32_t count = ts_node_child_count(node);
-    for (uint32_t i = 0; i < count; i++) {
-        if (*budget == 0) break;
-        [self _collectErrors:ts_node_child(node, i) budget:budget into:out];
+    for (UDErrorsEntry *entry in _entries) {
+        [_outlineView expandItem:entry];
     }
 }
 
@@ -168,20 +153,23 @@ static const NSUInteger kMaxParseErrors = 100;
 
 - (NSInteger)outlineView:(NSOutlineView *)outlineView
   numberOfChildrenOfItem:(nullable id)item {
-    if (item == nil)                           return 1;   // one file group
-    if ([item isKindOfClass:[NSString class]]) return (NSInteger)_errors.count;
+    if (item == nil)
+        return (NSInteger)_entries.count;
+    if ([item isKindOfClass:[UDErrorsEntry class]])
+        return (NSInteger)((UDErrorsEntry *)item).diagnostics.count;
     return 0;
 }
 
 - (id)outlineView:(NSOutlineView *)outlineView
             child:(NSInteger)index
            ofItem:(nullable id)item {
-    if (item == nil) return kFileGroupItem;
-    return _errors[(NSUInteger)index];
+    if (item == nil)
+        return _entries[(NSUInteger)index];
+    return ((UDErrorsEntry *)item).diagnostics[(NSUInteger)index];
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item {
-    return [item isKindOfClass:[NSString class]];
+    return [item isKindOfClass:[UDErrorsEntry class]];
 }
 
 // ---------------------------------------------------------------------------
@@ -208,27 +196,25 @@ static const NSUInteger kMaxParseErrors = 100;
         cell.identifier = kCellID;
     }
 
-    if ([item isKindOfClass:[NSString class]]) {
-        // File-group row: "current.json (N error(s))"
-        NSUInteger count = _errors.count;
-        NSString *label;
-        if (count == 0) {
-            label = (NSString *)item;
-        } else {
-            label = [NSString stringWithFormat:@"%@ (%lu %@)",
-                     (NSString *)item,
-                     (unsigned long)count,
-                     count == 1 ? @"error" : @"errors"];
-        }
+    if ([item isKindOfClass:[UDErrorsEntry class]]) {
+        // File-group row: "<filename> (N error(s))" — bold, red when errors present.
+        UDErrorsEntry *entry = (UDErrorsEntry *)item;
+        NSUInteger count = entry.diagnostics.count;
+        NSString *label = (count == 0)
+            ? entry.displayName
+            : [NSString stringWithFormat:@"%@ (%lu %@)",
+               entry.displayName,
+               (unsigned long)count,
+               count == 1 ? @"error" : @"errors"];
         cell.textField.stringValue = label;
         cell.textField.font        = [NSFont boldSystemFontOfSize:NSFont.smallSystemFontSize];
         cell.textField.textColor   = (count > 0)
             ? [NSColor systemRedColor] : [NSColor secondaryLabelColor];
     } else {
         // Error row: "Line L: message"
-        UDParseErrorItem *err = (UDParseErrorItem *)item;
+        UDDiagnosticItem *diag = (UDDiagnosticItem *)item;
         cell.textField.stringValue =
-            [NSString stringWithFormat:@"Line %ld: %@", (long)err.line, err.message];
+            [NSString stringWithFormat:@"Line %ld: %@", (long)diag.line, diag.message];
         cell.textField.font      = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
         cell.textField.textColor = [NSColor labelColor];
     }
@@ -241,8 +227,8 @@ static const NSUInteger kMaxParseErrors = 100;
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView shouldSelectItem:(id)item {
-    // Allow selection of individual error items; disallow the file-group row.
-    return [item isKindOfClass:[UDParseErrorItem class]];
+    // Allow selection of individual error items; disallow file-group rows.
+    return [item isKindOfClass:[UDDiagnosticItem class]];
 }
 
 @end

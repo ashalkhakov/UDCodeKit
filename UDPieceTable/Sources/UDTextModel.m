@@ -148,6 +148,14 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
     return (unichar)[self.pieceTree getCharCode:(NSInteger)offset];
 }
 
+- (NSString *)getNearestChunkAtOffset:(NSUInteger)offset {
+    return [self.pieceTree getNearestChunk:(NSInteger)offset];
+}
+
+- (void)fillCharacters:(unichar *)buffer range:(NSRange)aRange {
+    [self.pieceTree fillCharacters:buffer range:aRange];
+}
+
 - (NSInteger)getLineCount {
     return [self.pieceTree getLineCount];
 }

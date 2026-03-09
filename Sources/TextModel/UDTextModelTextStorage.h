@@ -11,6 +11,8 @@
 #import <UDPieceTable/UDPieceTable.h>
 #import "UDTreeSitterHighlighter.h"
 
+@class TreeSitterTheme;
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Owner string for search-match decorations registered via deltaDecorations.
@@ -24,6 +26,14 @@ extern NSString * const UDBracketMatchDecorationOwner;
 
 /// Owner string for MISSING-node "pill" decorations registered via deltaDecorations.
 extern NSString * const UDMissingNodeDecorationOwner;
+
+/// Owner string for LSP-sourced diagnostic decorations (layer 5, above all local layers).
+/// Errors use className "lsp.error"; warnings use className "lsp.warning".
+extern NSString * const UDLSPDiagnosticDecorationOwner;
+
+/// Owner string for Tree-sitter parse-error decorations (layer 6, above LSP).
+/// ERROR nodes use className "ts.error"; MISSING nodes use className "ts.missing".
+extern NSString * const UDParseErrorDecorationOwner;
 
 @interface UDTextModelTextStorage : NSTextStorage
 
@@ -39,6 +49,14 @@ extern NSString * const UDMissingNodeDecorationOwner;
 
 /// Creates a new text storage initialised with the given text.
 - (instancetype)initWithText:(NSString *)initialText;
+
+/// Creates a text storage that wraps an existing UDTextModel.
+///
+/// Use this when the text model is owned by a UDCodeDocument: the same
+/// UDTextModel is shared between the model layer (UDCodeDocument) and the
+/// AppKit text-system bridge (UDTextModelTextStorage), so edits made through
+/// either layer are immediately visible in both.
+- (instancetype)initWithTextModel:(UDTextModel *)textModel;
 
 /// Configure tree-sitter syntax highlighting.
 /// Delegates to the internal UDTreeSitterHighlighter.

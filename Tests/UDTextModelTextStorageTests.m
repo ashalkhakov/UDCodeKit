@@ -10,7 +10,8 @@
 
 #import <XCTest/XCTest.h>
 #import "UDTextModelTextStorage.h"
-#import "UDTextModel.h"
+// UDTextModel, UDRange, PTRangeMake etc. are available transitively via
+// UDTextModelTextStorage.h → <UDPieceTable/UDPieceTable.h>.
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -20,7 +21,7 @@
 static UDModelDeltaDecoration *Deco(NSInteger sl, NSInteger sc,
                                     NSInteger el, NSInteger ec,
                                     NSString *cls) {
-    UDRange r = UDRangeMake(sl, sc, el, ec);
+    UDRange r = PTRangeMake(sl, sc, el, ec);
     UDDecorationOptions *opts =
         [[UDDecorationOptions alloc] initWithClassName:cls userInfo:nil];
     return [[UDModelDeltaDecoration alloc] initWithRange:r options:opts];

@@ -107,6 +107,25 @@
     UDLanguageMode *html = [reg modeForIdentifier:@"html"];
     XCTAssertEqualObjects(html.identifier, @"html");
     XCTAssertEqualObjects(html.lspLanguageID, @"html");
+    XCTAssertTrue(html.languageFunc != NULL, @"HTML mode must have a tree-sitter grammar");
+    XCTAssertNotNil(html.highlightsQuery);
+}
+
+- (void)testRegistryHasMarkdownMode {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    UDLanguageMode *md = [reg modeForIdentifier:@"markdown"];
+    XCTAssertEqualObjects(md.identifier, @"markdown");
+    XCTAssertTrue(md.languageFunc != NULL, @"Markdown mode must have a tree-sitter grammar");
+    XCTAssertNotNil(md.highlightsQuery);
+}
+
+- (void)testRegistryHasXMLMode {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    UDLanguageMode *xml = [reg modeForIdentifier:@"xml"];
+    XCTAssertEqualObjects(xml.identifier, @"xml");
+    XCTAssertEqualObjects(xml.lspLanguageID, @"xml");
+    XCTAssertTrue(xml.languageFunc != NULL, @"XML mode must have a tree-sitter grammar");
+    XCTAssertNotNil(xml.highlightsQuery);
 }
 
 - (void)testRegistryHasYAMLMode {
@@ -114,6 +133,43 @@
     UDLanguageMode *yaml = [reg modeForIdentifier:@"yaml"];
     XCTAssertEqualObjects(yaml.identifier, @"yaml");
     XCTAssertEqualObjects(yaml.lspLanguageID, @"yaml");
+    XCTAssertTrue(yaml.languageFunc != NULL, @"YAML mode must have a tree-sitter grammar");
+    XCTAssertNotNil(yaml.highlightsQuery);
+}
+
+- (void)testRegistryHasCMode {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    UDLanguageMode *c = [reg modeForIdentifier:@"c"];
+    XCTAssertEqualObjects(c.identifier, @"c");
+    XCTAssertEqualObjects(c.lspLanguageID, @"c");
+    XCTAssertTrue(c.languageFunc != NULL, @"C mode must have a tree-sitter grammar");
+    XCTAssertNotNil(c.highlightsQuery);
+    XCTAssertNotNil(c.indentsQuery);
+}
+
+- (void)testRegistryHasObjCMode {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    UDLanguageMode *objc = [reg modeForIdentifier:@"objc"];
+    XCTAssertEqualObjects(objc.identifier, @"objc");
+    XCTAssertEqualObjects(objc.lspLanguageID, @"objective-c");
+    XCTAssertTrue(objc.languageFunc != NULL, @"ObjC mode must have a tree-sitter grammar");
+    XCTAssertNotNil(objc.highlightsQuery);
+}
+
+- (void)testRegistryHasBashMode {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    UDLanguageMode *bash = [reg modeForIdentifier:@"bash"];
+    XCTAssertEqualObjects(bash.identifier, @"bash");
+    XCTAssertTrue(bash.languageFunc != NULL, @"Bash mode must have a tree-sitter grammar");
+    XCTAssertNotNil(bash.highlightsQuery);
+}
+
+- (void)testRegistryHasMakeMode {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    UDLanguageMode *make = [reg modeForIdentifier:@"make"];
+    XCTAssertEqualObjects(make.identifier, @"make");
+    XCTAssertTrue(make.languageFunc != NULL, @"Make mode must have a tree-sitter grammar");
+    XCTAssertNotNil(make.highlightsQuery);
 }
 
 - (void)testRegistryHasPlaintextFallback {
@@ -158,6 +214,60 @@
     XCTAssertEqualObjects(mode.identifier, @"yaml");
 }
 
+- (void)testLookupByExtension_xml {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"xml"];
+    XCTAssertEqualObjects(mode.identifier, @"xml");
+}
+
+- (void)testLookupByExtension_svg {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"svg"];
+    XCTAssertEqualObjects(mode.identifier, @"xml");
+}
+
+- (void)testLookupByExtension_plist {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"plist"];
+    XCTAssertEqualObjects(mode.identifier, @"xml");
+}
+
+- (void)testLookupByExtension_md {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"md"];
+    XCTAssertEqualObjects(mode.identifier, @"markdown");
+}
+
+- (void)testLookupByExtension_c {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"c"];
+    XCTAssertEqualObjects(mode.identifier, @"c");
+}
+
+- (void)testLookupByExtension_m_isObjC {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"m"];
+    XCTAssertEqualObjects(mode.identifier, @"objc");
+}
+
+- (void)testLookupByExtension_h_isObjC {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"h"];
+    XCTAssertEqualObjects(mode.identifier, @"objc");
+}
+
+- (void)testLookupByExtension_sh {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"sh"];
+    XCTAssertEqualObjects(mode.identifier, @"bash");
+}
+
+- (void)testLookupByExtension_mk {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"mk"];
+    XCTAssertEqualObjects(mode.identifier, @"make");
+}
+
 - (void)testLookupByExtension_unknownFallsBackToPlaintext {
     UDLanguageMode *mode =
         [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"xyz"];
@@ -193,6 +303,48 @@
     UDLanguageMode *mode =
         [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
     XCTAssertEqualObjects(mode.identifier, @"yaml");
+}
+
+- (void)testLookupByURL_xmlFile {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/data.xml"];
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    XCTAssertEqualObjects(mode.identifier, @"xml");
+}
+
+- (void)testLookupByURL_cFile {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/main.c"];
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    XCTAssertEqualObjects(mode.identifier, @"c");
+}
+
+- (void)testLookupByURL_objcFile {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/MyClass.m"];
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    XCTAssertEqualObjects(mode.identifier, @"objc");
+}
+
+- (void)testLookupByURL_headerFile {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/MyClass.h"];
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    XCTAssertEqualObjects(mode.identifier, @"objc");
+}
+
+- (void)testLookupByURL_shellScript {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/build.sh"];
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    XCTAssertEqualObjects(mode.identifier, @"bash");
+}
+
+- (void)testLookupByURL_makefileInclude {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/common.mk"];
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    XCTAssertEqualObjects(mode.identifier, @"make");
 }
 
 - (void)testLookupByURL_nilURLFallsBackToPlaintext {
@@ -273,6 +425,30 @@
     NSURL *url = [NSURL fileURLWithPath:@"/tmp/config.yaml"];
     UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"" fileURL:url];
     XCTAssertEqualObjects(doc.languageMode.identifier, @"yaml");
+}
+
+- (void)testDocumentLanguageModeDetectedFromXMLURL {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/data.xml"];
+    UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"" fileURL:url];
+    XCTAssertEqualObjects(doc.languageMode.identifier, @"xml");
+}
+
+- (void)testDocumentLanguageModeDetectedFromCURL {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/main.c"];
+    UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"" fileURL:url];
+    XCTAssertEqualObjects(doc.languageMode.identifier, @"c");
+}
+
+- (void)testDocumentLanguageModeDetectedFromObjCURL {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/MyClass.m"];
+    UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"" fileURL:url];
+    XCTAssertEqualObjects(doc.languageMode.identifier, @"objc");
+}
+
+- (void)testDocumentLanguageModeDetectedFromShellURL {
+    NSURL *url = [NSURL fileURLWithPath:@"/tmp/build.sh"];
+    UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"" fileURL:url];
+    XCTAssertEqualObjects(doc.languageMode.identifier, @"bash");
 }
 
 - (void)testDocumentLanguageModeIsPlaintextForNilURL {

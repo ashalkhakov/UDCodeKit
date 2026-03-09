@@ -8,6 +8,10 @@
 #import "tree_sitter_markdown.h"
 #import "tree_sitter_xml.h"
 #import "tree_sitter_yaml.h"
+#import "tree_sitter_c.h"
+#import "tree_sitter_objc.h"
+#import "tree_sitter_bash.h"
+#import "tree_sitter_make.h"
 
 // ---------------------------------------------------------------------------
 // MARK: - Built-in: JSON
@@ -204,6 +208,252 @@ static NSString * const kYAMLDefaultText =
     @"version: 1\n";
 
 // ---------------------------------------------------------------------------
+// MARK: - Built-in: C
+// Upstream: https://github.com/tree-sitter/tree-sitter-c
+// Queries embedded from tree-sitter-c/queries/highlights.scm
+// ---------------------------------------------------------------------------
+
+static NSString * const kCHighlightsQuery =
+    @"(identifier) @variable\n"
+    @"((identifier) @constant\n"
+    @" (#match? @constant \"^[A-Z][A-Z\\\\d_]*$\"))\n"
+    @"\"break\" @keyword\n"
+    @"\"case\" @keyword\n"
+    @"\"const\" @keyword\n"
+    @"\"continue\" @keyword\n"
+    @"\"default\" @keyword\n"
+    @"\"do\" @keyword\n"
+    @"\"else\" @keyword\n"
+    @"\"enum\" @keyword\n"
+    @"\"extern\" @keyword\n"
+    @"\"for\" @keyword\n"
+    @"\"if\" @keyword\n"
+    @"\"inline\" @keyword\n"
+    @"\"return\" @keyword\n"
+    @"\"sizeof\" @keyword\n"
+    @"\"static\" @keyword\n"
+    @"\"struct\" @keyword\n"
+    @"\"switch\" @keyword\n"
+    @"\"typedef\" @keyword\n"
+    @"\"union\" @keyword\n"
+    @"\"volatile\" @keyword\n"
+    @"\"while\" @keyword\n"
+    @"\"#define\" @keyword\n"
+    @"\"#elif\" @keyword\n"
+    @"\"#else\" @keyword\n"
+    @"\"#endif\" @keyword\n"
+    @"\"#if\" @keyword\n"
+    @"\"#ifdef\" @keyword\n"
+    @"\"#ifndef\" @keyword\n"
+    @"\"#include\" @keyword\n"
+    @"(preproc_directive) @keyword\n"
+    @"(string_literal) @string\n"
+    @"(system_lib_string) @string\n"
+    @"(null) @constant\n"
+    @"(number_literal) @number\n"
+    @"(char_literal) @number\n"
+    @"(field_identifier) @property\n"
+    @"(statement_identifier) @label\n"
+    @"(type_identifier) @type\n"
+    @"(primitive_type) @type\n"
+    @"(sized_type_specifier) @type\n"
+    @"(call_expression function: (identifier) @function)\n"
+    @"(call_expression function: (field_expression field: (field_identifier) @function))\n"
+    @"(function_declarator declarator: (identifier) @function)\n"
+    @"(preproc_function_def name: (identifier) @function.special)\n"
+    @"(comment) @comment";
+
+static NSString * const kCIndentsQuery =
+    @"[\n"
+    @"  (compound_statement)\n"
+    @"  (if_statement)\n"
+    @"  (for_statement)\n"
+    @"  (while_statement)\n"
+    @"  (do_statement)\n"
+    @"  (switch_statement)\n"
+    @"] @indent";
+
+static NSString * const kCDefaultText =
+    @"#include <stdio.h>\n"
+    @"\n"
+    @"int main(int argc, char *argv[]) {\n"
+    @"    printf(\"Hello, world!\\n\");\n"
+    @"    return 0;\n"
+    @"}\n";
+
+// ---------------------------------------------------------------------------
+// MARK: - Built-in: Objective-C
+// Upstream: https://github.com/tree-sitter-grammars/tree-sitter-objc
+// Queries embedded from tree-sitter-objc/queries/highlights.scm
+// (inherits C highlights; ObjC-specific captures listed below)
+// ---------------------------------------------------------------------------
+
+static NSString * const kObjCHighlightsQuery =
+    @"; C base captures\n"
+    @"(identifier) @variable\n"
+    @"((identifier) @constant (#match? @constant \"^[A-Z][A-Z\\\\d_]*$\"))\n"
+    @"\"break\" @keyword\n"
+    @"\"case\" @keyword\n"
+    @"\"const\" @keyword\n"
+    @"\"continue\" @keyword\n"
+    @"\"default\" @keyword\n"
+    @"\"do\" @keyword\n"
+    @"\"else\" @keyword\n"
+    @"\"enum\" @keyword\n"
+    @"\"extern\" @keyword\n"
+    @"\"for\" @keyword\n"
+    @"\"if\" @keyword\n"
+    @"\"return\" @keyword\n"
+    @"\"sizeof\" @keyword\n"
+    @"\"static\" @keyword\n"
+    @"\"struct\" @keyword\n"
+    @"\"switch\" @keyword\n"
+    @"\"typedef\" @keyword\n"
+    @"\"while\" @keyword\n"
+    @"\"#define\" @keyword\n"
+    @"\"#include\" @keyword\n"
+    @"\"#import\" @keyword\n"
+    @"(preproc_directive) @keyword\n"
+    @"(string_literal) @string\n"
+    @"(null) @constant\n"
+    @"(number_literal) @number\n"
+    @"(char_literal) @number\n"
+    @"(type_identifier) @type\n"
+    @"(primitive_type) @type\n"
+    @"(call_expression function: (identifier) @function)\n"
+    @"(function_declarator declarator: (identifier) @function)\n"
+    @"(comment) @comment\n"
+    @"; ObjC-specific\n"
+    @"[\n"
+    @"  \"@protocol\" \"@interface\" \"@implementation\"\n"
+    @"  \"@property\" \"@selector\" \"@end\"\n"
+    @"  \"@try\" \"@catch\" \"@finally\" \"@throw\"\n"
+    @"  \"@synchronized\" \"@autoreleasepool\"\n"
+    @"] @keyword\n"
+    @"(class_interface \"@interface\" . (identifier) @type)\n"
+    @"(class_implementation \"@implementation\" . (identifier) @type)\n"
+    @"(class_declaration (identifier) @type)\n"
+    @"[ \"BOOL\" \"IMP\" \"SEL\" \"Class\" \"id\" ] @type.builtin\n"
+    @"(method_definition (identifier) @method)\n"
+    @"(method_declaration (identifier) @method)\n"
+    @"(message_expression method: (identifier) @method.call)\n"
+    @"((identifier) @variable.builtin\n"
+    @"  (#any-of? @variable.builtin \"self\" \"super\"))\n"
+    @"(method_definition [\"+\" \"-\"] @keyword.function)\n"
+    @"(method_declaration [\"+\" \"-\"] @keyword.function)";
+
+static NSString * const kObjCIndentsQuery =
+    @"[\n"
+    @"  (compound_statement)\n"
+    @"  (if_statement)\n"
+    @"  (for_statement)\n"
+    @"  (while_statement)\n"
+    @"  (do_statement)\n"
+    @"  (switch_statement)\n"
+    @"] @indent";
+
+static NSString * const kObjCDefaultText =
+    @"#import <Foundation/Foundation.h>\n"
+    @"\n"
+    @"@interface Greeter : NSObject\n"
+    @"- (void)greet:(NSString *)name;\n"
+    @"@end\n"
+    @"\n"
+    @"@implementation Greeter\n"
+    @"- (void)greet:(NSString *)name {\n"
+    @"    NSLog(@\"Hello, %@!\", name);\n"
+    @"}\n"
+    @"@end\n";
+
+// ---------------------------------------------------------------------------
+// MARK: - Built-in: Bash
+// Upstream: https://github.com/tree-sitter/tree-sitter-bash
+// Queries embedded from tree-sitter-bash/queries/highlights.scm
+// ---------------------------------------------------------------------------
+
+static NSString * const kBashHighlightsQuery =
+    @"[\n"
+    @"  (string)\n"
+    @"  (raw_string)\n"
+    @"  (heredoc_body)\n"
+    @"  (heredoc_start)\n"
+    @"] @string\n"
+    @"(command_name) @function\n"
+    @"(variable_name) @property\n"
+    @"[\n"
+    @"  \"case\" \"do\" \"done\" \"elif\" \"else\" \"esac\"\n"
+    @"  \"export\" \"fi\" \"for\" \"function\" \"if\" \"in\"\n"
+    @"  \"select\" \"then\" \"unset\" \"until\" \"while\"\n"
+    @"] @keyword\n"
+    @"(comment) @comment\n"
+    @"(function_definition name: (word) @function)\n"
+    @"(file_descriptor) @number\n"
+    @"[\n"
+    @"  (command_substitution)\n"
+    @"  (process_substitution)\n"
+    @"  (expansion)\n"
+    @"] @embedded\n"
+    @"[ \"$\" \"&&\" \">\" \">>\" \"<\" \"|\" ] @operator\n"
+    @"((command (_) @constant) (#match? @constant \"^-\"))";
+
+static NSString * const kBashDefaultText =
+    @"#!/usr/bin/env bash\n"
+    @"set -euo pipefail\n"
+    @"\n"
+    @"greet() {\n"
+    @"    local name=\"$1\"\n"
+    @"    echo \"Hello, ${name}!\"\n"
+    @"}\n"
+    @"\n"
+    @"greet \"world\"\n";
+
+// ---------------------------------------------------------------------------
+// MARK: - Built-in: Make
+// Upstream: https://github.com/alemuller/tree-sitter-make
+// Queries embedded from tree-sitter-make/queries/highlights.scm
+// ---------------------------------------------------------------------------
+
+static NSString * const kMakeHighlightsQuery =
+    @"[ \"(\" \")\" \"{\" \"}\" ] @punctuation.bracket\n"
+    @"[ \":\" \"&:\" \"::\" \"|\" \";\" ] @punctuation.delimiter\n"
+    @"[ \"$\" \"$$\" ] @punctuation.special\n"
+    @"[ \"=\" \":=\" \"::=\" \"?=\" \"+=\" \"!=\" \"-\" \"+\" ] @operator\n"
+    @"[ (text) (string) (raw_text) ] @string\n"
+    @"(variable_assignment (word) @string)\n"
+    @"[\n"
+    @"  \"ifeq\" \"ifneq\" \"ifdef\" \"ifndef\" \"else\" \"endif\"\n"
+    @"] @conditional\n"
+    @"\"foreach\" @repeat\n"
+    @"[\n"
+    @"  \"define\" \"endef\" \"vpath\" \"undefine\"\n"
+    @"  \"export\" \"unexport\" \"override\" \"private\"\n"
+    @"] @keyword\n"
+    @"[ \"include\" \"sinclude\" \"-include\" ] @include\n"
+    @"(variable_assignment name: (word) @constant)\n"
+    @"(variable_reference (word) @constant)\n"
+    @"(comment) @comment";
+
+static NSString * const kMakeDefaultText =
+    @".PHONY: all clean\n"
+    @"\n"
+    @"CC      = gcc\n"
+    @"CFLAGS  = -Wall -O2\n"
+    @"TARGET  = myapp\n"
+    @"SRCS    = main.c\n"
+    @"OBJS    = $(SRCS:.c=.o)\n"
+    @"\n"
+    @"all: $(TARGET)\n"
+    @"\n"
+    @"$(TARGET): $(OBJS)\n"
+    @"\t$(CC) $(CFLAGS) -o $@ $^\n"
+    @"\n"
+    @"%.o: %.c\n"
+    @"\t$(CC) $(CFLAGS) -c -o $@ $<\n"
+    @"\n"
+    @"clean:\n"
+    @"\trm -f $(OBJS) $(TARGET)\n";
+
+// ---------------------------------------------------------------------------
 // MARK: - UDLanguageModeRegistry
 // ---------------------------------------------------------------------------
 
@@ -305,6 +555,57 @@ static NSString * const kYAMLDefaultText =
              lspLanguageID:@"yaml"
     defaultNewDocumentText:kYAMLDefaultText];
     [self _registerModeUnsafe:yaml];
+
+    // C — tree-sitter (github.com/tree-sitter/tree-sitter-c).
+    UDLanguageMode *c = [[UDLanguageMode alloc]
+        initWithIdentifier:@"c"
+               displayName:@"C"
+            fileExtensions:@[@"c"]
+              languageFunc:(LanguageFunc)tree_sitter_c
+           highlightsQuery:kCHighlightsQuery
+              indentsQuery:kCIndentsQuery
+             lspLanguageID:@"c"
+    defaultNewDocumentText:kCDefaultText];
+    [self _registerModeUnsafe:c];
+
+    // Objective-C — tree-sitter (github.com/tree-sitter-grammars/tree-sitter-objc).
+    // .h files default to Objective-C since this project targets GNUstep/Cocoa.
+    UDLanguageMode *objc = [[UDLanguageMode alloc]
+        initWithIdentifier:@"objc"
+               displayName:@"Objective-C"
+            fileExtensions:@[@"m", @"mm", @"h"]
+              languageFunc:(LanguageFunc)tree_sitter_objc
+           highlightsQuery:kObjCHighlightsQuery
+              indentsQuery:kObjCIndentsQuery
+             lspLanguageID:@"objective-c"
+    defaultNewDocumentText:kObjCDefaultText];
+    [self _registerModeUnsafe:objc];
+
+    // Bash — tree-sitter (github.com/tree-sitter/tree-sitter-bash).
+    UDLanguageMode *bash = [[UDLanguageMode alloc]
+        initWithIdentifier:@"bash"
+               displayName:@"Bash"
+            fileExtensions:@[@"sh", @"bash", @"zsh", @"ksh"]
+              languageFunc:(LanguageFunc)tree_sitter_bash
+           highlightsQuery:kBashHighlightsQuery
+              indentsQuery:nil
+             lspLanguageID:@"shellscript"
+    defaultNewDocumentText:kBashDefaultText];
+    [self _registerModeUnsafe:bash];
+
+    // Make — tree-sitter (github.com/alemuller/tree-sitter-make).
+    // Extension "mk" covers included makefiles; "GNUmakefile"/"Makefile"
+    // share no extension so users can set the mode manually for those.
+    UDLanguageMode *make = [[UDLanguageMode alloc]
+        initWithIdentifier:@"make"
+               displayName:@"Makefile"
+            fileExtensions:@[@"mk"]
+              languageFunc:(LanguageFunc)tree_sitter_make
+           highlightsQuery:kMakeHighlightsQuery
+              indentsQuery:nil
+             lspLanguageID:nil
+    defaultNewDocumentText:kMakeDefaultText];
+    [self _registerModeUnsafe:make];
 
     return self;
 }

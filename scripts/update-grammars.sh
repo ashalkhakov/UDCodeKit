@@ -53,9 +53,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # c_function_name – the C symbol name for the language factory function
 
 declare -A GRAMMARS=(
+    ["bash"]="https://github.com/tree-sitter/tree-sitter-bash.git|src|queries|tree_sitter_bash"
+    ["c"]="https://github.com/tree-sitter/tree-sitter-c.git|src|queries|tree_sitter_c"
     ["html"]="https://github.com/tree-sitter/tree-sitter-html.git|src|queries|tree_sitter_html"
     ["json"]="https://github.com/tree-sitter/tree-sitter-json.git|src|queries|tree_sitter_json"
+    ["make"]="https://github.com/alemuller/tree-sitter-make.git|src|queries|tree_sitter_make"
     ["markdown"]="https://github.com/ikatyang/tree-sitter-markdown.git|src|queries|tree_sitter_markdown"
+    ["objc"]="https://github.com/tree-sitter-grammars/tree-sitter-objc.git|src|queries|tree_sitter_objc"
     ["xml"]="https://github.com/tree-sitter-grammars/tree-sitter-xml.git|xml/src|queries/xml|tree_sitter_xml"
     ["yaml"]="https://github.com/tree-sitter-grammars/tree-sitter-yaml.git|src|queries|tree_sitter_yaml"
 )

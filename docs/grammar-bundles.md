@@ -130,3 +130,21 @@ cd /tmp/clone-of-grammar
 tree-sitter generate
 # then copy src/parser.c into the bundle directory manually
 ```
+
+## Notes on scanner helper files
+
+Modern tree-sitter grammars (generated with tree-sitter ≥ 0.20 or so) have
+their scanners include `"tree_sitter/array.h"`, `"tree_sitter/alloc.h"`, and
+`"tree_sitter/parser.h"` from a `src/tree_sitter/` subdirectory that each
+upstream grammar ships alongside its source.  The update script automatically
+copies this subdirectory when present.
+
+Some grammars also include:
+
+- **Sibling `.c`/`.h` files** (e.g. YAML includes `schema.core.c` etc.,
+  HTML includes `tag.h`) — the script copies all such files in `src/`.
+- **A shared `common/` directory** (e.g. XML shares `common/scanner.h`
+  between its XML and DTD sub-parsers) — the script copies `common/` one
+  level above `src/` and patches the include path from
+  `"../../common/scanner.h"` to `"../common/scanner.h"` to match the
+  flattened vendored layout.

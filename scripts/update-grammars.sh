@@ -147,18 +147,59 @@ vendor_grammar() {
         scanner_copied=true
     elif [[ -f "$src_in/scanner.cc" ]]; then
         cp "$src_in/scanner.cc" "$dest/src/scanner.cc"
-        # Some scanners #include sibling .cc files — copy any extra includes
-        if [[ -d "$src_in" ]]; then
-            # Copy any subdirectories needed by the scanner
-            find "$src_in" -mindepth 1 -maxdepth 1 -type d | while read -r subdir; do
-                local subname
-                subname="$(basename "$subdir")"
-                cp -r "$subdir" "$dest/src/$subname"
-                log "copied subdirectory $subname/"
-            done
-        fi
         log "copied scanner.cc"
         scanner_copied=true
+    fi
+
+    # ── tree_sitter/ runtime headers (array.h, alloc.h, parser.h) ─────────
+    # Modern grammars bundle these in src/tree_sitter/ so scanners can do
+    # #include "tree_sitter/array.h" etc.  Always copy this subdirectory
+    # when it exists in the upstream source.
+    if [[ -d "$src_in/tree_sitter" ]]; then
+        cp -r "$src_in/tree_sitter" "$dest/src/tree_sitter"
+        log "copied src/tree_sitter/ ($(ls "$dest/src/tree_sitter/" | tr '\n' ' '))"
+    fi
+
+    # ── Extra sibling C/C++ source files included by the scanner ──────────
+    # Some grammars include sibling .c/.cc files (e.g. YAML schema files) or
+    # shared headers from a parallel directory (e.g. XML common/scanner.h).
+    # Copy any remaining .c / .cc / .h files in src/ that weren't already
+    # copied, so relative includes resolve correctly.
+    if $scanner_copied; then
+        for extra in "$src_in"/*.c "$src_in"/*.cc "$src_in"/*.h; do
+            [[ -f "$extra" ]] || continue
+            local bname
+            bname="$(basename "$extra")"
+            # Skip files we already handle explicitly
+            [[ "$bname" == "parser.c" || "$bname" == "scanner.c" || "$bname" == "scanner.cc" ]] && continue
+            cp "$extra" "$dest/src/$bname"
+            log "copied sibling src/$bname"
+        done
+
+        # Copy any subdirectories in src/ other than tree_sitter/ (already
+        # handled above), e.g. the XML grammar's inline subdirs.
+        find "$src_in" -mindepth 1 -maxdepth 1 -type d | while read -r subdir; do
+            local subname
+            subname="$(basename "$subdir")"
+            [[ "$subname" == "tree_sitter" ]] && continue  # handled above
+            cp -r "$subdir" "$dest/src/$subname"
+            log "copied src subdirectory $subname/"
+        done
+
+        # XML grammar: common/scanner.h is at the repo root level relative to
+        # the xml/src/ source dir.  Copy it to <dest>/common/ and rewrite the
+        # include path so it resolves from our flattened vendored tree.
+        # Original: #include "../../common/scanner.h"  (xml/src → repo root)
+        # Vendored: #include "../common/scanner.h"     (tree-sitter-xml/src → tree-sitter-xml/)
+        local common_dir="$work_dir/repo/common"
+        if [[ -d "$common_dir" && -f "$dest/src/scanner.c" ]]; then
+            mkdir -p "$dest/common"
+            cp "$common_dir"/*.h "$dest/common/"
+            log "copied common/ headers: $(ls "$dest/common/")"
+            # Rewrite relative path for our flattened layout
+            sed -i 's|#include "../../common/|#include "../common/|g' "$dest/src/scanner.c"
+            log "patched scanner.c: ../../common/ → ../common/"
+        fi
     fi
 
     # ── Queries (optional) ────────────────────────────────────────────────

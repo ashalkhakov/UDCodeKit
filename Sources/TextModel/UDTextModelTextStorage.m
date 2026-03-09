@@ -38,6 +38,17 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 @property (nonatomic)         BOOL                     hasPendingDirty;
 @property (nonatomic)         NSInteger                pendingDirtyStart;
 @property (nonatomic)         NSInteger                pendingDirtyEnd;
+// ---------------------------------------------------------------------------
+// Attribute-run cache.
+//
+// Rebuilt lazily whenever attrCacheDirty is YES.  Runs are sorted and cover
+// [0, lastKnownLength) without gaps.  attrRunRanges[i] and attrRunAttrs[i]
+// represent the i-th attribute run: all characters in that range share the
+// same merged attribute dictionary.
+// ---------------------------------------------------------------------------
+@property (nonatomic, strong, nullable) NSArray<NSValue *>      *attrRunRanges;
+@property (nonatomic, strong, nullable) NSArray<NSDictionary *> *attrRunAttrs;
+@property (nonatomic)                  BOOL                      attrCacheDirty;
 @end
 
 @implementation UDTextModelTextStorage
@@ -91,6 +102,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     _hasPendingDirty = NO;
     _pendingDirtyStart = 0;
     _pendingDirtyEnd   = 0;
+    _attrCacheDirty    = YES;
 
     [[NSNotificationCenter defaultCenter]
         addObserver:self
@@ -132,6 +144,8 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         _pendingDirtyStart = MIN(_pendingDirtyStart, s);
         _pendingDirtyEnd   = MAX(_pendingDirtyEnd,   e);
     }
+    // Invalidate the attribute-run cache so the next layout pass rebuilds it.
+    _attrCacheDirty = YES;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +159,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     NSUInteger newLen = (NSUInteger)[_textModel getLength];
     NSInteger  delta  = (NSInteger)newLen - (NSInteger)oldLen;
     _lastKnownLength  = newLen;
+    _attrCacheDirty   = YES;
 
     [self beginEditing];
     [self edited:(NSTextStorageEditedCharacters | NSTextStorageEditedAttributes)
@@ -175,68 +190,32 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         return BaseAttributes();
     }
 
-    NSArray<UDIntervalNode *> *covering =
-        [_textModel decorationNodesInOffsetRange:(NSInteger)location
-                                             end:(NSInteger)location + 1];
+    // Rebuild the attribute-run cache if it is stale.
+    if (_attrCacheDirty || !_attrRunRanges) {
+        [self _rebuildAttrRunCache];
+    }
 
-    // Syntax highlight (layer 0) is the one case that needs the theme,
-    // so we handle it here and pass nil from its registered block.
-    NSMutableArray<UDIntervalNode *> *nonTheme = [NSMutableArray array];
-    NSMutableDictionary *merged =
-        [NSMutableDictionary dictionaryWithDictionary:BaseAttributes()];
-
-    for (UDIntervalNode *node in covering) {
-        if ([node.owner isEqualToString:UDHighlightDecorationOwner]) {
-            if (_theme && node.options.className) {
-                NSDictionary *themeAttrs =
-                    [_theme styleAttributesForName:node.options.className];
-                if (themeAttrs) [merged addEntriesFromDictionary:themeAttrs];
-            }
+    // Binary-search for the cached run that contains 'location'.
+    NSArray<NSValue *> *runs   = _attrRunRanges;
+    NSArray            *attrs  = _attrRunAttrs;
+    NSUInteger lo = 0, hi = runs.count;
+    while (lo < hi) {
+        NSUInteger mid = lo + (hi - lo) / 2;
+        NSRange r = [runs[mid] rangeValue];
+        if (NSMaxRange(r) <= location) {
+            lo = mid + 1;
+        } else if (r.location > location) {
+            hi = mid;
         } else {
-            [nonTheme addObject:node];
+            // r.location <= location < NSMaxRange(r)
+            if (outRange) *outRange = r;
+            return attrs[mid];
         }
     }
 
-    // All other layers go through the registry.
-    NSDictionary *rest =
-        [[UDDecorationLayerRegistry shared]
-            mergedAttributesForNodes:nonTheme
-                     baseAttributes:@{}];
-    [merged addEntriesFromDictionary:rest];
-
-    if (outRange) {
-        NSUInteger effStart = 0, effEnd = docLen;
-        for (UDIntervalNode *node in covering) {
-            effStart = MAX(effStart, (NSUInteger)MAX(0LL, node.start));
-            effEnd   = MIN(effEnd,   (NSUInteger)MAX(0LL, node.end));
-        }
-        if (effEnd > location + 1) {
-            NSArray<UDIntervalNode *> *right =
-                [_textModel decorationNodesInOffsetRange:(NSInteger)location + 1
-                                                     end:(NSInteger)effEnd];
-            for (UDIntervalNode *n in right) {
-                if (n.start > (NSInteger)location) {
-                    NSUInteger ns = (NSUInteger)MAX(0LL, n.start);
-                    if (ns < effEnd) effEnd = ns;
-                }
-            }
-        }
-        if (effStart < location) {
-            NSArray<UDIntervalNode *> *left =
-                [_textModel decorationNodesInOffsetRange:(NSInteger)effStart
-                                                     end:(NSInteger)location + 1];
-            for (UDIntervalNode *n in left) {
-                if (n.end > (NSInteger)effStart && n.end <= (NSInteger)location) {
-                    NSUInteger ne = (NSUInteger)MAX(0LL, n.end);
-                    if (ne > effStart) effStart = ne;
-                }
-            }
-        }
-        if (effEnd <= effStart) effEnd = MIN(effStart + 1, docLen);
-        *outRange = NSMakeRange(effStart, effEnd - effStart);
-    }
-
-    return [merged copy];
+    // Fallback (should not be reached for a valid location).
+    if (outRange) *outRange = NSMakeRange(location, 1);
+    return BaseAttributes();
 }
 
 - (void)replaceCharactersInRange:(NSRange)range withString:(NSString *)str {
@@ -258,6 +237,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 
     NSInteger delta  = (NSInteger)str.length - (NSInteger)safe.length;
     _lastKnownLength = (NSUInteger)((NSInteger)docLen + delta);
+    _attrCacheDirty  = YES;
 
     [self beginEditing];
     [self edited:NSTextStorageEditedCharacters range:safe changeInLength:delta];
@@ -295,6 +275,14 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 // ---------------------------------------------------------------------------
 #pragma mark - Tree-sitter language setup
 // ---------------------------------------------------------------------------
+
+- (void)setTheme:(nullable TreeSitterTheme *)theme {
+    _theme = theme;
+    _attrCacheDirty = YES;
+    // Force a full attribute redraw: the theme changes how existing highlight
+    // decorations are rendered, so the entire document needs to be refreshed.
+    [self _dirtyFullDocument];
+}
 
 - (void)setLanguageFunc:(nullable LanguageFunc)languageFunc
     withHighlightsQuery:(NSString *)queryText {
@@ -367,6 +355,139 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     _hasPendingDirty   = NO;
     _pendingDirtyStart = 0;
     _pendingDirtyEnd   = 0;
+}
+
+// ---------------------------------------------------------------------------
+#pragma mark - Attribute-run cache helpers
+// ---------------------------------------------------------------------------
+
+/// Returns the merged attribute dictionary for the given set of decoration
+/// nodes covering a single text segment.  Syntax-highlight nodes (owner ==
+/// UDHighlightDecorationOwner) are resolved against the current theme; all
+/// other nodes go through UDDecorationLayerRegistry.
+- (NSDictionary<NSAttributedStringKey, id> *)_mergedAttrsForCovering:
+        (NSArray<UDIntervalNode *> *)covering {
+    NSMutableDictionary *merged =
+        [NSMutableDictionary dictionaryWithDictionary:BaseAttributes()];
+
+    NSMutableArray<UDIntervalNode *> *nonTheme = nil;
+
+    for (UDIntervalNode *node in covering) {
+        if ([node.owner isEqualToString:UDHighlightDecorationOwner]) {
+            if (_theme && node.options.className) {
+                NSDictionary *themeAttrs =
+                    [_theme styleAttributesForName:node.options.className];
+                if (themeAttrs) [merged addEntriesFromDictionary:themeAttrs];
+            }
+        } else {
+            if (!nonTheme) nonTheme = [NSMutableArray array];
+            [nonTheme addObject:node];
+        }
+    }
+
+    if (nonTheme.count > 0) {
+        NSDictionary *rest =
+            [[UDDecorationLayerRegistry shared]
+                mergedAttributesForNodes:nonTheme
+                         baseAttributes:@{}];
+        [merged addEntriesFromDictionary:rest];
+    }
+
+    return [merged copy];
+}
+
+/// Rebuilds the attribute-run cache by performing a single pass over all
+/// decoration nodes in the document.
+///
+/// Algorithm (O(N log N)):
+///  1. Fetch all decoration nodes in one O(N) query (allNodes, sorted by start).
+///  2. Collect all boundary offsets (node starts and ends) and sort them.
+///  3. Sweep left-to-right, maintaining an "active" set of nodes covering the
+///     current segment.  At each segment boundary, emit one run with the merged
+///     attributes of the active set.
+///
+/// After this method the cache is clean.  All subsequent calls to
+/// -attributesAtIndex:effectiveRange: are O(log K) binary searches, where K is
+/// the number of distinct runs (≤ 2N+1).
+- (void)_rebuildAttrRunCache {
+    _attrCacheDirty = NO;
+
+    NSUInteger docLen = _lastKnownLength;
+    if (docLen == 0) {
+        _attrRunRanges = @[];
+        _attrRunAttrs  = @[];
+        return;
+    }
+
+    // ── 1. Fetch all decoration nodes (one query, sorted by start) ──────────
+    NSArray<UDIntervalNode *> *allNodes =
+        [_textModel decorationNodesInOffsetRange:0 end:(NSInteger)docLen];
+
+    if (allNodes.count == 0) {
+        _attrRunRanges = @[ [NSValue valueWithRange:NSMakeRange(0, docLen)] ];
+        _attrRunAttrs  = @[ BaseAttributes() ];
+        return;
+    }
+
+    // ── 2. Collect boundary offsets ─────────────────────────────────────────
+    // Each node contributes its (clamped) start and end as boundaries.
+    // Using NSMutableSet for automatic deduplication.
+    NSMutableSet<NSNumber *> *boundarySet =
+        [NSMutableSet setWithCapacity:allNodes.count * 2 + 2];
+    [boundarySet addObject:@(0LL)];
+    [boundarySet addObject:@((NSInteger)docLen)];
+    for (UDIntervalNode *n in allNodes) {
+        NSInteger s = MAX(0LL, n.start);
+        NSInteger e = MIN((NSInteger)docLen, n.end);
+        [boundarySet addObject:@(s)];
+        if (e > 0) [boundarySet addObject:@(e)];
+    }
+    NSArray<NSNumber *> *bounds =
+        [[boundarySet allObjects] sortedArrayUsingSelector:@selector(compare:)];
+
+    NSUInteger numSeg = bounds.count > 1 ? bounds.count - 1 : 0;
+    if (numSeg == 0) {
+        _attrRunRanges = @[ [NSValue valueWithRange:NSMakeRange(0, docLen)] ];
+        _attrRunAttrs  = @[ BaseAttributes() ];
+        return;
+    }
+
+    // ── 3. Sweep left-to-right ───────────────────────────────────────────────
+    // 'active' holds nodes whose ranges overlap the current segment.
+    // 'nodeIdx' advances through allNodes (sorted by start) as the sweep moves.
+    NSMutableArray<NSValue *>      *runRanges =
+        [NSMutableArray arrayWithCapacity:numSeg];
+    NSMutableArray<NSDictionary *> *runAttrs  =
+        [NSMutableArray arrayWithCapacity:numSeg];
+    NSMutableArray<UDIntervalNode *> *active   =
+        [NSMutableArray arrayWithCapacity:4];
+    NSUInteger nodeIdx   = 0;
+    NSUInteger nodeCount = allNodes.count;
+
+    for (NSUInteger seg = 0; seg < numSeg; seg++) {
+        NSInteger segStart = [bounds[seg]     integerValue];
+        NSInteger segEnd   = [bounds[seg + 1] integerValue];
+
+        // Remove nodes whose ranges ended at or before segStart.
+        for (NSUInteger ai = active.count; ai > 0; ai--) {
+            if (active[ai - 1].end <= segStart) {
+                [active removeObjectAtIndex:ai - 1];
+            }
+        }
+        // Add nodes that start at or before segStart and extend into this segment.
+        while (nodeIdx < nodeCount && allNodes[nodeIdx].start <= segStart) {
+            UDIntervalNode *n = allNodes[nodeIdx++];
+            if (n.end > segStart) [active addObject:n];
+        }
+
+        [runRanges addObject:
+            [NSValue valueWithRange:NSMakeRange((NSUInteger)segStart,
+                                               (NSUInteger)(segEnd - segStart))]];
+        [runAttrs addObject:[self _mergedAttrsForCovering:active]];
+    }
+
+    _attrRunRanges = [runRanges copy];
+    _attrRunAttrs  = [runAttrs  copy];
 }
 
 @end

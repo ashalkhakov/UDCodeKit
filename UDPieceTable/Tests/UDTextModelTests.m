@@ -683,4 +683,127 @@
     XCTAssertEqual(r.endColumn,   (NSInteger)12);
 }
 
+// MARK: - nodesInRange binary-search correctness
+
+/// Helper: create a decoration covering [startOff, endOff) (0-based offsets).
+- (UDModelDeltaDecoration *)_decorationFrom:(NSUInteger)startOff
+                                         to:(NSUInteger)endOff
+                                  inModel:(UDTextModel *)model {
+    UDDecorationOptions *opts =
+        [[UDDecorationOptions alloc] initWithClassName:@"t" userInfo:nil];
+    UDPosition sp = [model getPositionAt:(NSInteger)startOff];
+    UDPosition ep = [model getPositionAt:(NSInteger)endOff];
+    return [[UDModelDeltaDecoration alloc]
+                initWithRange:PTRangeMake(sp.line, sp.column, ep.line, ep.column)
+                      options:opts];
+}
+
+- (void)testNodesInOffsetRange_noDecorations {
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    NSArray *nodes = [m decorationNodesInOffsetRange:0 end:5];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_queryBeforeAllNodes {
+    // Single decoration covering offsets [6, 11).  Query [0, 5) should return nothing.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:6 to:11 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:0 end:5];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_queryAfterAllNodes {
+    // Single decoration covering [0, 5).  Query [6, 11) should return nothing.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:0 to:5 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:6 end:11];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_exactBoundaryMatch {
+    // Decoration [3, 7).  Query [3, 7) should return it.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:3 to:7 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:3 end:7];
+    XCTAssertEqual(nodes.count, (NSUInteger)1);
+}
+
+- (void)testNodesInOffsetRange_queryEndEqualsNodeStart {
+    // Decoration [5, 8).  Query [2, 5) must NOT include it (open interval at right end).
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:5 to:8 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:2 end:5];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_queryStartEqualsNodeEnd {
+    // Decoration [2, 5).  Query [5, 8) must NOT include it.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello World"];
+    UDModelDeltaDecoration *d = [self _decorationFrom:2 to:5 inModel:m];
+    [m deltaDecorations:nil newDecorations:@[d]];
+
+    NSArray *nodes = [m decorationNodesInOffsetRange:5 end:8];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_manyNonOverlapping {
+    // 100 sequential non-overlapping tokens: token i covers [i*3, i*3+2).
+    // Verify that only the token(s) actually overlapping the query range
+    // are returned, not all 100.
+    NSInteger tokenCount = 100;
+    NSMutableString *text = [NSMutableString string];
+    for (NSInteger i = 0; i < tokenCount; i++) { [text appendString:@"ab "]; }
+    UDTextModel *m = [[UDTextModel alloc] initWithText:text];
+
+    NSMutableArray *decors = [NSMutableArray arrayWithCapacity:tokenCount];
+    for (NSInteger i = 0; i < tokenCount; i++) {
+        [decors addObject:[self _decorationFrom:(NSUInteger)(i * 3)
+                                             to:(NSUInteger)(i * 3 + 2)
+                                        inModel:m]];
+    }
+    [m deltaDecorations:nil newDecorations:decors];
+
+    // Query the 50th token's range (offsets [150, 152)).
+    NSArray *nodes = [m decorationNodesInOffsetRange:150 end:152];
+    XCTAssertEqual(nodes.count, (NSUInteger)1);
+
+    // Query an inter-token gap (offsets [152, 153) — the space between tokens 50 and 51).
+    nodes = [m decorationNodesInOffsetRange:152 end:153];
+    XCTAssertEqual(nodes.count, (NSUInteger)0);
+}
+
+- (void)testNodesInOffsetRange_largeCountPerformance {
+    // Performance smoke-test: 10,000 non-overlapping tokens.  A correct O(log N + k)
+    // query should complete in well under 1 second for any single-character position.
+    NSInteger tokenCount = 10000;
+    NSMutableString *text = [NSMutableString stringWithCapacity:(NSUInteger)tokenCount * 3];
+    for (NSInteger i = 0; i < tokenCount; i++) { [text appendString:@"ab "]; }
+    UDTextModel *m = [[UDTextModel alloc] initWithText:text];
+
+    NSMutableArray *decors = [NSMutableArray arrayWithCapacity:(NSUInteger)tokenCount];
+    for (NSInteger i = 0; i < tokenCount; i++) {
+        [decors addObject:[self _decorationFrom:(NSUInteger)(i * 3)
+                                             to:(NSUInteger)(i * 3 + 2)
+                                        inModel:m]];
+    }
+    [m deltaDecorations:nil newDecorations:decors];
+
+    // Query positions spread across the whole document.
+    // Each query should be O(log N), not O(N), so 1000 queries should be fast.
+    [self measureBlock:^{
+        for (NSInteger q = 0; q < 1000; q++) {
+            NSInteger pos = (q * 30) % (tokenCount * 3 - 1);
+            (void)[m decorationNodesInOffsetRange:pos end:pos + 1];
+        }
+    }];
+}
+
 @end

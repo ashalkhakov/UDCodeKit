@@ -16,4 +16,35 @@
    <FileRef
       location = "group:Tests/TestApp.xctestplan">
    </FileRef>
+   <Group
+      location = "group:."
+      name = "Grammar Bundles">
+      <FileRef
+         location = "group:tree-sitter-bash/TreeSitterBash.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-c/TreeSitterC.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-html/TreeSitterHtml.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-json/TreeSitterJson.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-make/TreeSitterMake.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-markdown/TreeSitterMarkdown.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-objc/TreeSitterObjc.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-xml/TreeSitterXml.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-yaml/TreeSitterYaml.xcodeproj">
+      </FileRef>
+   </Group>
 </Workspace>

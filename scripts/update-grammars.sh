@@ -24,6 +24,10 @@
 #        Objective-C layer can call it without pulling in the full C API.
 #     6. Writes tree-sitter-<lang>/UPSTREAM containing the repository URL
 #        and the commit SHA that was vendored, for future reference.
+#     7. Copies the shared tree-sitter/ runtime into
+#        tree-sitter-<lang>/tree-sitter/ so each bundle is self-contained.
+#     8. Syncs query files into tree-sitter-<lang>/Resources/ (the copies
+#        that are compiled into the bundle as resources).
 #
 # ADDING A NEW GRAMMAR
 #   Add a line to the GRAMMARS associative array below following the format:
@@ -215,6 +219,33 @@ vendor_grammar() {
 
     # ── Header ────────────────────────────────────────────────────────────
     write_header "$id" "$c_func" "$dest/src"
+
+    # ── Per-bundle tree-sitter runtime copy ───────────────────────────────
+    # Each bundle ships its own copy of the tree-sitter runtime so that it
+    # can be built and tracked independently.  Copy from the shared tree-sitter/
+    # directory at the repo root.
+    local ts_src="$REPO_ROOT/tree-sitter"
+    local ts_dest="$dest/tree-sitter"
+    if [[ -d "$ts_src" ]]; then
+        rm -rf "$ts_dest"
+        cp -r "$ts_src" "$ts_dest"
+        log "copied tree-sitter runtime → tree-sitter-${id}/tree-sitter/"
+    else
+        warn "shared tree-sitter/ not found at $ts_src — skipping per-bundle copy"
+    fi
+
+    # ── Sync query files into Resources/ (bundle resource copies) ────────
+    # Resources/ is the copy of queries that gets compiled into the .bundle.
+    # Keep it in sync with queries/ after every vendor run.
+    local res_dir="$dest/Resources"
+    if [[ -d "$res_dir" ]]; then
+        for q in highlights.scm indents.scm locals.scm; do
+            if [[ -f "$dest/queries/$q" ]]; then
+                cp "$dest/queries/$q" "$res_dir/$q"
+                log "synced queries/$q → Resources/$q"
+            fi
+        done
+    fi
 
     # ── UPSTREAM provenance file ───────────────────────────────────────────
     cat > "$dest/UPSTREAM" <<UPSTREAM

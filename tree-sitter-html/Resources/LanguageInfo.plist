@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>identifier</key>
+	<string>html</string>
+	<key>displayName</key>
+	<string>HTML</string>
+	<key>fileExtensions</key>
+	<array>
+		<string>html</string>
+		<string>htm</string>
+		<string>xhtml</string>
+		<string>shtml</string>
+	</array>
+	<key>lspLanguageID</key>
+	<string>html</string>
+	<key>treeSitterSymbol</key>
+	<string>tree_sitter_html</string>
+	<key>highlightsQueryFile</key>
+	<string>highlights.scm</string>
+
+</dict>
+</plist>

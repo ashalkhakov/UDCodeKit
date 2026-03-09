@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>identifier</key>
+	<string>markdown</string>
+	<key>displayName</key>
+	<string>Markdown</string>
+	<key>fileExtensions</key>
+	<array>
+		<string>md</string>
+		<string>markdown</string>
+		<string>mdown</string>
+		<string>mkd</string>
+	</array>
+
+	<key>treeSitterSymbol</key>
+	<string>tree_sitter_markdown</string>
+
+
+</dict>
+</plist>

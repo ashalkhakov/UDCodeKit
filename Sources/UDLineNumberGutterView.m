@@ -93,13 +93,18 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 
     NSLayoutManager *lm = _textView.layoutManager;
     NSTextContainer *tc  = _textView.textContainer;
-    NSUInteger glyphCount = [lm numberOfGlyphs];
-    if (!lm || !tc || glyphCount == 0) return;
+    if (!lm || !tc) return;
 
     // Visible rect in the text view's own coordinate space.
     NSRect visibleInTV = _textView.visibleRect;
+    // glyphRangeForBoundingRect:inTextContainer: only lays out the visible area,
+    // not the entire document.  Do NOT call numberOfGlyphs before this — it
+    // would force NSLayoutManager to generate glyphs for the whole document,
+    // calling characterAtIndex: for every character and causing O(N) work on
+    // every gutter redraw after a text change.
     NSRange visibleGlyphRange = [lm glyphRangeForBoundingRect:visibleInTV
                                               inTextContainer:tc];
+    if (visibleGlyphRange.length == 0) return;
 
     NSDictionary *attrs = [self _lineNumberAttributes];
     CGFloat numberColumnRight = NSWidth(self.bounds) - kFoldColumnWidth - 2.0;
@@ -108,7 +113,7 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
     NSUInteger glyphIdx = visibleGlyphRange.location;
     NSUInteger endGlyph = NSMaxRange(visibleGlyphRange);
 
-    while (glyphIdx < endGlyph && glyphIdx < glyphCount) {
+    while (glyphIdx < endGlyph) {
         NSRange fragGlyphRange;
         NSRect fragInContainer =
             [lm lineFragmentRectForGlyphAtIndex:glyphIdx

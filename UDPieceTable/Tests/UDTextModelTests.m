@@ -806,4 +806,47 @@
     }];
 }
 
+// MARK: - getNearestChunkAtOffset: / bulk character access
+
+- (void)testGetNearestChunkAtOffset_matchesCharacterAtOffset {
+    // For every offset in a multi-line string the first character of the
+    // returned chunk must equal getCharacterAtOffset:.
+    NSString *src = @"Hello\nWorld\nFoo Bar";
+    UDTextModel *m = [[UDTextModel alloc] initWithText:src];
+    for (NSUInteger i = 0; i < src.length; i++) {
+        NSString *chunk = [m getNearestChunkAtOffset:i];
+        XCTAssertGreaterThan(chunk.length, (NSUInteger)0,
+                             @"getNearestChunkAtOffset(%lu) returned empty", (unsigned long)i);
+        unichar fromChunk  = [chunk characterAtIndex:0];
+        unichar fromDirect = [m getCharacterAtOffset:i];
+        XCTAssertEqual(fromChunk, fromDirect,
+                       @"chunk[0] != getCharacterAtOffset at offset %lu", (unsigned long)i);
+    }
+}
+
+- (void)testGetNearestChunkAtOffset_coversRunToEndOfPiece {
+    // After an insert that splits the document into two pieces, chunks must
+    // still cover the whole document without gaps or overlaps.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"ABCDE"];
+    UDTextModelEdit *edit =
+        [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 3, 1, 3) text:@"XY"];
+    [m applyEdits:@[edit]];
+    // Expected content: "ABXYCDE"
+    NSString *full = [m getValue];
+    XCTAssertEqualObjects(full, @"ABXYCDE");
+
+    // Reconstruct the full string by concatenating chunks.
+    NSMutableString *rebuilt = [NSMutableString string];
+    NSUInteger offset = 0;
+    while (offset < full.length) {
+        NSString *chunk = [m getNearestChunkAtOffset:offset];
+        XCTAssertGreaterThan(chunk.length, (NSUInteger)0,
+                             @"got empty chunk at offset %lu", (unsigned long)offset);
+        [rebuilt appendString:chunk];
+        offset += chunk.length;
+    }
+    XCTAssertEqualObjects(rebuilt, full,
+                          @"concatenated chunks do not reproduce the full document");
+}
+
 @end

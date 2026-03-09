@@ -161,7 +161,6 @@
 			files = (
 				BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */,
 				CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */,
-				CC0F0000000000000000000F /* Embed PlugIns */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -469,6 +468,7 @@
 				A46FAAA82F5441C80079BB37 /* Frameworks */,
 				A46FAAA92F5441C80079BB37 /* Resources */,
 				CE89CA202F54B6F300327916 /* Embed Frameworks */,
+				CC0F0000000000000000000F /* Embed PlugIns */,
 			);
 			buildRules = (
 			);
@@ -904,9 +904,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC000000000000000000000B /* lib.c in Sources */,
-								CC000000000000000000000C /* parser.c in Sources */,
-								CC000000000000000000000D /* scanner.c in Sources */,
+				CC000000000000000000000B /* lib.c in Sources */,
+				CC000000000000000000000C /* parser.c in Sources */,
+				CC000000000000000000000D /* scanner.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -914,8 +914,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC010000000000000000000B /* lib.c in Sources */,
-								CC010000000000000000000C /* parser.c in Sources */,
+				CC010000000000000000000B /* lib.c in Sources */,
+				CC010000000000000000000C /* parser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -923,9 +923,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC020000000000000000000B /* lib.c in Sources */,
-								CC020000000000000000000C /* parser.c in Sources */,
-								CC020000000000000000000D /* scanner.c in Sources */,
+				CC020000000000000000000B /* lib.c in Sources */,
+				CC020000000000000000000C /* parser.c in Sources */,
+				CC020000000000000000000D /* scanner.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -933,8 +933,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC030000000000000000000B /* lib.c in Sources */,
-								CC030000000000000000000C /* parser.c in Sources */,
+				CC030000000000000000000B /* lib.c in Sources */,
+				CC030000000000000000000C /* parser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -942,8 +942,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC040000000000000000000B /* lib.c in Sources */,
-								CC040000000000000000000C /* parser.c in Sources */,
+				CC040000000000000000000B /* lib.c in Sources */,
+				CC040000000000000000000C /* parser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -951,9 +951,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC050000000000000000000B /* lib.c in Sources */,
-								CC050000000000000000000C /* parser.c in Sources */,
-								CC050000000000000000000D /* scanner.cc in Sources */,
+				CC050000000000000000000B /* lib.c in Sources */,
+				CC050000000000000000000C /* parser.c in Sources */,
+				CC050000000000000000000D /* scanner.cc in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -961,8 +961,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC060000000000000000000B /* lib.c in Sources */,
-								CC060000000000000000000C /* parser.c in Sources */,
+				CC060000000000000000000B /* lib.c in Sources */,
+				CC060000000000000000000C /* parser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -970,9 +970,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC070000000000000000000B /* lib.c in Sources */,
-								CC070000000000000000000C /* parser.c in Sources */,
-								CC070000000000000000000D /* scanner.c in Sources */,
+				CC070000000000000000000B /* lib.c in Sources */,
+				CC070000000000000000000C /* parser.c in Sources */,
+				CC070000000000000000000D /* scanner.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -980,9 +980,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-								CC080000000000000000000B /* lib.c in Sources */,
-								CC080000000000000000000C /* parser.c in Sources */,
-								CC080000000000000000000D /* scanner.c in Sources */,
+				CC080000000000000000000B /* lib.c in Sources */,
+				CC080000000000000000000C /* parser.c in Sources */,
+				CC080000000000000000000D /* scanner.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

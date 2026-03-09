@@ -15,6 +15,9 @@
 		CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D19A3C4D5E6F7A8B9C0D1E03 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */; };
 		D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */; };
+		D39A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D39A3C4D5E6F7A8B9C0D1E01 /* parser.c */; };
+		D39A3C4D5E6F7A8B9C0D1E04 /* scanner.cc in Sources */ = {isa = PBXBuildFile; fileRef = D39A3C4D5E6F7A8B9C0D1E02 /* scanner.cc */; };
+		D49A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D49A3C4D5E6F7A8B9C0D1E01 /* parser.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +84,9 @@
 		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "tree-sitter/src/lib.c"; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
+		D39A3C4D5E6F7A8B9C0D1E01 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-markdown/src/parser.c"; sourceTree = "<group>"; };
+		D39A3C4D5E6F7A8B9C0D1E02 /* scanner.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = scanner.cc; path = "tree-sitter-markdown/src/scanner.cc"; sourceTree = "<group>"; };
+		D49A3C4D5E6F7A8B9C0D1E01 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-sql/src/parser.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -135,6 +141,8 @@
 				A46FAAC92F5441CB0079BB37 /* UITests */,
 				CE2635DB2F5497A90008B1BC /* Frameworks */,
 				D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */,
+				D39A3C4D5E6F7A8B9C0D1E00 /* tree-sitter-markdown */,
+				D49A3C4D5E6F7A8B9C0D1E00 /* tree-sitter-sql */,
 				BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */,
 				A46FAAAC2F5441C80079BB37 /* Products */,
 			);
@@ -172,6 +180,23 @@
 				D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */,
 			);
 			name = "tree-sitter";
+			sourceTree = "<group>";
+		};
+		D39A3C4D5E6F7A8B9C0D1E00 /* tree-sitter-markdown */ = {
+			isa = PBXGroup;
+			children = (
+				D39A3C4D5E6F7A8B9C0D1E01 /* parser.c */,
+				D39A3C4D5E6F7A8B9C0D1E02 /* scanner.cc */,
+			);
+			name = "tree-sitter-markdown";
+			sourceTree = "<group>";
+		};
+		D49A3C4D5E6F7A8B9C0D1E00 /* tree-sitter-sql */ = {
+			isa = PBXGroup;
+			children = (
+				D49A3C4D5E6F7A8B9C0D1E01 /* parser.c */,
+			);
+			name = "tree-sitter-sql";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -340,6 +365,9 @@
 			files = (
 				D19A3C4D5E6F7A8B9C0D1E03 /* lib.c in Sources */,
 				D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */,
+				D39A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */,
+				D39A3C4D5E6F7A8B9C0D1E04 /* scanner.cc in Sources */,
+				D49A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -507,6 +535,8 @@
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/tree-sitter-json/src",
+					"$(SRCROOT)/tree-sitter-markdown/src",
+					"$(SRCROOT)/tree-sitter-sql/src",
 				);
 				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -536,6 +566,8 @@
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/tree-sitter-json/src",
+					"$(SRCROOT)/tree-sitter-markdown/src",
+					"$(SRCROOT)/tree-sitter-sql/src",
 				);
 				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

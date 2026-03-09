@@ -17,7 +17,12 @@
 		D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */; };
 		D39A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D39A3C4D5E6F7A8B9C0D1E01 /* parser.c */; };
 		D39A3C4D5E6F7A8B9C0D1E04 /* scanner.cc in Sources */ = {isa = PBXBuildFile; fileRef = D39A3C4D5E6F7A8B9C0D1E02 /* scanner.cc */; };
-		D49A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D49A3C4D5E6F7A8B9C0D1E01 /* parser.c */; };
+		D5A0000000000000000000001 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A000000000000000000F001 /* parser.c */; };
+		D5A0000000000000000000002 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = D5A000000000000000000F002 /* scanner.c */; };
+		D5B0000000000000000000001 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D5B000000000000000000F001 /* parser.c */; };
+		D5B0000000000000000000002 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = D5B000000000000000000F002 /* scanner.c */; };
+		D5C0000000000000000000001 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C000000000000000000F001 /* parser.c */; };
+		D5C0000000000000000000002 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C000000000000000000F002 /* scanner.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,7 +91,12 @@
 		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
 		D39A3C4D5E6F7A8B9C0D1E01 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-markdown/src/parser.c"; sourceTree = "<group>"; };
 		D39A3C4D5E6F7A8B9C0D1E02 /* scanner.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = scanner.cc; path = "tree-sitter-markdown/src/scanner.cc"; sourceTree = "<group>"; };
-		D49A3C4D5E6F7A8B9C0D1E01 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-sql/src/parser.c"; sourceTree = "<group>"; };
+		D5A000000000000000000F001 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-html/src/parser.c"; sourceTree = "<group>"; };
+		D5A000000000000000000F002 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = scanner.c; path = "tree-sitter-html/src/scanner.c"; sourceTree = "<group>"; };
+		D5B000000000000000000F001 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-xml/src/parser.c"; sourceTree = "<group>"; };
+		D5B000000000000000000F002 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = scanner.c; path = "tree-sitter-xml/src/scanner.c"; sourceTree = "<group>"; };
+		D5C000000000000000000F001 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-yaml/src/parser.c"; sourceTree = "<group>"; };
+		D5C000000000000000000F002 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = scanner.c; path = "tree-sitter-yaml/src/scanner.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -142,7 +152,9 @@
 				CE2635DB2F5497A90008B1BC /* Frameworks */,
 				D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */,
 				D39A3C4D5E6F7A8B9C0D1E00 /* tree-sitter-markdown */,
-				D49A3C4D5E6F7A8B9C0D1E00 /* tree-sitter-sql */,
+				D5A00000000000000000E000 /* tree-sitter-html */,
+				D5B00000000000000000E000 /* tree-sitter-xml */,
+				D5C00000000000000000E000 /* tree-sitter-yaml */,
 				BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */,
 				A46FAAAC2F5441C80079BB37 /* Products */,
 			);
@@ -191,12 +203,31 @@
 			name = "tree-sitter-markdown";
 			sourceTree = "<group>";
 		};
-		D49A3C4D5E6F7A8B9C0D1E00 /* tree-sitter-sql */ = {
+		D5A00000000000000000E000 /* tree-sitter-html */ = {
 			isa = PBXGroup;
 			children = (
-				D49A3C4D5E6F7A8B9C0D1E01 /* parser.c */,
+				D5A000000000000000000F001 /* parser.c */,
+				D5A000000000000000000F002 /* scanner.c */,
 			);
-			name = "tree-sitter-sql";
+			name = "tree-sitter-html";
+			sourceTree = "<group>";
+		};
+		D5B00000000000000000E000 /* tree-sitter-xml */ = {
+			isa = PBXGroup;
+			children = (
+				D5B000000000000000000F001 /* parser.c */,
+				D5B000000000000000000F002 /* scanner.c */,
+			);
+			name = "tree-sitter-xml";
+			sourceTree = "<group>";
+		};
+		D5C00000000000000000E000 /* tree-sitter-yaml */ = {
+			isa = PBXGroup;
+			children = (
+				D5C000000000000000000F001 /* parser.c */,
+				D5C000000000000000000F002 /* scanner.c */,
+			);
+			name = "tree-sitter-yaml";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -367,7 +398,12 @@
 				D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */,
 				D39A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */,
 				D39A3C4D5E6F7A8B9C0D1E04 /* scanner.cc in Sources */,
-				D49A3C4D5E6F7A8B9C0D1E03 /* parser.c in Sources */,
+				D5A0000000000000000000001 /* parser.c in Sources */,
+				D5A0000000000000000000002 /* scanner.c in Sources */,
+				D5B0000000000000000000001 /* parser.c in Sources */,
+				D5B0000000000000000000002 /* scanner.c in Sources */,
+				D5C0000000000000000000001 /* parser.c in Sources */,
+				D5C0000000000000000000002 /* scanner.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -536,7 +572,9 @@
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/tree-sitter-json/src",
 					"$(SRCROOT)/tree-sitter-markdown/src",
-					"$(SRCROOT)/tree-sitter-sql/src",
+					"$(SRCROOT)/tree-sitter-html/src",
+					"$(SRCROOT)/tree-sitter-xml/src",
+					"$(SRCROOT)/tree-sitter-yaml/src",
 				);
 				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -567,7 +605,9 @@
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/tree-sitter-json/src",
 					"$(SRCROOT)/tree-sitter-markdown/src",
-					"$(SRCROOT)/tree-sitter-sql/src",
+					"$(SRCROOT)/tree-sitter-html/src",
+					"$(SRCROOT)/tree-sitter-xml/src",
+					"$(SRCROOT)/tree-sitter-yaml/src",
 				);
 				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

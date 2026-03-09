@@ -849,4 +849,59 @@
                           @"concatenated chunks do not reproduce the full document");
 }
 
+// MARK: - fillCharacters:range:
+
+- (void)testFillCharacters_fullDocument {
+    // fillCharacters:range: over the entire document must produce the same
+    // characters as getValue.
+    NSString *src = @"Hello\nWorld\nFoo Bar";
+    UDTextModel *m = [[UDTextModel alloc] initWithText:src];
+    NSUInteger len = (NSUInteger)[m getLength];
+    unichar *buf = (unichar *)malloc(len * sizeof(unichar));
+    XCTAssertTrue(buf != NULL);
+    [m fillCharacters:buf range:NSMakeRange(0, len)];
+    NSString *result = [NSString stringWithCharacters:buf length:len];
+    free(buf);
+    XCTAssertEqualObjects(result, src);
+}
+
+- (void)testFillCharacters_subrange {
+    // fillCharacters:range: over a subrange must match the corresponding
+    // characters in getValue.
+    NSString *src = @"ABCDEFGHIJ";
+    UDTextModel *m = [[UDTextModel alloc] initWithText:src];
+    NSRange sub = NSMakeRange(3, 4); // "DEFG"
+    unichar buf[4];
+    [m fillCharacters:buf range:sub];
+    NSString *result = [NSString stringWithCharacters:buf length:4];
+    XCTAssertEqualObjects(result, [src substringWithRange:sub]);
+}
+
+- (void)testFillCharacters_acrossPieceBoundary {
+    // After a mid-document insert, a range that crosses a piece boundary must
+    // still be filled correctly.
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"ABCDE"];
+    UDTextModelEdit *edit =
+        [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 3, 1, 3) text:@"XY"];
+    [m applyEdits:@[edit]];
+    // Document is now "ABXYCDE" (two or more pieces).
+    NSString *expected = @"ABXYCDE";
+    NSUInteger len = (NSUInteger)[m getLength];
+    XCTAssertEqual(len, expected.length);
+    unichar *buf = (unichar *)malloc(len * sizeof(unichar));
+    [m fillCharacters:buf range:NSMakeRange(0, len)];
+    NSString *result = [NSString stringWithCharacters:buf length:len];
+    free(buf);
+    XCTAssertEqualObjects(result, expected);
+}
+
+- (void)testFillCharacters_emptyRange {
+    // An empty range must be a no-op (no crash, buffer unchanged).
+    UDTextModel *m = [[UDTextModel alloc] initWithText:@"Hello"];
+    unichar sentinel = 0xFFFF;
+    unichar buf = sentinel;
+    [m fillCharacters:&buf range:NSMakeRange(0, 0)];
+    XCTAssertEqual(buf, sentinel, @"empty range must not write to buffer");
+}
+
 @end

@@ -87,6 +87,10 @@ extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
 /// and extending to the end of that piece.  This is the efficient way to read a
 /// bulk run of characters without per-character tree traversals.
 - (NSString *)getNearestChunkAtOffset:(NSUInteger)offset;
+/// Fills @c buffer with the UTF-16 code units for @c aRange without creating
+/// any intermediate NSString objects.  Prefer this over getNearestChunkAtOffset:
+/// for bulk reads where the caller already has a destination buffer.
+- (void)fillCharacters:(unichar *)buffer range:(NSRange)aRange;
 /// Returns the number of lines (always >= 1).
 - (NSInteger)getLineCount;
 /// Returns the content of the given 1-based line, without the line-ending.

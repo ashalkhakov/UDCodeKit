@@ -55,6 +55,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSInteger)getLineCharCode:(NSInteger)lineNumber index:(NSInteger)index;
 - (NSInteger)getCharCode:(NSInteger)offset;
 - (NSString *)getNearestChunk:(NSInteger)offset;
+/// Fills @c buffer with the UTF-16 code units for @c aRange without creating
+/// any intermediate NSString objects.  This is the lowest-overhead path for
+/// bulk character reads (e.g., NSLayoutManager glyph generation).
+- (void)fillCharacters:(unichar *)buffer range:(NSRange)aRange;
 
 // Mutation
 - (void)insertAtOffset:(NSInteger)offset value:(NSString *)value eolNormalized:(BOOL)eolNormalized;

@@ -583,12 +583,13 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         [self _updateGutterErrorMarks:all
                            forEditorVC:editorVC
                                context:_tabContexts[i]];
-
-        NSTextView *tv = editorVC.textView;
-        [tv.layoutManager
-            invalidateLayoutForCharacterRange:NSMakeRange(0, _tabContexts[i].textStorage.length)
-                         actualCharacterRange:nil];
-        [tv setNeedsDisplay:YES];
+        // _updateGutterErrorMarks: sets errorFractions on the gutter view, which
+        // already calls setNeedsDisplay:YES on itself.  Do NOT call
+        // invalidateLayoutForCharacterRange: here — diagnostics do not change
+        // any text-metric attributes (font, size, etc.), so forcing NSLayoutManager
+        // to re-layout the entire document is unnecessary and causes O(N) work
+        // (via getCharacters:range: → piece-tree traversal) on every
+        // diagnostics update.
     }
 }
 

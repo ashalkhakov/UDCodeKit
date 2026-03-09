@@ -734,6 +734,47 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
     }
 }
 
+// MARK: - fillCharacters:range:
+
+- (void)fillCharacters:(unichar *)buffer range:(NSRange)aRange {
+    if (aRange.length == 0) return;
+
+    NSInteger offset = (NSInteger)aRange.location;
+    NSInteger end    = (NSInteger)NSMaxRange(aRange);
+    unichar  *dst    = buffer;
+
+    UDPieceTreeNode *s = Sentinel();
+
+    // Locate the first piece containing 'offset'.
+    PTNodePosition nodePos = [self nodeAtOffset:offset];
+    UDPieceTreeNode *node  = nodePos.node;
+    NSInteger remainder    = nodePos.remainder;
+
+    if (!node || node == s) return;
+
+    // If remainder == piece.length the character is at the start of the next node.
+    if (remainder == node.piece.length) {
+        node = [node next];
+        remainder = 0;
+    }
+
+    while (node && node != s && offset < end) {
+        NSString  *buf      = self.buffers[(NSUInteger)node.piece.bufferIndex].buffer;
+        NSInteger  startOff = [self offsetInBuffer:node.piece.bufferIndex cursor:node.piece.start];
+        NSInteger  pieceStart = startOff + remainder;
+        NSInteger  available  = node.piece.length - remainder;
+        NSUInteger copyLen    = (NSUInteger)MIN(available, end - offset);
+
+        [buf getCharacters:dst range:NSMakeRange((NSUInteger)pieceStart, copyLen)];
+        dst    += copyLen;
+        offset += (NSInteger)copyLen;
+
+        // Advance to the next piece, always from its beginning.
+        node      = [node next];
+        remainder = 0;
+    }
+}
+
 // MARK: - Equality
 
 - (BOOL)isEqualTo:(UDPieceTree *)other {

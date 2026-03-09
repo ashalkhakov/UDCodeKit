@@ -18,6 +18,7 @@
 #import <Foundation/Foundation.h>
 #import <UDPieceTable/UDPieceTable.h>
 #import "UDDiagnosticStore.h"
+#import "UDLanguageMode.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -40,6 +41,12 @@ extern NSNotificationName const UDCodeDocumentTextDidChangeNotification;
 
 /// Aggregated diagnostics for this document (parse errors + LSP items).
 @property (nonatomic, strong, readonly) UDDiagnosticStore *diagnosticStore;
+
+/// The language mode (bundle) active for this document.
+/// Determined automatically from the file extension on initialisation and
+/// when the file URL changes.  Defaults to the plaintext fallback for
+/// unknown or nil file URLs.
+@property (nonatomic, strong, readonly) UDLanguageMode *languageMode;
 
 /// YES when the document has in-memory changes not yet written to fileURL.
 /// Automatically set to YES after any text edit; cleared by -saveToURL:error:.

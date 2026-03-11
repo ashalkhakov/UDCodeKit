@@ -5,7 +5,6 @@
 #import "UDErrorsViewController.h"
 #import "UDLSPCoordinator.h"
 #import "UDLSPDiagnosticHighlighter.h"
-#import "UDLSPServerLocator.h"
 #import "TreeSitterTheme.h"
 #import "UDMissingNodeHighlighter.h"
 #import "UDParseErrorHighlighter.h"
@@ -489,8 +488,9 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 - (void)_setupLSPCoordinatorForContext:(UDEditorTabContext *)ctx {
     UDLanguageMode *mode = ctx.document.languageMode;
 
-    // Skip LSP setup for modes without a language server identifier.
-    if (!mode.lspLanguageID) return;
+    // Skip LSP setup when the extension has not provided a language server command.
+    NSArray<NSString *> *serverCommand = mode.languageServerCommand;
+    if (!serverCommand.count || !mode.lspLanguageID) return;
 
     NSString *defaultFilename = [NSString stringWithFormat:@"untitled.%@",
                                  mode.fileExtensions.firstObject ?: @"txt"];
@@ -499,18 +499,22 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
                [NSTemporaryDirectory()
                    stringByAppendingPathComponent:defaultFilename]];
 
-    NSString *serverPath =
-        [UDLSPServerLocator findLanguageServerPathForLanguageID:mode.lspLanguageID];
-    if (!serverPath) {
-        NSLog(@"[UDDocumentWindowController] No %@ language server found; "
-              @"LSP inactive for \"%@\".", mode.displayName, ctx.tabTitle);
+    NSString *serverPath = serverCommand.firstObject;
+    NSArray<NSString *> *serverArgs = serverCommand.count > 1
+        ? [serverCommand subarrayWithRange:NSMakeRange(1, serverCommand.count - 1)]
+        : @[];
+
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm isExecutableFileAtPath:serverPath]) {
+        NSLog(@"[UDDocumentWindowController] Language server not found at \"%@\"; "
+              @"LSP inactive for \"%@\".", serverPath, ctx.tabTitle);
         return;
     }
 
     UDTextModelTextStorage *ts = ctx.textStorage;
     LSPClient *client =
         [[LSPClient alloc] initWithPath:serverPath
-                              arguments:@[@"--stdio"]
+                              arguments:serverArgs
                    currentDirectoryPath:docURL.URLByDeletingLastPathComponent.path
                              languageID:mode.lspLanguageID];
 

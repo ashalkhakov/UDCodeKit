@@ -266,6 +266,12 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
         // Ask the extension for the grammar C function.
         LanguageFunc langFunc = (LanguageFunc)[ext languageFuncForIdentifier:identifier];
 
+        // Ask the extension for the language server command (optional method).
+        NSArray<NSString *> *serverCmd = nil;
+        if ([ext respondsToSelector:@selector(languageServerCommandForIdentifier:)]) {
+            serverCmd = [(id<UDExtension>)ext languageServerCommandForIdentifier:identifier];
+        }
+
         // Load language configuration from the mode entry dict.
         UDLanguageConfiguration *config =
             [UDLanguageConfiguration configurationFromDictionary:modeInfo];
@@ -280,6 +286,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
                highlightsQuery:highlightsQuery
                   indentsQuery:indentsQuery
                  lspLanguageID:lspID
+         languageServerCommand:serverCmd
         defaultNewDocumentText:defaultText
             languageConfiguration:config];
 

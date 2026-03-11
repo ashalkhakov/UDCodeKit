@@ -8,6 +8,15 @@
 typedef struct TSLanguage TSLanguage;
 const TSLanguage *tree_sitter_json(void);
 
+// Search candidate paths and return the first executable found, or nil.
+static NSString *_findExecutable(NSArray<NSString *> *candidates) {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    for (NSString *path in candidates) {
+        if ([fm isExecutableFileAtPath:path]) return path;
+    }
+    return nil;
+}
+
 @implementation TreeSitterJsonPlugin {
     NSBundle *_bundle;
 }
@@ -32,6 +41,19 @@ const TSLanguage *tree_sitter_json(void);
 - (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:@"json"]) return tree_sitter_json;
     return NULL;
+}
+
+- (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier {
+    if (![identifier isEqualToString:@"json"]) return nil;
+    NSArray<NSString *> *candidates = @[
+        @"/usr/local/bin/vscode-json-languageserver",
+        @"/usr/bin/vscode-json-languageserver",
+        @"/opt/homebrew/bin/vscode-json-languageserver",
+        [@"~/.yarn/bin/vscode-json-languageserver" stringByExpandingTildeInPath],
+        [@"~/.npm-global/bin/vscode-json-languageserver" stringByExpandingTildeInPath],
+    ];
+    NSString *path = _findExecutable(candidates);
+    return path ? @[path, @"--stdio"] : nil;
 }
 
 + (void)load {

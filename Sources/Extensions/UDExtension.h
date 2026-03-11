@@ -56,4 +56,23 @@
 /// should always return NULL.
 - (nullable const void *)languageFuncForIdentifier:(NSString *)identifier;
 
+@optional
+
+/// Returns the command used to launch the language server for the given
+/// language mode identifier, or @c nil when this extension does not provide a
+/// language server for that identifier.
+///
+/// The returned array must be non-empty.  The first element is the absolute
+/// path (or PATH-resolvable name) of the language server executable.  All
+/// remaining elements are passed to the process as command-line arguments.
+/// For most LSP servers the correct arguments array is @c @[@"--stdio"].
+///
+/// This method is called once per mode when the bundle is first loaded.  The
+/// host caches the result in @c UDLanguageMode.languageServerCommand; the
+/// extension is not queried again for subsequent documents of the same mode.
+///
+/// If this method is not implemented, or returns @c nil, the host will not
+/// start a language server for the corresponding mode.
+- (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier;
+
 @end

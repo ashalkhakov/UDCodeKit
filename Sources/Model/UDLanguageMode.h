@@ -91,6 +91,15 @@ typedef const void *(*LanguageFunc)(void);
 /// LSP support for this mode.
 @property (nonatomic, copy, readonly, nullable) NSString *lspLanguageID;
 
+/// The command used to launch the language server for this mode.  The first
+/// element is the executable path; subsequent elements are the command-line
+/// arguments.  @c nil when no language server is configured for this mode.
+///
+/// This value is supplied by the extension via
+/// @c -languageServerCommandForIdentifier: and cached here for the lifetime
+/// of the mode object.
+@property (nonatomic, copy, readonly, nullable) NSArray<NSString *> *languageServerCommand;
+
 // ---------------------------------------------------------------------------
 // MARK: - Language configuration
 // ---------------------------------------------------------------------------
@@ -120,6 +129,7 @@ typedef const void *(*LanguageFunc)(void);
                     highlightsQuery:(nullable NSString *)highlightsQuery
                        indentsQuery:(nullable NSString *)indentsQuery
                       lspLanguageID:(nullable NSString *)lspLanguageID
+             languageServerCommand:(nullable NSArray<NSString *> *)languageServerCommand
             defaultNewDocumentText:(NSString *)defaultNewDocumentText
                 languageConfiguration:(UDLanguageConfiguration *)languageConfiguration
     NS_DESIGNATED_INITIALIZER;

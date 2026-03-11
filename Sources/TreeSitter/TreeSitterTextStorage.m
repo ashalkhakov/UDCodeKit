@@ -306,7 +306,7 @@ const char *readCallback(void *payload, uint32_t byte_offset, TSPoint position, 
     TSInput input = {
         .payload = &context,
         .read = readCallback,
-        .encoding = TSInputEncodingUTF16
+        .encoding = TSInputEncodingUTF16LE
     };
 
     if (!self.parser) {

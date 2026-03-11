@@ -82,6 +82,29 @@ NS_ASSUME_NONNULL_BEGIN
 ///         tree is available and no text is present).
 - (BOOL)handleReturnKey;
 
+/// Handle a character typed by the user (electric-pair insertion).
+///
+/// When `chars` is a single character that matches the `open` of an
+/// `autoClosingPairs` entry, the corresponding `close` character is
+/// automatically appended and the cursor is placed between them.
+///
+/// Suppression rules (checked in order):
+///   1. If there is a non-empty selection the method returns NO so that the
+///      text view performs its default replacement.
+///   2. If the character immediately to the right of the cursor does NOT
+///      appear in `autoCloseBefore` (and `autoCloseBefore` is set), the pair
+///      is not closed.
+///   3. If the cursor is inside a tree-sitter node whose type is listed in
+///      the pair's `notIn` array, the pair is not closed.
+///
+/// Skip-over: when `chars` equals the `close` character of a pair AND that
+/// same character already sits immediately to the right of the cursor, the
+/// cursor is advanced one position (skip-over) instead of inserting.
+///
+/// @param chars  The string produced by the key event (typically one character).
+/// @return YES if the event was consumed; NO to let the text view handle it.
+- (BOOL)handleTypedCharacter:(NSString *)chars;
+
 @end
 
 NS_ASSUME_NONNULL_END

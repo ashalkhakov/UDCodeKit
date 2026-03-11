@@ -58,6 +58,19 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 @property (nonatomic) BOOL       hasLastCursorCharOffset;
 @end
 
+// ---------------------------------------------------------------------------
+// Physical key codes (hardware layout — independent of locale)
+// ---------------------------------------------------------------------------
+
+static const unsigned short kKeyCodeReturn       = 36;
+static const unsigned short kKeyCodeKeypadReturn = 76;
+static const unsigned short kKeyCodeUpArrow      = 126;
+static const unsigned short kKeyCodeDownArrow    = 125;
+static const unsigned short kKeyCodeLeftArrow    = 123;
+static const unsigned short kKeyCodeRightArrow   = 124;
+
+// ---------------------------------------------------------------------------
+
 @implementation UDDiagnosticTextView
 
 // ---------------------------------------------------------------------------
@@ -94,6 +107,71 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Key event handling (OpenStep/GNUstep-compatible NSResponder override)
+// ---------------------------------------------------------------------------
+
+/// Primary keyboard dispatch for the editor.  This override replaces the
+/// NSEvent local monitor that was previously used, making the code portable
+/// to GNUstep which does not implement +addLocalMonitorForEventsMatchingMask:.
+///
+/// Handled here (no modifiers unless noted):
+///   Return / KP-Return  — smart auto-indentation (UDAutoIndenter)
+///   Option+Up/Down/Left/Right — tree-structured navigation (UDStructuredNavigator)
+///   Single printable char (no Cmd/Ctrl/Option) — electric-pair insertion (UDAutoIndenter)
+///
+/// Everything else falls through to -[super keyDown:] which drives NSTextView's
+/// normal key binding / text insertion pipeline.
+- (void)keyDown:(NSEvent *)event {
+    NSEventModifierFlags mods =
+        event.modifierFlags & (NSEventModifierFlagCommand |
+                               NSEventModifierFlagControl |
+                               NSEventModifierFlagOption  |
+                               NSEventModifierFlagShift);
+
+    // --- Return key: smart indentation ---
+    if (mods == 0 &&
+            (event.keyCode == kKeyCodeReturn ||
+             event.keyCode == kKeyCodeKeypadReturn)) {
+        if ([_autoIndenter handleReturnKey]) return;
+    }
+
+    // --- Option + Arrow: tree-structured navigation ---
+    if (_structuredNavigator &&
+            (mods & NSEventModifierFlagOption) &&
+            !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) {
+        switch (event.keyCode) {
+            case kKeyCodeUpArrow:
+                [_structuredNavigator moveToParent];      return;
+            case kKeyCodeDownArrow:
+                [_structuredNavigator moveToFirstChild];  return;
+            case kKeyCodeLeftArrow:
+                [_structuredNavigator moveToPrevSibling]; return;
+            case kKeyCodeRightArrow:
+                [_structuredNavigator moveToNextSibling]; return;
+        }
+    }
+
+    // --- Single printable character: electric-pair insertion/skip-over ---
+    // Permit Shift (needed for characters like '{' on many keyboards).
+    // Exclude Command, Control, Option so that shortcuts are unaffected.
+    if (!(mods & (NSEventModifierFlagCommand |
+                  NSEventModifierFlagControl |
+                  NSEventModifierFlagOption))) {
+        NSString *chars = event.characters;
+        if (chars.length == 1) {
+            unichar ch = [chars characterAtIndex:0];
+            // Only handle visible, non-control, non-delete characters.
+            // 0x20 = ASCII space (first printable); 0x7f = DEL (not printable).
+            if (ch >= ' ' && ch != 0x7f) {
+                if ([_autoIndenter handleTypedCharacter:chars]) return;
+            }
+        }
+    }
+
+    [super keyDown:event];
 }
 
 // ---------------------------------------------------------------------------

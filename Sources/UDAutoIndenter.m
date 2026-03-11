@@ -164,7 +164,123 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Private helpers
+// MARK: - Electric-pair insertion
+// ---------------------------------------------------------------------------
+
+- (BOOL)handleTypedCharacter:(NSString *)chars {
+    if (chars.length != 1) return NO;
+
+    UDLanguageConfiguration *config = _languageConfiguration;
+    if (!config.autoClosingPairs.count) return NO;
+
+    NSTextView  *tv    = _textView;
+    UDTextModel *model = _textModel;
+    if (!tv || !model) return NO;
+
+    NSRange   sel      = tv.selectedRange;
+    NSInteger docLen   = [model getLength];
+    NSString  *text    = [model getValue];
+
+    unichar    typedChar = [chars characterAtIndex:0];
+    NSUInteger cursorPos = sel.location;
+
+    // ------------------------------------------------------------------
+    // 1. Skip-over: if the typed char is a close-bracket that already sits
+    //    immediately to the right of the cursor (insertion point only),
+    //    advance the cursor rather than inserting.  Only applies to
+    //    asymmetric pairs (open != close) to avoid false-positives with
+    //    symmetric pairs like quotes.
+    // ------------------------------------------------------------------
+    if (sel.length == 0 && cursorPos < (NSUInteger)docLen) {
+        for (UDAutoClosingPair *pair in config.autoClosingPairs) {
+            if (pair.close.length == 1
+                    && [pair.close characterAtIndex:0] == typedChar
+                    && ![pair.open isEqualToString:pair.close]) {
+                unichar nextChar = [text characterAtIndex:cursorPos];
+                if (nextChar == typedChar) {
+                    [tv setSelectedRange:NSMakeRange(cursorPos + 1, 0)];
+                    return YES;
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Auto-close: if the typed char is an open-bracket of a pair, insert
+    //    open + close and place the cursor between them.
+    // ------------------------------------------------------------------
+    if (sel.length > 0) return NO;   // don't auto-close when text is selected
+
+    for (UDAutoClosingPair *pair in config.autoClosingPairs) {
+        if (pair.open.length != 1) continue;
+        if ([pair.open characterAtIndex:0] != typedChar) continue;
+
+        // autoCloseBefore: the character to the right of the cursor must be
+        // in this set (or absent) for auto-close to fire.
+        if (config.autoCloseBefore.length) {
+            unichar charAfter = (cursorPos < (NSUInteger)docLen)
+                              ? [text characterAtIndex:cursorPos] : 0;
+            if (charAfter != 0) {
+                NSString *charAfterStr =
+                    [NSString stringWithCharacters:&charAfter length:1];
+                if ([config.autoCloseBefore
+                        rangeOfString:charAfterStr].location == NSNotFound) {
+                    return NO;
+                }
+            }
+        }
+
+        // notIn: suppress auto-close when inside a restricted node type.
+        if (pair.notIn.count > 0
+                && [self _cursorAtOffset:cursorPos isInsideNodeTypes:pair.notIn]) {
+            return NO;
+        }
+
+        // Insert the pair and position the cursor between open and close.
+        NSString *insert =
+            [NSString stringWithFormat:@"%@%@", pair.open, pair.close];
+        [tv insertText:insert replacementRange:sel];
+        [tv setSelectedRange:NSMakeRange(cursorPos + 1, 0)];
+        return YES;
+    }
+
+    return NO;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Private helpers (electric-pair)
+// ---------------------------------------------------------------------------
+
+/// Returns YES when the cursor at @c offset is inside any tree-sitter node
+/// whose type appears in @c nodeTypes (e.g. @c "string" or @c "comment").
+///
+/// Walks up the ancestor chain from the deepest node covering the cursor
+/// position.  Falls back to NO when no parse tree is available.
+- (BOOL)_cursorAtOffset:(NSUInteger)offset
+      isInsideNodeTypes:(NSArray<NSString *> *)nodeTypes {
+    if (!nodeTypes.count) return NO;
+
+    const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
+    if (!tree) return NO;
+
+    uint32_t byte = byteFromChar(offset);
+    TSNode   root = ts_tree_root_node((TSTree *)tree);
+    TSNode   node = ts_node_descendant_for_byte_range(root, byte, byte);
+    if (ts_node_is_null(node)) return NO;
+
+    while (!ts_node_is_null(node)) {
+        const char *rawType = ts_node_type(node);
+        if (rawType) {
+            NSString *typeStr = [NSString stringWithUTF8String:rawType];
+            if ([nodeTypes containsObject:typeStr]) return YES;
+        }
+        node = ts_node_parent(node);
+    }
+    return NO;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Private helpers (auto-indentation)
 // ---------------------------------------------------------------------------
 
 /// Returns the leading-whitespace prefix of the line that contains @c offset.

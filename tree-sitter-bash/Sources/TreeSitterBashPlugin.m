@@ -4,7 +4,7 @@
 
 #import "TreeSitterBashPlugin.h"
 
-// Forward-declare the tree-sitter language factory.
+// Forward-declare the tree-sitter language factory (defined in parser.c).
 typedef struct TSLanguage TSLanguage;
 const TSLanguage *tree_sitter_bash(void);
 
@@ -19,19 +19,26 @@ const TSLanguage *tree_sitter_bash(void);
     return instance;
 }
 
-- (void)pluginDidLoad:(NSBundle *)bundle {
+- (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
     NSLog(@"TreeSitterBashPlugin: loaded from %@", bundle.bundlePath);
 }
 
-- (void)pluginWillUnload:(NSBundle *)bundle {
+- (void)extensionWillUnload:(NSBundle *)bundle {
+    // Release resources before the app terminates.
+    // Note: -dealloc may run at a later, non-deterministic time after this call.
     NSLog(@"TreeSitterBashPlugin: will unload %@", bundle.bundlePath);
     _bundle = nil;
 }
 
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"bash"]) return tree_sitter_bash;
+    return NULL;
+}
+
 + (void)load {
     // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -pluginDidLoad: is the preferred hook.
+    // Nothing to do here; -extensionDidLoad: is the preferred lifecycle hook.
 }
 
 @end

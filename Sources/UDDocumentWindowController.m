@@ -477,6 +477,9 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         [vc.autoIndenter configureWithLanguageFunc:mode.languageFunc
                                       indentsQuery:mode.indentsQuery];
     }
+    // Pass language configuration so the auto-indenter uses the correct bracket
+    // pairs for electric-pair indentation rather than hard-coded defaults.
+    vc.autoIndenter.languageConfiguration = mode.languageConfiguration;
 }
 
 // ---------------------------------------------------------------------------

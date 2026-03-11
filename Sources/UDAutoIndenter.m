@@ -97,15 +97,30 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     // ------------------------------------------------------------------
     // 2. Does the cursor immediately follow an indent-opening bracket?
     //    Only increase indentation when:
-    //      (a) the last non-space character on the current line is { or [
-    //          (these are the indent-opening tokens for JSON; extend this
-    //          check for other languages that use different openers), AND
+    //      (a) the last non-space character on the current line is an
+    //          opening bracket from the language's bracket configuration
+    //          (falls back to { and [ when no config is set), AND
     //      (b) the tree-sitter query confirms we are inside an @indent node
-    //          (this rules out { or [ inside a string literal).
+    //          (this rules out brackets inside string literals).
     // ------------------------------------------------------------------
-    unichar charBefore   = [self _lastNonSpaceCharBefore:cursorPos inText:text];
-    BOOL    increaseIndent = (charBefore == '{' || charBefore == '[')
-                             && [self _isInsideIndentNodeAtOffset:cursorPos];
+    unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos inText:text];
+
+    // Build the set of open/close bracket characters from language config.
+    NSString *openChars  = nil;
+    NSString *closeChars = nil;
+    UDLanguageConfiguration *config = _languageConfiguration;
+    if (config.brackets.count) {
+        openChars  = [config openBracketCharacters];
+        closeChars = [config closeBracketCharacters];
+    }
+    // Fall back to the built-in defaults when no config is available.
+    if (!openChars.length)  openChars  = @"{[";
+    if (!closeChars.length) closeChars = @"}]";
+
+    BOOL isOpenBracket = charBefore != 0
+        && ([openChars rangeOfString:[NSString stringWithCharacters:&charBefore length:1]].location != NSNotFound);
+    BOOL increaseIndent = isOpenBracket
+                         && [self _isInsideIndentNodeAtOffset:cursorPos];
 
     NSString *newIndent = increaseIndent
         ? [lineIndent stringByAppendingString:_indentUnit]
@@ -119,7 +134,9 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     NSUInteger afterPos  = sel.location + sel.length;
     unichar    charAfter = (afterPos < (NSUInteger)docLen)
                                ? [text characterAtIndex:afterPos] : 0;
-    BOOL split = increaseIndent && (charAfter == '}' || charAfter == ']');
+    BOOL isCloseBracket = charAfter != 0
+        && ([closeChars rangeOfString:[NSString stringWithCharacters:&charAfter length:1]].location != NSNotFound);
+    BOOL split = increaseIndent && isCloseBracket;
 
     // ------------------------------------------------------------------
     // 4. Build the replacement string.

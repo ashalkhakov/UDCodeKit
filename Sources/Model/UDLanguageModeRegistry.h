@@ -70,6 +70,19 @@ NS_ASSUME_NONNULL_BEGIN
 /// All registered modes in registration order (built-ins first, then custom).
 @property (nonatomic, strong, readonly) NSArray<UDLanguageMode *> *allModes;
 
+// ---------------------------------------------------------------------------
+// MARK: - Lifecycle
+// ---------------------------------------------------------------------------
+
+/// Notifies all loaded extensions that the application is about to terminate
+/// by calling -extensionWillUnload: on each.
+///
+/// Call this from -applicationWillTerminate: in the app delegate.
+/// After this call the registry releases its strong references to extension
+/// instances; their -dealloc methods may still run at a later, non-deterministic
+/// time (see UDExtension.h).
+- (void)unloadAllExtensions;
+
 @end
 
 NS_ASSUME_NONNULL_END

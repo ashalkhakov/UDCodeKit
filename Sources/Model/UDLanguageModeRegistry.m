@@ -105,6 +105,28 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - UDExtensionRecord (private wrapper)
+// ---------------------------------------------------------------------------
+
+/// Associates a loaded extension instance with its bundle.
+/// Avoids parallel arrays that could become out of sync.
+@interface UDExtensionRecord : NSObject
+@property (nonatomic, strong, readonly) id<UDExtension> extension;
+@property (nonatomic, strong, readonly) NSBundle        *bundle;
+- (instancetype)initWithExtension:(id<UDExtension>)ext bundle:(NSBundle *)bundle;
+@end
+
+@implementation UDExtensionRecord
+- (instancetype)initWithExtension:(id<UDExtension>)ext bundle:(NSBundle *)bundle {
+    self = [super init];
+    if (!self) return nil;
+    _extension = ext;
+    _bundle    = bundle;
+    return self;
+}
+@end
+
+// ---------------------------------------------------------------------------
 // MARK: - UDLanguageModeRegistry
 // ---------------------------------------------------------------------------
 
@@ -114,7 +136,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     NSMutableDictionary      *_byIdentifier;      // NSMutableDictionary<NSString *, UDLanguageMode *>
     NSMutableDictionary      *_byExtension;       // NSMutableDictionary<NSString *, UDLanguageMode *>
     UDLanguageMode           *_plaintextFallback;
-    NSMutableArray           *_extensions;        // NSMutableArray<id<UDExtension *>>, ordered
+    // Extension records in load order — used for deterministic reverse-order unload.
+    NSMutableArray<UDExtensionRecord *> *_loadedExtensions;
 }
 
 + (instancetype)sharedRegistry {
@@ -130,113 +153,150 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 // MARK: - Bundle loading
 // ---------------------------------------------------------------------------
 
-/// Build a UDLanguageMode by reading metadata from a grammar bundle's
-/// LanguageInfo.plist and query files — without running any bundle code.
-/// Returns nil if the bundle or its LanguageInfo.plist cannot be found.
-- (nullable UDLanguageMode *)_modeFromBundlePath:(NSString *)bundlePath
-{
+/// Loads one grammar bundle and registers all language modes it declares.
+///
+/// The bundle's LanguageInfo.plist must contain a "languageModes" array.  Each
+/// element is a dictionary describing one language mode.  The extension's
+/// -languageFuncForIdentifier: is called for each mode's identifier to obtain
+/// the grammar's C function pointer.
+///
+/// Extensions that provide zero language modes (e.g. theme bundles) are still
+/// loaded and their lifecycle methods are called, but no modes are registered.
+- (void)_loadBundleAtPath:(NSString *)bundlePath {
     NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
     if (!bundle) {
-        NSLog(@"UDLanguageModeRegistry: bundle path not found: %@", bundlePath);
-        return nil;
+        NSLog(@"UDLanguageModeRegistry: bundle not found: %@", bundlePath);
+        return;
     }
 
-    // ── Step 1: Read LanguageInfo.plist (no bundle code loaded) ──────────
+    // ── Step 1: Read LanguageInfo.plist without loading executable ────────
     NSString *plistPath = [bundle pathForResource:@"LanguageInfo" ofType:@"plist"];
     if (!plistPath) {
         NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist missing in %@",
               bundlePath.lastPathComponent);
-        return nil;
+        return;
     }
-    NSDictionary *info = [NSDictionary dictionaryWithContentsOfFile:plistPath];
-    if (!info) {
+    NSDictionary *rootInfo = [NSDictionary dictionaryWithContentsOfFile:plistPath];
+    if (!rootInfo) {
         NSLog(@"UDLanguageModeRegistry: failed to parse LanguageInfo.plist in %@",
               bundlePath.lastPathComponent);
-        return nil;
+        return;
     }
 
-    NSString *identifier  = info[@"identifier"];
-    NSString *displayName = info[@"displayName"];
-    NSArray  *extensions  = info[@"fileExtensions"];
-    NSString *lspID       = info[@"lspLanguageID"];
-    NSString *tsSymbol    = info[@"treeSitterSymbol"];
-
-    if (!identifier.length || !displayName.length) {
-        NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist in %@ missing required fields",
+    NSArray *languageModes = rootInfo[@"languageModes"];
+    if (![languageModes isKindOfClass:[NSArray class]]) {
+        NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist in %@ missing 'languageModes' array",
               bundlePath.lastPathComponent);
-        return nil;
+        return;
     }
 
-    // ── Step 2: Load query files from Resources (no bundle code loaded) ──
-    NSString *highlightsQuery = nil;
-    NSString *indentsQuery    = nil;
-
-    NSString *hiFile = info[@"highlightsQueryFile"];
-    NSString *inFile = info[@"indentsQueryFile"];
-
-    if (hiFile.length) {
-        NSString *qpath = [bundle pathForResource:hiFile.stringByDeletingPathExtension
-                                           ofType:hiFile.pathExtension];
-        if (qpath) {
-            highlightsQuery = [NSString stringWithContentsOfFile:qpath
-                                                        encoding:NSUTF8StringEncoding
-                                                           error:nil];
-        }
-    }
-    if (inFile.length) {
-        NSString *qpath = [bundle pathForResource:inFile.stringByDeletingPathExtension
-                                           ofType:inFile.pathExtension];
-        if (qpath) {
-            indentsQuery = [NSString stringWithContentsOfFile:qpath
-                                                     encoding:NSUTF8StringEncoding
-                                                        error:nil];
-        }
+    // ── Step 2: Load bundle executable and get extension instance ─────────
+    NSError *loadError = nil;
+    if (![bundle loadAndReturnError:&loadError]) {
+        NSLog(@"UDLanguageModeRegistry: failed to load %@: %@",
+              bundlePath.lastPathComponent, loadError);
+        return;
     }
 
-    // ── Step 3: Notify principal class of load (lifecycle hook) ───────────
     Class principalClass = bundle.principalClass;
-    if (!principalClass || ![principalClass conformsToProtocol:@protocol(UDExtension)]) {
-        NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist in %@ does not have principal class or that class does not conform to UDExtension protocol",
+    if (!principalClass) {
+        NSLog(@"UDLanguageModeRegistry: no principal class in %@",
               bundlePath.lastPathComponent);
-        return nil;
+        return;
+    }
+    if (![principalClass conformsToProtocol:@protocol(UDExtension)]) {
+        NSLog(@"UDLanguageModeRegistry: principal class %@ in %@ does not conform to UDExtension",
+              NSStringFromClass(principalClass), bundlePath.lastPathComponent);
+        return;
     }
 
-    id<UDExtension> instance = [[principalClass alloc] init];
-    if (!instance) {
-        NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist in %@ principal class failed to init",
+    id<UDExtension> ext = [[principalClass alloc] init];
+    if (!ext) {
+        NSLog(@"UDLanguageModeRegistry: failed to init principal class in %@",
               bundlePath.lastPathComponent);
-        return nil;
+        return;
     }
 
-    [instance extensionDidLoad:bundle];
-    LanguageFunc languageFunc = (LanguageFunc)[instance languageFunc];
+    // Retain the extension and call the load lifecycle hook.
+    UDExtensionRecord *record = [[UDExtensionRecord alloc] initWithExtension:ext bundle:bundle];
+    [_loadedExtensions addObject:record];
+    [ext extensionDidLoad:bundle];
 
-    // ── Step 4: Default new-document text (app-level UX, keyed by id) ────
-    NSString *defaultText = sDefaultTexts()[identifier] ?: @"";
-    
-    [_extensions addObject:instance];
+    // ── Step 3: Register each language mode declared in the plist ─────────
+    for (NSDictionary *modeInfo in languageModes) {
+        if (![modeInfo isKindOfClass:[NSDictionary class]]) continue;
 
-    return [[UDLanguageMode alloc]
-        initWithIdentifier:identifier
-               displayName:displayName
-            fileExtensions:extensions ?: @[]
-              languageFunc:languageFunc
-           highlightsQuery:highlightsQuery
-              indentsQuery:indentsQuery
-             lspLanguageID:lspID
-    defaultNewDocumentText:defaultText];
+        NSString *identifier  = modeInfo[@"identifier"];
+        NSString *displayName = modeInfo[@"displayName"];
+        NSArray  *extensions  = modeInfo[@"fileExtensions"];
+        NSString *lspID       = modeInfo[@"lspLanguageID"];
+
+        if (!identifier.length || !displayName.length) {
+            NSLog(@"UDLanguageModeRegistry: mode entry in %@ missing identifier/displayName",
+                  bundlePath.lastPathComponent);
+            continue;
+        }
+
+        // Load .scm query files from the bundle's Resources directory.
+        NSString *highlightsQuery = nil;
+        NSString *indentsQuery    = nil;
+
+        NSString *hiFile = modeInfo[@"highlightsQueryFile"];
+        NSString *inFile = modeInfo[@"indentsQueryFile"];
+
+        if (hiFile.length) {
+            NSString *qpath = [bundle pathForResource:hiFile.stringByDeletingPathExtension
+                                               ofType:hiFile.pathExtension];
+            if (qpath) {
+                highlightsQuery = [NSString stringWithContentsOfFile:qpath
+                                                            encoding:NSUTF8StringEncoding
+                                                               error:nil];
+            }
+        }
+        if (inFile.length) {
+            NSString *qpath = [bundle pathForResource:inFile.stringByDeletingPathExtension
+                                               ofType:inFile.pathExtension];
+            if (qpath) {
+                indentsQuery = [NSString stringWithContentsOfFile:qpath
+                                                         encoding:NSUTF8StringEncoding
+                                                            error:nil];
+            }
+        }
+
+        // Ask the extension for the grammar C function.
+        LanguageFunc langFunc = (LanguageFunc)[ext languageFuncForIdentifier:identifier];
+
+        // Load language configuration from the mode entry dict.
+        UDLanguageConfiguration *config =
+            [UDLanguageConfiguration configurationFromDictionary:modeInfo];
+
+        NSString *defaultText = sDefaultTexts()[identifier] ?: @"";
+
+        UDLanguageMode *mode = [[UDLanguageMode alloc]
+            initWithIdentifier:identifier
+                   displayName:displayName
+                fileExtensions:extensions ?: @[]
+                  languageFunc:langFunc
+               highlightsQuery:highlightsQuery
+                  indentsQuery:indentsQuery
+                 lspLanguageID:lspID
+        defaultNewDocumentText:defaultText
+            languageConfiguration:config];
+
+        [self _registerModeUnsafe:mode];
+    }
 }
 
 - (instancetype)_initWithBuiltins {
     self = [super init];
     if (!self) return nil;
 
-    _queue        = dispatch_queue_create("org.underivable.language-mode-registry",
-                                          DISPATCH_QUEUE_CONCURRENT);
-    _modes        = [NSMutableArray array];
-    _byIdentifier = [NSMutableDictionary dictionary];
-    _byExtension  = [NSMutableDictionary dictionary];
-    _extensions   = [NSMutableArray array];
+    _queue             = dispatch_queue_create("org.underivable.language-mode-registry",
+                                               DISPATCH_QUEUE_CONCURRENT);
+    _modes             = [NSMutableArray array];
+    _byIdentifier      = [NSMutableDictionary dictionary];
+    _byExtension       = [NSMutableDictionary dictionary];
+    _loadedExtensions  = [NSMutableArray array];
 
     // Plain text — the universal fallback, registered first.
     _plaintextFallback = [[UDLanguageMode alloc]
@@ -247,13 +307,12 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:nil
-    defaultNewDocumentText:@""];
+    defaultNewDocumentText:@""
+        languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     [self _registerModeUnsafe:_plaintextFallback];
 
     // Load grammar bundles from the app's PlugIns directory.
-    // LanguageInfo.plist in each bundle provides all language metadata;
-    // query .scm files are loaded as bundle resources — no bundle code runs
-    // until the tree-sitter symbol is resolved in step 3 of _modeFromBundlePath:.
+    // LanguageInfo.plist in each bundle is read before any bundle code runs.
     NSString *plugInsPath = [[NSBundle mainBundle] builtInPlugInsPath];
     NSArray<NSString *> *bundleNames = @[
         @"TreeSitterJson.bundle",
@@ -269,13 +328,29 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 
     for (NSString *bundleName in bundleNames) {
         NSString *path = [plugInsPath stringByAppendingPathComponent:bundleName];
-        UDLanguageMode *mode = [self _modeFromBundlePath:path];
-        if (mode) {
-            [self _registerModeUnsafe:mode];
-        }
+        [self _loadBundleAtPath:path];
     }
 
     return self;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Lifecycle
+// ---------------------------------------------------------------------------
+
+- (void)unloadAllExtensions {
+    // Notify extensions in reverse load order (last loaded → first unloaded).
+    NSArray<UDExtensionRecord *> *reversed =
+        [[_loadedExtensions reverseObjectEnumerator] allObjects];
+
+    for (UDExtensionRecord *record in reversed) {
+        [record.extension extensionWillUnload:record.bundle];
+    }
+
+    // Release all retained extension records.
+    // Their -dealloc methods may run at a later, non-deterministic time
+    // (see UDExtension.h for details on teardown semantics).
+    [_loadedExtensions removeAllObjects];
 }
 
 // ---------------------------------------------------------------------------

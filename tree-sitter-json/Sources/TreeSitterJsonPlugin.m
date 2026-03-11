@@ -29,8 +29,9 @@ const TSLanguage *tree_sitter_json(void);
     _bundle = nil;
 }
 
-- (const void *)languageFunc {
-    return tree_sitter_json;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"json"]) return tree_sitter_json;
+    return NULL;
 }
 
 + (void)load {

@@ -6,6 +6,7 @@
 
 #import <XCTest/XCTest.h>
 #import "UDLanguageMode.h"
+#import "UDLanguageConfiguration.h"
 #import "UDLanguageModeRegistry.h"
 #import "UDCodeDocument.h"
 
@@ -27,7 +28,8 @@
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:nil
-    defaultNewDocumentText:@""];
+    defaultNewDocumentText:@""
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     XCTAssertEqualObjects(mode.identifier, @"test");
 }
 
@@ -40,7 +42,8 @@
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:nil
-    defaultNewDocumentText:@""];
+    defaultNewDocumentText:@""
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     XCTAssertEqualObjects(mode.displayName, @"Test Language");
 }
 
@@ -53,7 +56,8 @@
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:nil
-    defaultNewDocumentText:@""];
+    defaultNewDocumentText:@""
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     XCTAssertEqualObjects(mode.fileExtensions, (@[@"foo", @"bar"]));
 }
 
@@ -66,7 +70,8 @@
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:@"json"
-    defaultNewDocumentText:@"{}"];
+    defaultNewDocumentText:@"{}"
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     XCTAssertEqualObjects(mode.lspLanguageID, @"json");
 }
 
@@ -79,7 +84,8 @@
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:@"html"
-    defaultNewDocumentText:@""];
+    defaultNewDocumentText:@""
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     XCTAssertTrue(mode.languageFunc == NULL);
     XCTAssertNil(mode.highlightsQuery);
 }
@@ -374,7 +380,8 @@
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:nil
-    defaultNewDocumentText:@""];
+    defaultNewDocumentText:@""
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     [reg registerMode:custom];
 
     // The registry uses dispatch_barrier_async for writes and dispatch_sync for
@@ -397,7 +404,8 @@
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:nil
-    defaultNewDocumentText:@""];
+    defaultNewDocumentText:@""
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     [reg registerMode:custom];
 
     NSArray *all = reg.allModes;
@@ -459,6 +467,117 @@
 - (void)testDocumentLanguageModeIsNonNilAlways {
     UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"" fileURL:nil];
     XCTAssertNotNil(doc.languageMode);
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - UDLanguageConfiguration
+// ---------------------------------------------------------------------------
+
+- (void)testEmptyConfigurationHasNilComments {
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration emptyConfiguration];
+    XCTAssertNil(cfg.lineCommentString);
+    XCTAssertNil(cfg.blockCommentStart);
+    XCTAssertNil(cfg.blockCommentEnd);
+}
+
+- (void)testEmptyConfigurationHasEmptyBrackets {
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration emptyConfiguration];
+    XCTAssertEqual(cfg.brackets.count, (NSUInteger)0);
+    XCTAssertEqual(cfg.autoClosingPairs.count, (NSUInteger)0);
+    XCTAssertEqual(cfg.surroundingPairs.count, (NSUInteger)0);
+}
+
+- (void)testConfigurationFromDictionaryParsesComments {
+    NSDictionary *dict = @{
+        @"comments": @{
+            @"lineComment": @"//",
+            @"blockComment": @[@"/*", @"*/"],
+        }
+    };
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration configurationFromDictionary:dict];
+    XCTAssertEqualObjects(cfg.lineCommentString, @"//");
+    XCTAssertEqualObjects(cfg.blockCommentStart, @"/*");
+    XCTAssertEqualObjects(cfg.blockCommentEnd,   @"*/");
+}
+
+- (void)testConfigurationFromDictionaryParsesBrackets {
+    NSDictionary *dict = @{
+        @"brackets": @[@[@"{", @"}"], @[@"[", @"]"], @[@"(", @")"]],
+    };
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration configurationFromDictionary:dict];
+    XCTAssertEqual(cfg.brackets.count, (NSUInteger)3);
+    XCTAssertEqualObjects(cfg.brackets[0], (@[@"{", @"}"]));
+    XCTAssertEqualObjects(cfg.brackets[1], (@[@"[", @"]"]));
+}
+
+- (void)testConfigurationFromDictionaryParsesAutoClosingPairs {
+    NSDictionary *dict = @{
+        @"autoClosingPairs": @[
+            @{@"open": @"{", @"close": @"}"},
+            @{@"open": @"\"", @"close": @"\"", @"notIn": @[@"string"]},
+        ]
+    };
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration configurationFromDictionary:dict];
+    XCTAssertEqual(cfg.autoClosingPairs.count, (NSUInteger)2);
+    XCTAssertEqualObjects(cfg.autoClosingPairs[0].open,  @"{");
+    XCTAssertEqualObjects(cfg.autoClosingPairs[0].close, @"}");
+    XCTAssertEqual(cfg.autoClosingPairs[0].notIn.count, (NSUInteger)0);
+    XCTAssertEqualObjects(cfg.autoClosingPairs[1].notIn, (@[@"string"]));
+}
+
+- (void)testConfigurationFromDictionaryParsesFolding {
+    NSDictionary *dict = @{
+        @"folding": @{
+            @"markers": @{
+                @"start": @"^\\s*//\\s*#region\\b",
+                @"end":   @"^\\s*//\\s*#endregion\\b",
+            }
+        }
+    };
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration configurationFromDictionary:dict];
+    XCTAssertEqualObjects(cfg.foldingStartPattern, @"^\\s*//\\s*#region\\b");
+    XCTAssertEqualObjects(cfg.foldingEndPattern,   @"^\\s*//\\s*#endregion\\b");
+}
+
+- (void)testConfigurationOpenBracketCharacters {
+    NSDictionary *dict = @{
+        @"brackets": @[@[@"{", @"}"], @[@"[", @"]"]]
+    };
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration configurationFromDictionary:dict];
+    NSString *opens = [cfg openBracketCharacters];
+    XCTAssertTrue([opens containsString:@"{"]);
+    XCTAssertTrue([opens containsString:@"["]);
+}
+
+- (void)testConfigurationClosingBracketForOpen {
+    NSDictionary *dict = @{
+        @"brackets": @[@[@"{", @"}"], @[@"[", @"]"]]
+    };
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration configurationFromDictionary:dict];
+    XCTAssertEqualObjects([cfg closingBracketForOpen:@"{"], @"}");
+    XCTAssertEqualObjects([cfg closingBracketForOpen:@"["], @"]");
+    XCTAssertNil([cfg closingBracketForOpen:@"("]);
+}
+
+- (void)testLanguageModeHasNonNilConfiguration {
+    UDLanguageMode *mode = [[UDLanguageMode alloc]
+        initWithIdentifier:@"test"
+               displayName:@"Test"
+            fileExtensions:@[@"tst"]
+              languageFunc:NULL
+           highlightsQuery:nil
+              indentsQuery:nil
+             lspLanguageID:nil
+    defaultNewDocumentText:@""
+        languageConfiguration:nil];
+    // nil config should be replaced by emptyConfiguration — never nil
+    XCTAssertNotNil(mode.languageConfiguration);
+}
+
+- (void)testConfigurationFromNilDictIsEmpty {
+    UDLanguageConfiguration *cfg = [UDLanguageConfiguration configurationFromDictionary:nil];
+    XCTAssertNil(cfg.lineCommentString);
+    XCTAssertEqual(cfg.brackets.count, (NSUInteger)0);
 }
 
 @end

@@ -29,8 +29,9 @@ const TSLanguage *tree_sitter_objc(void);
     _bundle = nil;
 }
 
-- (const void *)languageFunc {
-    return tree_sitter_objc;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"objc"]) return tree_sitter_objc;
+    return NULL;
 }
 
 + (void)load {

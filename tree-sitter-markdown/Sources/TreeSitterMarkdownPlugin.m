@@ -29,8 +29,9 @@ const TSLanguage *tree_sitter_markdown(void);
     _bundle = nil;
 }
 
-- (const void *)languageFunc {
-    return tree_sitter_markdown;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"markdown"]) return tree_sitter_markdown;
+    return NULL;
 }
 
 + (void)load {

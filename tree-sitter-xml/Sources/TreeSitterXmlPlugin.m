@@ -29,8 +29,9 @@ const TSLanguage *tree_sitter_xml(void);
     _bundle = nil;
 }
 
-- (const void *)languageFunc {
-    return tree_sitter_xml;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"xml"]) return tree_sitter_xml;
+    return NULL;
 }
 
 + (void)load {

@@ -29,8 +29,9 @@ const TSLanguage *tree_sitter_make(void);
     _bundle = nil;
 }
 
-- (const void *)languageFunc {
-    return tree_sitter_make;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"make"]) return tree_sitter_make;
+    return NULL;
 }
 
 + (void)load {

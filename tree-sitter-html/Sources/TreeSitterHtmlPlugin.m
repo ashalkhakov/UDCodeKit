@@ -29,8 +29,9 @@ const TSLanguage *tree_sitter_html(void);
     _bundle = nil;
 }
 
-- (const void *)languageFunc {
-    return tree_sitter_html;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"html"]) return tree_sitter_html;
+    return NULL;
 }
 
 + (void)load {

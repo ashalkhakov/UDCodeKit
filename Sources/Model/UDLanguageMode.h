@@ -22,6 +22,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import "UDLanguageConfiguration.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -91,6 +92,15 @@ typedef const void *(*LanguageFunc)(void);
 @property (nonatomic, copy, readonly, nullable) NSString *lspLanguageID;
 
 // ---------------------------------------------------------------------------
+// MARK: - Language configuration
+// ---------------------------------------------------------------------------
+
+/// Static editor-behaviour rules for this language: comment strings, bracket
+/// pairs, auto-closing rules, folding markers, etc.
+/// Never nil — a mode with no configuration returns `[UDLanguageConfiguration emptyConfiguration]`.
+@property (nonatomic, strong, readonly) UDLanguageConfiguration *languageConfiguration;
+
+// ---------------------------------------------------------------------------
 // MARK: - New document defaults
 // ---------------------------------------------------------------------------
 
@@ -109,8 +119,9 @@ typedef const void *(*LanguageFunc)(void);
                        languageFunc:(nullable LanguageFunc)languageFunc
                     highlightsQuery:(nullable NSString *)highlightsQuery
                        indentsQuery:(nullable NSString *)indentsQuery
-                       lspLanguageID:(nullable NSString *)lspLanguageID
-             defaultNewDocumentText:(NSString *)defaultNewDocumentText
+                      lspLanguageID:(nullable NSString *)lspLanguageID
+            defaultNewDocumentText:(NSString *)defaultNewDocumentText
+                languageConfiguration:(UDLanguageConfiguration *)languageConfiguration
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

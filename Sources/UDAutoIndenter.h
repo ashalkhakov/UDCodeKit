@@ -38,6 +38,7 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import "UDTreeSitterHighlighter.h"
+#import "UDLanguageConfiguration.h"
 #import <UDPieceTable/UDPieceTable.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -47,6 +48,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// The string inserted for one indentation level.
 /// Defaults to two spaces (@"  ").
 @property (nonatomic, copy) NSString *indentUnit;
+
+/// Language configuration supplying bracket pairs for electric-pair indentation.
+/// When non-nil, the `brackets` array determines which characters trigger
+/// indent-increase and electric pair-splitting on Return.
+/// When nil the auto-indenter falls back to the built-in defaults (`{`/`[`).
+@property (nonatomic, strong, nullable) UDLanguageConfiguration *languageConfiguration;
 
 - (instancetype)initWithTextView:(NSTextView *)textView
                       highlighter:(UDTreeSitterHighlighter *)highlighter

@@ -1,11 +1,8 @@
 /*---------------------------------------------------------------------------------------------
  *  TreeSitterYamlPlugin.h  —  Principal class for the TreeSitterYaml bundle.
  *
- *  This class is the NSPrincipalClass of the bundle.  It provides lifecycle hooks and
- *  is the single Objective-C entry point for the grammar bundle.
- *
- *  The bundle exposes one C symbol: tree_sitter_yaml()
- *  The main app resolves this symbol via dlsym after loading the bundle.
+ *  Conforms to UDExtension: the tree-sitter language factory is provided via
+ *  -languageFuncForIdentifier: (no dlsym required).
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>

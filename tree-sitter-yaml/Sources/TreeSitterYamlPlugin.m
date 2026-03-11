@@ -29,8 +29,9 @@ const TSLanguage *tree_sitter_yaml(void);
     _bundle = nil;
 }
 
-- (const void *)languageFunc {
-    return tree_sitter_yaml;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"yaml"]) return tree_sitter_yaml;
+    return NULL;
 }
 
 + (void)load {

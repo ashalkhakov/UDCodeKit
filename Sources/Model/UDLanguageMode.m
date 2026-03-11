@@ -12,8 +12,9 @@
                        languageFunc:(nullable LanguageFunc)languageFunc
                     highlightsQuery:(nullable NSString *)highlightsQuery
                        indentsQuery:(nullable NSString *)indentsQuery
-                       lspLanguageID:(nullable NSString *)lspLanguageID
-             defaultNewDocumentText:(NSString *)defaultNewDocumentText {
+                      lspLanguageID:(nullable NSString *)lspLanguageID
+            defaultNewDocumentText:(NSString *)defaultNewDocumentText
+                languageConfiguration:(UDLanguageConfiguration *)languageConfiguration {
     self = [super init];
     if (!self) return nil;
 
@@ -25,6 +26,7 @@
     _indentsQuery           = [indentsQuery copy];
     _lspLanguageID          = [lspLanguageID copy];
     _defaultNewDocumentText = [defaultNewDocumentText copy];
+    _languageConfiguration  = languageConfiguration ?: [UDLanguageConfiguration emptyConfiguration];
 
     return self;
 }

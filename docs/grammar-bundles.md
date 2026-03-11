@@ -12,6 +12,7 @@ Each grammar is a **self-contained subdirectory** at the repo root named
 
 - A standalone `TreeSitter<Lang>.xcodeproj` (editable and buildable in Xcode independently)
 - A `Sources/` directory with an Objective-C **principal class** (`TreeSitter<Lang>Plugin`)
+  that conforms to the `UDExtension` protocol
 - A `Resources/` directory with language metadata (`LanguageInfo.plist`) and query files
 - A per-bundle `tree-sitter/` runtime copy (split vendoring — tracked independently)
 - The vendored grammar C sources in `src/`
@@ -21,7 +22,7 @@ Each grammar is a **self-contained subdirectory** at the repo root named
 tree-sitter-<lang>/
 ├── TreeSitter<Lang>.xcodeproj/   # standalone Xcode project
 ├── Sources/
-│   ├── TreeSitter<Lang>Plugin.h  # principal class header
+│   ├── TreeSitter<Lang>Plugin.h  # principal class header (conforms to UDExtension)
 │   └── TreeSitter<Lang>Plugin.m  # principal class implementation
 ├── Resources/
 │   ├── Info.plist           # bundle metadata (NSPrincipalClass, bundle ID, …)
@@ -47,7 +48,7 @@ tree-sitter-<lang>/
 | Language     | Identifier  | Extensions                             | Upstream repository                                         |
 |--------------|-------------|----------------------------------------|-------------------------------------------------------------|
 | Bash         | `bash`      | `.sh` `.bash` `.zsh` `.ksh`            | https://github.com/tree-sitter/tree-sitter-bash             |
-| C            | `c`         | `.c`                                   | https://github.com/tree-sitter/tree-sitter-c                |
+| C            | `c`         | `.c` `.h`                              | https://github.com/tree-sitter/tree-sitter-c                |
 | HTML         | `html`      | `.html` `.htm` `.xhtml` `.shtml`       | https://github.com/tree-sitter/tree-sitter-html             |
 | JSON         | `json`      | `.json` `.jsonc` `.geojson`            | https://github.com/tree-sitter/tree-sitter-json             |
 | Makefile     | `make`      | `.mk`                                  | https://github.com/alemuller/tree-sitter-make               |
@@ -56,37 +57,230 @@ tree-sitter-<lang>/
 | XML          | `xml`       | `.xml` `.xsl` `.svg` `.rss` `.plist`   | https://github.com/tree-sitter-grammars/tree-sitter-xml     |
 | YAML         | `yaml`      | `.yaml` `.yml`                         | https://github.com/tree-sitter-grammars/tree-sitter-yaml    |
 
-## Language metadata and the LanguageInfo.plist
+---
 
-`Resources/LanguageInfo.plist` carries all language metadata that
-`UDLanguageModeRegistry` needs to create a `UDLanguageMode` object:
+## The UDExtension protocol
 
-| Key                  | Type   | Description                                        |
-|----------------------|--------|----------------------------------------------------|
-| `identifier`         | String | Unique lowercase mode ID, e.g. `"bash"`            |
-| `displayName`        | String | Human-readable name, e.g. `"Bash"`                 |
-| `fileExtensions`     | Array  | Lowercase extensions without dot, e.g. `["sh"]`   |
-| `lspLanguageID`      | String | Optional LSP `languageId`, e.g. `"shellscript"`    |
-| `treeSitterSymbol`   | String | C symbol name, e.g. `"tree_sitter_bash"`           |
-| `highlightsQueryFile`| String | Optional resource filename, e.g. `"highlights.scm"`|
-| `indentsQueryFile`   | String | Optional resource filename, e.g. `"indents.scm"`   |
+Each bundle's `NSPrincipalClass` conforms to the `UDExtension` protocol
+(defined in `Sources/Extensions/UDExtension.h`):
 
-The host app reads this plist **before** loading the bundle's executable,
-so no grammar code runs until the tree-sitter C symbol is actually needed.
+```objc
+@protocol UDExtension <NSObject>
+- (void)extensionDidLoad:(NSBundle *)bundle;
+- (void)extensionWillUnload:(NSBundle *)bundle;
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier;
+@end
+```
+
+### Multiple language modes per extension
+
+An extension may declare **zero, one, or multiple** language modes in its
+`LanguageInfo.plist` (via the `languageModes` array).  For each mode, the
+registry calls `-languageFuncForIdentifier:` with the mode's `identifier`
+string to obtain the tree-sitter C factory pointer.
+
+Non-language extensions (e.g. future theme or snippet bundles) declare an
+empty `languageModes` array and always return `NULL` from
+`-languageFuncForIdentifier:`.
+
+### Lifecycle hooks
+
+| Call         | When                                                   |
+|--------------|--------------------------------------------------------|
+| `-extensionDidLoad:`    | After the bundle is loaded; perform initialisation |
+| `-extensionWillUnload:` | Before the app terminates; release resources       |
+
+**Non-deterministic teardown:** The host calls `-extensionWillUnload:` and
+then releases its strong reference to the extension instance.  Because
+Objective-C uses reference counting, other retain cycles or autorelease pools
+may keep extension objects alive for an indeterminate time after the call
+returns.  `NSBundle` does not unload the bundle's Mach-O image, so C code
+compiled into the bundle remains mapped into memory indefinitely.
+`-dealloc` implementations in extension classes may therefore run *after*
+`-extensionWillUnload:` has returned — do not rely on any specific teardown
+order.
+
+---
+
+## Language metadata: `LanguageInfo.plist`
+
+Each bundle's `Resources/LanguageInfo.plist` contains a `languageModes` array.
+Every element describes one language mode the extension provides:
+
+```xml
+<dict>
+    <key>languageModes</key>
+    <array>
+        <dict>
+            <!-- Required fields -->
+            <key>identifier</key>        <string>bash</string>
+            <key>displayName</key>       <string>Bash</string>
+            <key>fileExtensions</key>    <array><string>sh</string></array>
+
+            <!-- Optional fields -->
+            <key>lspLanguageID</key>     <string>shellscript</string>
+            <key>highlightsQueryFile</key><string>highlights.scm</string>
+            <key>indentsQueryFile</key>  <string>indents.scm</string>
+
+            <!-- Language configuration (see below) -->
+            <key>comments</key>    <dict>…</dict>
+            <key>brackets</key>    <array>…</array>
+            <key>autoClosingPairs</key><array>…</array>
+            <key>autoCloseBefore</key><string>…</string>
+            <key>surroundingPairs</key><array>…</array>
+            <key>folding</key>     <dict>…</dict>
+        </dict>
+    </array>
+</dict>
+```
+
+> **Note:** The `treeSitterSymbol` key used in earlier versions has been
+> removed.  The tree-sitter C factory is now obtained by calling
+> `-languageFuncForIdentifier:` on the extension instance.
+
+The host app reads the plist and loads query files **before** executing any
+bundle code, so metadata is available without triggering any grammar initialisation.
+
+### LanguageInfo.plist — required fields
+
+| Key             | Type   | Description                                               |
+|-----------------|--------|-----------------------------------------------------------|
+| `identifier`    | String | Unique lowercase mode ID, e.g. `"bash"`                   |
+| `displayName`   | String | Human-readable name, e.g. `"Bash"`                        |
+| `fileExtensions`| Array  | Lowercase extensions without dot, e.g. `["sh"]`           |
+
+### LanguageInfo.plist — optional grammar fields
+
+| Key                   | Type   | Description                                              |
+|-----------------------|--------|----------------------------------------------------------|
+| `lspLanguageID`       | String | LSP `languageId` (e.g. `"shellscript"`)                  |
+| `highlightsQueryFile` | String | Resource filename, e.g. `"highlights.scm"`               |
+| `indentsQueryFile`    | String | Resource filename, e.g. `"indents.scm"`                  |
+
+---
+
+## Language configuration
+
+The language configuration is embedded directly inside each mode entry in
+`LanguageInfo.plist`.  It is loaded into a `UDLanguageConfiguration` object
+and made available via `UDLanguageMode.languageConfiguration`.
+
+### `comments`
+
+```xml
+<key>comments</key>
+<dict>
+    <key>lineComment</key>   <string>//</string>
+    <key>blockComment</key>
+    <array>
+        <string>/*</string>
+        <string>*/</string>
+    </array>
+</dict>
+```
+
+| Sub-key        | Type   | Description                          |
+|----------------|--------|--------------------------------------|
+| `lineComment`  | String | Single-line comment prefix (`//`, `#`) |
+| `blockComment` | Array  | Two-element `[start, end]` pair       |
+
+### `brackets`
+
+```xml
+<key>brackets</key>
+<array>
+    <array><string>{</string><string>}</string></array>
+    <array><string>[</string><string>]</string></array>
+    <array><string>(</string><string>)</string></array>
+</array>
+```
+
+Each element is a two-element `[open, close]` array.  Used by the auto-indenter
+for electric-pair indentation and by the bracket-match highlighter.
+
+### `autoClosingPairs`
+
+```xml
+<key>autoClosingPairs</key>
+<array>
+    <dict>
+        <key>open</key>  <string>{</string>
+        <key>close</key> <string>}</string>
+    </dict>
+    <dict>
+        <key>open</key>  <string>"</string>
+        <key>close</key> <string>"</string>
+        <key>notIn</key>
+        <array><string>string</string></array>
+    </dict>
+</array>
+```
+
+| Key     | Type   | Description                                              |
+|---------|--------|----------------------------------------------------------|
+| `open`  | String | The character that triggers auto-closing                 |
+| `close` | String | The character that is auto-inserted                      |
+| `notIn` | Array  | Tree-sitter node-type contexts to suppress auto-close in |
+
+### `autoCloseBefore`
+
+```xml
+<key>autoCloseBefore</key>
+<string>;:.,=}])`"' &#x0A;&#x09;</string>
+```
+
+Characters to the right of the cursor that permit an auto-close to occur.
+
+### `surroundingPairs`
+
+```xml
+<key>surroundingPairs</key>
+<array>
+    <array><string>{</string><string>}</string></array>
+    <array><string>"</string><string>"</string></array>
+</array>
+```
+
+Pairs of characters that can wrap a selected range.  Same format as `brackets`.
+
+### `folding`
+
+```xml
+<key>folding</key>
+<dict>
+    <key>markers</key>
+    <dict>
+        <key>start</key> <string>^\s*//\s*#region\b</string>
+        <key>end</key>   <string>^\s*//\s*#endregion\b</string>
+    </dict>
+</dict>
+```
+
+Regular-expression patterns marking the beginning and end of foldable regions
+(for languages that use comment-based fold markers rather than structural folding).
+
+---
 
 ## Principal class and lifecycle
 
 Each bundle's `NSPrincipalClass` (set via `Resources/Info.plist`) is
-`TreeSitter<Lang>Plugin`.  It exposes:
+`TreeSitter<Lang>Plugin`, which conforms to `UDExtension`:
 
 ```objc
-+ (instancetype)sharedPlugin;            // singleton accessor
-- (void)pluginDidLoad:(NSBundle *)bundle;    // called by host after load
-- (void)pluginWillUnload:(NSBundle *)bundle; // called before unload
+// In TreeSitter<Lang>Plugin.m
+- (void)extensionDidLoad:(NSBundle *)bundle { … }
+- (void)extensionWillUnload:(NSBundle *)bundle { … }
+- (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"<lang>"]) return tree_sitter_<lang>;
+    return NULL;
+}
 ```
 
-`+load` is also implemented, so any image-level initialisation runs
-automatically when the bundle is mapped into the process.
+The host calls `-extensionWillUnload:` for all loaded bundles in reverse load
+order when `[UDLanguageModeRegistry sharedRegistry] unloadAllExtensions` is
+called from `-applicationWillTerminate:`.
+
+---
 
 ## Per-bundle tree-sitter runtime (split vendoring)
 
@@ -97,6 +291,8 @@ runtime version independently while remaining ABI-compatible with the host.
 The update script (`scripts/update-grammars.sh`) automatically copies the
 shared `tree-sitter/` directory at the repo root into each bundle's
 `tree-sitter/` after vendoring grammar sources.
+
+---
 
 ## Updating a grammar bundle
 
@@ -111,7 +307,6 @@ bash scripts/update-grammars.sh c objc bash make
 ```
 
 The script:
-
 1. Shallow-clones (depth 1) the upstream repository.
 2. Copies `src/parser.c`, `src/scanner.c` / `src/scanner.cc` (if present),
    and `src/tree_sitter/` headers.
@@ -129,6 +324,8 @@ The script:
 - The bundle builds in Xcode (open `TreeSitter<Lang>.xcodeproj`).
 - Run the tests to confirm nothing regressed.
 
+---
+
 ## Build system: per-language macOS bundles
 
 ### Standalone subprojects
@@ -141,7 +338,7 @@ Each standalone project compiles:
 - `tree-sitter/src/lib.c` — the tree-sitter runtime (per-bundle copy)
 - `src/parser.c` — the generated grammar parser
 - `src/scanner.c` or `src/scanner.cc` — the external scanner (when present)
-- `Sources/TreeSitter<Lang>Plugin.m` — the principal class
+- `Sources/TreeSitter<Lang>Plugin.m` — the principal class (conforms to UDExtension)
 
 ### TestApp workspace
 
@@ -149,37 +346,24 @@ The full app build uses `UDPieceTable.xcworkspace`, which includes all 9
 grammar subprojects in a "Grammar Bundles" group alongside the main
 `TestApp.xcodeproj`.
 
-`TestApp.xcodeproj` contains inline bundle targets that build each grammar
-using the same per-bundle `tree-sitter-<lang>/` source tree.  At build time
-Xcode copies all bundles into `TestApp.app/Contents/PlugIns/`.
-
-### Bundle products
-
-| Bundle name                | Grammar   | Exported symbol        |
-|----------------------------|-----------|------------------------|
-| `TreeSitterBash.bundle`    | bash      | `tree_sitter_bash`     |
-| `TreeSitterC.bundle`       | c         | `tree_sitter_c`        |
-| `TreeSitterHtml.bundle`    | html      | `tree_sitter_html`     |
-| `TreeSitterJson.bundle`    | json      | `tree_sitter_json`     |
-| `TreeSitterMake.bundle`    | make      | `tree_sitter_make`     |
-| `TreeSitterMarkdown.bundle`| markdown  | `tree_sitter_markdown` |
-| `TreeSitterObjc.bundle`    | objc      | `tree_sitter_objc`     |
-| `TreeSitterXml.bundle`     | xml       | `tree_sitter_xml`      |
-| `TreeSitterYaml.bundle`    | yaml      | `tree_sitter_yaml`     |
-
 ### Runtime loading
 
 `UDLanguageModeRegistry` loads bundles at startup:
 
 1. **Metadata phase** (no bundle code runs): reads `LanguageInfo.plist` and
    `.scm` query files using `NSBundle` resource-lookup APIs.
-2. **Load phase**: calls `[bundle loadAndReturnError:]` then `dlsym` to
-   resolve the tree-sitter C symbol.
-3. **Lifecycle phase**: calls `[principalClass sharedPlugin]` then
-   `-pluginDidLoad:` on the returned object.
+2. **Load phase**: calls `[bundle loadAndReturnError:]` to map the bundle image.
+3. **Lifecycle phase**: instantiates the principal class, calls
+   `-extensionDidLoad:`, then calls `-languageFuncForIdentifier:` for each
+   mode declared in the plist.
+4. **Language configuration**: the `UDLanguageConfiguration` object is
+   populated from the mode's dictionary in `LanguageInfo.plist` and stored
+   on the `UDLanguageMode` object.
 
 If a bundle is missing at runtime the mode is silently omitted (no crash;
 the plaintext fallback handles those file extensions).
+
+---
 
 ## Adding a new grammar bundle
 
@@ -195,6 +379,7 @@ the plaintext fallback handles those file extensions).
    - `Sources/TreeSitter<Id>Plugin.{h,m}` — copy from an existing bundle and adapt
    - `Resources/Info.plist` — copy from an existing bundle and update identifiers
    - `TreeSitter<Id>.xcodeproj/` — copy from an existing bundle xcodeproj and update
+   - Add language configuration to `Resources/LanguageInfo.plist`
 
 3. Add a **bundle target** to `TestApp.xcodeproj` following the pattern of
    the other `CC0N…` targets (sources, resources, HEADER_SEARCH_PATHS,
@@ -207,12 +392,11 @@ the plaintext fallback handles those file extensions).
 5. Add the new `tree-sitter-<id>/TreeSitter<Id>.xcodeproj` to the
    "Grammar Bundles" group in `UDPieceTable.xcworkspace`.
 
-6. Add tests in `Tests/UDLanguageModeTests.m`.
+---
 
 ## Notes on grammar versions and the REDUCE macro
 
-Grammar parsers carry a `LANGUAGE_VERSION` constant.  The tree-sitter
-runtime is generally backwards-compatible, but the `src/tree_sitter/parser.h`
+Grammar parsers carry a `LANGUAGE_VERSION` constant.  The `src/tree_sitter/parser.h`
 shipped *by the grammar* must match the version used to generate `parser.c`:
 
 | LANGUAGE_VERSION | REDUCE macro signature                          | Example grammar |
@@ -222,6 +406,5 @@ shipped *by the grammar* must match the version used to generate `parser.c`:
 | 15               | `REDUCE(sym, children, precedence, prod_id)`    | bash, c, yaml   |
 
 When the update script vendors a grammar and the upstream does not ship
-`src/tree_sitter/parser.h`, you must manually supply the correct version.
-Copy the appropriate file from an existing grammar's `src/tree_sitter/`
-directory.
+`src/tree_sitter/parser.h`, copy the appropriate version from an existing
+grammar's `src/tree_sitter/` directory.

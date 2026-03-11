@@ -22,7 +22,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// C function pointer type that returns a TSLanguage — matches the signature of all generated
 /// tree-sitter language functions, e.g. tree_sitter_json.
+#ifndef UD_LANGUAGE_FUNC_DEFINED
+#define UD_LANGUAGE_FUNC_DEFINED
 typedef const void *(*LanguageFunc)(void);
+#endif
 
 /// Completion block called after each incremental parse.
 /// @param descriptors  Reserved — currently always @[].

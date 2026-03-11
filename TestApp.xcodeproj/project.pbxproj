@@ -3,18 +3,27 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 73;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; };
 		BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE0C2DF42F5F1BB700566368 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */; };
+		CE0C2DF52F5F1BC000566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */; };
 		CE2635DD2F5497A90008B1BC /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		CE2635DE2F5497A90008B1BC /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE7257692F5F30B200501E10 /* TreeSitterMake.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72572B2F5F2EB100501E10 /* TreeSitterMake.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE72576A2F5F30BD00501E10 /* TreeSitterMarkdown.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257332F5F2EB600501E10 /* TreeSitterMarkdown.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE72576B2F5F30C700501E10 /* TreeSitterObjc.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72573B2F5F2EBA00501E10 /* TreeSitterObjc.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE72576C2F5F30D400501E10 /* TreeSitterXml.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257432F5F2EBF00501E10 /* TreeSitterXml.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE72576D2F5F30E600501E10 /* TreeSitterYaml.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72574B2F5F2EC300501E10 /* TreeSitterYaml.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE72576E2F5F30F000501E10 /* TreeSitterJson.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257552F5F2ED100501E10 /* TreeSitterJson.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE7257B02F60210C00501E10 /* TreeSitterHtml.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257A72F6020F200501E10 /* TreeSitterHtml.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE7257B12F60211700501E10 /* TreeSitterC.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257AF2F6020FC00501E10 /* TreeSitterC.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CE7CFA282F61DA7700F294D4 /* TreeSitterBash.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7CFA0D2F61DA5700F294D4 /* TreeSitterBash.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE89CA1E2F54B6F300327916 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		CE89CA1F2F54B6F300327916 /* (null) in Embed Frameworks */ = {isa = PBXBuildFile; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		D19A3C4D5E6F7A8B9C0D1E03 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */; };
-		D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,9 +55,154 @@
 			remoteGlobalIDString = D13EB15021EA5B1600E56DC9;
 			remoteInfo = LSPKit;
 		};
+		CE7257272F5F2EB100501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 407AD10A06B319558528C45A;
+			remoteInfo = TreeSitterMake;
+		};
+		CE72572A2F5F2EB100501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 8D33C905C6D1E7421929B462;
+			remoteInfo = TreeSitterMake;
+		};
+		CE72572F2F5F2EB500501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 8FA0339A42922911B9856957;
+			remoteInfo = TreeSitterMarkdown;
+		};
+		CE7257322F5F2EB600501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 687C987083CAE323B7655E22;
+			remoteInfo = TreeSitterMarkdown;
+		};
+		CE7257372F5F2EBA00501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = DD092DA7CAD0887ABEA1CA98;
+			remoteInfo = TreeSitterObjc;
+		};
+		CE72573A2F5F2EBA00501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 6FACA2E2519D17B089484535;
+			remoteInfo = TreeSitterObjc;
+		};
+		CE72573F2F5F2EBF00501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 7EBF16AB9443CCE643F3FC03;
+			remoteInfo = TreeSitterXml;
+		};
+		CE7257422F5F2EBF00501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = E775C540C220D23DB6F4F085;
+			remoteInfo = TreeSitterXml;
+		};
+		CE7257472F5F2EC300501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257442F5F2EC300501E10 /* TreeSitterYaml.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = B37EE56368352D1EDB72AAC8;
+			remoteInfo = TreeSitterYaml;
+		};
+		CE72574A2F5F2EC300501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257442F5F2EC300501E10 /* TreeSitterYaml.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = D6050FE6CC1FB2FEECB6C3D3;
+			remoteInfo = TreeSitterYaml;
+		};
+		CE7257512F5F2ED000501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 66325887BF6438659FAFEE04;
+			remoteInfo = TreeSitterJson;
+		};
+		CE7257542F5F2ED100501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = B36BDFA275CDE171097961D0;
+			remoteInfo = TreeSitterJson;
+		};
+		CE7257A32F6020F200501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257A02F6020F200501E10 /* TreeSitterHtml.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 552310169DA54EC3225AF717;
+			remoteInfo = TreeSitterHtml;
+		};
+		CE7257A62F6020F200501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257A02F6020F200501E10 /* TreeSitterHtml.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = DBF52052FFDFF85494082B3C;
+			remoteInfo = TreeSitterHtml;
+		};
+		CE7257AB2F6020FC00501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257A82F6020FC00501E10 /* TreeSitterC.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = F4C6F582672AABB7D6417188;
+			remoteInfo = TreeSitterC;
+		};
+		CE7257AE2F6020FC00501E10 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CE7257A82F6020FC00501E10 /* TreeSitterC.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = A45CB1A7A7985AD1EB9D1BA7;
+			remoteInfo = TreeSitterC;
+		};
+		CE7CFA0C2F61DA5700F294D4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CEED68152F61C88200473B16 /* TreeSitterBash.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 080F31D49507FF3BB4961FBD;
+			remoteInfo = TreeSitterBash;
+		};
+		CE7CFA262F61DA6100F294D4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CEED68152F61C88200473B16 /* TreeSitterBash.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A5E4D49CCA86094C114202C6;
+			remoteInfo = TreeSitterBash;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		CC0F0000000000000000000F /* Embed PlugIns */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CE7CFA282F61DA7700F294D4 /* TreeSitterBash.bundle in Embed PlugIns */,
+				CE7257B12F60211700501E10 /* TreeSitterC.bundle in Embed PlugIns */,
+				CE7257B02F60210C00501E10 /* TreeSitterHtml.bundle in Embed PlugIns */,
+				CE72576E2F5F30F000501E10 /* TreeSitterJson.bundle in Embed PlugIns */,
+				CE72576D2F5F30E600501E10 /* TreeSitterYaml.bundle in Embed PlugIns */,
+				CE72576C2F5F30D400501E10 /* TreeSitterXml.bundle in Embed PlugIns */,
+				CE72576B2F5F30C700501E10 /* TreeSitterObjc.bundle in Embed PlugIns */,
+				CE72576A2F5F30BD00501E10 /* TreeSitterMarkdown.bundle in Embed PlugIns */,
+				CE7257692F5F30B200501E10 /* TreeSitterMake.bundle in Embed PlugIns */,
+			);
+			name = "Embed PlugIns";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CE2635DF2F5497A90008B1BC /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -79,6 +233,24 @@
 		A46FAABC2F5441CB0079BB37 /* TestAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAAC62F5441CB0079BB37 /* TestAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TestAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
+		CE7257022F5F2E2100501E10 /* TreeSitterMake.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMake.xcodeproj; path = "tree-sitter-make/TreeSitterMake.xcodeproj"; sourceTree = "<group>"; };
+		CE7257052F5F2E2700501E10 /* TreeSitterMarkdown.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMarkdown.xcodeproj; path = "tree-sitter-markdown/TreeSitterMarkdown.xcodeproj"; sourceTree = "<group>"; };
+		CE7257082F5F2E3200501E10 /* TreeSitterObjc.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterObjc.xcodeproj; path = "tree-sitter-objc/TreeSitterObjc.xcodeproj"; sourceTree = "<group>"; };
+		CE72570B2F5F2E3700501E10 /* TreeSitterXml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterXml.xcodeproj; path = "tree-sitter-xml/TreeSitterXml.xcodeproj"; sourceTree = "<group>"; };
+		CE72570E2F5F2E3C00501E10 /* TreeSitterYaml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterYaml.xcodeproj; path = "tree-sitter-yaml/TreeSitterYaml.xcodeproj"; sourceTree = "<group>"; };
+		CE7257112F5F2E4000501E10 /* TreeSitterBash.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = TreeSitterBash.xcodeproj; sourceTree = "<group>"; };
+		CE7257212F5F2EA900501E10 /* TreeSitterJson.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterJson.xcodeproj; path = "tree-sitter-json/TreeSitterJson.xcodeproj"; sourceTree = "<group>"; };
+		CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMake.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-make/TreeSitterMake.xcodeproj"; sourceTree = "<absolute>"; };
+		CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMarkdown.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-markdown/TreeSitterMarkdown.xcodeproj"; sourceTree = "<absolute>"; };
+		CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterObjc.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-objc/TreeSitterObjc.xcodeproj"; sourceTree = "<absolute>"; };
+		CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterXml.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-xml/TreeSitterXml.xcodeproj"; sourceTree = "<absolute>"; };
+		CE7257442F5F2EC300501E10 /* TreeSitterYaml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterYaml.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-yaml/TreeSitterYaml.xcodeproj"; sourceTree = "<absolute>"; };
+		CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterJson.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-json/TreeSitterJson.xcodeproj"; sourceTree = "<absolute>"; };
+		CE72579A2F6020DF00501E10 /* TreeSitterHtml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterHtml.xcodeproj; path = "tree-sitter-html/TreeSitterHtml.xcodeproj"; sourceTree = "<group>"; };
+		CE72579D2F6020E300501E10 /* TreeSitterC.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterC.xcodeproj; path = "tree-sitter-c/TreeSitterC.xcodeproj"; sourceTree = "<group>"; };
+		CE7257A02F6020F200501E10 /* TreeSitterHtml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterHtml.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-html/TreeSitterHtml.xcodeproj"; sourceTree = "<absolute>"; };
+		CE7257A82F6020FC00501E10 /* TreeSitterC.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterC.xcodeproj; path = "/Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-c/TreeSitterC.xcodeproj"; sourceTree = "<absolute>"; };
+		CEED68152F61C88200473B16 /* TreeSitterBash.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterBash.xcodeproj; path = "tree-sitter-bash/TreeSitterBash.xcodeproj"; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E01 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "tree-sitter/src/lib.c"; sourceTree = "<group>"; };
 		D19A3C4D5E6F7A8B9C0D1E02 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = "tree-sitter-json/src/parser.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -93,8 +265,18 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		CE72577C2F5FE0C100501E10 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = A46FAAA72F5441C80079BB37 /* Sources */;
+			membershipExceptions = (
+				Extensions/UDExtension.h,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A46FAAAD2F5441C80079BB37 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
+		A46FAAAD2F5441C80079BB37 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, CE72577C2F5FE0C100501E10 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
 		A46FAABF2F5441CB0079BB37 /* Tests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Tests; sourceTree = "<group>"; };
 		A46FAAC92F5441CB0079BB37 /* UITests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = UITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -137,6 +319,17 @@
 				D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */,
 				BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */,
 				A46FAAAC2F5441C80079BB37 /* Products */,
+				CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */,
+				CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */,
+				CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */,
+				CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */,
+				CE7257442F5F2EC300501E10 /* TreeSitterYaml.xcodeproj */,
+				CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */,
+				CE72579A2F6020DF00501E10 /* TreeSitterHtml.xcodeproj */,
+				CE72579D2F6020E300501E10 /* TreeSitterC.xcodeproj */,
+				CE7257A02F6020F200501E10 /* TreeSitterHtml.xcodeproj */,
+				CE7257A82F6020FC00501E10 /* TreeSitterC.xcodeproj */,
+				CEED68152F61C88200473B16 /* TreeSitterBash.xcodeproj */,
 			);
 			sourceTree = "<group>";
 		};
@@ -158,11 +351,153 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		CE2635DB2F5497A90008B1BC /* Frameworks */ = {
+		CE05F2A42F61C99900F109EE /* Products */ = {
 			isa = PBXGroup;
 			children = (
 			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2A62F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2A82F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2AA2F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2AC2F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2AE2F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2B02F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE7CFA0D2F61DA5700F294D4 /* TreeSitterBash.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2B22F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE05F2B42F61C99900F109EE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE2635DB2F5497A90008B1BC /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CE7257022F5F2E2100501E10 /* TreeSitterMake.xcodeproj */,
+				CE7257052F5F2E2700501E10 /* TreeSitterMarkdown.xcodeproj */,
+				CE7257082F5F2E3200501E10 /* TreeSitterObjc.xcodeproj */,
+				CE72570B2F5F2E3700501E10 /* TreeSitterXml.xcodeproj */,
+				CE72570E2F5F2E3C00501E10 /* TreeSitterYaml.xcodeproj */,
+				CE7257112F5F2E4000501E10 /* TreeSitterBash.xcodeproj */,
+				CE7257212F5F2EA900501E10 /* TreeSitterJson.xcodeproj */,
+			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		CE7257252F5F2EB100501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE72572B2F5F2EB100501E10 /* TreeSitterMake.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE72572D2F5F2EB500501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE7257332F5F2EB600501E10 /* TreeSitterMarkdown.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE7257352F5F2EBA00501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE72573B2F5F2EBA00501E10 /* TreeSitterObjc.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE72573D2F5F2EBF00501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE7257432F5F2EBF00501E10 /* TreeSitterXml.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE7257452F5F2EC300501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE72574B2F5F2EC300501E10 /* TreeSitterYaml.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE72574F2F5F2ED000501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE7257552F5F2ED100501E10 /* TreeSitterJson.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE7257A12F6020F200501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE7257A72F6020F200501E10 /* TreeSitterHtml.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CE7257A92F6020FC00501E10 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CE7257AF2F6020FC00501E10 /* TreeSitterC.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CEED68012F616B1700473B16 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		D29A3C4D5E6F7A8B9C0D1E01 /* tree-sitter */ = {
@@ -185,10 +520,20 @@
 				A46FAAA82F5441C80079BB37 /* Frameworks */,
 				A46FAAA92F5441C80079BB37 /* Resources */,
 				CE89CA202F54B6F300327916 /* Embed Frameworks */,
+				CC0F0000000000000000000F /* Embed PlugIns */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CE7CFA272F61DA6100F294D4 /* PBXTargetDependency */,
+				CE7257AC2F6020FC00501E10 /* PBXTargetDependency */,
+				CE7257A42F6020F200501E10 /* PBXTargetDependency */,
+				CE7257522F5F2ED000501E10 /* PBXTargetDependency */,
+				CE7257482F5F2EC300501E10 /* PBXTargetDependency */,
+				CE7257402F5F2EBF00501E10 /* PBXTargetDependency */,
+				CE7257382F5F2EBA00501E10 /* PBXTargetDependency */,
+				CE7257302F5F2EB500501E10 /* PBXTargetDependency */,
+				CE7257282F5F2EB100501E10 /* PBXTargetDependency */,
 				BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
@@ -258,6 +603,33 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A46FAAAA2F5441C80079BB37 = {
+						CC0000000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0100000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0200000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0300000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0400000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0500000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0600000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0700000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
+						CC0800000000000000000002 = {
+							CreatedOnToolsVersion = 26.2;
+						};
 						CreatedOnToolsVersion = 26.2;
 					};
 					A46FAABB2F5441CB0079BB37 = {
@@ -271,7 +643,6 @@
 				};
 			};
 			buildConfigurationList = A46FAAA62F5441C80079BB37 /* Build configuration list for PBXProject "TestApp" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -282,12 +653,85 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 			);
+			preferredProjectObjectVersion = 56;
 			productRefGroup = A46FAAAC2F5441C80079BB37 /* Products */;
 			projectDirPath = "";
 			projectReferences = (
 				{
 					ProductGroup = BB22CAFE2F5492DC002200A2 /* Products */;
 					ProjectRef = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+				},
+				{
+					ProductGroup = CEED68012F616B1700473B16 /* Products */;
+					ProjectRef = CE7257112F5F2E4000501E10 /* TreeSitterBash.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2B02F61C99900F109EE /* Products */;
+					ProjectRef = CEED68152F61C88200473B16 /* TreeSitterBash.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2A62F61C99900F109EE /* Products */;
+					ProjectRef = CE72579D2F6020E300501E10 /* TreeSitterC.xcodeproj */;
+				},
+				{
+					ProductGroup = CE7257A92F6020FC00501E10 /* Products */;
+					ProjectRef = CE7257A82F6020FC00501E10 /* TreeSitterC.xcodeproj */;
+				},
+				{
+					ProductGroup = CE7257A12F6020F200501E10 /* Products */;
+					ProjectRef = CE7257A02F6020F200501E10 /* TreeSitterHtml.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2A42F61C99900F109EE /* Products */;
+					ProjectRef = CE72579A2F6020DF00501E10 /* TreeSitterHtml.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2AA2F61C99900F109EE /* Products */;
+					ProjectRef = CE7257212F5F2EA900501E10 /* TreeSitterJson.xcodeproj */;
+				},
+				{
+					ProductGroup = CE72574F2F5F2ED000501E10 /* Products */;
+					ProjectRef = CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2AC2F61C99900F109EE /* Products */;
+					ProjectRef = CE7257022F5F2E2100501E10 /* TreeSitterMake.xcodeproj */;
+				},
+				{
+					ProductGroup = CE7257252F5F2EB100501E10 /* Products */;
+					ProjectRef = CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */;
+				},
+				{
+					ProductGroup = CE72572D2F5F2EB500501E10 /* Products */;
+					ProjectRef = CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2A82F61C99900F109EE /* Products */;
+					ProjectRef = CE7257052F5F2E2700501E10 /* TreeSitterMarkdown.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2B22F61C99900F109EE /* Products */;
+					ProjectRef = CE7257082F5F2E3200501E10 /* TreeSitterObjc.xcodeproj */;
+				},
+				{
+					ProductGroup = CE7257352F5F2EBA00501E10 /* Products */;
+					ProjectRef = CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2B42F61C99900F109EE /* Products */;
+					ProjectRef = CE72570B2F5F2E3700501E10 /* TreeSitterXml.xcodeproj */;
+				},
+				{
+					ProductGroup = CE72573D2F5F2EBF00501E10 /* Products */;
+					ProjectRef = CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */;
+				},
+				{
+					ProductGroup = CE7257452F5F2EC300501E10 /* Products */;
+					ProjectRef = CE7257442F5F2EC300501E10 /* TreeSitterYaml.xcodeproj */;
+				},
+				{
+					ProductGroup = CE05F2AE2F61C99900F109EE /* Products */;
+					ProjectRef = CE72570E2F5F2E3C00501E10 /* TreeSitterYaml.xcodeproj */;
 				},
 			);
 			projectRoot = "";
@@ -305,6 +749,69 @@
 			fileType = wrapper.framework;
 			path = LSPKit.framework;
 			remoteRef = BB22CAFE2F5492DC002200A4 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE72572B2F5F2EB100501E10 /* TreeSitterMake.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterMake.bundle;
+			remoteRef = CE72572A2F5F2EB100501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE7257332F5F2EB600501E10 /* TreeSitterMarkdown.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterMarkdown.bundle;
+			remoteRef = CE7257322F5F2EB600501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE72573B2F5F2EBA00501E10 /* TreeSitterObjc.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterObjc.bundle;
+			remoteRef = CE72573A2F5F2EBA00501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE7257432F5F2EBF00501E10 /* TreeSitterXml.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterXml.bundle;
+			remoteRef = CE7257422F5F2EBF00501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE72574B2F5F2EC300501E10 /* TreeSitterYaml.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterYaml.bundle;
+			remoteRef = CE72574A2F5F2EC300501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE7257552F5F2ED100501E10 /* TreeSitterJson.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterJson.bundle;
+			remoteRef = CE7257542F5F2ED100501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE7257A72F6020F200501E10 /* TreeSitterHtml.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterHtml.bundle;
+			remoteRef = CE7257A62F6020F200501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE7257AF2F6020FC00501E10 /* TreeSitterC.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterC.bundle;
+			remoteRef = CE7257AE2F6020FC00501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CE7CFA0D2F61DA5700F294D4 /* TreeSitterBash.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterBash.bundle;
+			remoteRef = CE7CFA0C2F61DA5700F294D4 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 /* End PBXReferenceProxy section */
@@ -338,8 +845,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D19A3C4D5E6F7A8B9C0D1E03 /* lib.c in Sources */,
-				D19A3C4D5E6F7A8B9C0D1E04 /* parser.c in Sources */,
+				CE0C2DF52F5F1BC000566368 /* parser.c in Sources */,
+				CE0C2DF42F5F1BB700566368 /* lib.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -374,6 +881,51 @@
 			isa = PBXTargetDependency;
 			name = LSPKit;
 			targetProxy = BB22CAFE2F5492DC002200A5 /* PBXContainerItemProxy */;
+		};
+		CE7257282F5F2EB100501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterMake;
+			targetProxy = CE7257272F5F2EB100501E10 /* PBXContainerItemProxy */;
+		};
+		CE7257302F5F2EB500501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterMarkdown;
+			targetProxy = CE72572F2F5F2EB500501E10 /* PBXContainerItemProxy */;
+		};
+		CE7257382F5F2EBA00501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterObjc;
+			targetProxy = CE7257372F5F2EBA00501E10 /* PBXContainerItemProxy */;
+		};
+		CE7257402F5F2EBF00501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterXml;
+			targetProxy = CE72573F2F5F2EBF00501E10 /* PBXContainerItemProxy */;
+		};
+		CE7257482F5F2EC300501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterYaml;
+			targetProxy = CE7257472F5F2EC300501E10 /* PBXContainerItemProxy */;
+		};
+		CE7257522F5F2ED000501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterJson;
+			targetProxy = CE7257512F5F2ED000501E10 /* PBXContainerItemProxy */;
+		};
+		CE7257A42F6020F200501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterHtml;
+			targetProxy = CE7257A32F6020F200501E10 /* PBXContainerItemProxy */;
+		};
+		CE7257AC2F6020FC00501E10 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterC;
+			targetProxy = CE7257AB2F6020FC00501E10 /* PBXContainerItemProxy */;
+		};
+		CE7CFA272F61DA6100F294D4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterBash;
+			targetProxy = CE7CFA262F61DA6100F294D4 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -506,7 +1058,6 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
-					"$(SRCROOT)/tree-sitter-json/src",
 				);
 				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -535,7 +1086,6 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
-					"$(SRCROOT)/tree-sitter-json/src",
 				);
 				INFOPLIST_FILE = Sources/InfoPlist.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

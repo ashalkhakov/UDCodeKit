@@ -5,7 +5,6 @@
 #import "UDErrorsViewController.h"
 #import "UDLSPCoordinator.h"
 #import "UDLSPDiagnosticHighlighter.h"
-#import "UDLSPServerLocator.h"
 #import "TreeSitterTheme.h"
 #import "UDMissingNodeHighlighter.h"
 #import "UDParseErrorHighlighter.h"
@@ -14,7 +13,7 @@
 #import "UDDiagnosticItem.h"
 #import "UDCodeDocument.h"
 #import "UDWorkspaceModel.h"
-#import "tree_sitter_json.h"
+#import "UDLanguageModeRegistry.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 // ---------------------------------------------------------------------------
@@ -25,37 +24,6 @@ static CGFloat const kErrorsPaneWidth = 180.0;
 
 static NSToolbarItemIdentifier const kToolbarAddTab    = @"addEditorTab";
 static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
-
-/// Default content for a blank new-document tab.
-static NSString * const kDefaultNewDocumentText =
-    @"{\n"
-    @"  \"name\": \"UDPieceTable\",\n"
-    @"  \"version\": 1,\n"
-    @"  \"description\": \"Piece-table editor with Tree-sitter + LSP.\",\n"
-    @"  \"features\": [\n"
-    @"    \"piece-table editing\",\n"
-    @"    \"incremental parsing\",\n"
-    @"    \"syntax highlighting\"\n"
-    @"  ],\n"
-    @"  \"isAwesome\": true,\n"
-    @"  \"author\": null\n"
-    @"}";
-
-static NSString * const kJSONHighlightsQuery =
-    @"(pair\n"
-    @"  key: (_) @string.special.key)\n"
-    @"(string) @string\n"
-    @"(number) @number\n"
-    @"[\n"
-    @"  (null)\n"
-    @"  (true)\n"
-    @"  (false)\n"
-    @"] @constant.builtin\n"
-    @"(escape_sequence) @escape\n"
-    @"(comment) @comment\n"
-    @"(ERROR) @error";
-
-static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 
 // ---------------------------------------------------------------------------
 // MARK: - UDEditorTabContext  (private — lives entirely in this translation unit)
@@ -102,8 +70,7 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 /// Wire tree-sitter, run the first parse, and start the diagnostic pipeline.
 /// MUST be called after at least one editor VC's -viewDidLoad has executed.
 - (void)activateWithTheme:(nullable TreeSitterTheme *)theme
-             languageFunc:(LanguageFunc)languageFunc
-          highlightsQuery:(NSString *)highlightsQuery;
+             languageMode:(UDLanguageMode *)languageMode;
 
 @end
 
@@ -135,10 +102,12 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // --------------------------------------------------------------------------
 
 - (void)activateWithTheme:(TreeSitterTheme *)theme
-             languageFunc:(LanguageFunc)languageFunc
-          highlightsQuery:(NSString *)highlightsQuery {
+             languageMode:(UDLanguageMode *)languageMode {
     if (theme) _textStorage.theme = theme;
-    [_textStorage setLanguageFunc:languageFunc withHighlightsQuery:highlightsQuery];
+    if (languageMode.languageFunc) {
+        [_textStorage setLanguageFunc:languageMode.languageFunc
+                   withHighlightsQuery:languageMode.highlightsQuery ?: @""];
+    }
 
     UDTreeSitterHighlighter *hl = _textStorage.highlighter;
     _missingNodeHighlighter =
@@ -284,9 +253,11 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
         }
         workspace.primaryTextStorage = _tabContexts.firstObject.textStorage;
     } else {
-        // Fresh workspace — open one blank editor tab.
+        // Fresh workspace — open one blank editor tab (defaults to JSON mode).
+        UDLanguageMode *jsonMode =
+            [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"json"];
         UDCodeDocument *doc =
-            [_workspaceModel addDocumentWithText:kDefaultNewDocumentText fileURL:nil];
+            [_workspaceModel addDocumentWithText:jsonMode.defaultNewDocumentText fileURL:nil];
         [self _openNewTabWithDocument:doc];
     }
 
@@ -311,8 +282,11 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (IBAction)addEditorTab:(nullable id)sender {
+    // New untitled documents default to JSON mode; use its boilerplate text.
+    UDLanguageMode *jsonMode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"json"];
     UDCodeDocument *doc =
-        [_workspaceModel addDocumentWithText:kDefaultNewDocumentText fileURL:nil];
+        [_workspaceModel addDocumentWithText:jsonMode.defaultNewDocumentText fileURL:nil];
     [self _openNewTabWithDocument:doc];
 }
 
@@ -321,10 +295,33 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     panel.canChooseFiles          = YES;
     panel.canChooseDirectories    = NO;
     panel.allowsMultipleSelection = YES;
+    // Allow all file extensions supported by registered language modes,
+    // plus a generic "all files" fallback.
     if (@available(macOS 11.0, *)) {
-        panel.allowedContentTypes = @[UTTypeJSON];
+        NSMutableArray<UTType *> *types  = [NSMutableArray array];
+        NSMutableSet<NSString *> *seenIDs = [NSMutableSet set];
+        for (UDLanguageMode *mode in [UDLanguageModeRegistry sharedRegistry].allModes) {
+            for (NSString *ext in mode.fileExtensions) {
+                UTType *type = [UTType typeWithFilenameExtension:ext];
+                if (type && ![seenIDs containsObject:type.identifier]) {
+                    [seenIDs addObject:type.identifier];
+                    [types addObject:type];
+                }
+            }
+        }
+        panel.allowedContentTypes = types.count ? types : @[UTTypeData];
     } else {
-        panel.allowedFileTypes = @[@"json"];
+        NSMutableArray<NSString *> *exts = [NSMutableArray array];
+        NSMutableSet<NSString *>   *seen = [NSMutableSet set];
+        for (UDLanguageMode *mode in [UDLanguageModeRegistry sharedRegistry].allModes) {
+            for (NSString *ext in mode.fileExtensions) {
+                if (![seen containsObject:ext]) {
+                    [seen addObject:ext];
+                    [exts addObject:ext];
+                }
+            }
+        }
+        panel.allowedFileTypes = exts.count ? exts : nil;
     }
     [panel beginSheetModalForWindow:self.window
                   completionHandler:^(NSModalResponse result) {
@@ -388,12 +385,11 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
     //    -activateWithTheme:… fires the first parse.
     UDTextEditorViewController *editorVC =
         [[UDTextEditorViewController alloc] initWithTextStorage:ctx.textStorage];
-    [self _configureEditorVC:editorVC];     // forces -viewDidLoad
+    [self _configureEditorVC:editorVC languageMode:document.languageMode];     // forces -viewDidLoad
 
     // c. Activate: first parse, diagnostic pipeline, edit notifications.
     [ctx activateWithTheme:_currentTheme
-              languageFunc:(LanguageFunc)tree_sitter_json
-           highlightsQuery:kJSONHighlightsQuery];
+              languageMode:document.languageMode];
 
     // d. LSP coordinator.
     [self _setupLSPCoordinatorForContext:ctx];
@@ -426,7 +422,8 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 - (void)_addViewTabForContext:(UDEditorTabContext *)ctx {
     UDTextEditorViewController *editorVC =
         [[UDTextEditorViewController alloc] initWithTextStorage:ctx.textStorage];
-    [self _configureEditorVC:editorVC];  // adds another NSLayoutManager to shared storage
+    [self _configureEditorVC:editorVC
+                languageMode:ctx.document.languageMode];  // adds another NSLayoutManager to shared storage
 
     [_tabContexts addObject:ctx];        // same context object, new slot
 
@@ -470,12 +467,18 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 /// Configure a freshly created editor VC:
 ///   • Forces -viewDidLoad (attaches its NSLayoutManager to textStorage).
 ///   • Sets this window controller as the text-view delegate (LSP).
-///   • Configures the auto-indenter for JSON.
-- (void)_configureEditorVC:(UDTextEditorViewController *)vc {
+///   • Configures the auto-indenter for the document's language.
+- (void)_configureEditorVC:(UDTextEditorViewController *)vc
+              languageMode:(UDLanguageMode *)mode {
     (void)vc.view;    // triggers -viewDidLoad
     vc.textView.delegate = self;
-    [vc.autoIndenter configureWithLanguageFunc:(LanguageFunc)tree_sitter_json
-                                  indentsQuery:kJSONIndentsQuery];
+    if (mode.languageFunc && mode.indentsQuery) {
+        [vc.autoIndenter configureWithLanguageFunc:mode.languageFunc
+                                      indentsQuery:mode.indentsQuery];
+    }
+    // Pass language configuration so the auto-indenter uses the correct bracket
+    // pairs for electric-pair indentation rather than hard-coded defaults.
+    vc.autoIndenter.languageConfiguration = mode.languageConfiguration;
 }
 
 // ---------------------------------------------------------------------------
@@ -483,24 +486,37 @@ static NSString * const kJSONIndentsQuery = @"[(object) (array)] @indent";
 // ---------------------------------------------------------------------------
 
 - (void)_setupLSPCoordinatorForContext:(UDEditorTabContext *)ctx {
+    UDLanguageMode *mode = ctx.document.languageMode;
+
+    // Skip LSP setup when the extension has not provided a language server command.
+    NSArray<NSString *> *serverCommand = mode.languageServerCommand;
+    if (!serverCommand.count || !mode.lspLanguageID) return;
+
+    NSString *defaultFilename = [NSString stringWithFormat:@"untitled.%@",
+                                 mode.fileExtensions.firstObject ?: @"txt"];
     NSURL *docURL = ctx.fileURL
         ?: [NSURL fileURLWithPath:
                [NSTemporaryDirectory()
-                   stringByAppendingPathComponent:@"untitled.json"]];
+                   stringByAppendingPathComponent:defaultFilename]];
 
-    NSString *serverPath = [UDLSPServerLocator findJSONLanguageServerPath];
-    if (!serverPath) {
-        NSLog(@"[UDDocumentWindowController] No JSON language server found; "
-              @"LSP inactive for \"%@\".", ctx.tabTitle);
+    NSString *serverPath = serverCommand.firstObject;
+    NSArray<NSString *> *serverArgs = serverCommand.count > 1
+        ? [serverCommand subarrayWithRange:NSMakeRange(1, serverCommand.count - 1)]
+        : @[];
+
+    NSFileManager *fm = [NSFileManager defaultManager];
+    if (![fm isExecutableFileAtPath:serverPath]) {
+        NSLog(@"[UDDocumentWindowController] Language server not found at \"%@\"; "
+              @"LSP inactive for \"%@\".", serverPath, ctx.tabTitle);
         return;
     }
 
     UDTextModelTextStorage *ts = ctx.textStorage;
     LSPClient *client =
         [[LSPClient alloc] initWithPath:serverPath
-                              arguments:@[@"--stdio"]
+                              arguments:serverArgs
                    currentDirectoryPath:docURL.URLByDeletingLastPathComponent.path
-                             languageID:@"json"];
+                             languageID:mode.lspLanguageID];
 
     UDLSPDiagnosticHighlighter *lspHL =
         [[UDLSPDiagnosticHighlighter alloc] initWithTextStorage:ts

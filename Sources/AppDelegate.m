@@ -6,6 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "AppDelegate.h"
+#import "UDLanguageModeRegistry.h"
 
 @implementation AppDelegate
 
@@ -16,6 +17,13 @@
 - (BOOL)applicationShouldOpenUntitledFile:(NSApplication *)sender {
     // Open one untitled document on launch if no other document is opened.
     return YES;
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    // Notify all loaded grammar extensions that the app is terminating.
+    // Extension instances may linger in memory after this call (non-deterministic
+    // teardown — see UDExtension.h for details).
+    [[UDLanguageModeRegistry sharedRegistry] unloadAllExtensions];
 }
 
 @end

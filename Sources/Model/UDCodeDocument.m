@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDCodeDocument.h"
+#import "UDLanguageModeRegistry.h"
 
 NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     @"UDCodeDocumentTextDidChangeNotification";
@@ -25,6 +26,7 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     _diagnosticStore = [[UDDiagnosticStore alloc] init];
     _fileURL         = [fileURL copy];
     _displayName     = fileURL.lastPathComponent ?: @"Untitled";
+    _languageMode    = [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:fileURL];
     _modified        = NO;
 
     // Track edits so we can raise the modified flag and forward the

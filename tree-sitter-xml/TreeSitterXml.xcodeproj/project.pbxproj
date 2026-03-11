@@ -1,0 +1,280 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		CE0C2E582F5F1ED500566368 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
+		CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
+		CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
+		CE0C2E5F2F5F1EEC00566368 /* TreeSitterXmlPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5E2F5F1EEC00566368 /* TreeSitterXmlPlugin.m */; };
+		CE0C2E632F5F1EF800566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */; };
+		CE0C2E642F5F1EF800566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E602F5F1EF800566368 /* highlights.scm */; };
+		CE0C2E652F5F1EF800566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E612F5F1EF800566368 /* Info.plist */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
+		CE0C2E592F5F1EDF00566368 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
+		CE0C2E5A2F5F1EDF00566368 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
+		CE0C2E5D2F5F1EEC00566368 /* TreeSitterXmlPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterXmlPlugin.h; sourceTree = "<group>"; };
+		CE0C2E5E2F5F1EEC00566368 /* TreeSitterXmlPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterXmlPlugin.m; sourceTree = "<group>"; };
+		CE0C2E602F5F1EF800566368 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		CE0C2E612F5F1EF800566368 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
+		E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXml.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		785D8B4A6D7ED60D051E9BBB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		08202D4F7AD131F7C2368987 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E592F5F1EDF00566368 /* parser.c */,
+				CE0C2E5A2F5F1EDF00566368 /* scanner.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		1128315B5F9B3C1AADEF564B = {
+			isa = PBXGroup;
+			children = (
+				5AFAB1887F965A65807EFF2C /* tree-sitter */,
+				08202D4F7AD131F7C2368987 /* src */,
+				74DC3222CB11D5A3F7F74709 /* Sources */,
+				DBD42C81241E8CD2B9D95C23 /* Resources */,
+				F2D4919B8B35789642FF7A97 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5AFAB1887F965A65807EFF2C /* tree-sitter */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E572F5F1ED500566368 /* lib.c */,
+			);
+			name = "tree-sitter";
+			path = "tree-sitter/src";
+			sourceTree = "<group>";
+		};
+		74DC3222CB11D5A3F7F74709 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E5D2F5F1EEC00566368 /* TreeSitterXmlPlugin.h */,
+				CE0C2E5E2F5F1EEC00566368 /* TreeSitterXmlPlugin.m */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		DBD42C81241E8CD2B9D95C23 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E602F5F1EF800566368 /* highlights.scm */,
+				CE0C2E612F5F1EF800566368 /* Info.plist */,
+				CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		F2D4919B8B35789642FF7A97 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7EBF16AB9443CCE643F3FC03 /* TreeSitterXml */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F6C7632D1C1E336CDE620F5F /* Build configuration list for PBXNativeTarget "TreeSitterXml" */;
+			buildPhases = (
+				4A4406C3F29C8A13050DFC3D /* Sources */,
+				785D8B4A6D7ED60D051E9BBB /* Frameworks */,
+				A0F9F4E7A6755D3025785B65 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TreeSitterXml;
+			productName = TreeSitterXml;
+			productReference = E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		EC2587C0ADAE009F46940E2F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					7EBF16AB9443CCE643F3FC03 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 5FDFF74904724BFED24CC3A7 /* Build configuration list for PBXProject "TreeSitterXml" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1128315B5F9B3C1AADEF564B;
+			productRefGroup = F2D4919B8B35789642FF7A97 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7EBF16AB9443CCE643F3FC03 /* TreeSitterXml */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A0F9F4E7A6755D3025785B65 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE0C2E632F5F1EF800566368 /* LanguageInfo.plist in Resources */,
+				CE0C2E642F5F1EF800566368 /* highlights.scm in Resources */,
+				CE0C2E652F5F1EF800566368 /* Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4A4406C3F29C8A13050DFC3D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */,
+				CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */,
+				CE0C2E582F5F1ED500566368 /* lib.c in Sources */,
+				CE0C2E5F2F5F1EEC00566368 /* TreeSitterXmlPlugin.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0F9664DEF39655606E3AC74E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/../Sources/Extensions",
+				);
+				INFOPLIST_FILE = Resources/Info.plist;
+				MAACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml;
+				PRODUCT_NAME = TreeSitterXml;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = Debug;
+		};
+		49042F6153379A72F0343F5E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/../Sources/Extensions",
+				);
+				INFOPLIST_FILE = Resources/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml;
+				PRODUCT_NAME = TreeSitterXml;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = Release;
+		};
+		857F9607DC70C5B3A098F8B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		9AC2F69C107282558C0891D6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5FDFF74904724BFED24CC3A7 /* Build configuration list for PBXProject "TreeSitterXml" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				857F9607DC70C5B3A098F8B8 /* Debug */,
+				9AC2F69C107282558C0891D6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F6C7632D1C1E336CDE620F5F /* Build configuration list for PBXNativeTarget "TreeSitterXml" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0F9664DEF39655606E3AC74E /* Debug */,
+				49042F6153379A72F0343F5E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = EC2587C0ADAE009F46940E2F /* Project object */;
+}

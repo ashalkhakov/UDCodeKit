@@ -1,0 +1,56 @@
+# ────────────────────────────────────────────────────────────────────────────
+# Vendored grammar dependencies (fetch with each bundle's fetch-deps.sh)
+# ────────────────────────────────────────────────────────────────────────────
+
+# Generated C parser + scanner sources for each grammar bundle
+tree-sitter-*/src/
+
+# Per-bundle tree-sitter runtime copies
+tree-sitter-*/tree-sitter/
+
+# Grammar query files fetched from upstream
+tree-sitter-*/queries/
+
+# Auxiliary C source directories fetched from upstream (e.g. tree-sitter-xml/common/)
+tree-sitter-*/common/
+
+# Query files synced into bundle Resources/ by fetch-deps.sh
+tree-sitter-*/Resources/highlights.scm
+tree-sitter-*/Resources/indents.scm
+tree-sitter-*/Resources/locals.scm
+
+# Provenance files written by fetch-deps.sh
+tree-sitter-*/UPSTREAM
+
+# Shared tree-sitter runtime at the repo root (used by TestApp.xcodeproj)
+# Fetch with:  bash scripts/fetch-tree-sitter.sh
+tree-sitter/
+
+# ────────────────────────────────────────────────────────────────────────────
+# macOS
+# ────────────────────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ────────────────────────────────────────────────────────────────────────────
+# Xcode
+# ────────────────────────────────────────────────────────────────────────────
+
+# Per-user state files (scheme selections, breakpoints, window layout, …)
+*.xcuserstate
+xcuserdata/
+**/xcuserdata/
+
+# Xcode per-user build cache
+*.pbxuser
+!default.pbxuser
+
+# DerivedData (local build products and indexes)
+DerivedData/
+
+# Xcode Previews
+*.xcscmblueprint
+*.xccheckout
+
+# Swift packages (if any are added in future)
+.build/

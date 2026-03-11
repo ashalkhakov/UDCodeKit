@@ -138,7 +138,7 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
     if ([s isEqualToString:_tsPreviousString] && _tsCurrentTree) return;
 
     TSReadContext ctx = { .string = s, .length = s.length };
-    TSInput input = { &ctx, tsReadCallback, TSInputEncodingUTF16 };
+    TSInput input = { &ctx, tsReadCallback, TSInputEncodingUTF16LE };
     TSTree *newTree = ts_parser_parse(_tsParser, oldTree, input);
     if (!newTree) return;
 

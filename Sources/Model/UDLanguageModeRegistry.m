@@ -314,6 +314,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
            highlightsQuery:nil
               indentsQuery:nil
              lspLanguageID:nil
+     languageServerCommand:nil
     defaultNewDocumentText:@""
         languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
     [self _registerModeUnsafe:_plaintextFallback];

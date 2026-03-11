@@ -40,7 +40,13 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-ALL_GRAMMARS=(bash c html json make markdown objc sql xml yaml)
+# NOTE: sql is intentionally excluded — tree-sitter-sql (DerekStride) does not
+# ship a pre-generated parser.c; it requires running `tree-sitter generate`
+# (needs Node.js + the tree-sitter CLI) before the C sources are available.
+# SQL highlighting is not registered in UDLanguageModeRegistry so it is not
+# needed for a normal build.  To regenerate it manually:
+#   cd tree-sitter-sql && npx tree-sitter generate && bash fetch-deps.sh
+ALL_GRAMMARS=(bash c html json make markdown objc xml yaml)
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 

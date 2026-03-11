@@ -47,7 +47,7 @@ write_header() {
     local func="$2"
     local dest_dir="$3"
     local guard
-    guard="TREE_SITTER_${lang^^}_H_"
+    guard="TREE_SITTER_$(echo "$lang" | tr '[:lower:]' '[:upper:]')_H_"
     cat > "$dest_dir/tree_sitter_${lang}.h" <<HEADER
 #ifndef ${guard}
 #define ${guard}
@@ -151,7 +151,7 @@ if $scanner_copied; then
         mkdir -p "$DEST/common"
         cp "$common_dir"/*.h "$DEST/common/"
         log "copied common/ headers: $(ls "$DEST/common/")"
-        sed -i 's|#include "../../common/|#include "../common/|g' "$DEST/src/scanner.c"
+        sed -i.bak 's|#include "../../common/|#include "../common/|g' "$DEST/src/scanner.c" && rm -f "$DEST/src/scanner.c.bak"
         log "patched scanner.c: ../../common/ → ../common/"
     fi
 fi

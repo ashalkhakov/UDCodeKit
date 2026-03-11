@@ -85,7 +85,7 @@ log "tree-sitter HEAD = $(git -C "$ts_work" rev-parse HEAD)"
 
 rm -rf "$DEST/tree-sitter"
 mkdir -p "$DEST/tree-sitter"
-cp -r "$ts_work/include" "$DEST/tree-sitter/include"
+cp -r "$ts_work/lib/include" "$DEST/tree-sitter/include"
 cp -r "$ts_work/lib/src"  "$DEST/tree-sitter/src"
 log "OK"
 

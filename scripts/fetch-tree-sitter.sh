@@ -30,7 +30,7 @@ echo "  HEAD = $commit_sha"
 
 rm -rf "$DEST"
 mkdir -p "$DEST"
-cp -r "$work_dir/tree-sitter/include" "$DEST/include"
+cp -r "$work_dir/tree-sitter/lib/include" "$DEST/include"
 cp -r "$work_dir/tree-sitter/lib/src" "$DEST/src"
 
 echo "  OK — tree-sitter runtime written to tree-sitter/"

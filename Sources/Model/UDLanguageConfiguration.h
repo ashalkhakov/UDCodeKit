@@ -134,6 +134,24 @@ NS_ASSUME_NONNULL_BEGIN
 /// lightweight sentinel for languages that have no configuration yet.
 + (instancetype)emptyConfiguration;
 
+// ---------------------------------------------------------------------------
+// MARK: - Convenience helpers
+// ---------------------------------------------------------------------------
+
+/// Returns a string containing every opening-bracket character from `brackets`,
+/// in order.  Empty string when `brackets` is empty.
+/// Example: `"{[("` for a language with `{`, `[`, `(` brackets.
+- (NSString *)openBracketCharacters;
+
+/// Returns a string containing every closing-bracket character from `brackets`,
+/// in order.  Empty string when `brackets` is empty.
+/// Example: `"}])"` for a language with `{`, `[`, `(` brackets.
+- (NSString *)closeBracketCharacters;
+
+/// Returns the closing bracket string that corresponds to the given opening bracket
+/// according to the `brackets` array, or `nil` when `open` is not recognised.
+- (nullable NSString *)closingBracketForOpen:(NSString *)open;
+
 - (instancetype)init NS_UNAVAILABLE;
 
 @end

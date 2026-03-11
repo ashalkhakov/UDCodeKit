@@ -1,7 +1,7 @@
 # Grammar Bundles
 
 This document explains how tree-sitter grammar bundles are structured,
-vendored, and kept up to date.
+how to fetch their dependencies, and how to keep them up to date.
 
 ---
 
@@ -14,9 +14,10 @@ Each grammar is a **self-contained subdirectory** at the repo root named
 - A `Sources/` directory with an Objective-C **principal class** (`TreeSitter<Lang>Plugin`)
   that conforms to the `UDExtension` protocol
 - A `Resources/` directory with language metadata (`LanguageInfo.plist`) and query files
-- A per-bundle `tree-sitter/` runtime copy (split vendoring — tracked independently)
-- The vendored grammar C sources in `src/`
-- A `README.md` describing the directory layout and how to re-vendor
+- A per-bundle `tree-sitter/` runtime copy (fetched by `fetch-deps.sh` — **not** tracked in git)
+- The grammar C sources in `src/` (fetched by `fetch-deps.sh` — **not** tracked in git)
+- A `fetch-deps.sh` script that fetches all C dependencies before the first build
+- A `README.md` describing the directory layout and how to fetch dependencies
 
 ```
 tree-sitter-<lang>/
@@ -25,22 +26,23 @@ tree-sitter-<lang>/
 │   ├── TreeSitter<Lang>Plugin.h  # principal class header (conforms to UDExtension)
 │   └── TreeSitter<Lang>Plugin.m  # principal class implementation
 ├── Resources/
-│   ├── Info.plist           # bundle metadata (NSPrincipalClass, bundle ID, …)
-│   ├── LanguageInfo.plist   # language metadata (read without loading bundle code)
-│   ├── highlights.scm       # tree-sitter highlights query (if present)
-│   └── indents.scm          # tree-sitter indents query (if present)
-├── tree-sitter/             # vendored tree-sitter runtime for this bundle
+│   ├── Info.plist           # bundle metadata (NSPrincipalClass, bundle ID, …)  ← in git
+│   ├── LanguageInfo.plist   # language metadata (read without loading bundle code) ← in git
+│   ├── highlights.scm       # tree-sitter highlights query  ← fetched, NOT in git
+│   └── indents.scm          # tree-sitter indents query     ← fetched, NOT in git
+├── tree-sitter/             # tree-sitter runtime for this bundle  ← fetched, NOT in git
 │   ├── include/             # public API headers
 │   └── src/                 # runtime C sources (compiled via lib.c)
-├── src/                     # vendored grammar sources
+├── src/                     # grammar C sources  ← fetched, NOT in git
 │   ├── parser.c             # generated C parser (DO NOT EDIT)
 │   ├── scanner.c            # external scanner in C (optional)
 │   ├── scanner.cc           # external scanner in C++ (optional)
 │   ├── tree_sitter/         # grammar-specific runtime helper headers
 │   └── tree_sitter_<lang>.h # header declaring the factory function
-├── queries/                 # source of truth for .scm query files
-├── UPSTREAM                 # upstream git URL + vendored commit SHA
-└── README.md                # this bundle's documentation
+├── queries/                 # .scm query files   ← fetched, NOT in git
+├── UPSTREAM                 # upstream URL + commit SHA  ← fetched, NOT in git
+├── fetch-deps.sh            # fetches all C dependencies  ← in git
+└── README.md                # this bundle's documentation  ← in git
 ```
 
 ## Bundled grammars
@@ -54,6 +56,7 @@ tree-sitter-<lang>/
 | Makefile     | `make`      | `.mk`                                  | https://github.com/alemuller/tree-sitter-make               |
 | Markdown     | `markdown`  | `.md` `.markdown` `.mdown` `.mkd`      | https://github.com/ikatyang/tree-sitter-markdown            |
 | Objective-C  | `objc`      | `.m` `.mm` `.h`                        | https://github.com/tree-sitter-grammars/tree-sitter-objc    |
+| SQL          | `sql`       | `.sql` `.ddl` `.dml`                   | https://github.com/DerekStride/tree-sitter-sql              |
 | XML          | `xml`       | `.xml` `.xsl` `.svg` `.rss` `.plist`   | https://github.com/tree-sitter-grammars/tree-sitter-xml     |
 | YAML         | `yaml`      | `.yaml` `.yml`                         | https://github.com/tree-sitter-grammars/tree-sitter-yaml    |
 
@@ -282,41 +285,74 @@ called from `-applicationWillTerminate:`.
 
 ---
 
-## Per-bundle tree-sitter runtime (split vendoring)
+## Per-bundle tree-sitter runtime
 
 Each bundle directory contains its own copy of the tree-sitter runtime in
 `tree-sitter-<lang>/tree-sitter/`.  This allows each bundle to track its own
 runtime version independently while remaining ABI-compatible with the host.
 
-The update script (`scripts/update-grammars.sh`) automatically copies the
-shared `tree-sitter/` directory at the repo root into each bundle's
-`tree-sitter/` after vendoring grammar sources.
+The runtime copy is **not tracked in git**.  It is fetched fresh by each
+bundle's `fetch-deps.sh` script (see [Fetching dependencies](#fetching-dependencies-before-building)).
 
 ---
 
-## Updating a grammar bundle
+## Fetching dependencies before building
 
-Use the top-level update script to re-vendor one or more grammars:
+Grammar C sources (`src/`), the tree-sitter runtime (`tree-sitter/`), and
+query files (`queries/`, `Resources/*.scm`) are **not stored in the repository**.
+You must fetch them before the first build (and again whenever you want to
+update to a newer upstream version).
+
+### Fetch all grammars at once
+
+From the repository root, run:
 
 ```sh
-# Update all bundled grammars
 bash scripts/update-grammars.sh
-
-# Update specific grammars only
-bash scripts/update-grammars.sh c objc bash make
 ```
 
-The script:
-1. Shallow-clones (depth 1) the upstream repository.
-2. Copies `src/parser.c`, `src/scanner.c` / `src/scanner.cc` (if present),
-   and `src/tree_sitter/` headers.
-3. Copies query `.scm` files into `tree-sitter-<lang>/queries/`.
-4. Regenerates the `tree_sitter_<lang>.h` factory header.
-5. Copies the shared `tree-sitter/` runtime into `tree-sitter-<lang>/tree-sitter/`.
-6. Syncs query files into `tree-sitter-<lang>/Resources/` (bundle resources).
-7. Writes `UPSTREAM` with the new commit SHA.
+This calls each bundle's `fetch-deps.sh` in turn and also fetches the
+shared `tree-sitter/` runtime at the repo root (used by `TestApp.xcodeproj`).
 
-**After updating**, verify:
+```sh
+# Fetch only specific grammars
+bash scripts/update-grammars.sh c objc bash make sql
+```
+
+### Fetch a single grammar bundle
+
+From inside the bundle directory, or from the repo root:
+
+```sh
+# From inside the bundle directory
+cd tree-sitter-bash && bash fetch-deps.sh
+
+# From the repo root
+bash tree-sitter-bash/fetch-deps.sh
+```
+
+Each `fetch-deps.sh` script:
+1. Shallow-clones (depth 1) the tree-sitter runtime into `tree-sitter-<lang>/tree-sitter/`.
+2. Shallow-clones the upstream grammar repository.
+3. Copies `src/parser.c`, `src/scanner.c` / `src/scanner.cc` (if present),
+   and `src/tree_sitter/` headers.
+4. Copies query `.scm` files into `tree-sitter-<lang>/queries/`.
+5. Regenerates the `tree_sitter_<lang>.h` factory header.
+6. Syncs query files into `tree-sitter-<lang>/Resources/` (bundle resources).
+7. Writes `UPSTREAM` with the fetched commit SHA.
+
+### Fetch the shared root-level runtime
+
+```sh
+bash scripts/fetch-tree-sitter.sh
+```
+
+This fetches the tree-sitter runtime into `tree-sitter/` at the repo root.
+`TestApp.xcodeproj` references `tree-sitter/src/lib.c` and
+`tree-sitter/include/` from here.  Running `scripts/update-grammars.sh`
+automatically calls this script too.
+
+**After fetching**, verify:
 - The `REDUCE` macro variant in `src/tree_sitter/parser.h` matches the
   grammar's `LANGUAGE_VERSION`:
   - Version 13 → variadic `REDUCE(sym, children, ...)` (e.g. from markdown)
@@ -342,7 +378,7 @@ Each standalone project compiles:
 
 ### TestApp workspace
 
-The full app build uses `UDPieceTable.xcworkspace`, which includes all 9
+The full app build uses `UDPieceTable.xcworkspace`, which includes all 10
 grammar subprojects in a "Grammar Bundles" group alongside the main
 `TestApp.xcodeproj`.
 
@@ -367,29 +403,43 @@ the plaintext fallback handles those file extensions).
 
 ## Adding a new grammar bundle
 
-1. Add an entry to `GRAMMARS` in `scripts/update-grammars.sh` and run it:
+1. Create a `tree-sitter-<id>/` directory and add a `fetch-deps.sh` script.
+   The easiest way is to copy `fetch-deps.sh` from an existing bundle and
+   update the parameters at the top of the file:
 
    ```bash
-   ["<id>"]="<git-url>|<src-subdir>|<queries-subdir>|<c-function-name>"
-   bash scripts/update-grammars.sh <id>
+   GRAMMAR_ID="<id>"
+   GRAMMAR_URL="<git-url>"
+   GRAMMAR_SRC_SUBDIR="<src-subdir>"
+   GRAMMAR_QUERIES_SUBDIR="<queries-subdir>"
+   GRAMMAR_C_FUNC="<c-function-name>"
    ```
 
-2. The script creates `tree-sitter-<id>/` with all needed files.  Manually
-   create the files not generated by the script:
+   Then run it to fetch the grammar:
+
+   ```bash
+   bash tree-sitter-<id>/fetch-deps.sh
+   ```
+
+2. Manually create the files that are always tracked in git:
    - `Sources/TreeSitter<Id>Plugin.{h,m}` — copy from an existing bundle and adapt
    - `Resources/Info.plist` — copy from an existing bundle and update identifiers
-   - `TreeSitter<Id>.xcodeproj/` — copy from an existing bundle xcodeproj and update
-   - Add language configuration to `Resources/LanguageInfo.plist`
+   - `Resources/LanguageInfo.plist` — add language metadata and configuration
+   - `TreeSitter<Id>.xcodeproj/` — copy from a similar existing bundle xcodeproj
+     and update product name, bundle identifier, and source file references
+   - `README.md` — describe the bundle layout and upstream
 
-3. Add a **bundle target** to `TestApp.xcodeproj` following the pattern of
-   the other `CC0N…` targets (sources, resources, HEADER_SEARCH_PATHS,
+3. Add the new grammar name to the `ALL_GRAMMARS` array in
+   `scripts/update-grammars.sh`.
+
+4. Add a **bundle target** to `TestApp.xcodeproj` following the pattern of
+   the other grammar bundle targets (sources, resources, HEADER_SEARCH_PATHS,
    INFOPLIST_FILE, PRODUCT_BUNDLE_IDENTIFIER).
 
-4. Add the bundle name to the `bundleNames` array in
-   `Sources/Model/UDLanguageModeRegistry.m` and add a default
-   new-document text entry to `sDefaultTexts()` if desired.
+5. Add the bundle name to the `bundleNames` array in
+   `Sources/Model/UDLanguageModeRegistry.m`.
 
-5. Add the new `tree-sitter-<id>/TreeSitter<Id>.xcodeproj` to the
+6. Add the new `tree-sitter-<id>/TreeSitter<Id>.xcodeproj` to the
    "Grammar Bundles" group in `UDPieceTable.xcworkspace`.
 
 ---

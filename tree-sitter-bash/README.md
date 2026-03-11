@@ -16,15 +16,16 @@ tree-sitter-bash/
 │   ├── LanguageInfo.plist   # language metadata read by UDLanguageModeRegistry
 │   ├── highlights.scm       # tree-sitter highlights query (if present)
 │   └── indents.scm          # tree-sitter indents query (if present)
-├── tree-sitter/             # vendored tree-sitter runtime for this bundle
+├── tree-sitter/             # tree-sitter runtime for this bundle  ← fetched by fetch-deps.sh
 │   ├── include/             # public API headers
 │   └── src/                 # runtime C sources (compiled via lib.c)
-├── src/                     # vendored grammar sources
-│   ├── parser.c             # generated parser (DO NOT EDIT)
+├── src/                     # grammar C sources  ← fetched by fetch-deps.sh
+│   ├── parser.c             # generated parser (DO NOT EDIT — re-fetch to update)
 - `src/scanner.c` — external scanner
 │   └── tree_sitter_bash.h  # C header declaring the factory function
 ├── queries/                 # tree-sitter query files (source of truth for Resources/)
-├── UPSTREAM                 # upstream git URL + vendored commit SHA
+├── UPSTREAM                 # upstream URL + fetched commit SHA  ← fetched
+├── fetch-deps.sh            # fetches all C dependencies  ← in git
 └── README.md                # this file
 ```
 
@@ -35,28 +36,34 @@ tree-sitter-bash/
 | URL    | https://github.com/tree-sitter/tree-sitter-bash.git |
 | Commit | `a06c2e4415e9bc0346c6b86d401879ffb44058f7` |
 
-## Re-vendoring grammar sources
+## Fetching dependencies
 
-To update the grammar sources to the latest upstream commit, run the
-top-level update script from the repository root:
+Before building, fetch the tree-sitter runtime and grammar sources by running
+`fetch-deps.sh` from the repository root or from within this directory:
 
 ```sh
-# Update only this grammar
-bash scripts/update-grammars.sh bash
+# From the repository root
+bash tree-sitter-bash/fetch-deps.sh
 
-# Update all grammars
+# From within this directory
+bash fetch-deps.sh
+```
+
+The script:
+1. Shallow-clones the tree-sitter runtime into `tree-sitter-bash/tree-sitter/`.
+2. Shallow-clones the upstream grammar repository.
+3. Copies `src/parser.c`, `src/scanner.c`/`.cc` (if present), and query files.
+4. Copies `src/tree_sitter/` headers (grammar-specific runtime headers).
+5. Writes `UPSTREAM` with the fetched commit SHA.
+6. Syncs query files into `Resources/`.
+
+To update all grammars at once:
+
+```sh
 bash scripts/update-grammars.sh
 ```
 
-The script will:
-1. Shallow-clone the upstream repository.
-2. Copy `src/parser.c`, `src/scanner.c`/`.cc` (if present), and query files.
-3. Copy `src/tree_sitter/` headers (grammar-specific runtime headers).
-4. Rewrite the `UPSTREAM` provenance file with the new commit SHA.
-5. Copy the tree-sitter runtime into `tree-sitter-bash/tree-sitter/` so this
-   bundle is self-contained.
-
-**After running the script**, verify:
+**After fetching**, verify:
 - `tree-sitter-bash/src/tree_sitter/parser.h` contains the `REDUCE` macro
   variant that matches LANGUAGE_VERSION in `src/parser.c`.
 - The bundle builds cleanly in Xcode (open `TreeSitterBash.xcodeproj`).

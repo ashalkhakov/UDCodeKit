@@ -318,6 +318,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
         @"TreeSitterJson.bundle",
         @"TreeSitterHtml.bundle",
         @"TreeSitterMarkdown.bundle",
+        @"TreeSitterSql.bundle",
         @"TreeSitterXml.bundle",
         @"TreeSitterYaml.bundle",
         @"TreeSitterC.bundle",

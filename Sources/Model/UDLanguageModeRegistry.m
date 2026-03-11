@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDLanguageModeRegistry.h"
-#import <dlfcn.h>
+#import "UDExtension.h"
 
 // ---------------------------------------------------------------------------
 // MARK: - Default new-document text (app-level UX, not grammar metadata)
@@ -114,6 +114,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     NSMutableDictionary      *_byIdentifier;      // NSMutableDictionary<NSString *, UDLanguageMode *>
     NSMutableDictionary      *_byExtension;       // NSMutableDictionary<NSString *, UDLanguageMode *>
     UDLanguageMode           *_plaintextFallback;
+    NSMutableArray           *_extensions;        // NSMutableArray<id<UDExtension *>>, ordered
 }
 
 + (instancetype)sharedRegistry {
@@ -128,47 +129,6 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 // ---------------------------------------------------------------------------
 // MARK: - Bundle loading
 // ---------------------------------------------------------------------------
-
-/// Load a C symbol from a grammar bundle at the given path.
-/// Loads the bundle if not already loaded.  Returns NULL on failure.
-- (LanguageFunc)_langFuncNamed:(const char *)symName
-                    bundlePath:(NSString *)bundlePath
-{
-    NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
-    if (!bundle) {
-        NSLog(@"UDLanguageModeRegistry: bundle not found: %@", bundlePath);
-        return NULL;
-    }
-    NSError *err = nil;
-    if (![bundle loadAndReturnError:&err]) {
-        NSLog(@"UDLanguageModeRegistry: failed to load %@: %@",
-              bundlePath.lastPathComponent, err);
-        return NULL;
-    }
-    NSString *execPath = bundle.executablePath;
-    if (!execPath) {
-        NSLog(@"UDLanguageModeRegistry: no executable in %@",
-              bundlePath.lastPathComponent);
-        return NULL;
-    }
-    void *handle = dlopen(execPath.fileSystemRepresentation,
-                          RTLD_NOW | RTLD_LOCAL | RTLD_NOLOAD);
-    if (!handle) {
-        handle = dlopen(execPath.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);
-    }
-    if (!handle) {
-        NSLog(@"UDLanguageModeRegistry: dlopen failed for %@: %s",
-              bundlePath.lastPathComponent, dlerror());
-        return NULL;
-    }
-    void *sym = dlsym(handle, symName);
-    if (!sym) {
-        NSLog(@"UDLanguageModeRegistry: symbol '%s' not found in %@",
-              symName, bundlePath.lastPathComponent);
-        dlclose(handle);
-    }
-    return (LanguageFunc)(uintptr_t)sym;
-}
 
 /// Build a UDLanguageMode by reading metadata from a grammar bundle's
 /// LanguageInfo.plist and query files — without running any bundle code.
@@ -233,39 +193,34 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
         }
     }
 
-    // ── Step 3: Load bundle executable and resolve tree-sitter symbol ─────
-    LanguageFunc langFunc = NULL;
-    if (tsSymbol.length) {
-        langFunc = [self _langFuncNamed:tsSymbol.UTF8String bundlePath:bundlePath];
+    // ── Step 3: Notify principal class of load (lifecycle hook) ───────────
+    Class principalClass = bundle.principalClass;
+    if (!principalClass || ![principalClass conformsToProtocol:@protocol(UDExtension)]) {
+        NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist in %@ does not have principal class or that class does not conform to UDExtension protocol",
+              bundlePath.lastPathComponent);
+        return nil;
     }
 
-    // ── Step 4: Notify principal class of load (lifecycle hook) ───────────
-    // bundle may have been loaded in step 3; call pluginDidLoad: if available.
-    if (langFunc) {
-        Class principalClass = bundle.principalClass;
-        if (principalClass) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-            SEL sharedPluginSel = NSSelectorFromString(@"sharedPlugin");
-            SEL pluginDidLoadSel = NSSelectorFromString(@"pluginDidLoad:");
-            if ([principalClass respondsToSelector:sharedPluginSel]) {
-                id plugin = [principalClass performSelector:sharedPluginSel];
-                if (plugin && [plugin respondsToSelector:pluginDidLoadSel]) {
-                    [plugin performSelector:pluginDidLoadSel withObject:bundle];
-                }
-            }
-#pragma clang diagnostic pop
-        }
+    id<UDExtension> instance = [[principalClass alloc] init];
+    if (!instance) {
+        NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist in %@ principal class failed to init",
+              bundlePath.lastPathComponent);
+        return nil;
     }
 
-    // ── Step 5: Default new-document text (app-level UX, keyed by id) ────
+    [instance extensionDidLoad:bundle];
+    LanguageFunc languageFunc = (LanguageFunc)[instance languageFunc];
+
+    // ── Step 4: Default new-document text (app-level UX, keyed by id) ────
     NSString *defaultText = sDefaultTexts()[identifier] ?: @"";
+    
+    [_extensions addObject:instance];
 
     return [[UDLanguageMode alloc]
         initWithIdentifier:identifier
                displayName:displayName
             fileExtensions:extensions ?: @[]
-              languageFunc:langFunc
+              languageFunc:languageFunc
            highlightsQuery:highlightsQuery
               indentsQuery:indentsQuery
              lspLanguageID:lspID
@@ -276,11 +231,12 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     self = [super init];
     if (!self) return nil;
 
-    _queue        = dispatch_queue_create("com.udpiecetable.language-mode-registry",
+    _queue        = dispatch_queue_create("org.underivable.language-mode-registry",
                                           DISPATCH_QUEUE_CONCURRENT);
     _modes        = [NSMutableArray array];
     _byIdentifier = [NSMutableDictionary dictionary];
     _byExtension  = [NSMutableDictionary dictionary];
+    _extensions   = [NSMutableArray array];
 
     // Plain text — the universal fallback, registered first.
     _plaintextFallback = [[UDLanguageMode alloc]

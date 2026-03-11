@@ -27,7 +27,7 @@
 		<key>TreeSitterJson.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>10</integer>
+			<integer>7</integer>
 		</dict>
 		<key>TreeSitterMake.xcscheme_^#shared#^_</key>
 		<dict>
@@ -47,12 +47,12 @@
 		<key>TreeSitterXml.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>11</integer>
+			<integer>8</integer>
 		</dict>
 		<key>TreeSitterYaml.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>7</integer>
+			<integer>5</integer>
 		</dict>
 		<key>UDPieceTable.xcscheme_^#shared#^_</key>
 		<dict>

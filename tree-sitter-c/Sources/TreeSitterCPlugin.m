@@ -19,14 +19,18 @@ const TSLanguage *tree_sitter_c(void);
     return instance;
 }
 
-- (void)pluginDidLoad:(NSBundle *)bundle {
+- (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
     NSLog(@"TreeSitterCPlugin: loaded from %@", bundle.bundlePath);
 }
 
-- (void)pluginWillUnload:(NSBundle *)bundle {
+- (void)extensionWillUnload:(NSBundle *)bundle {
     NSLog(@"TreeSitterCPlugin: will unload %@", bundle.bundlePath);
     _bundle = nil;
+}
+
+- (const void *)languageFunc {
+    return tree_sitter_c;
 }
 
 + (void)load {

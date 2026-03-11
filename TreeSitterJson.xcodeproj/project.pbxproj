@@ -1,0 +1,274 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		CE0C2E222F5F1DF200566368 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E212F5F1DF200566368 /* lib.c */; };
+		CE0C2E242F5F1E0000566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E232F5F1E0000566368 /* parser.c */; };
+		CE0C2E272F5F1E0B00566368 /* TreeSitterJsonPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E262F5F1E0B00566368 /* TreeSitterJsonPlugin.m */; };
+		CE0C2E2B2F5F1E1900566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E282F5F1E1900566368 /* highlights.scm */; };
+		CE0C2E2C2F5F1E1900566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E2A2F5F1E1900566368 /* LanguageInfo.plist */; };
+		CE0C2E2D2F5F1E1900566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E292F5F1E1900566368 /* Info.plist */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B36BDFA275CDE171097961D0 /* TreeSitterJson.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterJson.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE0C2E212F5F1DF200566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
+		CE0C2E232F5F1E0000566368 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
+		CE0C2E252F5F1E0B00566368 /* TreeSitterJsonPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterJsonPlugin.h; sourceTree = "<group>"; };
+		CE0C2E262F5F1E0B00566368 /* TreeSitterJsonPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterJsonPlugin.m; sourceTree = "<group>"; };
+		CE0C2E282F5F1E1900566368 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		CE0C2E292F5F1E1900566368 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		CE0C2E2A2F5F1E1900566368 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		67C1A0663D136387F1B7A71C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		26F343FED7D9596F957FA2BE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B36BDFA275CDE171097961D0 /* TreeSitterJson.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		3EC0C54C6F3EA1FF38BD830A /* tree-sitter */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E212F5F1DF200566368 /* lib.c */,
+			);
+			name = "tree-sitter";
+			path = "tree-sitter/src";
+			sourceTree = "<group>";
+		};
+		451C91FDDD3EF2358D03F44F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E282F5F1E1900566368 /* highlights.scm */,
+				CE0C2E292F5F1E1900566368 /* Info.plist */,
+				CE0C2E2A2F5F1E1900566368 /* LanguageInfo.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		7E8460277D7C67D6FB90C744 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E252F5F1E0B00566368 /* TreeSitterJsonPlugin.h */,
+				CE0C2E262F5F1E0B00566368 /* TreeSitterJsonPlugin.m */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		83CBEDA0AAD50A47DB726785 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				CE0C2E232F5F1E0000566368 /* parser.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		C9895A33331C3D627593B385 = {
+			isa = PBXGroup;
+			children = (
+				3EC0C54C6F3EA1FF38BD830A /* tree-sitter */,
+				83CBEDA0AAD50A47DB726785 /* src */,
+				7E8460277D7C67D6FB90C744 /* Sources */,
+				451C91FDDD3EF2358D03F44F /* Resources */,
+				26F343FED7D9596F957FA2BE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		66325887BF6438659FAFEE04 /* TreeSitterJson */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F362F3D5606CFC2CBAA856C1 /* Build configuration list for PBXNativeTarget "TreeSitterJson" */;
+			buildPhases = (
+				F85C00D5906E1640A9F1FFA2 /* Sources */,
+				67C1A0663D136387F1B7A71C /* Frameworks */,
+				83799F2A5D337F33937884F7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TreeSitterJson;
+			productName = TreeSitterJson;
+			productReference = B36BDFA275CDE171097961D0 /* TreeSitterJson.bundle */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F3DCCD67A6125BA1E83B0F3E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					66325887BF6438659FAFEE04 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 958BE0E59E00C59543669011 /* Build configuration list for PBXProject "TreeSitterJson" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = C9895A33331C3D627593B385;
+			productRefGroup = 26F343FED7D9596F957FA2BE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				66325887BF6438659FAFEE04 /* TreeSitterJson */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		83799F2A5D337F33937884F7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE0C2E2B2F5F1E1900566368 /* highlights.scm in Resources */,
+				CE0C2E2C2F5F1E1900566368 /* LanguageInfo.plist in Resources */,
+				CE0C2E2D2F5F1E1900566368 /* Info.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F85C00D5906E1640A9F1FFA2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE0C2E222F5F1DF200566368 /* lib.c in Sources */,
+				CE0C2E272F5F1E0B00566368 /* TreeSitterJsonPlugin.m in Sources */,
+				CE0C2E242F5F1E0000566368 /* parser.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		49D386544390EEA405A0177C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		647BE261A855F17173496D6C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		96A743196F65A0D946D6D0B3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/src",
+				);
+				INFOPLIST_FILE = Resources/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.json;
+				PRODUCT_NAME = TreeSitterJson;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = Release;
+		};
+		CE7553F8C9B453555CC87866 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/src",
+				);
+				INFOPLIST_FILE = Resources/Info.plist;
+				MAACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.json;
+				PRODUCT_NAME = TreeSitterJson;
+				WRAPPER_EXTENSION = bundle;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		958BE0E59E00C59543669011 /* Build configuration list for PBXProject "TreeSitterJson" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				647BE261A855F17173496D6C /* Debug */,
+				49D386544390EEA405A0177C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F362F3D5606CFC2CBAA856C1 /* Build configuration list for PBXNativeTarget "TreeSitterJson" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE7553F8C9B453555CC87866 /* Debug */,
+				96A743196F65A0D946D6D0B3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F3DCCD67A6125BA1E83B0F3E /* Project object */;
+}

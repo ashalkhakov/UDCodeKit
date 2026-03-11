@@ -8,6 +8,7 @@
 	<string>C</string>
 	<key>fileExtensions</key>
 	<array>
+		<string>h</string>
 		<string>c</string>
 	</array>
 	<key>lspLanguageID</key>
@@ -16,6 +17,5 @@
 	<string>tree_sitter_c</string>
 	<key>highlightsQueryFile</key>
 	<string>highlights.scm</string>
-
 </dict>
 </plist>

@@ -9,20 +9,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import "UDExtension.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface TreeSitterHtmlPlugin : NSObject
+@interface TreeSitterHtmlPlugin : NSObject <UDExtension>
 
 /// Returns the shared plugin instance (created when the bundle is first loaded).
 + (instancetype)sharedPlugin;
-
-/// Called by the host application after the bundle is loaded.
-/// Sets up any plugin-level state.
-- (void)pluginDidLoad:(NSBundle *)bundle;
-
-/// Called by the host application before the bundle is unloaded (if ever).
-- (void)pluginWillUnload:(NSBundle *)bundle;
 
 @end
 

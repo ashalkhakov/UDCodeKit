@@ -20,13 +20,10 @@
       location = "group:."
       name = "Grammar Bundles">
       <FileRef
-         location = "group:tree-sitter-bash/TreeSitterBash.xcodeproj">
+         location = "group:tree-sitter-html/TreeSitterHtml.xcodeproj">
       </FileRef>
       <FileRef
          location = "group:tree-sitter-c/TreeSitterC.xcodeproj">
-      </FileRef>
-      <FileRef
-         location = "group:tree-sitter-html/TreeSitterHtml.xcodeproj">
       </FileRef>
       <FileRef
          location = "group:tree-sitter-json/TreeSitterJson.xcodeproj">

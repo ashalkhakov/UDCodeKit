@@ -18,6 +18,5 @@
 	<string>tree_sitter_json</string>
 	<key>highlightsQueryFile</key>
 	<string>highlights.scm</string>
-
 </dict>
 </plist>

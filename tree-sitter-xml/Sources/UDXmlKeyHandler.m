@@ -501,9 +501,23 @@ static BOOL _findTagNamePair(TSNode tagNameNode, BOOL *outIsOpenTag, TSNode *out
     UDTextEdit *pairEdit    = _editForRange(pairStart, pairEnd, newPrimaryName);
     [model applyTextEdits:@[primaryEdit, pairEdit]];
 
-    // Cursor lands at the start of the deleted range (correct for both Backspace
-    // and Forward Delete, and for selection-based deletions).
-    *outCursor = deleteRange.location;
+    // Cursor lands at the start of the deleted range.
+    //
+    // When we are editing the CLOSE tag (!isOpenTag) the pairEdit targets the
+    // OPEN tag name, which sits at a lower character offset than our cursor.
+    // applyTextEdits: applies the higher-offset edit (primary) first, then the
+    // lower-offset edit (pair), so by the time the pair edit runs the primary
+    // has already been applied and our logical cursor sits at `delStart`.
+    // The pair edit replaces `(pairEnd - pairStart)` characters with
+    // `newPrimaryName.length` characters, shifting everything after `pairEnd`
+    // (including our cursor) by the length delta.
+    //
+    // When editing the OPEN tag (isOpenTag) the pairEdit targets the CLOSE tag,
+    // which is at a higher offset than the cursor; it does not shift our position.
+    NSInteger pairDelta = !isOpenTag
+        ? ((NSInteger)newPrimaryName.length - (NSInteger)(pairEnd - pairStart))
+        : 0;
+    *outCursor = (NSUInteger)((NSInteger)deleteRange.location + pairDelta);
     return YES;
 }
 

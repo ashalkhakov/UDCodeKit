@@ -86,6 +86,33 @@ NS_ASSUME_NONNULL_BEGIN
                cursorOffset:(NSUInteger)cursorOffset
         newCursorOffsetOut:(NSUInteger *)outCursor;
 
+/// Called when the user presses a deletion key (Backspace or Forward Delete),
+/// BEFORE the default NSTextView deletion is applied.
+///
+/// The @c deleteRange parameter is the 0-based character range that the
+/// default deletion would remove:
+///   - Backspace with no selection: @c {cursor−1, 1}
+///   - Forward Delete with no selection: @c {cursor, 1}
+///   - Either key with an active selection: @c {selection.location, selection.length}
+///
+/// Return @c YES to consume the event: the handler is responsible for applying
+/// the deletion (and any mirror edits) via @c applyTextEdits:.  Return @c NO
+/// to let the default deletion proceed unmodified.
+///
+/// @param deleteRange     The character range that would be deleted by default.
+/// @param parseTree       The current tree-sitter parse tree (opaque @c TSTree *),
+///                        or @c NULL when no grammar is active.
+/// @param model           The text model via @c UDTextAccess.
+/// @param outCursor       On output: the desired cursor position after the
+///                        handler's edits.  Set to @c NSNotFound (the initial
+///                        value) to leave the cursor unmodified.  If the handler
+///                        calls @c applyTextEdits: it MUST set this.
+/// @return YES if the event was consumed; NO to apply default deletion.
+- (BOOL)handleDeleteRange:(NSRange)deleteRange
+                parseTree:(nullable const void *)parseTree
+                textModel:(id<UDTextAccess>)model
+       newCursorOffsetOut:(NSUInteger *)outCursor;
+
 @end
 
 NS_ASSUME_NONNULL_END

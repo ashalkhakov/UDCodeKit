@@ -102,6 +102,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Handles (in order):
 ///   - Return / KP-Return     -> -handleReturnKeyWithTextView:model:
 ///   - Shift-Tab              -> -handleShiftTabKeyWithTextView:model:
+///   - Backspace / Forward Delete -> languageKeyHandler.handleDeleteRange:…
+///                              (called BEFORE default deletion so the handler
+///                              can apply atomic mirror edits; falls through to
+///                              NSTextView default if the handler returns NO)
 ///   - Single printable char  -> -handleTypedCharacter:textView:model:, then
 ///                              languageKeyHandler if set
 ///

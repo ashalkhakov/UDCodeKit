@@ -18,15 +18,26 @@
  *    - comments / DOCTYPE  (`<!`)
  *    - closing tags  (`</`)
  *
- *  Tag-name mirroring
- *  ------------------
- *  When the cursor is inside (or at the boundary of) an opening tag's element
- *  name and the user types any regular character, the closing tag's element name
- *  is updated in sync.  The tree-sitter parse tree is used to locate both the
- *  opening and matching closing tag names precisely.
+ *  Tag-name mirroring — insertions
+ *  --------------------------------
+ *  When the cursor is inside (or at the boundary of) an opening OR closing tag's
+ *  element name and the user types any regular character, the matching (closing
+ *  or opening) tag's element name is updated in sync.  The tree-sitter parse
+ *  tree is used to locate both tag names precisely.
  *
- *  Example: `<foo>text</foo>` with cursor inside `foo` of the opening tag →
- *  typing `b` at the start produces `<bfoo>text</bfoo>`.
+ *  Examples:
+ *    `<fo|o>text</foo>` → typing `b` → `<fbo>text</fbo>`  (open→close)
+ *    `<foo>text</fo|o>` → typing `b` → `<fbo>text</fbo>`  (close→open)
+ *
+ *  Tag-name mirroring — deletions
+ *  --------------------------------
+ *  Deletion of characters from an opening or closing tag name is also mirrored
+ *  to the matching tag (Backspace and Forward Delete, including selections
+ *  entirely within a single tag name).
+ *
+ *  Examples:
+ *    `<fo|o>text</foo>` → Backspace → `<fo>text</fo>`   (open→close)
+ *    `<foo>text</fo|o>` → Backspace → `<fo>text</fo>`   (close→open)
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>

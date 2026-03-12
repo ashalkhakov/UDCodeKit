@@ -15,9 +15,11 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 // Physical key codes (hardware layout — independent of locale)
 // ---------------------------------------------------------------------------
 
-static const unsigned short kKeyCodeReturn       = 36;
-static const unsigned short kKeyCodeKeypadReturn = 76;
-static const unsigned short kKeyCodeTab          = 48;
+static const unsigned short kKeyCodeReturn        = 36;
+static const unsigned short kKeyCodeKeypadReturn  = 76;
+static const unsigned short kKeyCodeTab           = 48;
+static const unsigned short kKeyCodeBackspace     = 51;   // ⌫
+static const unsigned short kKeyCodeForwardDelete = 117;  // fn+⌫ or dedicated Del key
 
 // ---------------------------------------------------------------------------
 
@@ -102,6 +104,44 @@ static const unsigned short kKeyCodeTab          = 48;
     // --- Shift-Tab: dedent ---
     if (mods == NSEventModifierFlagShift && event.keyCode == kKeyCodeTab) {
         return [self handleShiftTabKeyWithTextView:tv model:model];
+    }
+
+    // --- Delete key: give the language handler a chance to mirror the deletion
+    //     BEFORE NSTextView applies it (e.g. XML tag-name synchronisation). ---
+    if (mods == 0 && (event.keyCode == kKeyCodeBackspace ||
+                      event.keyCode == kKeyCodeForwardDelete)) {
+        id<UDLanguageKeyHandler> handler = _languageKeyHandler;
+        if ([handler respondsToSelector:
+                @selector(handleDeleteRange:parseTree:textModel:newCursorOffsetOut:)]) {
+            NSRange   sel    = tv.selectedRange;
+            NSInteger docLen = [model getLength];
+            NSRange   delRange;
+            BOOL      valid  = NO;
+            if (sel.length > 0) {
+                delRange = sel;
+                valid    = YES;
+            } else if (event.keyCode == kKeyCodeBackspace && sel.location > 0) {
+                delRange = NSMakeRange(sel.location - 1, 1);
+                valid    = YES;
+            } else if (event.keyCode == kKeyCodeForwardDelete &&
+                       (NSInteger)sel.location < docLen) {
+                delRange = NSMakeRange(sel.location, 1);
+                valid    = YES;
+            }
+            if (valid) {
+                NSUInteger newCursor = NSNotFound;
+                BOOL consumed = [handler handleDeleteRange:delRange
+                                                 parseTree:_highlighter.currentParseTree
+                                                 textModel:model
+                                         newCursorOffsetOut:&newCursor];
+                if (consumed) {
+                    if (newCursor != NSNotFound) {
+                        [tv setSelectedRange:NSMakeRange(newCursor, 0)];
+                    }
+                    return YES;
+                }
+            }
+        }
     }
 
     // --- Single printable character: electric-pair + language handler ---

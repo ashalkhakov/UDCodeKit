@@ -1,4 +1,5 @@
 #import "UDMissingNodeHighlighter.h"
+#import "UDTextModel.h"
 #import "UDIncrementalHighlighterBase.h"
 #import <tree_sitter/api.h>
 #import "UDDecorationLayerRegistry.h"

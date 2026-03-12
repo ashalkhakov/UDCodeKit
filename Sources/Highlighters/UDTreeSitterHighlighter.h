@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UDPieceTable/UDPieceTable.h>
+@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 

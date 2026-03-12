@@ -6,10 +6,12 @@
  *  Original source: https://github.com/microsoft/vscode/blob/main/src/vs/editor/common/model/textModel.ts
  *--------------------------------------------------------------------------------------------*/
 
+// UDTextModel.m lives in Sources/TextModel/ — part of the app, not the UDPieceTable framework.
+// It still uses the UDPieceTree/UDIntervalTree/UDStringBuffer classes from the framework.
 #import "UDTextModel.h"
-#import "UDIntervalTree.h"
-#import "UDPieceTree.h"
-#import "UDStringBuffer.h"
+#import <UDPieceTable/UDIntervalTree.h>
+#import <UDPieceTable/UDPieceTree.h>
+#import <UDPieceTable/UDStringBuffer.h>
 
 // MARK: - UDTextModelEdit
 

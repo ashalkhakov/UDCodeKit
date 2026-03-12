@@ -34,7 +34,6 @@
 				UDPieceTable.h,
 				UDPieceTree.h,
 				UDStringBuffer.h,
-				UDTextModel.h,
 				UDTextModelSearch.h,
 				UDTypes.h,
 			);

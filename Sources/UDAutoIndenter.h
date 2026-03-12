@@ -49,6 +49,7 @@
 #import "UDTreeSitterHighlighter.h"
 #import "UDLanguageConfiguration.h"
 #import <UDPieceTable/UDPieceTable.h>
+@class UDTextModel;
 
 @protocol UDLanguageKeyHandler;
 

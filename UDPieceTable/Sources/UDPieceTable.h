@@ -19,4 +19,3 @@ FOUNDATION_EXPORT const unsigned char UDPieceTableVersionString[];
 #import <UDPieceTable/UDPieceTree.h>
 #import <UDPieceTable/UDAnnotatedString.h>
 #import <UDPieceTable/UDIntervalTree.h>
-#import <UDPieceTable/UDTextModel.h>

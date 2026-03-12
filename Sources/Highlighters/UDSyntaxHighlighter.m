@@ -7,6 +7,7 @@
 
 
 #import "UDSyntaxHighlighter.h"
+#import "UDTextModel.h"
 #import <tree_sitter/api.h>
 #import "UDDecorationLayerRegistry.h"
 

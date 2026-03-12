@@ -1,6 +1,19 @@
 /*---------------------------------------------------------------------------------------------
  *  UDExtension.h  —  Protocol adopted by the principal class of every grammar bundle.
  *
+ *  PUBLIC API
+ *  ----------
+ *  The Sources/Extensions/ directory is the public API of the editor exposed to
+ *  extension bundles.  All headers that extension code may import are here:
+ *    • UDExtension.h       — this file; extension lifecycle + factory methods
+ *    • UDLanguageKeyHandler.h — key-event handling protocol
+ *    • UDTextModel.h       — document text model (read + edit API)
+ *
+ *  Extension bundle targets have $(SRCROOT)/../Sources/Extensions in their
+ *  HEADER_SEARCH_PATHS, making these headers available as #import "...".
+ *  The UDTextModel implementation lives in the app; symbols are resolved at
+ *  runtime via -undefined dynamic_lookup.
+ *
  *  OVERVIEW
  *  --------
  *  Each grammar bundle exposes a single Objective-C entry point: its NSPrincipalClass,
@@ -35,6 +48,7 @@
 #import <Foundation/Foundation.h>
 #import <tree_sitter/api.h>
 #import "UDLanguageKeyHandler.h"
+#import "UDTextModel.h"
 
 @protocol UDExtension <NSObject>
 

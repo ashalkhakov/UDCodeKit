@@ -9,6 +9,7 @@
 #import "UDLSPDiagnosticHighlighter.h"
 #import "UDDiagnosticItem.h"
 #import <UDPieceTable/UDPieceTable.h>
+#import "UDTextModel.h"
 #import "UDDecorationLayerRegistry.h"
 
 NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";

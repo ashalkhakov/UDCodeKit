@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDFoldingController.h"
+#import "UDTextModel.h"
 #import <tree_sitter/api.h>
 
 // Tree-sitter stores byte offsets in UTF-16 (2 bytes per BMP code unit).

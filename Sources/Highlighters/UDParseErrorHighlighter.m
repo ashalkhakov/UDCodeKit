@@ -6,6 +6,7 @@
 //
 
 #import "UDParseErrorHighlighter.h"
+#import "UDTextModel.h"
 #import "UDDecorationLayerRegistry.h"
 
 static inline NSUInteger charFromByte(uint32_t b) { return (NSUInteger)(b / 2); }

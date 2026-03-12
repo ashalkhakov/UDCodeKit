@@ -10,7 +10,6 @@
 #import <AppKit/AppKit.h>
 #import <UDPieceTable/UDPieceTable.h>
 #import "UDTreeSitterHighlighter.h"
-@class UDTextModel;
 
 @class TreeSitterTheme;
 

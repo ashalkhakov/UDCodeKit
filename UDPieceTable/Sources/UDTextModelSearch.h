@@ -8,13 +8,7 @@
 
 #import <Foundation/Foundation.h>
 
-// Portable import: works when UDPieceTable.framework is linked (app/tests) and
-// also when headers are included directly from UDPieceTable/Sources/ (extension bundles).
-#if __has_include(<UDPieceTable/UDTypes.h>)
-#  import <UDPieceTable/UDTypes.h>
-#else
-#  import "UDTypes.h"
-#endif
+#import <UDPieceTable/UDTypes.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

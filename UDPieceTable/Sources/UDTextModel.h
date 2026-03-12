@@ -4,38 +4,12 @@
  *
  *  Objective-C port of VS Code's textModel.ts (minimal subset)
  *  Original source: https://github.com/microsoft/vscode/blob/main/src/vs/editor/common/model/textModel.ts
- *
- *  LOCATION
- *  --------
- *  This header lives in Sources/Extensions/ — the public API of the editor
- *  exposed to grammar extension bundles.  The implementation is in
- *  Sources/TextModel/UDTextModel.m (compiled as part of the app, not the
- *  UDPieceTable framework).
- *
- *  PORTABLE IMPORTS
- *  ----------------
- *  The header is included in two contexts:
- *    • The app and its test target — UDPieceTable.framework is linked; use
- *      angle-bracket framework imports (<UDPieceTable/...>).
- *    • Grammar extension bundles — the framework is NOT in the linker path;
- *      headers are found via $(SRCROOT)/../../UDPieceTable/Sources which is
- *      listed in each bundle's HEADER_SEARCH_PATHS, so quote-style imports
- *      ("UDTypes.h" etc.) are used instead.
- *  The #if __has_include pattern selects the appropriate form automatically.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
-
-// Portable imports for types defined in the UDPieceTable framework.
-#if __has_include(<UDPieceTable/UDTypes.h>)
-#  import <UDPieceTable/UDTypes.h>
-#  import <UDPieceTable/UDTextModelSearch.h>
-#  import <UDPieceTable/UDIntervalTree.h>
-#else
-#  import "UDTypes.h"
-#  import "UDTextModelSearch.h"
-#  import "UDIntervalTree.h"
-#endif
+#import <UDPieceTable/UDTypes.h>
+#import <UDPieceTable/UDTextModelSearch.h>
+#import <UDPieceTable/UDIntervalTree.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -47,6 +21,18 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) UDRange range;
 @property (nonatomic, copy) NSString *text;
 - (instancetype)initWithRange:(UDRange)range text:(NSString *)text;
+@end
+
+// MARK: - UDDecorationOptions
+
+/// Metadata attached to a text decoration (syntax highlights, error messages, etc.).
+@interface UDDecorationOptions : NSObject
+/// An optional CSS-like class name for visual styling.
+@property (nonatomic, copy, nullable) NSString *className;
+/// Arbitrary user-supplied metadata (e.g., hover message, diagnostic info).
+@property (nonatomic, strong, nullable) id userInfo;
+- (instancetype)initWithClassName:(nullable NSString *)className
+                         userInfo:(nullable id)userInfo;
 @end
 
 // MARK: - UDModelDeltaDecoration

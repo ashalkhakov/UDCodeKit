@@ -11,7 +11,6 @@
 #import "UDDocumentWindowController.h"
 #import "UDWorkspaceModel.h"
 #import <UDPieceTable/UDPieceTable.h>
-#import "UDTextModel.h"
 
 // ---------------------------------------------------------------------------
 // MARK: - Private interface

@@ -1,5 +1,4 @@
 #import "UDBracketMatchHighlighter.h"
-#import "UDTextModel.h"
 #import "UDDecorationHighlighter.h"
 #import <tree_sitter/api.h>
 #import <string.h>

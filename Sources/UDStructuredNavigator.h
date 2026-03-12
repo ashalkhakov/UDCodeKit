@@ -45,7 +45,6 @@
 #import <AppKit/AppKit.h>
 #import "UDTreeSitterHighlighter.h"
 #import <UDPieceTable/UDPieceTable.h>
-@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 

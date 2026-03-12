@@ -1,5 +1,4 @@
 #import "UDTextModelTextStorage.h"
-#import "UDTextModel.h"
 #import "UDTextModelString.h"
 #import "UDTreeSitterHighlighter.h"
 #import "UDSyntaxHighlighter.h"

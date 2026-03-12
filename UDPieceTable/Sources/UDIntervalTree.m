@@ -7,6 +7,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDIntervalTree.h"
+#import "UDTextModel.h"   // for UDDecorationOptions
 
 // MARK: - UDIntervalNode
 

@@ -9,8 +9,6 @@
 #import "UDTextModelTextStorage.h"
 #import "UDTreeSitterHighlighter.h"
 
-@class UDModelDeltaDecoration;
-
 NS_ASSUME_NONNULL_BEGIN
 
 /// Lightweight base class for highlighters that manage a set of decorations

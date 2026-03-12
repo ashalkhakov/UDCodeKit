@@ -23,7 +23,6 @@
 #import "UDTextModelTextStorage.h"
 #import "UDAutoIndenter.h"
 #import "UDStructuredNavigator.h"
-@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 

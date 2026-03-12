@@ -7,30 +7,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import <UDPieceTable/UDTypes.h>
 
-// Portable import: works when UDPieceTable.framework is linked (app/tests) and
-// also when headers are included directly from UDPieceTable/Sources/ (extension bundles).
-#if __has_include(<UDPieceTable/UDTypes.h>)
-#  import <UDPieceTable/UDTypes.h>
-#else
-#  import "UDTypes.h"
-#endif
+@class UDDecorationOptions;
 
 NS_ASSUME_NONNULL_BEGIN
-
-// MARK: - UDDecorationOptions
-
-/// Metadata attached to a text decoration (syntax highlights, error messages, etc.).
-///
-/// Defined here because UDIntervalNode stores decoration options directly.
-@interface UDDecorationOptions : NSObject
-/// An optional CSS-like class name for visual styling.
-@property (nonatomic, copy, nullable) NSString *className;
-/// Arbitrary user-supplied metadata (e.g., hover message, diagnostic info).
-@property (nonatomic, strong, nullable) id userInfo;
-- (instancetype)initWithClassName:(nullable NSString *)className
-                         userInfo:(nullable id)userInfo;
-@end
 
 // MARK: - UDIntervalNode
 

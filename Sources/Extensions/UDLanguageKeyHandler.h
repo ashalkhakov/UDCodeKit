@@ -32,7 +32,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
-#import "UDTextModel.h"
+
+@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 

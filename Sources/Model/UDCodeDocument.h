@@ -19,7 +19,6 @@
 #import <UDPieceTable/UDPieceTable.h>
 #import "UDDiagnosticStore.h"
 #import "UDLanguageMode.h"
-@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 

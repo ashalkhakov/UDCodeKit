@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDCodeDocument.h"
-#import "UDTextModel.h"
 #import "UDLanguageModeRegistry.h"
 
 NSNotificationName const UDCodeDocumentTextDidChangeNotification =

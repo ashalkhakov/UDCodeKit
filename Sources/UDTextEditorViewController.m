@@ -7,7 +7,6 @@
 #import "UDTreeSitterHighlighter.h"
 #import "UDTextModelTextStorage.h"
 #import <UDPieceTable/UDPieceTable.h>
-#import "UDTextModel.h"
 
 // ---------------------------------------------------------------------------
 // MARK: - Layout constants (private to this file)

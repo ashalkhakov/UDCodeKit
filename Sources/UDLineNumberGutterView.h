@@ -11,7 +11,6 @@
 
 #import <AppKit/AppKit.h>
 #import <UDPieceTable/UDPieceTable.h>
-@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 

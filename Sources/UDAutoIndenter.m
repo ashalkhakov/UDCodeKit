@@ -21,6 +21,11 @@ static const unsigned short kKeyCodeTab           = 48;
 static const unsigned short kKeyCodeBackspace     = 51;   // ⌫
 static const unsigned short kKeyCodeForwardDelete = 117;  // fn+⌫ or dedicated Del key
 
+// macOS function-key characters (arrow keys, F1–F20, Home, End, …) are encoded
+// in the Unicode private-use range starting at 0xF700 (NSFunctionKeyMask area).
+// These must not be treated as printable text input.
+static const unichar kFunctionKeyRangeStart = 0xF700;
+
 // ---------------------------------------------------------------------------
 
 @interface UDAutoIndenter ()
@@ -153,8 +158,10 @@ static const unsigned short kKeyCodeForwardDelete = 117;  // fn+⌫ or dedicated
         NSString *chars = event.characters;
         if (chars.length == 1) {
             unichar ch = [chars characterAtIndex:0];
-            // Only handle visible, non-control, non-delete characters.
-            if (ch >= ' ' && ch != 0x7f) {
+            // Only handle visible, non-control, non-delete, non-function-key characters.
+            // Arrow keys and other function keys have code points in 0xF700–0xF8FF
+            // (NSFunctionKeyMask area) and must not be treated as typed text.
+            if (ch >= ' ' && ch != 0x7f && ch < kFunctionKeyRangeStart) {
                 BOOL baseConsumed =
                     [self handleTypedCharacter:chars textView:tv model:model];
 

@@ -13,6 +13,7 @@
 		CE72571E2F5F2EA000501E10 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE72571B2F5F2EA000501E10 /* highlights.scm */; };
 		CE72571F2F5F2EA000501E10 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE72571D2F5F2EA000501E10 /* LanguageInfo.plist */; };
 		CE7257202F5F2EA000501E10 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE72571C2F5F2EA000501E10 /* Info.plist */; };
+		CE7CFA2E2F62921B00F294D4 /* UDJsonKeyHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFA2D2F62921B00F294D4 /* UDJsonKeyHandler.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,8 @@
 		CE72571B2F5F2EA000501E10 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
 		CE72571C2F5F2EA000501E10 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE72571D2F5F2EA000501E10 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
+		CE7CFA2C2F62921B00F294D4 /* UDJsonKeyHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDJsonKeyHandler.h; sourceTree = "<group>"; };
+		CE7CFA2D2F62921B00F294D4 /* UDJsonKeyHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDJsonKeyHandler.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +70,8 @@
 		7E8460277D7C67D6FB90C744 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				CE7CFA2C2F62921B00F294D4 /* UDJsonKeyHandler.h */,
+				CE7CFA2D2F62921B00F294D4 /* UDJsonKeyHandler.m */,
 				CE7257182F5F2E9500501E10 /* TreeSitterJsonPlugin.h */,
 				CE7257192F5F2E9500501E10 /* TreeSitterJsonPlugin.m */,
 			);
@@ -164,6 +169,7 @@
 				CE7257152F5F2E7F00501E10 /* lib.c in Sources */,
 				CE72571A2F5F2E9500501E10 /* TreeSitterJsonPlugin.m in Sources */,
 				CE7257172F5F2E8B00501E10 /* parser.c in Sources */,
+				CE7CFA2E2F62921B00F294D4 /* UDJsonKeyHandler.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

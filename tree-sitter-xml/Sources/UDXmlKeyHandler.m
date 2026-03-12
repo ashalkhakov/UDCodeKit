@@ -140,6 +140,18 @@ static BOOL _findTagNamePair(TSNode tagNameNode, BOOL *outIsOpenTag, TSNode *out
                        newCursorOffsetOut:outCursor];
     }
     if (parseTree != NULL) {
+        // `/` typed inside an opening tag name: convert to a self-closing tag.
+        if ([chars isEqualToString:@"/"]) {
+            if ([self _handleSlashInOpenTag:parseTree
+                                  textModel:model
+                               cursorOffset:cursorOffset
+                          newCursorOffsetOut:outCursor]) {
+                return YES;
+            }
+            // No paired close tag (or not in a tag name) — fall through to
+            // plain insert (tag-name mirroring), which also handles `/` when
+            // only one side exists.
+        }
         return [self _handleTagNameInsert:chars
                                 parseTree:parseTree
                                 textModel:model
@@ -275,6 +287,88 @@ static BOOL _findTagNamePair(TSNode tagNameNode, BOOL *outIsOpenTag, TSNode *out
     NSString *insertion = [NSString stringWithFormat:@"></%@>", tagName];
     [model applyTextEdits:@[_editForRange(cursorOffset, cursorOffset, insertion)]];
     *outCursor = cursorOffset + 1;
+    return YES;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - `/` handler — convert opening tag to self-closing element
+// ---------------------------------------------------------------------------
+
+/// When the user types `/` while the cursor is inside (or at the boundary of)
+/// an opening tag's element name, converts the element to a self-closing form:
+///
+///   Before:  `<foo|>…</foo>`   (cursor anywhere inside the start-tag name)
+///   After:   `<foo/>`          (end_tag is removed; any inter-element content
+///                               becomes a following sibling)
+///
+/// Returns YES and applies the edits atomically when the cursor is inside a
+/// start_tag name that has a matched end_tag.  Returns NO in all other cases
+/// so the caller can fall through to normal insertion (or tag-name mirroring).
+- (BOOL)_handleSlashInOpenTag:(const void *)parseTree
+                    textModel:(id<UDTextAccess>)model
+                 cursorOffset:(NSUInteger)cursorOffset
+            newCursorOffsetOut:(NSUInteger *)outCursor {
+    NSString *str = [model getValue];
+
+    const TSTree *tree = (const TSTree *)parseTree;
+    TSNode root = ts_tree_root_node(tree);
+
+    // 1. Locate the tag_name/Name node that the cursor is in or adjacent to.
+    TSNode tagNameNode;
+    if (!_findTagNameNearOffset(root, cursorOffset, &tagNameNode)) return NO;
+
+    // 2. Verify the tag name belongs to a start (opening) tag.
+    TSNode startTag = ts_node_parent(tagNameNode);
+    if (ts_node_is_null(startTag)) return NO;
+    const char *startTagType = ts_node_type(startTag);
+    if (!startTagType) return NO;
+    BOOL isStartTag = (strcmp(startTagType, "start_tag") == 0 ||
+                       strcmp(startTagType, "STag") == 0);
+    if (!isStartTag) return NO;
+
+    // 3. Walk up to the element node and locate the matching end_tag.
+    TSNode element = ts_node_parent(startTag);
+    if (ts_node_is_null(element)) return NO;
+
+    TSNode endTag = {0};
+    BOOL foundEndTag = NO;
+    uint32_t childCount = ts_node_child_count(element);
+    for (uint32_t i = 0; i < childCount; i++) {
+        TSNode child = ts_node_child(element, i);
+        const char *ct = ts_node_type(child);
+        if (ct && (strcmp(ct, "end_tag") == 0 || strcmp(ct, "ETag") == 0)) {
+            endTag = child;
+            foundEndTag = YES;
+            break;
+        }
+    }
+    if (!foundEndTag) return NO;
+
+    // 4. Determine where to insert `/`: immediately before the `>` that closes
+    //    the start_tag (the last character of the start_tag node).
+    NSUInteger startTagEndChar = _byteToChar(ts_node_end_byte(startTag));
+    if (startTagEndChar == 0 || startTagEndChar > str.length) return NO;
+    // Verify the last character really is `>`.
+    if ([str characterAtIndex:startTagEndChar - 1] != '>') return NO;
+    NSUInteger insertPos = startTagEndChar - 1;  // insert `/` at this offset
+
+    // 5. Determine the range of the end_tag to delete.
+    NSUInteger endTagStart = _byteToChar(ts_node_start_byte(endTag));
+    NSUInteger endTagEnd   = _byteToChar(ts_node_end_byte(endTag));
+    if (endTagEnd > str.length || endTagStart > endTagEnd) return NO;
+    // The end_tag must come after the start_tag.
+    if (endTagStart < startTagEndChar) return NO;
+
+    // 6. Apply both edits atomically (applyTextEdits: sorts end-to-start):
+    //      • delete the end_tag
+    //      • insert `/` before the start_tag's closing `>`
+    UDTextEdit *insertEdit = _editForRange(insertPos, insertPos, @"/");
+    UDTextEdit *deleteEdit = _editForRange(endTagStart, endTagEnd, @"");
+    [model applyTextEdits:@[insertEdit, deleteEdit]];
+
+    // Cursor lands just after the `>` of the now-self-closing tag:
+    //   insertPos (position of `/`) + 1 (the `/`) + 1 (the `>`) = insertPos + 2.
+    *outCursor = insertPos + 2;
     return YES;
 }
 

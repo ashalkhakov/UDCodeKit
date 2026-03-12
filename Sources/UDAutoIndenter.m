@@ -163,6 +163,95 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Shift-Tab (dedent)
+// ---------------------------------------------------------------------------
+
+- (BOOL)handleShiftTabKey {
+    NSTextView  *tv    = _textView;
+    UDTextModel *model = _textModel;
+    if (!tv || !model) return NO;
+
+    NSRange   sel    = tv.selectedRange;
+    NSInteger docLen = [model getLength];
+    if (docLen == 0) return NO;
+
+    // ------------------------------------------------------------------
+    // 1. Determine the range of lines to de-indent.
+    // ------------------------------------------------------------------
+    UDPosition startPos  = [model getPositionAt:(NSInteger)sel.location];
+    NSInteger  startLine = startPos.line;
+
+    NSInteger endLine;
+    if (sel.length == 0) {
+        endLine = startLine;
+    } else {
+        NSUInteger endOffset = sel.location + sel.length;
+        UDPosition endPos    = [model getPositionAt:(NSInteger)endOffset];
+        // If the selection ends exactly at column 1 of a new line, don't
+        // include that line — it has no visible characters selected.
+        endLine = (endPos.column == 1 && endPos.line > startLine)
+            ? endPos.line - 1
+            : endPos.line;
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Collect (lineStartOffset, stripLen) pairs for each affected line.
+    // ------------------------------------------------------------------
+    NSInteger numLines = endLine - startLine + 1;
+    NSMutableArray<NSNumber *> *lineStartOffsets = [NSMutableArray arrayWithCapacity:(NSUInteger)numLines];
+    NSMutableArray<NSNumber *> *stripLens        = [NSMutableArray arrayWithCapacity:(NSUInteger)numLines];
+
+    for (NSInteger line = startLine; line <= endLine; line++) {
+        NSString  *content  = [model getLineContent:line];
+        NSInteger  strip    = [self _stripLengthForLine:content];
+        NSInteger  lineStart = [model getOffsetAt:line column:1];
+        [lineStartOffsets addObject:@(lineStart)];
+        [stripLens        addObject:@(strip)];
+    }
+
+    NSInteger totalStripped = 0;
+    for (NSNumber *n in stripLens) totalStripped += n.integerValue;
+
+    // Consume the event even when there is nothing to strip.
+    if (totalStripped == 0) return YES;
+
+    // ------------------------------------------------------------------
+    // 3. Apply deletions from last line to first so that earlier character
+    //    offsets remain valid after each individual edit.
+    // ------------------------------------------------------------------
+    for (NSInteger i = numLines - 1; i >= 0; i--) {
+        NSInteger strip     = [stripLens[(NSUInteger)i] integerValue];
+        if (strip == 0) continue;
+        NSInteger lineStart = [lineStartOffsets[(NSUInteger)i] integerValue];
+        NSRange   delRange  = NSMakeRange((NSUInteger)lineStart, (NSUInteger)strip);
+        [tv insertText:@"" replacementRange:delRange];
+    }
+
+    // ------------------------------------------------------------------
+    // 4. Restore the selection, adjusted for the removed characters.
+    //
+    //    The stripped chars on startLine precede (or include) sel.location,
+    //    so the selection start moves back by firstStripped (clamped to the
+    //    start of startLine).  The selection end decreases by totalStripped
+    //    because every stripped region lies at or before the original end.
+    // ------------------------------------------------------------------
+    NSInteger firstStripped    = [stripLens[0] integerValue];
+    NSInteger lineStartOffset  = [lineStartOffsets[0] integerValue];
+    NSInteger rawNewStart      = (NSInteger)sel.location - firstStripped;
+    NSUInteger newSelStart     = (NSUInteger)MAX(rawNewStart, lineStartOffset);
+
+    if (sel.length == 0) {
+        [tv setSelectedRange:NSMakeRange(newSelStart, 0)];
+    } else {
+        NSInteger newEnd = (NSInteger)(sel.location + sel.length) - totalStripped;
+        if (newEnd < (NSInteger)newSelStart) newEnd = (NSInteger)newSelStart;
+        [tv setSelectedRange:NSMakeRange(newSelStart, (NSUInteger)(newEnd - (NSInteger)newSelStart))];
+    }
+
+    return YES;
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Electric-pair insertion
 // ---------------------------------------------------------------------------
 
@@ -280,6 +369,35 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 // ---------------------------------------------------------------------------
 // MARK: - Private helpers (auto-indentation)
 // ---------------------------------------------------------------------------
+
+/// Returns how many characters should be stripped from the leading whitespace
+/// of @c lineContent to remove one indentation level.
+///
+/// Rules (applied in order):
+///   1. If the line starts with a tab, return 1.
+///   2. If the line starts with one or more spaces, return the number of
+///      leading spaces, capped at @c indentUnit.length.
+///   3. Otherwise return 0.
+- (NSInteger)_stripLengthForLine:(NSString *)lineContent {
+    if (lineContent.length == 0) return 0;
+    unichar first = [lineContent characterAtIndex:0];
+
+    // Tab-indented line: one tab = one indent level.
+    if (first == '\t') return 1;
+
+    // Space-indented line: strip up to indentUnit.length leading spaces.
+    if (first == ' ') {
+        NSUInteger maxStrip   = _indentUnit.length;
+        NSInteger  spaceCount = 0;
+        for (NSUInteger i = 0; i < lineContent.length && i < maxStrip; i++) {
+            if ([lineContent characterAtIndex:i] == ' ') spaceCount++;
+            else break;
+        }
+        return spaceCount;
+    }
+
+    return 0;
+}
 
 /// Returns the leading-whitespace prefix of the line that contains @c offset,
 /// up to (but not including) the cursor column.

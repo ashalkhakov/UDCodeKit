@@ -82,6 +82,22 @@ NS_ASSUME_NONNULL_BEGIN
 ///         tree is available and no text is present).
 - (BOOL)handleReturnKey;
 
+/// Handle a Shift-Tab key press: remove one indentation level from every line
+/// that the current selection touches (or just the current line when there is
+/// no selection).
+///
+/// The strip amount per line is determined by @c indentUnit:
+///   - A line whose first character is a tab always loses exactly one tab.
+///   - A line whose first character is a space loses up to @c indentUnit.length
+///     leading spaces (or fewer when the actual indent is smaller).
+///
+/// When the document is empty the method returns NO.  In all other cases it
+/// returns YES to consume the key event, even if no leading whitespace was
+/// found on any of the affected lines.
+///
+/// @return YES if the event was consumed; NO if the document is empty.
+- (BOOL)handleShiftTabKey;
+
 /// Handle a character typed by the user (electric-pair insertion).
 ///
 /// When `chars` is a single character that matches the `open` of an

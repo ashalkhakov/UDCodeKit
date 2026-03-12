@@ -64,6 +64,7 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 
 static const unsigned short kKeyCodeReturn       = 36;
 static const unsigned short kKeyCodeKeypadReturn = 76;
+static const unsigned short kKeyCodeTab          = 48;
 static const unsigned short kKeyCodeUpArrow      = 126;
 static const unsigned short kKeyCodeDownArrow    = 125;
 static const unsigned short kKeyCodeLeftArrow    = 123;
@@ -119,6 +120,7 @@ static const unsigned short kKeyCodeRightArrow   = 124;
 ///
 /// Handled here (no modifiers unless noted):
 ///   Return / KP-Return  — smart auto-indentation (UDAutoIndenter)
+///   Shift-Tab           — de-indent (UDAutoIndenter)
 ///   Option+Up/Down/Left/Right — tree-structured navigation (UDStructuredNavigator)
 ///   Single printable char (no Cmd/Ctrl/Option) — electric-pair insertion (UDAutoIndenter)
 ///
@@ -136,6 +138,11 @@ static const unsigned short kKeyCodeRightArrow   = 124;
             (event.keyCode == kKeyCodeReturn ||
              event.keyCode == kKeyCodeKeypadReturn)) {
         if ([_autoIndenter handleReturnKey]) return;
+    }
+
+    // --- Shift-Tab: dedent ---
+    if (mods == NSEventModifierFlagShift && event.keyCode == kKeyCodeTab) {
+        if ([_autoIndenter handleShiftTabKey]) return;
     }
 
     // --- Option + Arrow: tree-structured navigation ---

@@ -310,4 +310,152 @@ static UDLanguageConfiguration *UDConfigWithPairsAndBefore(NSArray *pairs,
     (void)storage;
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - handleShiftTabKey
+// ---------------------------------------------------------------------------
+
+/// Empty document: method must return NO and leave the model unchanged.
+- (void)testShiftTab_emptyDocument_returnsNO {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"" cursor:0 storage:&storage textView:&tv];
+    XCTAssertFalse([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"");
+    (void)tv;
+}
+
+/// Line has no leading whitespace: method returns YES (event consumed)
+/// but leaves the content unchanged.
+- (void)testShiftTab_noLeadingWhitespace_returnsYES_noChange {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"hello" cursor:5 storage:&storage textView:&tv];
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"hello");
+    (void)tv;
+}
+
+/// Line with exactly one indent unit (2 spaces): dedent removes both spaces.
+/// Cursor should move back by 2.
+- (void)testShiftTab_twoSpaceIndent_removesOneUnit {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // "  hello", cursor at end (offset 7)
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"  hello" cursor:7 storage:&storage textView:&tv];
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"hello");
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5,
+                   @"Cursor must shift back by 2 (the stripped spaces)");
+    (void)storage;
+}
+
+/// Line with only 1 leading space when indentUnit is 2 spaces: remove
+/// the single space (strip min(1, 2)).
+- (void)testShiftTab_partialIndent_removesAllSpaces {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // " hello", cursor at 6
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@" hello" cursor:6 storage:&storage textView:&tv];
+    // Default indentUnit is "  " (2 spaces)
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"hello");
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5);
+    (void)storage;
+}
+
+/// Line with 4 leading spaces when indentUnit is 2 spaces: only 2 spaces
+/// should be removed (one indent level).
+- (void)testShiftTab_fourSpaceIndent_removesOneUnit {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // "    hello", cursor at end (9)
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"    hello" cursor:9 storage:&storage textView:&tv];
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"  hello");
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)7);
+    (void)storage;
+}
+
+/// Line indented with a tab: exactly one tab is removed.
+- (void)testShiftTab_tabIndent_removesOneTab {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // "\thello", cursor at end (6)
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"\thello" cursor:6 storage:&storage textView:&tv];
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"hello");
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5);
+    (void)storage;
+}
+
+/// Cursor at column 1 (line start) on an indented line: cursor lands at
+/// the new line start after stripping.
+- (void)testShiftTab_cursorAtLineStart_clampsToLineStart {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // "  hello", cursor at 0 (before the spaces)
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"  hello" cursor:0 storage:&storage textView:&tv];
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"hello");
+    // Cursor was at 0; after stripping 2 chars before it, it must stay at 0.
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)0);
+    (void)storage;
+}
+
+/// Multi-line selection spanning two equally-indented lines: both lines
+/// are de-dented; the selection is adjusted accordingly.
+- (void)testShiftTab_multiLineSelection_removesFromEachLine {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // "  foo\n  bar" (length 11), full selection [0, 11)
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"  foo\n  bar" cursor:0 storage:&storage textView:&tv];
+    [tv setSelectedRange:NSMakeRange(0, 11)];
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"foo\nbar");
+    // new_start = MAX(0-2, 0) = 0; new_end = 11-4 = 7; new_len = 7
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)0);
+    XCTAssertEqual(tv.selectedRange.length,   (NSUInteger)7);
+    (void)storage;
+}
+
+/// Selection that ends exactly at column 1 of the next line: the last line
+/// must NOT be de-dented because no characters from it are selected.
+- (void)testShiftTab_selectionEndsAtLineStart_doesNotDedentLastLine {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // "  foo\n  bar", selection [0, 6) — ends right at the start of "  bar"
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"  foo\n  bar" cursor:0 storage:&storage textView:&tv];
+    [tv setSelectedRange:NSMakeRange(0, 6)];
+    XCTAssertTrue([ind handleShiftTabKey]);
+    // Only "  foo" should be dedented; "  bar" must stay unchanged.
+    XCTAssertEqualObjects([storage.textModel getValue], @"foo\n  bar");
+    // new_start = MAX(0-2, 0) = 0; new_end = 6-2 = 4; new_len = 4
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)0);
+    XCTAssertEqual(tv.selectedRange.length,   (NSUInteger)4);
+    (void)storage;
+}
+
+/// Custom indent unit (4 spaces): exactly 4 spaces are removed.
+- (void)testShiftTab_customFourSpaceUnit_removesFourSpaces {
+    UDTextModelTextStorage *storage;
+    NSTextView *tv;
+    // "    hello", cursor at end (9)
+    UDAutoIndenter *ind =
+        [self _indenterWithText:@"    hello" cursor:9 storage:&storage textView:&tv];
+    ind.indentUnit = @"    "; // 4 spaces
+    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"hello");
+    XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5);
+    (void)storage;
+}
+
 @end

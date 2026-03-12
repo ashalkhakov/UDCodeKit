@@ -192,7 +192,9 @@
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/src",
 					"$(SRCROOT)/../Sources/Extensions",
+					"$(SRCROOT)/../../UDPieceTable/Sources",
 				);
+				OTHER_LDFLAGS = "-undefined dynamic_lookup";
 				INFOPLIST_FILE = Resources/Info.plist;
 				MAACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
@@ -214,7 +216,9 @@
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/src",
 					"$(SRCROOT)/../Sources/Extensions",
+					"$(SRCROOT)/../../UDPieceTable/Sources",
 				);
+				OTHER_LDFLAGS = "-undefined dynamic_lookup";
 				INFOPLIST_FILE = Resources/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;

@@ -5,26 +5,35 @@
  *  provide language-aware reactions to character typing that go beyond the generic
  *  electric-pair insertion handled by UDAutoIndenter.
  *
- *  The base UDAutoIndenter calls -handleTypedCharacter:textView: on its
+ *  The base UDAutoIndenter calls
+ *  -handleTypedCharacter:parseTree:textModel:cursorOffset:newCursorOffsetOut: on its
  *  languageKeyHandler (if any) AFTER performing its own generic processing.
  *  This ordering means:
  *    • The base has already inserted an electric pair (e.g. `{` → `{}`).
- *    • The language handler may inspect textView.string / selectedRange to
- *      decide whether additional edits are needed (e.g. insert a trailing comma).
- *    • The language handler may also intercept characters the base ignores
- *      (e.g. `>` in XML) and perform a full custom insertion, returning YES to
- *      consume the event.
+ *    • The language handler receives the CURRENT tree-sitter parse tree
+ *      (updated synchronously through NSTextStorage after every edit), so it
+ *      reflects the latest document state including any auto-close insertion.
+ *    • The language handler uses -[UDTextModel applyEdits:] to make additional
+ *      text changes and returns the desired cursor offset via the out-parameter.
+ *    • The caller (UDAutoIndenter) restores the cursor via NSTextView after the
+ *      handler returns.  This is necessary because applyEdits: fires
+ *      UDTextModelDidChangeNotification which reports a full-document range to
+ *      NSTextView and may reset the displayed cursor.  Since all of this is
+ *      synchronous on the main thread, no visual glitch occurs.
  *
+ *  HEADER ACCESS
+ *  -------------
  *  This header is accessible to grammar bundle targets via the shared
- *  $(SRCROOT)/../Sources/Extensions header search path.  It intentionally
- *  imports only Foundation so that bundles remain free of hard framework
- *  dependencies at compile time; implementations use @class NSTextView; as a
- *  forward declaration and cast as needed.
+ *  $(SRCROOT)/../Sources/Extensions header search path.  Bundle targets also
+ *  add $(SRCROOT)/../../UDPieceTable/Sources to HEADER_SEARCH_PATHS so that
+ *  implementations can import UDTextModel.h and related types.  Symbols from
+ *  UDPieceTable are resolved at runtime from the host application (bundles are
+ *  linked with -undefined dynamic_lookup).
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
 
-@class NSTextView;
+@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -50,12 +59,33 @@ NS_ASSUME_NONNULL_BEGIN
 /// When the base already consumed the event, the return value is ignored (the
 /// event was already consumed).
 ///
-/// @param chars     The single-character string produced by the key event.
-/// @param textView  The editor text view.  Use its @c string and
-///                  @c selectedRange for context, and @c insertText:replacementRange:
-///                  to apply edits.
+/// @param chars         The single-character string produced by the key event.
+/// @param parseTree     The current tree-sitter parse tree (opaque @c TSTree *),
+///                      or @c NULL when no grammar is active.  Cast to
+///                      @c const TSTree * after importing @c <tree_sitter/api.h>.
+///                      The tree is updated synchronously before this call, so it
+///                      always reflects the document state AFTER any electric-pair
+///                      or skip-over edits performed by the base auto-indenter.
+/// @param model         The text model.  Use its read API
+///                      (@c getValue, @c getCharacterAtOffset:, etc.) for
+///                      context and @c applyEdits: to insert or replace text.
+///                      After @c applyEdits: the caller will restore the cursor
+///                      to @c *newCursorOffsetOut.
+/// @param cursorOffset  The current insertion-point character offset (0-based),
+///                      after any edits already made by the base auto-indenter.
+/// @param outCursor     On output: the desired insertion-point after this
+///                      handler's edits.  Initialised to @c NSNotFound before
+///                      the call.  Set to any value other than @c NSNotFound to
+///                      request a specific cursor position.  If the handler
+///                      calls @c applyEdits: it MUST set this, even when the
+///                      cursor should remain at @c cursorOffset, because
+///                      @c applyEdits: may otherwise reset the cursor.
 /// @return YES if the event should be consumed; NO otherwise.
-- (BOOL)handleTypedCharacter:(NSString *)chars textView:(NSTextView *)textView;
+- (BOOL)handleTypedCharacter:(NSString *)chars
+                   parseTree:(nullable const void *)parseTree
+                   textModel:(UDTextModel *)model
+               cursorOffset:(NSUInteger)cursorOffset
+        newCursorOffsetOut:(NSUInteger *)outCursor;
 
 @end
 

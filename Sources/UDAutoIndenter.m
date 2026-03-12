@@ -123,8 +123,20 @@ static const unsigned short kKeyCodeTab          = 48;
                 BOOL langConsumed = NO;
                 id<UDLanguageKeyHandler> handler = _languageKeyHandler;
                 if ([handler respondsToSelector:
-                        @selector(handleTypedCharacter:textView:)]) {
-                    langConsumed = [handler handleTypedCharacter:chars textView:tv];
+                        @selector(handleTypedCharacter:parseTree:textModel:cursorOffset:newCursorOffsetOut:)]) {
+                    NSUInteger cursorAfterBase = tv.selectedRange.location;
+                    NSUInteger newCursor = NSNotFound;
+                    langConsumed = [handler handleTypedCharacter:chars
+                                                      parseTree:_highlighter.currentParseTree
+                                                      textModel:model
+                                                   cursorOffset:cursorAfterBase
+                                             newCursorOffsetOut:&newCursor];
+                    // If the handler applied edits via textModel.applyEdits:, the
+                    // UDTextModelDidChangeNotification path reports a full-document
+                    // range to NSTextView which may reset the cursor.  Restore it.
+                    if (newCursor != NSNotFound) {
+                        [tv setSelectedRange:NSMakeRange(newCursor, 0)];
+                    }
                 }
                 return baseConsumed || langConsumed;
             }

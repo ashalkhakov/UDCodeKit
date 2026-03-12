@@ -80,9 +80,8 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     UDTextModel *model   = _textModel;
     if (!tv || !model) return NO;
 
-    NSRange     sel    = tv.selectedRange;
-    NSString   *text   = [model getValue];
-    NSInteger   docLen = [model getLength];
+    NSRange   sel    = tv.selectedRange;
+    NSInteger docLen = [model getLength];
 
     // When the document is empty, fall through to NSTextView default.
     if (docLen == 0) return NO;
@@ -92,7 +91,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     // ------------------------------------------------------------------
     // 1. Indentation of the current line.
     // ------------------------------------------------------------------
-    NSString *lineIndent = [self _indentOfLineContaining:cursorPos inText:text];
+    NSString *lineIndent = [self _indentOfLineContaining:cursorPos];
 
     // ------------------------------------------------------------------
     // 2. Does the cursor immediately follow an indent-opening bracket?
@@ -103,7 +102,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     //      (b) the tree-sitter query confirms we are inside an @indent node
     //          (this rules out brackets inside string literals).
     // ------------------------------------------------------------------
-    unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos inText:text];
+    unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos];
 
     // Build the set of open/close bracket characters from language config.
     NSString *openChars  = nil;
@@ -133,7 +132,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     // ------------------------------------------------------------------
     NSUInteger afterPos  = sel.location + sel.length;
     unichar    charAfter = (afterPos < (NSUInteger)docLen)
-                               ? [text characterAtIndex:afterPos] : 0;
+                               ? [model getCharacterAtOffset:afterPos] : 0;
     BOOL isCloseBracket = charAfter != 0
         && ([closeChars rangeOfString:[NSString stringWithCharacters:&charAfter length:1]].location != NSNotFound);
     BOOL split = increaseIndent && isCloseBracket;
@@ -179,7 +178,6 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 
     NSRange   sel      = tv.selectedRange;
     NSInteger docLen   = [model getLength];
-    NSString  *text    = [model getValue];
 
     unichar    typedChar = [chars characterAtIndex:0];
     NSUInteger cursorPos = sel.location;
@@ -196,7 +194,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
             if (pair.close.length == 1
                     && [pair.close characterAtIndex:0] == typedChar
                     && ![pair.open isEqualToString:pair.close]) {
-                unichar nextChar = [text characterAtIndex:cursorPos];
+                unichar nextChar = [model getCharacterAtOffset:cursorPos];
                 if (nextChar == typedChar) {
                     [tv setSelectedRange:NSMakeRange(cursorPos + 1, 0)];
                     return YES;
@@ -219,7 +217,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
         // in this set (or absent) for auto-close to fire.
         if (config.autoCloseBefore.length) {
             unichar charAfter = (cursorPos < (NSUInteger)docLen)
-                              ? [text characterAtIndex:cursorPos] : 0;
+                              ? [model getCharacterAtOffset:cursorPos] : 0;
             if (charAfter != 0) {
                 NSString *charAfterStr =
                     [NSString stringWithCharacters:&charAfter length:1];
@@ -283,24 +281,23 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 // MARK: - Private helpers (auto-indentation)
 // ---------------------------------------------------------------------------
 
-/// Returns the leading-whitespace prefix of the line that contains @c offset.
-- (NSString *)_indentOfLineContaining:(NSUInteger)offset inText:(NSString *)text {
-    if (offset == 0) return @"";
+/// Returns the leading-whitespace prefix of the line that contains @c offset,
+/// up to (but not including) the cursor column.
+///
+/// Uses @c getPositionAt: to find the line number and @c getLineContent: to
+/// obtain only that line's text — no full-document string is materialised.
+- (NSString *)_indentOfLineContaining:(NSUInteger)offset {
+    UDTextModel *model = _textModel;
+    if (!model) return @"";
 
-    // Walk backwards to find the start of the current line.
-    NSUInteger lineStart = 0;
-    NSUInteger i = offset;
-    while (i > 0) {
-        i--;
-        unichar c = [text characterAtIndex:i];
-        if (c == '\n' || c == '\r') { lineStart = i + 1; break; }
-    }
+    UDPosition pos = [model getPositionAt:(NSInteger)offset];
+    NSString  *lineContent = [model getLineContent:pos.line];
 
-    // Collect spaces and tabs up to the first non-whitespace character
-    // (or to the cursor, whichever comes first).
+    // pos.column is 1-based; characters 0..(pos.column-2) precede the cursor.
+    NSUInteger limit = (NSUInteger)(pos.column - 1);
     NSMutableString *indent = [NSMutableString string];
-    for (NSUInteger j = lineStart; j < offset; j++) {
-        unichar c = [text characterAtIndex:j];
+    for (NSUInteger j = 0; j < limit && j < lineContent.length; j++) {
+        unichar c = [lineContent characterAtIndex:j];
         if (c == ' ' || c == '\t') { [indent appendFormat:@"%C", c]; }
         else break;
     }
@@ -308,17 +305,23 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 }
 
 /// Returns the last non-space/tab character before @c offset on the SAME LINE,
-/// or 0 if none is found (the line is blank, only whitespace, or offset is 0).
-/// Stops and returns 0 when a line-ending character (\n or \r) is encountered,
-/// so the search is always restricted to the current line.
-- (unichar)_lastNonSpaceCharBefore:(NSUInteger)offset inText:(NSString *)text {
-    if (offset == 0) return 0;
-    NSInteger i = (NSInteger)offset - 1;
-    while (i >= 0) {
-        unichar c = [text characterAtIndex:(NSUInteger)i];
-        if (c == ' ' || c == '\t') { i--; continue; }
-        // Stop at line endings — do not search into the previous line.
-        if (c == '\n' || c == '\r') return 0;
+/// or 0 if none is found (blank line, only whitespace, or start of document).
+///
+/// Uses @c getPositionAt: and @c getLineContent: to restrict the search to the
+/// current line without materialising the full document string.
+- (unichar)_lastNonSpaceCharBefore:(NSUInteger)offset {
+    UDTextModel *model = _textModel;
+    if (!model || offset == 0) return 0;
+
+    UDPosition pos = [model getPositionAt:(NSInteger)offset];
+    NSString  *lineContent = [model getLineContent:pos.line];
+
+    // pos.column is 1-based; the character immediately before the cursor is
+    // at 0-based index (pos.column - 2).
+    NSInteger startIdx = (NSInteger)pos.column - 2;
+    for (NSInteger j = startIdx; j >= 0; j--) {
+        unichar c = [lineContent characterAtIndex:(NSUInteger)j];
+        if (c == ' ' || c == '\t') continue;
         return c;
     }
     return 0;

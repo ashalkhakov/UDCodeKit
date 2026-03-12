@@ -3,8 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDJsonKeyHandler.h"
-#import "UDTextModel.h"
-#import "UDTypes.h"
 #import <tree_sitter/api.h>
 #include <string.h>
 
@@ -12,11 +10,9 @@
 static inline uint32_t _charToByte(NSUInteger c) { return (uint32_t)(c * 2); }
 static inline NSUInteger _byteToChar(uint32_t b)  { return (NSUInteger)(b / 2); }
 
-/// Build a UDTextModelEdit that inserts text at the given character offset.
-static UDTextModelEdit *_insertAt(UDTextModel *model, NSUInteger offset, NSString *text) {
-    UDPosition p = [model getPositionAt:(NSInteger)offset];
-    UDRange r = PTRangeMake(p.line, p.column, p.line, p.column);
-    return [[UDTextModelEdit alloc] initWithRange:r text:text];
+/// Build a UDTextEdit that inserts text at the given character offset.
+static UDTextEdit *_insertAt(NSUInteger offset, NSString *text) {
+    return [[UDTextEdit alloc] initWithRange:NSMakeRange(offset, 0) text:text];
 }
 
 /// Returns YES when the tree-sitter node type name represents a JSON value.
@@ -46,7 +42,7 @@ static BOOL _isJSONValueType(const char *type) {
 
 - (BOOL)handleTypedCharacter:(NSString *)chars
                    parseTree:(nullable const void *)parseTree
-                   textModel:(UDTextModel *)model
+                   textModel:(id<UDTextAccess>)model
                cursorOffset:(NSUInteger)cursorOffset
         newCursorOffsetOut:(NSUInteger *)outCursor {
     if ([chars isEqualToString:@"{"] || [chars isEqualToString:@"["]) {
@@ -83,7 +79,7 @@ static BOOL _isJSONValueType(const char *type) {
 /// Without a tree the check falls back to inspecting the first character.
 - (BOOL)_handleOpenBracket:(NSString *)chars
                  parseTree:(nullable const void *)parseTree
-                 textModel:(UDTextModel *)model
+                 textModel:(id<UDTextAccess>)model
               cursorOffset:(NSUInteger)cursorOffset
          newCursorOffsetOut:(NSUInteger *)outCursor {
     // After the base auto-indenter: cursor is between the brackets.
@@ -120,7 +116,7 @@ static BOOL _isJSONValueType(const char *type) {
     }
 
     if (needsComma) {
-        [model applyEdits:@[_insertAt(model, afterClose, @",")]];
+        [model applyTextEdits:@[_insertAt(afterClose, @",")]];
         // The comma was inserted after cursorOffset, so the cursor stays put.
         *outCursor = cursorOffset;
     }
@@ -145,7 +141,7 @@ static BOOL _isJSONValueType(const char *type) {
 ///   - The parse tree shows a `string` node ending exactly at `cursorOffset`
 ///     whose parent is `object`.
 - (BOOL)_handleClosingQuote:(nullable const void *)parseTree
-                  textModel:(UDTextModel *)model
+                  textModel:(id<UDTextAccess>)model
                cursorOffset:(NSUInteger)cursorOffset
           newCursorOffsetOut:(NSUInteger *)outCursor {
     if (parseTree == NULL) return NO;
@@ -187,7 +183,7 @@ static BOOL _isJSONValueType(const char *type) {
             TSNode parent = ts_node_parent(current);
             if (!ts_node_is_null(parent)
                     && strcmp(ts_node_type(parent), "object") == 0) {
-                [model applyEdits:@[_insertAt(model, cursorOffset, @": ")]];
+                [model applyTextEdits:@[_insertAt(cursorOffset, @": ")]];
                 *outCursor = cursorOffset + 2;  // after `: `
                 return YES;
             }

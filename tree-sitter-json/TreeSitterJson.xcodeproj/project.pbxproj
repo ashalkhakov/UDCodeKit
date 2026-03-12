@@ -223,7 +223,6 @@
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/src",
 					"$(SRCROOT)/../Sources/Extensions",
-					"$(SRCROOT)/../../UDPieceTable/Sources",
 				);
 				OTHER_LDFLAGS = "-undefined dynamic_lookup";
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -247,7 +246,6 @@
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/src",
 					"$(SRCROOT)/../Sources/Extensions",
-					"$(SRCROOT)/../../UDPieceTable/Sources",
 				);
 				OTHER_LDFLAGS = "-undefined dynamic_lookup";
 				INFOPLIST_FILE = Resources/Info.plist;

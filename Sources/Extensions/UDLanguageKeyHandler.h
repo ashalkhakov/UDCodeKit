@@ -13,27 +13,25 @@
  *    • The language handler receives the CURRENT tree-sitter parse tree
  *      (updated synchronously through NSTextStorage after every edit), so it
  *      reflects the latest document state including any auto-close insertion.
- *    • The language handler uses -[UDTextModel applyEdits:] to make additional
- *      text changes and returns the desired cursor offset via the out-parameter.
+ *    • The language handler uses -[id<UDTextAccess> applyTextEdits:] to make
+ *      additional text changes and returns the desired cursor offset via the
+ *      out-parameter.
  *    • The caller (UDAutoIndenter) restores the cursor via NSTextView after the
- *      handler returns.  This is necessary because applyEdits: fires
- *      UDTextModelDidChangeNotification which reports a full-document range to
- *      NSTextView and may reset the displayed cursor.  Since all of this is
- *      synchronous on the main thread, no visual glitch occurs.
+ *      handler returns.  This is necessary because applyTextEdits: fires a text
+ *      change notification which may reset the displayed cursor.  Since all of
+ *      this is synchronous on the main thread, no visual glitch occurs.
  *
  *  HEADER ACCESS
  *  -------------
  *  This header is accessible to grammar bundle targets via the shared
- *  $(SRCROOT)/../Sources/Extensions header search path.  Bundle targets also
- *  add $(SRCROOT)/../../UDPieceTable/Sources to HEADER_SEARCH_PATHS so that
- *  implementations can import UDTextModel.h and related types.  Symbols from
- *  UDPieceTable are resolved at runtime from the host application (bundles are
- *  linked with -undefined dynamic_lookup).
+ *  $(SRCROOT)/../Sources/Extensions header search path.  Extension bundles depend
+ *  only on Foundation — they do not link the UDPieceTable library and do not need
+ *  UDTextModel.h or any other UDPieceTable header.  The text model is accessed
+ *  exclusively through the id<UDTextAccess> protocol defined in UDTextEditing.h.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
-
-@class UDTextModel;
+#import "UDTextEditing.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -66,24 +64,25 @@ NS_ASSUME_NONNULL_BEGIN
 ///                      The tree is updated synchronously before this call, so it
 ///                      always reflects the document state AFTER any electric-pair
 ///                      or skip-over edits performed by the base auto-indenter.
-/// @param model         The text model.  Use its read API
-///                      (@c getValue, @c getCharacterAtOffset:, etc.) for
-///                      context and @c applyEdits: to insert or replace text.
-///                      After @c applyEdits: the caller will restore the cursor
-///                      to @c *newCursorOffsetOut.
+/// @param model         The text model accessed through the @c UDTextAccess
+///                      protocol.  Use its read API (@c getValue,
+///                      @c getCharacterAtOffset:, etc.) for context and
+///                      @c applyTextEdits: to insert or replace text.
+///                      After @c applyTextEdits: the caller will restore the
+///                      cursor to @c *newCursorOffsetOut.
 /// @param cursorOffset  The current insertion-point character offset (0-based),
 ///                      after any edits already made by the base auto-indenter.
 /// @param outCursor     On output: the desired insertion-point after this
 ///                      handler's edits.  Initialised to @c NSNotFound before
 ///                      the call.  Set to any value other than @c NSNotFound to
 ///                      request a specific cursor position.  If the handler
-///                      calls @c applyEdits: it MUST set this, even when the
+///                      calls @c applyTextEdits: it MUST set this, even when the
 ///                      cursor should remain at @c cursorOffset, because
-///                      @c applyEdits: may otherwise reset the cursor.
+///                      @c applyTextEdits: may otherwise reset the cursor.
 /// @return YES if the event should be consumed; NO otherwise.
 - (BOOL)handleTypedCharacter:(NSString *)chars
                    parseTree:(nullable const void *)parseTree
-                   textModel:(UDTextModel *)model
+                   textModel:(id<UDTextAccess>)model
                cursorOffset:(NSUInteger)cursorOffset
         newCursorOffsetOut:(NSUInteger *)outCursor;
 

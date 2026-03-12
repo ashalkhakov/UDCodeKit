@@ -4,6 +4,7 @@
 
 #import "UDAutoIndenter.h"
 #import "UDLanguageKeyHandler.h"
+#import "UDTextModel+TextAccess.h"
 #import <tree_sitter/api.h>
 #import <string.h>
 

@@ -3,8 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDXmlKeyHandler.h"
-#import "UDTextModel.h"
-#import "UDTypes.h"
 #import <tree_sitter/api.h>
 #include <string.h>
 
@@ -12,14 +10,11 @@
 static inline uint32_t _charToByte(NSUInteger c) { return (uint32_t)(c * 2); }
 static inline NSUInteger _byteToChar(uint32_t b)  { return (NSUInteger)(b / 2); }
 
-/// Build a UDTextModelEdit that replaces the character range [start, end) with text.
-static UDTextModelEdit *_editForRange(UDTextModel *model,
-                                      NSUInteger start, NSUInteger end,
-                                      NSString *text) {
-    UDPosition sp = [model getPositionAt:(NSInteger)start];
-    UDPosition ep = [model getPositionAt:(NSInteger)end];
-    UDRange r = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
-    return [[UDTextModelEdit alloc] initWithRange:r text:text];
+/// Build a UDTextEdit that replaces the character range [start, end) with text.
+/// Uses 0-based NSRange character offsets — no UDPieceTable types required.
+static UDTextEdit *_editForRange(NSUInteger start, NSUInteger end, NSString *text) {
+    NSUInteger len = (end > start) ? (end - start) : 0;
+    return [[UDTextEdit alloc] initWithRange:NSMakeRange(start, len) text:text];
 }
 
 @implementation UDXmlKeyHandler
@@ -37,7 +32,7 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
 
 - (BOOL)handleTypedCharacter:(NSString *)chars
                    parseTree:(nullable const void *)parseTree
-                   textModel:(UDTextModel *)model
+                   textModel:(id<UDTextAccess>)model
                cursorOffset:(NSUInteger)cursorOffset
         newCursorOffsetOut:(NSUInteger *)outCursor {
     if ([chars isEqualToString:@">"]) {
@@ -68,7 +63,7 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
 /// Always returns YES to consume the event (prevents NSTextView inserting a
 /// second `>`).
 - (BOOL)_handleClosingAngle:(nullable const void *)parseTree
-                  textModel:(UDTextModel *)model
+                  textModel:(id<UDTextAccess>)model
                cursorOffset:(NSUInteger)cursorOffset
           newCursorOffsetOut:(NSUInteger *)outCursor {
     NSString *str = [model getValue];
@@ -90,7 +85,7 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
                     || strcmp(type, "CDataSection") == 0
                     || strcmp(type, "XMLDecl") == 0
                     || strcmp(type, "processing_instruction") == 0) {
-                [model applyEdits:@[_editForRange(model, cursorOffset, cursorOffset, @">")]];
+                [model applyTextEdits:@[_editForRange(cursorOffset, cursorOffset, @">")]];
                 *outCursor = cursorOffset + 1;
                 return YES;
             }
@@ -125,7 +120,7 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
         }
 
         if (tagStart == NSNotFound) {
-            [model applyEdits:@[_editForRange(model, cursorOffset, cursorOffset, @">")]];
+            [model applyTextEdits:@[_editForRange(cursorOffset, cursorOffset, @">")]];
             *outCursor = cursorOffset + 1;
             return YES;
         }
@@ -139,13 +134,13 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
                 || [trimmed hasPrefix:@"!"]
                 || [trimmed hasPrefix:@"?"]
                 || [trimmed hasPrefix:@"/"]) {
-            [model applyEdits:@[_editForRange(model, cursorOffset, cursorOffset, @">")]];
+            [model applyTextEdits:@[_editForRange(cursorOffset, cursorOffset, @">")]];
             *outCursor = cursorOffset + 1;
             return YES;
         }
 
         if ([trimmed hasSuffix:@"/"]) {
-            [model applyEdits:@[_editForRange(model, cursorOffset, cursorOffset, @">")]];
+            [model applyTextEdits:@[_editForRange(cursorOffset, cursorOffset, @">")]];
             *outCursor = cursorOffset + 1;
             return YES;
         }
@@ -161,7 +156,7 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
             : trimmed;
 
         if (tagName.length == 0) {
-            [model applyEdits:@[_editForRange(model, cursorOffset, cursorOffset, @">")]];
+            [model applyTextEdits:@[_editForRange(cursorOffset, cursorOffset, @">")]];
             *outCursor = cursorOffset + 1;
             return YES;
         }
@@ -169,7 +164,7 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
 
     // Insert `></tagName>` as one atomic edit; cursor lands after the `>`.
     NSString *insertion = [NSString stringWithFormat:@"></%@>", tagName];
-    [model applyEdits:@[_editForRange(model, cursorOffset, cursorOffset, insertion)]];
+    [model applyTextEdits:@[_editForRange(cursorOffset, cursorOffset, insertion)]];
     *outCursor = cursorOffset + 1;
     return YES;
 }
@@ -184,11 +179,11 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
 ///
 /// The tree-sitter parse tree (which is current at the time of the call — the
 /// character has not yet been inserted) locates both the opening and closing
-/// tag names precisely.  Both edits are applied atomically via applyEdits: so
+/// tag names precisely.  Both edits are applied atomically via applyTextEdits: so
 /// they are treated as a single undo step.
 - (BOOL)_handleTagNameChar:(NSString *)chars
                  parseTree:(const void *)parseTree
-                 textModel:(UDTextModel *)model
+                 textModel:(id<UDTextAccess>)model
               cursorOffset:(NSUInteger)cursorOffset
          newCursorOffsetOut:(NSUInteger *)outCursor {
     NSString *str = [model getValue];
@@ -283,13 +278,13 @@ static UDTextModelEdit *_editForRange(UDTextModel *model,
             || endNameStart > endNameEnd || endNameStart <= cursorOffset) return NO;
 
     // Apply both edits atomically.
-    // applyEdits: processes them end-to-start:
+    // applyTextEdits: processes them end-to-start:
     //   editB (replace end-tag name, later in document) runs first,
     //   editA (insert char at cursor, earlier in document) runs second.
     // Both ranges reference the document state BEFORE this call.
-    UDTextModelEdit *editA = _editForRange(model, cursorOffset, cursorOffset, chars);
-    UDTextModelEdit *editB = _editForRange(model, endNameStart, endNameEnd, newName);
-    [model applyEdits:@[editA, editB]];
+    UDTextEdit *editA = _editForRange(cursorOffset, cursorOffset, chars);
+    UDTextEdit *editB = _editForRange(endNameStart, endNameEnd, newName);
+    [model applyTextEdits:@[editA, editB]];
 
     // Cursor lands right after the inserted character.
     *outCursor = cursorOffset + chars.length;

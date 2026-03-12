@@ -2,16 +2,16 @@
  *  UDAutoIndenterTests.m
  *
  *  Unit tests for UDAutoIndenter covering:
- *    • handleReturnKey — indent computation, open-bracket indent increase,
- *      electric-pair split, custom bracket config, custom indent unit.
- *    • handleTypedCharacter: — auto-close insertion, skip-over, autoCloseBefore
- *      suppression, no-op when no config or selection is present.
+ *    • handleReturnKeyWithTextView:model: — indent computation, open-bracket
+ *      indent increase, electric-pair split, custom bracket config, custom
+ *      indent unit.
+ *    • handleTypedCharacter:textView:model: — auto-close insertion, skip-over,
+ *      autoCloseBefore suppression, no-op when no config or selection present.
+ *    • handleShiftTabKeyWithTextView:model: — single-line, multi-line, edge cases.
  *
- *  Test setup mirrors UDTextEditorViewController.viewDidLoad: a real NSTextView
- *  is created and its layout manager is re-wired to a UDTextModelTextStorage so
- *  that insertText:replacementRange: goes through the normal NSTextStorage →
- *  UDTextModel pipeline.  All objects are held by local ARC variables in each
- *  test method so the weak references inside UDAutoIndenter stay live.
+ *  All public key-handling methods take explicit textView/model parameters
+ *  (no stored weak references), which makes the test setup simpler: we create
+ *  a real NSTextView + UDTextModelTextStorage pair and pass them directly.
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
@@ -51,12 +51,6 @@ static UDLanguageConfiguration *UDConfigWithPairsAndBefore(NSArray *pairs,
 /// Creates a (UDAutoIndenter, NSTextView, UDTextModelTextStorage) triple for
 /// the given text and cursor offset.  Out-parameters keep the objects alive
 /// for the full body of the calling test method.
-///
-/// The wiring replicates UDTextEditorViewController.viewDidLoad:
-///   1. Create UDTextModelTextStorage with the desired text.
-///   2. Remove the text view's default layout manager from the default
-///      NSTextStorage and add it to the custom storage instead.
-///   3. Set the initial cursor position.
 - (UDAutoIndenter *)_indenterWithText:(NSString *)text
                                cursor:(NSUInteger)offset
                               storage:(__strong UDTextModelTextStorage **)storageOut
@@ -77,86 +71,74 @@ static UDLanguageConfiguration *UDConfigWithPairsAndBefore(NSArray *pairs,
     if (storageOut) *storageOut = storage;
     if (tvOut)      *tvOut      = tv;
 
-    return [[UDAutoIndenter alloc] initWithTextView:tv
-                                         highlighter:nil
-                                           textModel:storage.textModel];
+    return [[UDAutoIndenter alloc] initWithHighlighter:nil];
+}
+
+// Convenience: runs a return-key action and returns the indenter.
+- (UDAutoIndenter *)_indenterForReturnInText:(NSString *)text
+                                      cursor:(NSUInteger)offset
+                                     storage:(__strong UDTextModelTextStorage **)sOut
+                                    textView:(__strong NSTextView **)tvOut {
+    return [self _indenterWithText:text cursor:offset storage:sOut textView:tvOut];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - handleReturnKey
+// MARK: - handleReturnKeyWithTextView:model:
 // ---------------------------------------------------------------------------
 
-/// Empty document: the method must return NO and leave the model unchanged.
 - (void)testReturnKey_emptyDocument_returnsNO {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
     UDAutoIndenter *ind =
         [self _indenterWithText:@"" cursor:0 storage:&storage textView:&tv];
-    XCTAssertFalse([ind handleReturnKey]);
+    XCTAssertFalse([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"",
                           @"Empty document must not be modified");
     (void)tv;
 }
 
-/// Plain text with leading whitespace: Return copies the indent of the
-/// current line (no bracket, no increase).
 - (void)testReturnKey_plainLine_copiesIndent {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // Cursor at end of "  hello"
     UDAutoIndenter *ind =
         [self _indenterWithText:@"  hello" cursor:7 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleReturnKey]);
+    XCTAssertTrue([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"  hello\n  ");
     (void)tv;
 }
 
-/// Cursor at column 1 of a line (no preceding character on that line):
-/// Return inserts a bare newline with no indent.
 - (void)testReturnKey_cursorAtLineStart_noIndent {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // text = "foo\n  bar", cursor at offset 4 = start of "  bar"
     UDAutoIndenter *ind =
         [self _indenterWithText:@"foo\n  bar" cursor:4
                         storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleReturnKey]);
+    XCTAssertTrue([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"foo\n\n  bar");
     (void)tv;
 }
 
-/// Cursor directly after a `{` on an indented line: indent should increase
-/// by one indentUnit (default: two spaces).
 - (void)testReturnKey_afterOpenBrace_increasesIndent {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // text = "  {", cursor at end (offset 3)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"  {" cursor:3 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleReturnKey]);
-    // lineIndent="  ", newIndent="    " (2+2 spaces)
+    XCTAssertTrue([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"  {\n    ");
     (void)tv;
 }
 
-/// Electric-pair split: cursor is between `{` and `}`.
-/// Return should produce three lines and leave the cursor on the middle line.
 - (void)testReturnKey_betweenBraces_electricSplit {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // text = "  {}", cursor between { and } (offset 3)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"  {}" cursor:3 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleReturnKey]);
-    // Expected: "  {\n    \n  }"
+    XCTAssertTrue([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"  {\n    \n  }");
-    // Cursor: cursorPos(3) + 1('\n') + newIndent.length(4) = 8
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)8);
     (void)storage;
 }
 
-/// Custom language configuration with `(` and `)` as brackets: pressing
-/// Return after `(` should increase the indentation.
 - (void)testReturnKey_customBracketConfig_parenthesis {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
@@ -166,55 +148,46 @@ static UDLanguageConfiguration *UDConfigWithPairsAndBefore(NSArray *pairs,
         [UDLanguageConfiguration configurationFromDictionary:@{
             @"brackets": @[@[@"(", @")"], @[@"{", @"}"]],
         }];
-    XCTAssertTrue([ind handleReturnKey]);
-    // lineIndent="", newIndent="  " (default indentUnit)
+    XCTAssertTrue([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"(\n  ");
     (void)tv;
 }
 
-/// Custom indent unit (tab character): newline should use a tab.
 - (void)testReturnKey_tabIndentUnit {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
     UDAutoIndenter *ind =
         [self _indenterWithText:@"\t{" cursor:2 storage:&storage textView:&tv];
     ind.indentUnit = @"\t";
-    XCTAssertTrue([ind handleReturnKey]);
-    // lineIndent="\t", newIndent="\t\t"
+    XCTAssertTrue([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"\t{\n\t\t");
     (void)tv;
 }
 
-/// Whitespace before cursor is skipped, but only to the end of the current
-/// line: a `{` followed by spaces should still be detected as charBefore.
 - (void)testReturnKey_openBraceWithTrailingSpaces_increasesIndent {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // text = "{   ", cursor at end (offset 4) — last non-space before cursor is `{`
     UDAutoIndenter *ind =
         [self _indenterWithText:@"{   " cursor:4 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleReturnKey]);
+    XCTAssertTrue([ind handleReturnKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"{   \n  ");
     (void)tv;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - handleTypedCharacter:
+// MARK: - handleTypedCharacter:textView:model:
 // ---------------------------------------------------------------------------
 
-/// No language configuration → method should return NO immediately.
 - (void)testTypedChar_noConfig_returnsNO {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
     UDAutoIndenter *ind =
         [self _indenterWithText:@"" cursor:0 storage:&storage textView:&tv];
-    // languageConfiguration is nil by default — no autoClosingPairs
-    XCTAssertFalse([ind handleTypedCharacter:@"{"]);
+    XCTAssertFalse([ind handleTypedCharacter:@"{" textView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"");
     (void)tv;
 }
 
-/// Typing an open bracket inserts the pair and places the cursor between them.
 - (void)testTypedChar_openBracket_insertsPair {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
@@ -222,237 +195,191 @@ static UDLanguageConfiguration *UDConfigWithPairsAndBefore(NSArray *pairs,
         [self _indenterWithText:@"" cursor:0 storage:&storage textView:&tv];
     ind.languageConfiguration =
         UDConfigWithPairs(@[@{@"open": @"{", @"close": @"}"}]);
-    XCTAssertTrue([ind handleTypedCharacter:@"{"]);
+    XCTAssertTrue([ind handleTypedCharacter:@"{" textView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"{}");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)1,
                    @"Cursor must be between open and close brackets");
     (void)storage;
 }
 
-/// Typing a close bracket when that character already sits immediately to the
-/// right of the cursor advances the cursor (skip-over) without inserting.
 - (void)testTypedChar_closeBracket_skipOver {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // text = "{}", cursor between { and } (offset 1)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"{}" cursor:1 storage:&storage textView:&tv];
     ind.languageConfiguration =
         UDConfigWithPairs(@[@{@"open": @"{", @"close": @"}"}]);
-    XCTAssertTrue([ind handleTypedCharacter:@"}"]);
-    // Model must be unchanged (no insertion)
+    XCTAssertTrue([ind handleTypedCharacter:@"}" textView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"{}");
-    // Cursor must have moved past the existing `}`
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)2);
     (void)storage;
 }
 
-/// Non-empty selection: auto-close must not fire (return NO).
 - (void)testTypedChar_withSelection_returnsNO {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
     UDAutoIndenter *ind =
         [self _indenterWithText:@"foo" cursor:0 storage:&storage textView:&tv];
-    [tv setSelectedRange:NSMakeRange(0, 3)];   // select all
+    [tv setSelectedRange:NSMakeRange(0, 3)];
     ind.languageConfiguration =
         UDConfigWithPairs(@[@{@"open": @"{", @"close": @"}"}]);
-    XCTAssertFalse([ind handleTypedCharacter:@"{"]);
+    XCTAssertFalse([ind handleTypedCharacter:@"{" textView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"foo",
                           @"Model must not change when selection is non-empty");
     (void)tv;
 }
 
-/// autoCloseBefore: when the character to the right of the cursor is NOT in
-/// the allowed set, auto-close is suppressed.
 - (void)testTypedChar_autoCloseBefore_suppressedWhenCharNotInSet {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // Cursor at offset 0, char to the right is 'a' — not in "}])"
     UDAutoIndenter *ind =
         [self _indenterWithText:@"a" cursor:0 storage:&storage textView:&tv];
     ind.languageConfiguration =
         UDConfigWithPairsAndBefore(@[@{@"open": @"{", @"close": @"}"}], @"}])");
-    XCTAssertFalse([ind handleTypedCharacter:@"{"]);
-    XCTAssertEqualObjects([storage.textModel getValue], @"a",
-                          @"Auto-close must be suppressed when char-right is not in autoCloseBefore");
+    XCTAssertFalse([ind handleTypedCharacter:@"{" textView:tv model:storage.textModel]);
+    XCTAssertEqualObjects([storage.textModel getValue], @"a");
     (void)tv;
 }
 
-/// autoCloseBefore: when the character to the right IS in the allowed set,
-/// auto-close fires normally.
 - (void)testTypedChar_autoCloseBefore_firesWhenCharInSet {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // Cursor at offset 0, char to the right is '}' — which IS in "}])"
     UDAutoIndenter *ind =
         [self _indenterWithText:@"}" cursor:0 storage:&storage textView:&tv];
     ind.languageConfiguration =
         UDConfigWithPairsAndBefore(@[@{@"open": @"{", @"close": @"}"}], @"}])");
-    XCTAssertTrue([ind handleTypedCharacter:@"{"]);
+    XCTAssertTrue([ind handleTypedCharacter:@"{" textView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"{}}");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)1);
     (void)storage;
 }
 
-/// autoCloseBefore: at end of document (no char to the right), auto-close
-/// must fire even when autoCloseBefore is set.
 - (void)testTypedChar_autoCloseBefore_firesAtEndOfDocument {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // Empty document, cursor at end
     UDAutoIndenter *ind =
         [self _indenterWithText:@"" cursor:0 storage:&storage textView:&tv];
     ind.languageConfiguration =
         UDConfigWithPairsAndBefore(@[@{@"open": @"{", @"close": @"}"}], @"}])");
-    XCTAssertTrue([ind handleTypedCharacter:@"{"]);
+    XCTAssertTrue([ind handleTypedCharacter:@"{" textView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"{}");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)1);
     (void)storage;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - handleShiftTabKey
+// MARK: - handleShiftTabKeyWithTextView:model:
 // ---------------------------------------------------------------------------
 
-/// Empty document: method must return NO and leave the model unchanged.
 - (void)testShiftTab_emptyDocument_returnsNO {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
     UDAutoIndenter *ind =
         [self _indenterWithText:@"" cursor:0 storage:&storage textView:&tv];
-    XCTAssertFalse([ind handleShiftTabKey]);
+    XCTAssertFalse([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"");
     (void)tv;
 }
 
-/// Line has no leading whitespace: method returns YES (event consumed)
-/// but leaves the content unchanged.
 - (void)testShiftTab_noLeadingWhitespace_returnsYES_noChange {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
     UDAutoIndenter *ind =
         [self _indenterWithText:@"hello" cursor:5 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"hello");
     (void)tv;
 }
 
-/// Line with exactly one indent unit (2 spaces): dedent removes both spaces.
-/// Cursor should move back by 2.
 - (void)testShiftTab_twoSpaceIndent_removesOneUnit {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // "  hello", cursor at end (offset 7)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"  hello" cursor:7 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"hello");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5,
                    @"Cursor must shift back by 2 (the stripped spaces)");
     (void)storage;
 }
 
-/// Line with only 1 leading space when indentUnit is 2 spaces: remove
-/// the single space (strip min(1, 2)).
 - (void)testShiftTab_partialIndent_removesAllSpaces {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // " hello", cursor at 6
     UDAutoIndenter *ind =
         [self _indenterWithText:@" hello" cursor:6 storage:&storage textView:&tv];
-    // Default indentUnit is "  " (2 spaces)
-    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"hello");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5);
     (void)storage;
 }
 
-/// Line with 4 leading spaces when indentUnit is 2 spaces: only 2 spaces
-/// should be removed (one indent level).
 - (void)testShiftTab_fourSpaceIndent_removesOneUnit {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // "    hello", cursor at end (9)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"    hello" cursor:9 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"  hello");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)7);
     (void)storage;
 }
 
-/// Line indented with a tab: exactly one tab is removed.
 - (void)testShiftTab_tabIndent_removesOneTab {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // "\thello", cursor at end (6)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"\thello" cursor:6 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"hello");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5);
     (void)storage;
 }
 
-/// Cursor at column 1 (line start) on an indented line: cursor lands at
-/// the new line start after stripping.
 - (void)testShiftTab_cursorAtLineStart_clampsToLineStart {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // "  hello", cursor at 0 (before the spaces)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"  hello" cursor:0 storage:&storage textView:&tv];
-    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"hello");
-    // Cursor was at 0; after stripping 2 chars before it, it must stay at 0.
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)0);
     (void)storage;
 }
 
-/// Multi-line selection spanning two equally-indented lines: both lines
-/// are de-dented; the selection is adjusted accordingly.
 - (void)testShiftTab_multiLineSelection_removesFromEachLine {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // "  foo\n  bar" (length 11), full selection [0, 11)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"  foo\n  bar" cursor:0 storage:&storage textView:&tv];
     [tv setSelectedRange:NSMakeRange(0, 11)];
-    XCTAssertTrue([ind handleShiftTabKey]);
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"foo\nbar");
-    // new_start = MAX(0-2, 0) = 0; new_end = 11-4 = 7; new_len = 7
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)0);
     XCTAssertEqual(tv.selectedRange.length,   (NSUInteger)7);
     (void)storage;
 }
 
-/// Selection that ends exactly at column 1 of the next line: the last line
-/// must NOT be de-dented because no characters from it are selected.
 - (void)testShiftTab_selectionEndsAtLineStart_doesNotDedentLastLine {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // "  foo\n  bar", selection [0, 6) — ends right at the start of "  bar"
     UDAutoIndenter *ind =
         [self _indenterWithText:@"  foo\n  bar" cursor:0 storage:&storage textView:&tv];
     [tv setSelectedRange:NSMakeRange(0, 6)];
-    XCTAssertTrue([ind handleShiftTabKey]);
-    // Only "  foo" should be dedented; "  bar" must stay unchanged.
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"foo\n  bar");
-    // new_start = MAX(0-2, 0) = 0; new_end = 6-2 = 4; new_len = 4
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)0);
     XCTAssertEqual(tv.selectedRange.length,   (NSUInteger)4);
     (void)storage;
 }
 
-/// Custom indent unit (4 spaces): exactly 4 spaces are removed.
 - (void)testShiftTab_customFourSpaceUnit_removesFourSpaces {
     UDTextModelTextStorage *storage;
     NSTextView *tv;
-    // "    hello", cursor at end (9)
     UDAutoIndenter *ind =
         [self _indenterWithText:@"    hello" cursor:9 storage:&storage textView:&tv];
-    ind.indentUnit = @"    "; // 4 spaces
-    XCTAssertTrue([ind handleShiftTabKey]);
+    ind.indentUnit = @"    ";
+    XCTAssertTrue([ind handleShiftTabKeyWithTextView:tv model:storage.textModel]);
     XCTAssertEqualObjects([storage.textModel getValue], @"hello");
     XCTAssertEqual(tv.selectedRange.location, (NSUInteger)5);
     (void)storage;

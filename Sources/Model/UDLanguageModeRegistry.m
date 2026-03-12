@@ -272,6 +272,12 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
             serverCmd = [(id<UDExtension>)ext languageServerCommandForIdentifier:identifier];
         }
 
+        // Ask the extension for a language-specific key handler (optional method).
+        id<UDLanguageKeyHandler> keyHandler = nil;
+        if ([ext respondsToSelector:@selector(keyHandlerForIdentifier:)]) {
+            keyHandler = [(id<UDExtension>)ext keyHandlerForIdentifier:identifier];
+        }
+
         // Load language configuration from the mode entry dict.
         UDLanguageConfiguration *config =
             [UDLanguageConfiguration configurationFromDictionary:modeInfo];
@@ -288,7 +294,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
                  lspLanguageID:lspID
          languageServerCommand:serverCmd
         defaultNewDocumentText:defaultText
-            languageConfiguration:config];
+            languageConfiguration:config
+                     keyHandler:keyHandler];
 
         [self _registerModeUnsafe:mode];
     }
@@ -316,7 +323,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
              lspLanguageID:nil
      languageServerCommand:nil
     defaultNewDocumentText:@""
-        languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+        languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+                 keyHandler:nil];
     [self _registerModeUnsafe:_plaintextFallback];
 
     // Load grammar bundles from the app's PlugIns directory.

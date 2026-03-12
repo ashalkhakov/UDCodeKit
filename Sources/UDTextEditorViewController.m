@@ -141,9 +141,7 @@ static CGFloat const kEditorLineGutterWidth = 48.0;
 
     // 11. Auto-indenter (caller calls -configureWithLanguageFunc:indentsQuery: after viewDidLoad).
     _autoIndenter =
-        [[UDAutoIndenter alloc] initWithTextView:_textView
-                                      highlighter:_textStorage.highlighter
-                                        textModel:_textStorage.textModel];
+        [[UDAutoIndenter alloc] initWithHighlighter:_textStorage.highlighter];
 
     // 12. Wire the text view's key-handler references so that keyDown: in
     //     UDDiagnosticTextView can dispatch Return, Option+Arrow, and

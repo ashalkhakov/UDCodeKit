@@ -34,6 +34,7 @@
 
 #import <Foundation/Foundation.h>
 #import <tree_sitter/api.h>
+#import "UDLanguageKeyHandler.h"
 
 @protocol UDExtension <NSObject>
 
@@ -74,5 +75,18 @@
 /// If this method is not implemented, or returns @c nil, the host will not
 /// start a language server for the corresponding mode.
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier;
+
+/// Returns a language-specific key handler for the given language mode
+/// identifier, or @c nil when this extension provides no special key handling
+/// for that mode.
+///
+/// The host retains the returned object and attaches it to the
+/// @c UDLanguageMode.keyHandler property.  The editor's @c UDAutoIndenter then
+/// delegates typed-character events to it, giving the bundle a chance to
+/// implement language-aware behaviour such as XML auto-close-tag on @c > or
+/// JSON trailing-comma insertion.
+///
+/// Implement this method only for modes that need custom key handling.
+- (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier;
 
 @end

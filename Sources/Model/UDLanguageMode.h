@@ -23,6 +23,7 @@
 
 #import <Foundation/Foundation.h>
 #import "UDLanguageConfiguration.h"
+#import "UDLanguageKeyHandler.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -109,6 +110,13 @@ typedef const void *(*LanguageFunc)(void);
 /// Never nil — a mode with no configuration returns `[UDLanguageConfiguration emptyConfiguration]`.
 @property (nonatomic, strong, readonly) UDLanguageConfiguration *languageConfiguration;
 
+/// Optional language-specific key handler supplied by the grammar bundle.
+/// The editor's UDAutoIndenter forwards typed-character events to this handler
+/// after its own generic processing, enabling language-aware behaviour such as
+/// XML auto-close-tag on ">" or JSON trailing-comma insertion.
+/// nil for modes that provide no special handling.
+@property (nonatomic, strong, readonly, nullable) id<UDLanguageKeyHandler> keyHandler;
+
 // ---------------------------------------------------------------------------
 // MARK: - New document defaults
 // ---------------------------------------------------------------------------
@@ -132,6 +140,7 @@ typedef const void *(*LanguageFunc)(void);
              languageServerCommand:(nullable NSArray<NSString *> *)languageServerCommand
             defaultNewDocumentText:(NSString *)defaultNewDocumentText
                 languageConfiguration:(UDLanguageConfiguration *)languageConfiguration
+                         keyHandler:(nullable id<UDLanguageKeyHandler>)keyHandler
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

@@ -1,9 +1,22 @@
 /*---------------------------------------------------------------------------------------------
  *  UDAutoIndenter.h
  *
- *  Provides tree-sitter-driven auto-indentation when the user presses Return.
- *  The indentation level for the new line is determined by:
+ *  Provides tree-sitter-driven auto-indentation and electric-pair editing for the editor.
  *
+ *  All key-handling public methods take an explicit NSTextView * and UDTextModel * so that
+ *  the indenter is stateless with respect to the document — a single indenter instance can
+ *  serve any text view / text model combination and is easy to test without a running
+ *  UI loop.
+ *
+ *  LANGUAGE-SPECIFIC BEHAVIOUR
+ *  ----------------------------
+ *  Grammar bundles may supply an id<UDLanguageKeyHandler> via the languageKeyHandler
+ *  property.  The indenter calls -handleTypedCharacter:textView: on it after its own
+ *  generic processing, giving the bundle a chance to react (e.g. XML auto-close on ">",
+ *  JSON trailing-comma insertion after "{}").
+ *
+ *  INDENTATION RULES
+ *  -----------------
  *    1. The leading whitespace of the current line  (base indent).
  *    2. A compiled tree-sitter query whose @indent captures identify node types
  *       that should increase indentation (e.g. JSON "object" and "array").
@@ -11,28 +24,24 @@
  *       class reusable across languages.
  *    3. A check that the non-whitespace character immediately before the cursor
  *       is an opening bracket ( { or [ ) whose corresponding tree-sitter node
- *       is an @indent match — this avoids increasing indent inside string literals.
+ *       is an @indent match - this avoids increasing indent inside string literals.
  *    4. An "electric pair" rule: when a closing bracket ( } or ] ) sits
  *       immediately after the cursor, the pair is split across three lines:
  *
- *           { | }   →   {
+ *           { | }   ->  {
  *                            |        (cursor lands here)
  *                        }
  *
  *  USAGE
  *  -----
- *    // In AppDelegate -_buildEditorAccessories:
- *    _autoIndenter = [[UDAutoIndenter alloc]
- *                         initWithTextView:self.textView
- *                               highlighter:_textStorage.highlighter
- *                                 textModel:_textStorage.textModel];
+ *    // In -viewDidLoad:
+ *    _autoIndenter = [[UDAutoIndenter alloc] initWithHighlighter:_textStorage.highlighter];
  *    [_autoIndenter configureWithLanguageFunc:(LanguageFunc)tree_sitter_json
  *                                indentsQuery:kJSONIndentsQuery];
+ *    _autoIndenter.languageKeyHandler = mode.keyHandler;
  *
- *    // In the NSEvent monitor (Return key):
- *    case kKeyCodeReturn:
- *        if ([strongSelf->_autoIndenter handleReturnKey]) return nil;
- *        return event;
+ *    // In UDDiagnosticTextView -keyDown: (called before [super keyDown:]):
+ *    if ([_autoIndenter handleKeyEvent:event textView:self model:_textModel]) return;
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -40,6 +49,8 @@
 #import "UDTreeSitterHighlighter.h"
 #import "UDLanguageConfiguration.h"
 #import <UDPieceTable/UDPieceTable.h>
+
+@protocol UDLanguageKeyHandler;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -55,9 +66,21 @@ NS_ASSUME_NONNULL_BEGIN
 /// When nil the auto-indenter falls back to the built-in defaults (`{`/`[`).
 @property (nonatomic, strong, nullable) UDLanguageConfiguration *languageConfiguration;
 
-- (instancetype)initWithTextView:(NSTextView *)textView
-                      highlighter:(UDTreeSitterHighlighter *)highlighter
-                        textModel:(UDTextModel *)textModel;
+/// Optional language-specific handler supplied by the grammar bundle.
+/// Called by -handleKeyEvent:textView:model: after its own generic processing,
+/// giving the bundle a chance to react to typed characters.
+@property (nonatomic, strong, nullable) id<UDLanguageKeyHandler> languageKeyHandler;
+
+/// Designated initializer.
+///
+/// @param highlighter  The tree-sitter highlighter that owns the current parse
+///                     tree.  Used for @indent-node checking and notIn suppression.
+///                     May be nil (disables tree-sitter-dependent features; all
+///                     bracket-based rules still apply).
+- (instancetype)initWithHighlighter:(nullable UDTreeSitterHighlighter *)highlighter
+    NS_DESIGNATED_INITIALIZER;
+
+- (instancetype)init NS_UNAVAILABLE;
 
 /// Configure the tree-sitter language and indentation query.
 ///
@@ -70,56 +93,60 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)configureWithLanguageFunc:(LanguageFunc)languageFunc
                       indentsQuery:(NSString *)indentsQuery;
 
-/// Handle a Return key press at the current NSTextView cursor/selection.
+// ---------------------------------------------------------------------------
+// MARK: - Unified key event dispatch
+// ---------------------------------------------------------------------------
+
+/// Dispatch a raw NSEvent to the appropriate smart-key handler.
+///
+/// Handles (in order):
+///   - Return / KP-Return     -> -handleReturnKeyWithTextView:model:
+///   - Shift-Tab              -> -handleShiftTabKeyWithTextView:model:
+///   - Single printable char  -> -handleTypedCharacter:textView:model:, then
+///                              languageKeyHandler if set
+///
+/// All other events (Option+Arrow, Cmd+..., etc.) return NO immediately and
+/// must be handled by the caller.
+///
+/// @return YES if the event was consumed and must not be passed to NSTextView's
+///         default key-binding pipeline; NO to let the event through.
+- (BOOL)handleKeyEvent:(NSEvent *)event
+              textView:(NSTextView *)tv
+                 model:(UDTextModel *)model;
+
+// ---------------------------------------------------------------------------
+// MARK: - Individual key handlers (also callable directly, e.g. from tests)
+// ---------------------------------------------------------------------------
+
+/// Handle a Return key press.
 ///
 /// Inserts a newline followed by the correctly computed indentation string.
 /// When the cursor sits between an opening and a closing bracket the pair is
 /// split across two lines (electric-pair behaviour).
 ///
-/// @return YES if the event was consumed (caller should discard the original
-///         NSEvent); NO if no action was taken (caller should let the event
-///         through for default NSTextView handling, which would occur if no
-///         tree is available and no text is present).
-- (BOOL)handleReturnKey;
+/// @return YES if the event was consumed; NO if the document is empty
+///         (callers should let NSTextView handle it).
+- (BOOL)handleReturnKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model;
 
 /// Handle a Shift-Tab key press: remove one indentation level from every line
 /// that the current selection touches (or just the current line when there is
 /// no selection).
 ///
-/// The strip amount per line is determined by @c indentUnit:
-///   - A line whose first character is a tab always loses exactly one tab.
-///   - A line whose first character is a space loses up to @c indentUnit.length
-///     leading spaces (or fewer when the actual indent is smaller).
-///
-/// When the document is empty the method returns NO.  In all other cases it
-/// returns YES to consume the key event, even if no leading whitespace was
-/// found on any of the affected lines.
+/// Strip rules (per line):
+///   - First char is a tab  -> remove 1 tab.
+///   - First char is a space -> remove up to indentUnit.length spaces.
+///   - Otherwise            -> nothing removed.
 ///
 /// @return YES if the event was consumed; NO if the document is empty.
-- (BOOL)handleShiftTabKey;
+- (BOOL)handleShiftTabKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model;
 
-/// Handle a character typed by the user (electric-pair insertion).
+/// Handle a single typed character for electric-pair insertion / skip-over.
 ///
-/// When `chars` is a single character that matches the `open` of an
-/// `autoClosingPairs` entry, the corresponding `close` character is
-/// automatically appended and the cursor is placed between them.
-///
-/// Suppression rules (checked in order):
-///   1. If there is a non-empty selection the method returns NO so that the
-///      text view performs its default replacement.
-///   2. If the character immediately to the right of the cursor does NOT
-///      appear in `autoCloseBefore` (and `autoCloseBefore` is set), the pair
-///      is not closed.
-///   3. If the cursor is inside a tree-sitter node whose type is listed in
-///      the pair's `notIn` array, the pair is not closed.
-///
-/// Skip-over: when `chars` equals the `close` character of a pair AND that
-/// same character already sits immediately to the right of the cursor, the
-/// cursor is advanced one position (skip-over) instead of inserting.
-///
-/// @param chars  The string produced by the key event (typically one character).
-/// @return YES if the event was consumed; NO to let the text view handle it.
-- (BOOL)handleTypedCharacter:(NSString *)chars;
+/// @param chars  The string produced by the key event (must have length == 1).
+/// @return YES if the event was consumed; NO to let NSTextView handle it.
+- (BOOL)handleTypedCharacter:(NSString *)chars
+                    textView:(NSTextView *)tv
+                       model:(UDTextModel *)model;
 
 @end
 

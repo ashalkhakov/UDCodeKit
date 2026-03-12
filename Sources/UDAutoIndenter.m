@@ -3,16 +3,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDAutoIndenter.h"
+#import "UDLanguageKeyHandler.h"
 #import <tree_sitter/api.h>
 #import <string.h>
 
 // Tree-sitter stores byte offsets in UTF-16 (2 bytes per BMP code unit).
 static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 
+// ---------------------------------------------------------------------------
+// Physical key codes (hardware layout — independent of locale)
+// ---------------------------------------------------------------------------
+
+static const unsigned short kKeyCodeReturn       = 36;
+static const unsigned short kKeyCodeKeypadReturn = 76;
+static const unsigned short kKeyCodeTab          = 48;
+
+// ---------------------------------------------------------------------------
+
 @interface UDAutoIndenter ()
-@property (nonatomic, weak)   NSTextView              *textView;
 @property (nonatomic, weak)   UDTreeSitterHighlighter *highlighter;
-@property (nonatomic, weak)   UDTextModel             *textModel;
 // Compiled tree-sitter query for @indent captures and a dedicated cursor.
 @property (nonatomic, assign) TSQuery                 *tsIndentQuery;
 @property (nonatomic, assign) TSQueryCursor           *tsQueryCursor;
@@ -24,14 +33,10 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 // MARK: - Init / dealloc
 // ---------------------------------------------------------------------------
 
-- (instancetype)initWithTextView:(NSTextView *)textView
-                      highlighter:(UDTreeSitterHighlighter *)highlighter
-                        textModel:(UDTextModel *)textModel {
+- (instancetype)initWithHighlighter:(nullable UDTreeSitterHighlighter *)highlighter {
     self = [super init];
     if (!self) return nil;
-    _textView    = textView;
     _highlighter = highlighter;
-    _textModel   = textModel;
     _indentUnit  = @"  "; // default: 2 spaces
     return self;
 }
@@ -72,12 +77,68 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Public API
+// MARK: - Unified key event dispatch
 // ---------------------------------------------------------------------------
 
-- (BOOL)handleReturnKey {
-    NSTextView  *tv      = _textView;
-    UDTextModel *model   = _textModel;
+- (BOOL)handleKeyEvent:(NSEvent *)event
+              textView:(NSTextView *)tv
+                 model:(UDTextModel *)model {
+    if (!tv || !model) return NO;
+
+    NSEventModifierFlags mods =
+        event.modifierFlags & (NSEventModifierFlagCommand |
+                               NSEventModifierFlagControl |
+                               NSEventModifierFlagOption  |
+                               NSEventModifierFlagShift);
+
+    // --- Return / KP-Return: smart indentation ---
+    if (mods == 0 &&
+            (event.keyCode == kKeyCodeReturn ||
+             event.keyCode == kKeyCodeKeypadReturn)) {
+        return [self handleReturnKeyWithTextView:tv model:model];
+    }
+
+    // --- Shift-Tab: dedent ---
+    if (mods == NSEventModifierFlagShift && event.keyCode == kKeyCodeTab) {
+        return [self handleShiftTabKeyWithTextView:tv model:model];
+    }
+
+    // --- Single printable character: electric-pair + language handler ---
+    // Permit Shift (needed for characters like '{' on many keyboards).
+    // Exclude Command, Control, Option so that shortcuts are unaffected.
+    if (!(mods & (NSEventModifierFlagCommand |
+                  NSEventModifierFlagControl |
+                  NSEventModifierFlagOption))) {
+        NSString *chars = event.characters;
+        if (chars.length == 1) {
+            unichar ch = [chars characterAtIndex:0];
+            // Only handle visible, non-control, non-delete characters.
+            if (ch >= ' ' && ch != 0x7f) {
+                BOOL baseConsumed =
+                    [self handleTypedCharacter:chars textView:tv model:model];
+
+                // Always give the language handler a chance, even when the base
+                // already consumed the event (e.g. it may add a trailing comma
+                // after an auto-inserted `}`).
+                BOOL langConsumed = NO;
+                id<UDLanguageKeyHandler> handler = _languageKeyHandler;
+                if ([handler respondsToSelector:
+                        @selector(handleTypedCharacter:textView:)]) {
+                    langConsumed = [handler handleTypedCharacter:chars textView:tv];
+                }
+                return baseConsumed || langConsumed;
+            }
+        }
+    }
+
+    return NO;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Return key (smart indentation)
+// ---------------------------------------------------------------------------
+
+- (BOOL)handleReturnKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model {
     if (!tv || !model) return NO;
 
     NSRange   sel    = tv.selectedRange;
@@ -91,7 +152,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     // ------------------------------------------------------------------
     // 1. Indentation of the current line.
     // ------------------------------------------------------------------
-    NSString *lineIndent = [self _indentOfLineContaining:cursorPos];
+    NSString *lineIndent = [self _indentOfLineContaining:cursorPos inModel:model];
 
     // ------------------------------------------------------------------
     // 2. Does the cursor immediately follow an indent-opening bracket?
@@ -102,7 +163,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     //      (b) the tree-sitter query confirms we are inside an @indent node
     //          (this rules out brackets inside string literals).
     // ------------------------------------------------------------------
-    unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos];
+    unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos inModel:model];
 
     // Build the set of open/close bracket characters from language config.
     NSString *openChars  = nil;
@@ -119,7 +180,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     BOOL isOpenBracket = charBefore != 0
         && ([openChars rangeOfString:[NSString stringWithCharacters:&charBefore length:1]].location != NSNotFound);
     BOOL increaseIndent = isOpenBracket
-                         && [self _isInsideIndentNodeAtOffset:cursorPos];
+                         && [self _isInsideIndentNodeAtOffset:cursorPos inModel:model];
 
     NSString *newIndent = increaseIndent
         ? [lineIndent stringByAppendingString:_indentUnit]
@@ -166,9 +227,7 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 // MARK: - Shift-Tab (dedent)
 // ---------------------------------------------------------------------------
 
-- (BOOL)handleShiftTabKey {
-    NSTextView  *tv    = _textView;
-    UDTextModel *model = _textModel;
+- (BOOL)handleShiftTabKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model {
     if (!tv || !model) return NO;
 
     NSRange   sel    = tv.selectedRange;
@@ -202,8 +261,8 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     NSMutableArray<NSNumber *> *stripLens        = [NSMutableArray arrayWithCapacity:(NSUInteger)numLines];
 
     for (NSInteger line = startLine; line <= endLine; line++) {
-        NSString  *content  = [model getLineContent:line];
-        NSInteger  strip    = [self _stripLengthForLine:content];
+        NSString  *content   = [model getLineContent:line];
+        NSInteger  strip     = [self _stripLengthForLine:content];
         NSInteger  lineStart = [model getOffsetAt:line column:1];
         [lineStartOffsets addObject:@(lineStart)];
         [stripLens        addObject:@(strip)];
@@ -229,11 +288,6 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 
     // ------------------------------------------------------------------
     // 4. Restore the selection, adjusted for the removed characters.
-    //
-    //    The stripped chars on startLine precede (or include) sel.location,
-    //    so the selection start moves back by firstStripped (clamped to the
-    //    start of startLine).  The selection end decreases by totalStripped
-    //    because every stripped region lies at or before the original end.
     // ------------------------------------------------------------------
     NSInteger firstStripped    = [stripLens[0] integerValue];
     NSInteger lineStartOffset  = [lineStartOffsets[0] integerValue];
@@ -245,7 +299,8 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     } else {
         NSInteger newEnd = (NSInteger)(sel.location + sel.length) - totalStripped;
         if (newEnd < (NSInteger)newSelStart) newEnd = (NSInteger)newSelStart;
-        [tv setSelectedRange:NSMakeRange(newSelStart, (NSUInteger)(newEnd - (NSInteger)newSelStart))];
+        [tv setSelectedRange:NSMakeRange(newSelStart,
+                                        (NSUInteger)(newEnd - (NSInteger)newSelStart))];
     }
 
     return YES;
@@ -255,14 +310,14 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 // MARK: - Electric-pair insertion
 // ---------------------------------------------------------------------------
 
-- (BOOL)handleTypedCharacter:(NSString *)chars {
+- (BOOL)handleTypedCharacter:(NSString *)chars
+                    textView:(NSTextView *)tv
+                       model:(UDTextModel *)model {
     if (chars.length != 1) return NO;
 
     UDLanguageConfiguration *config = _languageConfiguration;
     if (!config.autoClosingPairs.count) return NO;
 
-    NSTextView  *tv    = _textView;
-    UDTextModel *model = _textModel;
     if (!tv || !model) return NO;
 
     NSRange   sel      = tv.selectedRange;
@@ -372,20 +427,12 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 
 /// Returns how many characters should be stripped from the leading whitespace
 /// of @c lineContent to remove one indentation level.
-///
-/// Rules (applied in order):
-///   1. If the line starts with a tab, return 1.
-///   2. If the line starts with one or more spaces, return the number of
-///      leading spaces, capped at @c indentUnit.length.
-///   3. Otherwise return 0.
 - (NSInteger)_stripLengthForLine:(NSString *)lineContent {
     if (lineContent.length == 0) return 0;
     unichar first = [lineContent characterAtIndex:0];
 
-    // Tab-indented line: one tab = one indent level.
     if (first == '\t') return 1;
 
-    // Space-indented line: strip up to indentUnit.length leading spaces.
     if (first == ' ') {
         NSUInteger maxStrip   = _indentUnit.length;
         NSInteger  spaceCount = 0;
@@ -399,19 +446,14 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
     return 0;
 }
 
-/// Returns the leading-whitespace prefix of the line that contains @c offset,
-/// up to (but not including) the cursor column.
-///
-/// Uses @c getPositionAt: to find the line number and @c getLineContent: to
-/// obtain only that line's text — no full-document string is materialised.
-- (NSString *)_indentOfLineContaining:(NSUInteger)offset {
-    UDTextModel *model = _textModel;
+/// Returns the leading-whitespace prefix of the line that contains @c offset.
+- (NSString *)_indentOfLineContaining:(NSUInteger)offset
+                               inModel:(UDTextModel *)model {
     if (!model) return @"";
 
     UDPosition pos = [model getPositionAt:(NSInteger)offset];
     NSString  *lineContent = [model getLineContent:pos.line];
 
-    // pos.column is 1-based; characters 0..(pos.column-2) precede the cursor.
     NSUInteger limit = (NSUInteger)(pos.column - 1);
     NSMutableString *indent = [NSMutableString string];
     for (NSUInteger j = 0; j < limit && j < lineContent.length; j++) {
@@ -423,19 +465,14 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 }
 
 /// Returns the last non-space/tab character before @c offset on the SAME LINE,
-/// or 0 if none is found (blank line, only whitespace, or start of document).
-///
-/// Uses @c getPositionAt: and @c getLineContent: to restrict the search to the
-/// current line without materialising the full document string.
-- (unichar)_lastNonSpaceCharBefore:(NSUInteger)offset {
-    UDTextModel *model = _textModel;
+/// or 0 if none is found.
+- (unichar)_lastNonSpaceCharBefore:(NSUInteger)offset
+                            inModel:(UDTextModel *)model {
     if (!model || offset == 0) return 0;
 
     UDPosition pos = [model getPositionAt:(NSInteger)offset];
     NSString  *lineContent = [model getLineContent:pos.line];
 
-    // pos.column is 1-based; the character immediately before the cursor is
-    // at 0-based index (pos.column - 2).
     NSInteger startIdx = (NSInteger)pos.column - 2;
     for (NSInteger j = startIdx; j >= 0; j--) {
         unichar c = [lineContent characterAtIndex:(NSUInteger)j];
@@ -447,22 +484,14 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 
 /// Returns YES when the cursor at @c offset is strictly inside an @indent
 /// tree-sitter node, meaning a newline here should increase indentation.
-///
-/// Runs the compiled indent query on the current parse tree and checks whether
-/// the cursor's byte offset lies strictly after the start byte and at or before
-/// the end byte of any @indent capture.  This correctly rejects the case where
-/// a '{' or '[' is inside a string literal (the enclosing `string` node does
-/// not match the @indent query).
-///
-/// Falls back to YES (trusting the caller's character check) when no indent
-/// query has been configured or no parse tree is available.
-- (BOOL)_isInsideIndentNodeAtOffset:(NSUInteger)offset {
+- (BOOL)_isInsideIndentNodeAtOffset:(NSUInteger)offset
+                             inModel:(UDTextModel *)model {
     if (!_tsIndentQuery || !_tsQueryCursor) return YES;
 
     const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
     if (!tree) return YES;
 
-    NSInteger docLen = [_textModel getLength];
+    NSInteger docLen = [model getLength];
     if (docLen <= 0) return NO;
 
     uint32_t byte = byteFromChar(offset);
@@ -475,7 +504,6 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
         for (uint32_t i = 0; i < match.capture_count; i++) {
             TSQueryCapture cap = match.captures[i];
 
-            // Only consider @indent captures (skip @dedent or others).
             uint32_t    nameLen = 0;
             const char *capName =
                 ts_query_capture_name_for_id(_tsIndentQuery, cap.index, &nameLen);
@@ -484,8 +512,6 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
             uint32_t ns = ts_node_start_byte(cap.node);
             uint32_t ne = ts_node_end_byte(cap.node);
 
-            // Cursor is inside this node if: node opened before the cursor
-            // and hasn't closed yet (end_byte is exclusive in tree-sitter).
             if (ns < byte && byte < ne) return YES;
         }
     }

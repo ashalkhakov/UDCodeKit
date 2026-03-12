@@ -15,7 +15,8 @@
                       lspLanguageID:(nullable NSString *)lspLanguageID
              languageServerCommand:(nullable NSArray<NSString *> *)languageServerCommand
             defaultNewDocumentText:(NSString *)defaultNewDocumentText
-                languageConfiguration:(UDLanguageConfiguration *)languageConfiguration {
+                languageConfiguration:(UDLanguageConfiguration *)languageConfiguration
+                         keyHandler:(nullable id<UDLanguageKeyHandler>)keyHandler {
     self = [super init];
     if (!self) return nil;
 
@@ -29,6 +30,7 @@
     _languageServerCommand  = [languageServerCommand copy];
     _defaultNewDocumentText = [defaultNewDocumentText copy];
     _languageConfiguration  = languageConfiguration ?: [UDLanguageConfiguration emptyConfiguration];
+    _keyHandler             = keyHandler;
 
     return self;
 }

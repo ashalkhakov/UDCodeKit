@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "TreeSitterJsonPlugin.h"
+#import "UDJsonKeyHandler.h"
 
 // Forward-declare the tree-sitter language factory.
 typedef struct TSLanguage TSLanguage;
@@ -41,6 +42,11 @@ static NSString *_findExecutable(NSArray<NSString *> *candidates) {
 - (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:@"json"]) return tree_sitter_json;
     return NULL;
+}
+
+- (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier {
+    if ([identifier isEqualToString:@"json"]) return [UDJsonKeyHandler sharedHandler];
+    return nil;
 }
 
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier {

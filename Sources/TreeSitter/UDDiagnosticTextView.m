@@ -59,16 +59,14 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
 @end
 
 // ---------------------------------------------------------------------------
-// Physical key codes (hardware layout — independent of locale)
+// Physical key codes used for Option+Arrow structured navigation.
+// (Return, Tab key codes are handled inside UDAutoIndenter.)
 // ---------------------------------------------------------------------------
 
-static const unsigned short kKeyCodeReturn       = 36;
-static const unsigned short kKeyCodeKeypadReturn = 76;
-static const unsigned short kKeyCodeTab          = 48;
-static const unsigned short kKeyCodeUpArrow      = 126;
-static const unsigned short kKeyCodeDownArrow    = 125;
-static const unsigned short kKeyCodeLeftArrow    = 123;
-static const unsigned short kKeyCodeRightArrow   = 124;
+static const unsigned short kKeyCodeUpArrow    = 126;
+static const unsigned short kKeyCodeDownArrow  = 125;
+static const unsigned short kKeyCodeLeftArrow  = 123;
+static const unsigned short kKeyCodeRightArrow = 124;
 
 // ---------------------------------------------------------------------------
 
@@ -118,34 +116,24 @@ static const unsigned short kKeyCodeRightArrow   = 124;
 /// NSEvent local monitor that was previously used, making the code portable
 /// to GNUstep which does not implement +addLocalMonitorForEventsMatchingMask:.
 ///
-/// Handled here (no modifiers unless noted):
-///   Return / KP-Return  — smart auto-indentation (UDAutoIndenter)
-///   Shift-Tab           — de-indent (UDAutoIndenter)
-///   Option+Up/Down/Left/Right — tree-structured navigation (UDStructuredNavigator)
-///   Single printable char (no Cmd/Ctrl/Option) — electric-pair insertion (UDAutoIndenter)
+/// The auto-indenter is given first crack at every key event.  It handles:
+///   Return / KP-Return  — smart auto-indentation
+///   Shift-Tab           — de-indent
+///   Single printable char (no Cmd/Ctrl/Option) — electric-pair + language handler
 ///
-/// Everything else falls through to -[super keyDown:] which drives NSTextView's
-/// normal key binding / text insertion pipeline.
+/// If the auto-indenter does not consume the event, Option+Arrow keys are
+/// dispatched to the structured navigator, and everything else falls through
+/// to -[super keyDown:] for NSTextView's normal key-binding pipeline.
 - (void)keyDown:(NSEvent *)event {
+    // 1. Smart key handling (indentation, electric pairs, language-specific).
+    if ([_autoIndenter handleKeyEvent:event textView:self model:_textModel]) return;
+
+    // 2. Option + Arrow: tree-structured navigation.
     NSEventModifierFlags mods =
         event.modifierFlags & (NSEventModifierFlagCommand |
                                NSEventModifierFlagControl |
                                NSEventModifierFlagOption  |
                                NSEventModifierFlagShift);
-
-    // --- Return key: smart indentation ---
-    if (mods == 0 &&
-            (event.keyCode == kKeyCodeReturn ||
-             event.keyCode == kKeyCodeKeypadReturn)) {
-        if ([_autoIndenter handleReturnKey]) return;
-    }
-
-    // --- Shift-Tab: dedent ---
-    if (mods == NSEventModifierFlagShift && event.keyCode == kKeyCodeTab) {
-        if ([_autoIndenter handleShiftTabKey]) return;
-    }
-
-    // --- Option + Arrow: tree-structured navigation ---
     if (_structuredNavigator &&
             (mods & NSEventModifierFlagOption) &&
             !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) {
@@ -158,23 +146,6 @@ static const unsigned short kKeyCodeRightArrow   = 124;
                 [_structuredNavigator moveToPrevSibling]; return;
             case kKeyCodeRightArrow:
                 [_structuredNavigator moveToNextSibling]; return;
-        }
-    }
-
-    // --- Single printable character: electric-pair insertion/skip-over ---
-    // Permit Shift (needed for characters like '{' on many keyboards).
-    // Exclude Command, Control, Option so that shortcuts are unaffected.
-    if (!(mods & (NSEventModifierFlagCommand |
-                  NSEventModifierFlagControl |
-                  NSEventModifierFlagOption))) {
-        NSString *chars = event.characters;
-        if (chars.length == 1) {
-            unichar ch = [chars characterAtIndex:0];
-            // Only handle visible, non-control, non-delete characters.
-            // 0x20 = ASCII space (first printable); 0x7f = DEL (not printable).
-            if (ch >= ' ' && ch != 0x7f) {
-                if ([_autoIndenter handleTypedCharacter:chars]) return;
-            }
         }
     }
 

@@ -18,7 +18,14 @@
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
 		CE7CFB852F65B53600F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-/* End PBXBuildFile section */
+		ABCD00050000000000000005 /* UDXMLTagMirrorTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */; };
+		ABCD00060000000000000006 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
+		ABCD00070000000000000007 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
+		ABCD00080000000000000008 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
+		ABCD00090000000000000009 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
+		ABCD000A000000000000000A /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABCD00030000000000000003 /* XCTest.framework */; };
+		ABCD000B000000000000000B /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
+	/* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		CE7CFB862F65B53600F294D4 /* Embed Frameworks */ = {
@@ -49,7 +56,10 @@
 		CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirror.m; sourceTree = "<group>"; };
 		CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXml.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
+		ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirrorTests.m; sourceTree = "<group>"; };
+		ABCD00030000000000000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXmlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+	/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		785D8B4A6D7ED60D051E9BBB /* Frameworks */ = {
@@ -60,7 +70,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXFrameworksBuildPhase section */
+
+		ABCD000D000000000000000D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABCD000A000000000000000A /* XCTest.framework in Frameworks */,
+				ABCD000B000000000000000B /* UDPieceTable.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+	/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		08202D4F7AD131F7C2368987 /* src */ = {
@@ -79,6 +99,7 @@
 				08202D4F7AD131F7C2368987 /* src */,
 				74DC3222CB11D5A3F7F74709 /* Sources */,
 				DBD42C81241E8CD2B9D95C23 /* Resources */,
+				ABCD00010000000000000001 /* Tests */,
 				CE7CFB822F65B53600F294D4 /* Frameworks */,
 				F2D4919B8B35789642FF7A97 /* Products */,
 			);
@@ -128,11 +149,21 @@
 			isa = PBXGroup;
 			children = (
 				E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */,
+				ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-/* End PBXGroup section */
+
+		ABCD00010000000000000001 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+	/* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		7EBF16AB9443CCE643F3FC03 /* TreeSitterXml */ = {
@@ -153,7 +184,24 @@
 			productReference = E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */;
 			productType = "com.apple.product-type.bundle";
 		};
-/* End PBXNativeTarget section */
+
+		ABCD00110000000000000011 /* TreeSitterXmlTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ABCD00100000000000000010 /* Build configuration list for PBXNativeTarget "TreeSitterXmlTests" */;
+			buildPhases = (
+				ABCD000C000000000000000C /* Sources */,
+				ABCD000D000000000000000D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TreeSitterXmlTests;
+			productName = TreeSitterXmlTests;
+			productReference = ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+	/* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		EC2587C0ADAE009F46940E2F /* Project object */ = {
@@ -161,6 +209,10 @@
 			attributes = {
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					ABCD00110000000000000011 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = 7EBF16AB9443CCE643F3FC03;
+					};
 					7EBF16AB9443CCE643F3FC03 = {
 						CreatedOnToolsVersion = 15.0;
 					};
@@ -180,6 +232,7 @@
 			projectRoot = "";
 			targets = (
 				7EBF16AB9443CCE643F3FC03 /* TreeSitterXml */,
+				ABCD00110000000000000011 /* TreeSitterXmlTests */,
 			);
 		};
 /* End PBXProject section */
@@ -211,7 +264,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXSourcesBuildPhase section */
+
+		ABCD000C000000000000000C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABCD00050000000000000005 /* UDXMLTagMirrorTests.m in Sources */,
+				ABCD00060000000000000006 /* UDXMLTagMirror.m in Sources */,
+				ABCD00070000000000000007 /* lib.c in Sources */,
+				ABCD00080000000000000008 /* parser.c in Sources */,
+				ABCD00090000000000000009 /* scanner.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+	/* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
 		0F9664DEF39655606E3AC74E /* Debug */ = {
@@ -301,7 +367,56 @@
 			};
 			name = Release;
 		};
-/* End XCBuildConfiguration section */
+
+		ABCD000E000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+				);
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/Sources",
+					"$(SRCROOT)/../Sources/Extensions",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "org.underivable.treesitter.xml.tests";
+				PRODUCT_NAME = TreeSitterXmlTests;
+				WRAPPER_EXTENSION = xctest;
+			};
+			name = Debug;
+		};
+		ABCD000F000000000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_STYLE = Automatic;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+				);
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/tree-sitter/include",
+					"$(SRCROOT)/tree-sitter/src",
+					"$(SRCROOT)/src",
+					"$(SRCROOT)/Sources",
+					"$(SRCROOT)/../Sources/Extensions",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "org.underivable.treesitter.xml.tests";
+				PRODUCT_NAME = TreeSitterXmlTests;
+				WRAPPER_EXTENSION = xctest;
+			};
+			name = Release;
+		};
+	/* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		5FDFF74904724BFED24CC3A7 /* Build configuration list for PBXProject "TreeSitterXml" */ = {
@@ -322,7 +437,17 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-/* End XCConfigurationList section */
+
+		ABCD00100000000000000010 /* Build configuration list for PBXNativeTarget "TreeSitterXmlTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ABCD000E000000000000000E /* Debug */,
+				ABCD000F000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+	/* End XCConfigurationList section */
 	};
 	rootObject = EC2587C0ADAE009F46940E2F /* Project object */;
 }

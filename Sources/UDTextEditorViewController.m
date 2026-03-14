@@ -76,6 +76,9 @@ static CGFloat const kEditorLineGutterWidth = 48.0;
 
     // 2. Configure text view.
     _textView.textModel = _textStorage.textModel;
+    _textView.cursorsController = _textStorage.cursorsController;
+    // Ensure the cursor controller reflects the text view's initial position.
+    [_textView syncCursorControllerFromSelection];
 
     // 3. Compute frames from the initial XIB bounds.
     NSView  *container = self.view;

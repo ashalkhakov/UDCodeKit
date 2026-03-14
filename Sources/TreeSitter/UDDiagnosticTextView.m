@@ -95,6 +95,8 @@ static const unsigned short kKeyCodeRightArrow = 124;
     // -glyphRangeForBoundingRect:inTextContainer: (e.g. from the gutter view)
     // only lay out the requested area instead of the full document.
     [self _replaceLayoutManager];
+    
+    self.allowsUndo = NO; // UDTextModel owns undo via NSUndoManager
 
     self.layoutManager.delegate = self;
     [[NSNotificationCenter defaultCenter]
@@ -269,10 +271,13 @@ static const unsigned short kKeyCodeRightArrow = 124;
 - (void)drawViewBackgroundInRect:(NSRect)rect {
     [super drawViewBackgroundInRect:rect];
 
-    // --- Current-line highlight -------------------------------------------
+    // --- Current-line highlight
     [self _drawCurrentLineHighlightInRect:rect];
+    
+    // --- Secondary Cursors
+    [self _drawSecondaryCursorsInRect:rect];
 
-    // --- Diagnostic pill labels -------------------------------------------
+    // --- Diagnostic pill labels
     UDTextModel *model = _textModel;
     if (!model) return;
 
@@ -390,6 +395,229 @@ static const unsigned short kKeyCodeRightArrow = 124;
         msg = [[msg substringToIndex:kMaxLabelChars] stringByAppendingString:@"…"];
     }
     return msg;
+}
+
+// MARK: - NSTextInputClient overrides for multi-cursor
+
+- (void)insertText:(id)string replacementRange:(NSRange)replacementRange {
+    // Single cursor: let the standard NSTextView path handle it.
+    // It calls replaceCharactersInRange:, which goes through UDTextModel.
+    if (_cursorsController.selections.count <= 1) {
+        [super insertText:string replacementRange:replacementRange];
+        return;
+    }
+
+    // Multi-cursor: bypass NSTextView and drive all cursors at once.
+    NSString *text = [string isKindOfClass:[NSAttributedString class]]
+        ? [(NSAttributedString *)string string] : string;
+    [_cursorsController typeText:text source:@"keyboard"];
+    [self _syncSelectionsFromController];
+}
+
+- (void)deleteBackward:(id)sender {
+    if (_cursorsController.selections.count <= 1) {
+        [super deleteBackward:sender];
+        return;
+    }
+    [_cursorsController deleteLeftWithSource:nil];
+    [self _syncSelectionsFromController];
+}
+
+- (void)deleteForward:(id)sender {
+    if (_cursorsController.selections.count <= 1) {
+        [super deleteForward:sender];
+        return;
+    }
+    [_cursorsController deleteRightWithSource:nil];
+    [self _syncSelectionsFromController];
+}
+
+- (void)insertNewline:(id)sender {
+    if (_cursorsController.selections.count <= 1) {
+        [super insertNewline:sender];
+        return;
+    }
+    [_cursorsController typeText:@"\n" source:@"keyboard"];
+    [self _syncSelectionsFromController];
+}
+
+- (void)insertTab:(id)sender {
+    if (_cursorsController.selections.count <= 1) {
+        [super insertTab:sender];
+        return;
+    }
+    [_cursorsController typeText:@"\t" source:@"keyboard"];
+    [self _syncSelectionsFromController];
+}
+
+// MARK: - Undo / Redo
+
+- (IBAction)undo:(id)sender {
+    /*
+    NSLog(@"textView undoManager: %@ | model undoManager: %@",
+          self.undoManager, self.textModel.undoManager);
+    NSLog(@"same? %d", self.undoManager == self.textModel.undoManager);
+    */
+    [self.textModel.undoManager undo];
+}
+
+- (IBAction)redo:(id)sender {
+    [self.textModel.undoManager redo];
+}
+
+- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
+    if (item.action == @selector(undo:))
+        return [self.textModel.undoManager canUndo];
+    if (item.action == @selector(redo:))
+        return [self.textModel.undoManager canRedo];
+    return [super validateUserInterfaceItem:item];
+}
+
+// MARK: - Mouse: option-click adds a cursor
+
+- (void)mouseDown:(NSEvent *)event {
+    BOOL addCursor = (event.modifierFlags & NSEventModifierFlagOption) != 0;
+
+    if (!addCursor || !_cursorsController) {
+        // Plain click: remove secondary cursors, let NSTextView place primary.
+        [_cursorsController removeSecondaryCursors];
+        [super mouseDown:event];
+        // After NSTextView updates selectedRanges, sync back to controller.
+        [self _syncSelectionsToController];
+        return;
+    }
+
+    // Option-click: add a secondary cursor at the clicked position.
+    NSPoint pt = [self convertPoint:event.locationInWindow fromView:nil];
+    NSLayoutManager *lm = self.layoutManager;
+    NSTextContainer *tc = self.textContainer;
+    NSUInteger charIdx  = [lm characterIndexForPoint:pt
+                                     inTextContainer:tc
+            fractionOfDistanceBetweenInsertionPoints:NULL];
+
+    UDPosition pos = [self.textModel getPositionAt:(NSInteger)charIdx];
+    [_cursorsController addCursorAtLine:pos.line column:pos.column];
+    [self _syncSelectionsFromController];
+}
+
+// MARK: - NSTextViewDelegate / selection change
+
+/// Called by NSTextView when the user moves the cursor via keyboard or
+/// single-click (the non-option case, handled by super above).
+- (void)setSelectedRanges:(NSArray<NSValue *> *)ranges
+                 affinity:(NSSelectionAffinity)affinity
+           stillSelecting:(BOOL)stillSelecting {
+
+    /*
+    // TEMPORARY: log every caller that changes the selection.
+    NSRange first = [ranges.firstObject rangeValue];
+    NSLog(@"[UDDiagnosticTextView] setSelectedRanges: loc=%lu len=%lu still=%d\n%@",
+          (unsigned long)first.location,
+          (unsigned long)first.length,
+          stillSelecting,
+          [NSThread callStackSymbols]);
+    */
+
+    [super setSelectedRanges:ranges affinity:affinity stillSelecting:stillSelecting];
+
+    // When the system moves the primary cursor (keyboard navigation,
+    // single-click), keep the controller's primary selection in sync.
+    // Only do this when we have exactly one system selection (no multi-cursor
+    // in-flight) to avoid a feedback loop.
+    if (!stillSelecting && _cursorsController
+            && _cursorsController.selections.count <= 1) {
+        [self _syncSelectionsToController];
+    }
+}
+
+// MARK: - Sync helpers
+
+/// Push controller selections → NSTextView's selectedRanges (for display).
+- (void)_syncSelectionsFromController {
+    if (!_cursorsController) return;
+    UDTextModel *model = self.textModel;
+    NSMutableArray<NSValue *> *ranges = [NSMutableArray array];
+
+    for (NSValue *v in _cursorsController.selections) {
+        UDSelection sel = [v ud_selectionValue];
+        NSInteger startOff = [model getOffsetAt:sel.selectionStartLineNumber
+                                         column:sel.selectionStartColumn];
+        NSInteger endOff   = [model getOffsetAt:sel.positionLineNumber
+                                         column:sel.positionColumn];
+        NSInteger lo = MIN(startOff, endOff);
+        NSInteger hi = MAX(startOff, endOff);
+        [ranges addObject:[NSValue valueWithRange:
+                           NSMakeRange((NSUInteger)lo, (NSUInteger)(hi - lo))]];
+    }
+
+    [super setSelectedRanges:ranges
+                    affinity:NSSelectionAffinityDownstream
+              stillSelecting:NO];
+
+    [self setNeedsDisplay:YES]; // redraw secondary cursors
+}
+
+/// Read NSTextView's current primary selectedRange → controller's primary selection.
+- (void)_syncSelectionsToController {
+    if (!_cursorsController) return;
+    NSRange range = self.selectedRange;
+    UDTextModel *model = self.textModel;
+    UDPosition sp = [model getPositionAt:(NSInteger)range.location];
+    UDPosition ep = [model getPositionAt:(NSInteger)NSMaxRange(range)];
+    UDSelection sel = UDSelectionMake(sp.line, sp.column, ep.line, ep.column);
+    _cursorsController.selections = @[ [NSValue ud_valueWithSelection:sel] ];
+}
+
+- (void)syncCursorControllerFromSelection {
+    [self _syncSelectionsToController];
+}
+
+// MARK: - Secondary cursor rendering
+
+- (void)_drawSecondaryCursorsInRect:(NSRect)rect {
+    if (!_cursorsController || _cursorsController.selections.count <= 1) return;
+
+    UDTextModel    *model  = self.textModel;
+    NSLayoutManager *lm   = self.layoutManager;
+    NSTextContainer *tc   = self.textContainer;
+    NSPoint          orig = self.textContainerOrigin;
+
+    // Draw secondary selections and cursors (index 1 onwards).
+    for (NSUInteger i = 1; i < _cursorsController.selections.count; i++) {
+        UDSelection sel = [_cursorsController.selections[i] ud_selectionValue];
+        NSInteger posOff = [model getOffsetAt:sel.positionLineNumber
+                                       column:sel.positionColumn];
+
+        // Draw selection highlight if non-collapsed.
+        if (!UDSelectionIsEmpty(sel)) {
+            NSInteger startOff = [model getOffsetAt:sel.selectionStartLineNumber
+                                             column:sel.selectionStartColumn];
+            NSInteger lo = MIN(startOff, posOff);
+            NSInteger hi = MAX(startOff, posOff);
+            NSRange selRange = NSMakeRange((NSUInteger)lo, (NSUInteger)(hi - lo));
+            NSRange glyphs   = [lm glyphRangeForCharacterRange:selRange
+                                          actualCharacterRange:NULL];
+            NSRect selRect   = [lm boundingRectForGlyphRange:glyphs
+                                             inTextContainer:tc];
+            selRect.origin.x += orig.x;
+            selRect.origin.y += orig.y;
+            [[NSColor selectedTextBackgroundColor] setFill];
+            NSRectFillUsingOperation(selRect, NSCompositingOperationSourceOver);
+        }
+
+        // Draw the cursor bar.
+        NSRange  glyphRange = [lm glyphRangeForCharacterRange:
+                                   NSMakeRange((NSUInteger)posOff, 0)
+                                         actualCharacterRange:NULL];
+        NSRect   glyphRect  = [lm boundingRectForGlyphRange:glyphRange
+                                            inTextContainer:tc];
+        NSRect cursorRect = NSMakeRect(glyphRect.origin.x + orig.x,
+                                       glyphRect.origin.y + orig.y,
+                                       2.0,
+                                       MAX(glyphRect.size.height, 14.0));
+        [[NSColor labelColor] setFill];
+        NSRectFill(cursorRect);
+    }
 }
 
 @end

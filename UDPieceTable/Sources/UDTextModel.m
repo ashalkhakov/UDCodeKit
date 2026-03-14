@@ -160,6 +160,24 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
     return [self.pieceTree getLineCount];
 }
 
+- (NSInteger)getLineLength:(NSInteger)lineNumber {
+    if (lineNumber < 1 || lineNumber > [self getLineCount]) {
+        //throw new BugIndicatingError('Illegal value for lineNumber');
+        return 0;
+    }
+
+    return [self.pieceTree getLineLength:lineNumber];
+}
+
+- (NSInteger)getLineMaxColumn:(NSInteger)lineNumber {
+    if (lineNumber < 1 || lineNumber > [self getLineCount]) {
+        //throw new BugIndicatingError('Illegal value for lineNumber');
+        return 0;
+    }
+    return [self.pieceTree getLineLength:lineNumber] + 1;
+}
+
+
 - (NSString *)getLineContent:(NSInteger)lineNumber {
     return [self.pieceTree getLineContent:lineNumber];
 }

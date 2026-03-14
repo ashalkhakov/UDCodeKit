@@ -11,6 +11,8 @@
 #import <UDPieceTable/UDPieceTable.h>
 #import "UDTreeSitterHighlighter.h"
 
+@class UDCursorsController;
+
 @class TreeSitterTheme;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -38,7 +40,11 @@ extern NSString * const UDParseErrorDecorationOwner;
 @interface UDTextModelTextStorage : NSTextStorage
 
 /// The underlying text model.  Use for searches, decorations, undo/redo.
-@property (nonatomic, readonly, strong) UDTextModel *textModel;
+@property (nonatomic, readonly, strong) UDTextModel             *textModel;
+
+/// Multi-cursor controller. Created lazily in -initWithTextModel:.
+/// Wire this to UDDiagnosticTextView so input routes through it.
+@property (nonatomic, readonly, strong) UDCursorsController     *cursorsController;
 
 /// The tree-sitter highlighter.  Use to access the current parse tree
 /// for folding and bracket-match features.

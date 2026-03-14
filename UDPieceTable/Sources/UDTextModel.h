@@ -93,6 +93,8 @@ extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
 - (void)fillCharacters:(unichar *)buffer range:(NSRange)aRange;
 /// Returns the number of lines (always >= 1).
 - (NSInteger)getLineCount;
+- (NSInteger)getLineLength:(NSInteger)lineNumber;
+- (NSInteger)getLineMaxColumn:(NSInteger)lineNumber;
 /// Returns the content of the given 1-based line, without the line-ending.
 - (NSString *)getLineContent:(NSInteger)lineNumber;
 /// Returns the (1-based line, 1-based column) position at a character offset.

@@ -24,9 +24,15 @@
 #import "UDAutoIndenter.h"
 #import "UDStructuredNavigator.h"
 
+@class UDCursorsController;
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface UDDiagnosticTextView : NSTextView
+
+/// Set by UDTextEditorViewController after viewDidLoad.
+/// The text view uses this to route multi-cursor editing operations.
+@property (nonatomic, weak, nullable) UDCursorsController *cursorsController;
 
 /// The text model from which "lsp.diagnostic" decorations are queried at
 /// draw time.  Set once by the window controller; never nil after setup.
@@ -39,6 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Structured navigator for Option+Arrow tree navigation.
 /// Set by UDTextEditorViewController after -viewDidLoad.
 @property (nonatomic, weak, nullable) UDStructuredNavigator *structuredNavigator;
+
+/// Synchronise the cursors controller's primary selection from NSTextView's
+/// current selectedRange. Call once after the view has loaded and the
+/// cursors controller has been assigned.
+- (void)syncCursorControllerFromSelection;
 
 @end
 

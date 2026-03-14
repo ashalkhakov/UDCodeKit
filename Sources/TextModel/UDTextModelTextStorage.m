@@ -101,6 +101,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     if (!self) return nil;
 
     _textModel   = textModel;
+    _cursorsController = [[UDCursorsController alloc] initWithModel:textModel];
     _modelString = [[UDTextModelString alloc] initWithTextModel:_textModel];
     _highlighter = [[UDTreeSitterHighlighter alloc] initWithTextModel:_textModel];
     _syntaxHighlighter = [[UDSyntaxHighlighter alloc] initWithTextStorage:self
@@ -168,11 +169,63 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     _lastKnownLength  = newLen;
     _attrCacheDirty   = YES;
 
+    // Compute the narrowest editedRange from the incoming edits.
+    // Also track the offset where the cursor should land after the edit:
+    // = start of the first edit + length of inserted text.
+    NSRange editedRange = NSMakeRange(0, oldLen);
+    NSUInteger postEditCursorOffset = NSNotFound;
+
+    NSArray<UDTextModelEdit *> *edits = note.userInfo[@"edits"];
+    if (edits.count > 0) {
+        NSInteger minOffset = NSIntegerMax;
+        NSInteger insertedAtMin = 0;
+        for (UDTextModelEdit *edit in edits) {
+            NSInteger off = [_textModel getOffsetAt:edit.range.startLineNumber
+                                            column:edit.range.startColumn];
+            if (off < minOffset) {
+                minOffset      = off;
+                insertedAtMin  = (NSInteger)edit.text.length;
+            }
+        }
+        if (minOffset != NSIntegerMax && minOffset <= (NSInteger)oldLen) {
+            NSUInteger loc = (NSUInteger)minOffset;
+            NSUInteger len = (oldLen > loc) ? (oldLen - loc) : 0;
+            editedRange = NSMakeRange(loc, len);
+            // Cursor lands after the re-inserted text in the post-edit document.
+            postEditCursorOffset = (NSUInteger)(minOffset + insertedAtMin);
+        }
+    }
+
     [self beginEditing];
     [self edited:(NSTextStorageEditedCharacters | NSTextStorageEditedAttributes)
-           range:NSMakeRange(0, oldLen)
+           range:editedRange
  changeInLength:delta];
     [self endEditing];
+
+    // After endEditing, NSLayoutManager has moved all text views' cursors to
+    // the end of the invalidated range. Override that with the correct position.
+    if (postEditCursorOffset != NSNotFound) {
+        NSUInteger clampedOffset = MIN(postEditCursorOffset, newLen);
+        NSRange cursorRange = NSMakeRange(clampedOffset, 0);
+        for (NSLayoutManager *lm in self.layoutManagers) {
+            for (NSTextContainer *tc in lm.textContainers) {
+                NSTextView *tv = tc.textView;
+                if (tv) {
+                    // stillSelecting:YES prevents _syncSelectionsToController
+                    // from firing mid-update; the controller is synced below.
+                    [tv setSelectedRanges:@[ [NSValue valueWithRange:cursorRange] ]
+                                 affinity:NSSelectionAffinityDownstream
+                           stillSelecting:YES];
+                    // Now sync the controller to match.
+                    if ([tv respondsToSelector:@selector(syncCursorControllerFromSelection)]) {
+                        [tv setSelectedRanges:@[ [NSValue valueWithRange:cursorRange] ]
+                                     affinity:NSSelectionAffinityDownstream
+                               stillSelecting:NO];
+                    }
+                }
+            }
+        }
+    }
 
     dispatch_async(dispatch_get_main_queue(), ^{
         [self->_highlighter reparseFullString:[self->_textModel getValue]];
@@ -235,6 +288,13 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 
 - (void)replaceCharactersInRange:(NSRange)range withString:(NSString *)str {
     if (!str) str = @"";
+
+    /*
+    NSLog(@"[replaceCharactersInRange] range=(%lu,%lu) str.length=%lu caller:\n%@",
+          (unsigned long)range.location, (unsigned long)range.length,
+          (unsigned long)str.length,
+          [NSThread callStackSymbols]);
+    */
 
     NSUInteger docLen   = _lastKnownLength;
     NSUInteger clampLoc = MIN(range.location, docLen);
@@ -319,9 +379,6 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 - (void)applyDecorationHighlights {
     NSUInteger docLen = _lastKnownLength;
     if (docLen == 0) { [self _resetPendingDirty]; return; }
-
-    // If no decoration notifications have fired but the caller explicitly
-    // asked for a full redraw (e.g. initial parse), dirty the whole document.
     if (!_hasPendingDirty) return;
 
     NSUInteger ds = (NSUInteger)MAX(0LL, _pendingDirtyStart);
@@ -329,11 +386,35 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     [self _resetPendingDirty];
     if (de <= ds) return;
 
+    // Save selectedRanges across all attached layout managers' text views
+    // before posting the attributes-only edit notification. NSTextView resets
+    // its cursor to {0,0} when it receives a full-document attribute change,
+    // so we must restore it afterwards.
+    NSMutableArray<NSMutableArray<NSValue *> *> *savedRanges = [NSMutableArray array];
+    NSMutableArray<NSTextView *> *textViews = [NSMutableArray array];
+    for (NSLayoutManager *lm in self.layoutManagers) {
+        for (NSTextContainer *tc in lm.textContainers) {
+            NSTextView *tv = tc.textView;
+            if (tv) {
+                [textViews addObject:tv];
+                [savedRanges addObject:[tv.selectedRanges mutableCopy]];
+            }
+        }
+    }
+
     [self beginEditing];
     [self edited:NSTextStorageEditedAttributes
            range:NSMakeRange(ds, de - ds)
  changeInLength:0];
     [self endEditing];
+
+    // Restore selections without triggering _syncSelectionsToController
+    // (stillSelecting:YES suppresses the feedback loop into the cursor controller).
+    for (NSUInteger i = 0; i < textViews.count; i++) {
+        [textViews[i] setSelectedRanges:savedRanges[i]
+                               affinity:NSSelectionAffinityDownstream
+                         stillSelecting:YES];
+    }
 }
 
 - (void)applyDecorationHighlightsInRange:(NSRange)range {
@@ -342,11 +423,30 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     NSUInteger loc = MIN(range.location, docLen);
     NSUInteger len = MIN(range.length, docLen - loc);
     if (len == 0) return;
+
+    NSMutableArray<NSMutableArray<NSValue *> *> *savedRanges = [NSMutableArray array];
+    NSMutableArray<NSTextView *> *textViews = [NSMutableArray array];
+    for (NSLayoutManager *lm in self.layoutManagers) {
+        for (NSTextContainer *tc in lm.textContainers) {
+            NSTextView *tv = tc.textView;
+            if (tv) {
+                [textViews addObject:tv];
+                [savedRanges addObject:[tv.selectedRanges mutableCopy]];
+            }
+        }
+    }
+
     [self beginEditing];
     [self edited:NSTextStorageEditedAttributes
            range:NSMakeRange(loc, len)
  changeInLength:0];
     [self endEditing];
+
+    for (NSUInteger i = 0; i < textViews.count; i++) {
+        [textViews[i] setSelectedRanges:savedRanges[i]
+                               affinity:NSSelectionAffinityDownstream
+                         stillSelecting:YES];
+    }
 }
 
 // ---------------------------------------------------------------------------

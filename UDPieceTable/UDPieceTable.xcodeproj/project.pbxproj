@@ -30,9 +30,14 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			publicHeaders = (
 				UDAnnotatedString.h,
+				UDCommand.h,
+				UDCursorsController.h,
+				UDCursorTypeEditOperations.h,
+				UDEditOperationResult.h,
 				UDIntervalTree.h,
 				UDPieceTable.h,
 				UDPieceTree.h,
+				UDReplaceCommand.h,
 				UDStringBuffer.h,
 				UDTextModel.h,
 				UDTextModelSearch.h,

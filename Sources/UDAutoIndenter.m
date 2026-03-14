@@ -32,6 +32,9 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // Compiled tree-sitter query for @indent captures and a dedicated cursor.
 @property (nonatomic, assign) TSQuery                 *tsIndentQuery;
 @property (nonatomic, assign) TSQueryCursor           *tsQueryCursor;
+- (BOOL)_handleElectricPairForChar:(NSString *)chars
+                             model:(UDTextModel *)model
+                              ctrl:(UDCursorsController *)ctrl;
 @end
 
 @implementation UDAutoIndenter
@@ -360,21 +363,118 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     UDCursorsController *ctrl  = _cursorsController;
     if (!model || !ctrl) return NO;
 
+    // 1. Give the language handler first crack: it can override the default
+    //    electric-pair behaviour (e.g. XML mode handles ">" and "/" itself).
     id<UDLanguageKeyHandler> handler = _languageKeyHandler;
-    if (!handler || ![handler respondsToSelector:
-            @selector(handleTypedCharacter:parseTree:textModel:cursorsController:)])
-        return NO;
-
-    BOOL consumed = [handler handleTypedCharacter:chars
-                                        parseTree:_highlighter.currentParseTree
-                                        textModel:model
-                                cursorsController:ctrl];
-
-    if (consumed) {
-        [self _syncTextViewCursor];
+    if ([handler respondsToSelector:
+            @selector(handleTypedCharacter:parseTree:textModel:cursorsController:)]) {
+        BOOL consumed = [handler handleTypedCharacter:chars
+                                           parseTree:_highlighter.currentParseTree
+                                           textModel:model
+                                   cursorsController:ctrl];
+        if (consumed) {
+            [self _syncTextViewCursor];
+            return YES;
+        }
     }
 
-    return consumed;
+    // 2. Built-in electric-pair logic driven by languageConfiguration.
+    return [self _handleElectricPairForChar:chars model:model ctrl:ctrl];
+}
+
+/// Implements the default electric-pair insertion and skip-over behaviour
+/// based on languageConfiguration.autoClosingPairs.
+///
+/// Called only when the language handler (if any) did NOT consume the event.
+- (BOOL)_handleElectricPairForChar:(NSString *)chars
+                             model:(UDTextModel *)model
+                              ctrl:(UDCursorsController *)ctrl {
+    if (chars.length != 1) return NO;
+
+    UDLanguageConfiguration *config = _languageConfiguration;
+    if (!config.autoClosingPairs.count) return NO;
+
+    if (ctrl.selections.count == 0) return NO;
+    UDSelection primarySel = [ctrl.selections.firstObject ud_selectionValue];
+
+    unichar   typedChar = [chars characterAtIndex:0];
+    NSInteger docLen    = [model getLength];
+
+    // Convert the primary cursor position to a character offset.
+    NSUInteger cursorPos = (NSUInteger)[model getOffsetAt:primarySel.positionLineNumber
+                                                   column:primarySel.positionColumn];
+
+    // ------------------------------------------------------------------
+    // 1. Skip-over (asymmetric pairs only): if the typed close-bracket
+    //    already sits immediately to the right of an empty cursor, advance
+    //    the cursor without inserting.
+    // ------------------------------------------------------------------
+    if (UDSelectionIsEmpty(primarySel) && cursorPos < (NSUInteger)docLen) {
+        for (UDAutoClosingPair *pair in config.autoClosingPairs) {
+            if (pair.close.length == 1
+                    && [pair.close characterAtIndex:0] == typedChar
+                    && ![pair.open isEqualToString:pair.close]) {
+                if ([model getCharacterAtOffset:cursorPos] == typedChar) {
+                    NSUInteger newOffset = cursorPos + 1;
+                    UDPosition newPos = [model getPositionAt:(NSInteger)newOffset];
+                    ctrl.selections = @[
+                        [NSValue ud_valueWithSelection:
+                            UDSelectionFromPosition(newPos.line, newPos.column)]
+                    ];
+                    [self _syncTextViewCursor];
+                    return YES;
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Auto-close: if the typed char is an open-bracket and there is no
+    //    selection, insert open+close and place the cursor between them.
+    // ------------------------------------------------------------------
+    if (!UDSelectionIsEmpty(primarySel)) return NO;
+
+    for (UDAutoClosingPair *pair in config.autoClosingPairs) {
+        if (pair.open.length != 1) continue;
+        if ([pair.open characterAtIndex:0] != typedChar) continue;
+
+        // autoCloseBefore: the character to the right of the cursor must be
+        // in this set (or absent at end-of-document) for auto-close to fire.
+        if (config.autoCloseBefore.length) {
+            unichar charAfter = (cursorPos < (NSUInteger)docLen)
+                              ? [model getCharacterAtOffset:cursorPos] : 0;
+            if (charAfter != 0) {
+                NSString *charAfterStr =
+                    [NSString stringWithCharacters:&charAfter length:1];
+                if ([config.autoCloseBefore
+                        rangeOfString:charAfterStr].location == NSNotFound) {
+                    return NO;
+                }
+            }
+        }
+
+        // notIn: suppress auto-close when inside a restricted node type.
+        if (pair.notIn.count > 0
+                && [self _cursorAtOffset:cursorPos isInsideNodeTypes:pair.notIn]) {
+            return NO;
+        }
+
+        // Insert the pair and position the cursor between open and close.
+        NSString *insert = [NSString stringWithFormat:@"%@%@", pair.open, pair.close];
+        [ctrl typeText:insert source:@"autoclose"];
+        // ctrl.typeText: leaves the cursor after the close char.
+        // Rewind it to between open and close.
+        NSUInteger afterOpenOffset = cursorPos + pair.open.length;
+        UDPosition afterOpenPos = [model getPositionAt:(NSInteger)afterOpenOffset];
+        ctrl.selections = @[
+            [NSValue ud_valueWithSelection:
+                UDSelectionFromPosition(afterOpenPos.line, afterOpenPos.column)]
+        ];
+        [self _syncTextViewCursor];
+        return YES;
+    }
+
+    return NO;
 }
 
 - (BOOL)handleDeleteRange:(NSRange)deleteRange {

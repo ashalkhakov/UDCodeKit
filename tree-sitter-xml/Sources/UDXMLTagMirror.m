@@ -98,7 +98,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
                                                            tree:tree
                                                           model:model];
         if (unclosedName) {
-            NSString *insertion = [NSString stringWithFormat:@"></\%@>", unclosedName];
+            NSString *insertion = [NSString stringWithFormat:@"></%@>", unclosedName];
             UDPosition pos = [model getPositionAt:(NSInteger)cursorOffset];
             ctrl.selections = @[ [NSValue ud_valueWithSelection:
                                   UDSelectionFromPosition(pos.line, pos.column)] ];

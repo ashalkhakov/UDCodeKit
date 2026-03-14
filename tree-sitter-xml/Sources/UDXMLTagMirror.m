@@ -3,7 +3,12 @@
 #import <UDPieceTable/UDPieceTable.h>
 
 static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
-typedef struct { NSUInteger start; NSUInteger end; } TagSpan;
+
+typedef struct {
+    NSUInteger start;
+    NSUInteger end;
+    BOOL       isStartTag; // YES = STag/start_tag, NO = ETag/end_tag
+} TagSpan;
 
 // ---------------------------------------------------------------------------
 // MARK: - XML name character validation (XML 1.0 §2.3)
@@ -83,13 +88,142 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     UDSelection primary = [ctrl.selections.firstObject ud_selectionValue];
     NSUInteger cursorOffset = (NSUInteger)[model getOffsetAt:primary.positionLineNumber
                                                       column:primary.positionColumn];
+    const TSTree *tree = (const TSTree *)parseTree;
 
+    // ">": auto-insert closing tag when the element is incomplete.
+    if ([chars isEqualToString:@">"]) {
+        // Search from cursorOffset itself — the cursor is still inside the
+        // STag (before ">" is inserted), so the element has no ETag yet.
+        NSString *unclosedName = [self _unclosedTagNameAtOffset:cursorOffset
+                                                           tree:tree
+                                                          model:model];
+        if (unclosedName) {
+            NSString *insertion = [NSString stringWithFormat:@"></\%@>", unclosedName];
+            UDPosition pos = [model getPositionAt:(NSInteger)cursorOffset];
+            ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                  UDSelectionFromPosition(pos.line, pos.column)] ];
+            [ctrl typeText:insertion source:@"autoclose"];
+
+            // Leave cursor after the ">" we just inserted, before "</name>".
+            NSUInteger newOffset = cursorOffset + 1;
+            UDPosition newPos = [model getPositionAt:(NSInteger)newOffset];
+            ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                  UDSelectionFromPosition(newPos.line, newPos.column)] ];
+            return YES;
+        }
+        return NO;
+    }
+
+    // "/": complete a closing tag typed as "</"
+    if ([chars isEqualToString:@"/"]) {
+
+        // ------------------------------------------------------------------
+        // Case A: cursor is inside a tag name or attribute → self-closing tag.
+        // e.g.  <foo| attr="x"   →   <foo/ > becomes <foo/>
+        // We only do this when inside an STag that has no content yet.
+        // ------------------------------------------------------------------
+        TagSpan primarySpan;
+#if DEBUG
+        [self _debugPrintSubtreeAtOffset:cursorOffset tree:tree model:model];
+#endif
+        BOOL insideTagName = [self _findTagNameAtOffset:cursorOffset
+                                                   tree:tree
+                                                   span:&primarySpan];
+        if (insideTagName && primarySpan.isStartTag) {
+            // Do not self-close if the '<' immediately precedes the tag name
+            // with nothing in between — this means the STag was just formed
+            // from a broken end tag (</foo> → <foo> after deleting '/') or
+            // the user just started typing a new tag. In either case, '/'
+            // should not auto-close.
+            if (primarySpan.start > 0 &&
+                [model getCharacterAtOffset:primarySpan.start - 1] == '<') {
+                return NO;
+            }
+
+            // Only self-close if the parent STag belongs to an unclosed element.
+            NSString *name = [self _unclosedTagNameAtOffset:cursorOffset
+                                                       tree:tree
+                                                      model:model];
+            if (name) {
+                // Insert "/>", cursor lands after it.
+                UDPosition pos = [model getPositionAt:(NSInteger)cursorOffset];
+                ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                      UDSelectionFromPosition(pos.line, pos.column)] ];
+                [ctrl typeText:@"/>" source:@"autoclose"];
+
+                NSUInteger newOffset = cursorOffset + 2;
+                UDPosition newPos = [model getPositionAt:(NSInteger)newOffset];
+                ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                      UDSelectionFromPosition(newPos.line, newPos.column)] ];
+                return YES;
+            }
+            return NO;
+        }
+
+        // If we're inside an ETag name, fall through — let normal mirroring
+        // or the default key handler deal with it.
+        if (insideTagName && !primarySpan.isStartTag) {
+            return NO;
+        }
+
+        // ------------------------------------------------------------------
+        // Case B: cursor is right after "<" → start of a closing tag.
+        // e.g.  <foo>bar<|   →   user types /
+        // Only insert the tag name if there isn't already one after the cursor.
+        // ------------------------------------------------------------------
+        if ([self _cursorIsAfterLessThan:cursorOffset model:model]) {
+
+            // Check what comes right after the cursor — if there's already
+            // a Name/tag_name node immediately following, don't insert anything
+            // extra; just let "/" through and the existing name stays.
+            NSString *existingName = [self _tagNameImmediatelyAfterOffset:cursorOffset
+                                                                     tree:tree
+                                                                    model:model];
+            if (existingName) {
+                // There's already a tag name: just insert "/" and leave it.
+                return NO;
+            }
+
+            // Find the unclosed element. Step back one char to get past the
+            // "<" we know is there, so we land in the element content.
+            NSUInteger searchOffset = cursorOffset >= 1 ? cursorOffset - 1 : 0;
+
+            // Skip back further past any whitespace to find element content.
+            NSString *text = [model getValue];
+            while (searchOffset > 0) {
+                unichar c = [text characterAtIndex:searchOffset - 1];
+                if (c == ' ' || c == '\t' || c == '\n' || c == '\r') searchOffset--;
+                else break;
+            }
+            // One more step back to get off the '<' itself.
+            if (searchOffset > 0) searchOffset--;
+
+            NSString *unclosedName = [self _unclosedTagNameAtOffset:searchOffset
+                                                               tree:tree
+                                                              model:model];
+            if (unclosedName) {
+                NSString *insertion = [NSString stringWithFormat:@"/%@>", unclosedName];
+                UDPosition pos = [model getPositionAt:(NSInteger)cursorOffset];
+                ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                      UDSelectionFromPosition(pos.line, pos.column)] ];
+                [ctrl typeText:insertion source:@"autoclose"];
+
+                NSUInteger newOffset = cursorOffset + insertion.length;
+                UDPosition newPos = [model getPositionAt:(NSInteger)newOffset];
+                ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                      UDSelectionFromPosition(newPos.line, newPos.column)] ];
+                return YES;
+            }
+        }
+        return NO;
+    }
+    // Tag name mirroring
     TagSpan primarySpan, mirrorSpan;
     if (![self _findTagNameAtOffset:cursorOffset
-                               tree:(const TSTree *)parseTree
+                               tree:tree
                                span:&primarySpan]) return NO;
     if (![self _findMirrorSpan:primarySpan
-                          tree:(const TSTree *)parseTree
+                          tree:tree
                         result:&mirrorSpan]) return NO;
 
     NSUInteger relOffset    = cursorOffset - primarySpan.start;
@@ -192,13 +326,18 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
                 TSNode parent = ts_node_parent(node);
                 if (!ts_node_is_null(parent)) {
                     const char *pt = ts_node_type(parent);
-                    if (strcmp(pt, "start_tag")        == 0 ||
-                        strcmp(pt, "STag")             == 0 ||
-                        strcmp(pt, "end_tag")          == 0 ||
-                        strcmp(pt, "ETag")             == 0 ||
-                        strcmp(pt, "self_closing_tag") == 0) {
-                        outSpan->start = ts_node_start_byte(node) / 2;
-                        outSpan->end   = ts_node_end_byte(node)   / 2;
+                    BOOL isSTag = strcmp(pt, "start_tag") == 0
+                                    || strcmp(pt, "STag")      == 0;
+                    BOOL isETag = strcmp(pt, "end_tag")   == 0
+                                    || strcmp(pt, "ETag")      == 0;
+                    BOOL isSelfClose = strcmp(pt, "self_closing_tag") == 0;
+
+                    if (isSTag || isETag || isSelfClose) {
+
+                        outSpan->start      = ts_node_start_byte(node) / 2;
+                        outSpan->end        = ts_node_end_byte(node)   / 2;
+                        outSpan->isStartTag = isSTag || isSelfClose;
+
                         // Only report a hit when the original cursor offset
                         // is within [start, end] — the end is inclusive here
                         // because "end of name" is a valid editing position.
@@ -216,6 +355,11 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
 - (BOOL)_findMirrorSpan:(TagSpan)primary
                    tree:(const TSTree *)tree
                  result:(TagSpan *)outMirror {
+    // Self-closing tags have no mirror.
+    if (!primary.isStartTag) {
+        // primary is an ETag — mirror is the STag
+    }
+
     TSNode root = ts_tree_root_node(tree);
     uint32_t byte = byteFromChar(primary.start);
     TSNode nameNode = ts_node_descendant_for_byte_range(root, byte, byte);
@@ -226,9 +370,8 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     TSNode tagNode = ts_node_parent(nameNode);
     if (ts_node_is_null(tagNode)) return NO;
     const char *tt = ts_node_type(tagNode);
-    BOOL isStart = strcmp(tt, "start_tag") == 0 || strcmp(tt, "STag") == 0;
-    BOOL isEnd   = strcmp(tt, "end_tag")   == 0 || strcmp(tt, "ETag") == 0;
-    if (!isStart && !isEnd) return NO;
+    if (strcmp(tt, "self_closing_tag") == 0) return NO; // nothing to mirror
+    BOOL isStart = primary.isStartTag;
 
     TSNode element = ts_node_parent(tagNode);
     if (ts_node_is_null(element)) return NO;
@@ -238,20 +381,217 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
         TSNode child = ts_node_child(element, i);
         const char *ct = ts_node_type(child);
         if (isStart && strcmp(ct, "end_tag")  != 0  && strcmp(ct, "ETag") != 0) continue;
-        if (isEnd   && strcmp(ct, "start_tag") != 0 && strcmp(ct, "STag") != 0) continue;
+        if (!isStart && strcmp(ct, "start_tag") != 0 && strcmp(ct, "STag") != 0) continue;
 
         uint32_t cc = ts_node_child_count(child);
         for (uint32_t j = 0; j < cc; j++) {
             TSNode gc = ts_node_child(child, j);
             const char *gt = ts_node_type(gc);
             if (strcmp(gt, "tag_name") == 0 || strcmp(gt, "name") == 0 || strcmp(gt, "Name") == 0) {
-                outMirror->start = ts_node_start_byte(gc) / 2;
-                outMirror->end   = ts_node_end_byte(gc)   / 2;
+                outMirror->start        = ts_node_start_byte(gc) / 2;
+                outMirror->end          = ts_node_end_byte(gc)   / 2;
+                outMirror->isStartTag   = !isStart;
                 return YES;
             }
         }
     }
     return NO;
 }
+
+// ---------------------------------------------------------------------------
+// MARK: - Auto-close helpers
+// ---------------------------------------------------------------------------
+
+/// Returns the tag name string of the nearest unclosed element ancestor at
+/// `offset`, or nil if no unclosed element is found.
+///
+/// "Unclosed" means the element node either:
+///   (a) has no ETag/end_tag child, or
+///   (b) is itself an ERROR node containing a start tag.
+- (nullable NSString *)_unclosedTagNameAtOffset:(NSUInteger)offset
+                                           tree:(const TSTree *)tree
+                                          model:(UDTextModel *)model {
+    TSNode root = ts_tree_root_node(tree);
+    uint32_t byte = byteFromChar(offset);
+    TSNode node = ts_node_descendant_for_byte_range(root, byte, byte);
+    
+#if DEBUG
+    [self _debugPrintSubtreeAtOffset:offset tree:tree model:model];
+#endif
+
+    // Walk upward, keeping track of the last STag/start_tag we passed through.
+    // When we find an element or ERROR ancestor we use that saved STag directly
+    // instead of searching the ancestor's children — the ancestor's child list
+    // may be large (whole-document ERROR) or the STag may not be a direct child.
+    TSNode lastSTag = ts_node_child(root, UINT32_MAX); // null sentinel
+
+    while (!ts_node_is_null(node)) {
+        const char *type = ts_node_type(node);
+
+        // Remember the most recent STag/start_tag we pass through on the way up.
+        if (strcmp(type, "STag")      == 0 ||
+            strcmp(type, "start_tag") == 0) {
+            lastSTag = node;
+            node = ts_node_parent(node);
+            continue;
+        }
+
+        // Skip other tag-internal nodes without resetting lastSTag.
+        if (strcmp(type, "ETag")     == 0 ||
+            strcmp(type, "end_tag")  == 0 ||
+            strcmp(type, "Name")     == 0 ||
+            strcmp(type, "name")     == 0 ||
+            strcmp(type, "tag_name") == 0) {
+            node = ts_node_parent(node);
+            continue;
+        }
+
+        BOOL isError   = strcmp(type, "ERROR")   == 0;
+        BOOL isElement = strcmp(type, "element")  == 0;
+
+        if (isError || isElement) {
+            // For ERROR nodes use the STag we passed through on the way up.
+            // For element nodes, find the STag as a direct child (reliable here).
+            TSNode startTag = ts_node_is_null(lastSTag)
+                ? [self _findChildOfNode:node withTypes:"STag\0start_tag\0"]
+                : lastSTag;
+
+            if (!ts_node_is_null(startTag)) {
+                // For an element, check whether a complete ETag child exists.
+                // For an ERROR node, there is never a complete ETag — that's
+                // why it's an error.
+                BOOL hasCompleteEndTag = NO;
+                if (isElement) {
+                    TSNode endTag = [self _findChildOfNode:node
+                                                withTypes:"ETag\0end_tag\0"];
+                    if (!ts_node_is_null(endTag)) {
+                        TSNode endName = [self _findChildOfNode:endTag
+                                                     withTypes:"Name\0name\0tag_name\0"];
+                        hasCompleteEndTag = !ts_node_is_null(endName)
+                                            && !ts_node_has_error(endTag);
+                    }
+                }
+
+                if (!hasCompleteEndTag) {
+                    NSString *name = [self _tagNameStringFromTagNode:startTag
+                                                              model:model];
+                    if (name.length > 0) return name;
+                }
+            }
+
+            // Reset lastSTag as we move into a higher ancestor.
+            lastSTag = ts_node_child(root, UINT32_MAX);
+        }
+
+        node = ts_node_parent(node);
+    }
+    return nil;
+}
+
+/// Returns the first child of `parent` whose type matches one of the
+/// NUL-separated type strings in `types`.
+- (TSNode)_findChildOfNode:(TSNode)parent withTypes:(const char *)types {
+    uint32_t count = ts_node_child_count(parent);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode child = ts_node_child(parent, i);
+        const char *ct = ts_node_type(child);
+        // Walk the NUL-separated list.
+        const char *p = types;
+        while (*p) {
+            if (strcmp(ct, p) == 0) return child;
+            p += strlen(p) + 1;
+        }
+    }
+    TSNode null = ts_node_child(parent, UINT32_MAX); // always null
+    return null;
+}
+
+/// Extracts the tag name text from a STag/ETag/start_tag/end_tag node.
+- (nullable NSString *)_tagNameStringFromTagNode:(TSNode)tagNode
+                                           model:(UDTextModel *)model {
+    uint32_t count = ts_node_child_count(tagNode);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode child = ts_node_child(tagNode, i);
+        const char *ct = ts_node_type(child);
+        if (strcmp(ct, "Name") == 0 ||
+            strcmp(ct, "name") == 0 ||
+            strcmp(ct, "tag_name") == 0) {
+            NSUInteger start = ts_node_start_byte(child) / 2;
+            NSUInteger end   = ts_node_end_byte(child)   / 2;
+            NSString *full   = [model getValue];
+            if (end > start && end <= (NSUInteger)full.length)
+                return [full substringWithRange:NSMakeRange(start, end - start)];
+        }
+    }
+    return nil;
+}
+
+/// Returns YES when the cursor is positioned right after a `<` character,
+/// meaning the user just typed `/` to start a closing tag.
+- (BOOL)_cursorIsAfterLessThan:(NSUInteger)cursorOffset
+                         model:(UDTextModel *)model {
+    if (cursorOffset == 0) return NO;
+    NSString *text = [model getValue];
+    if (cursorOffset > (NSUInteger)text.length) return NO;
+    return [text characterAtIndex:cursorOffset - 1] == '<';
+}
+
+/// Returns the tag name string if there is a Name/tag_name node that starts
+/// at exactly `offset` in the tree (i.e. immediately after the cursor).
+/// Returns nil if the next node is something else or doesn't exist.
+- (nullable NSString *)_tagNameImmediatelyAfterOffset:(NSUInteger)offset
+                                                 tree:(const TSTree *)tree
+                                                model:(UDTextModel *)model {
+    if (offset == 0) return nil;
+    TSNode root = ts_tree_root_node(tree);
+    // Look at the node that starts at or just after `offset`.
+    uint32_t byte = byteFromChar(offset);
+    TSNode node = ts_node_descendant_for_byte_range(root, byte, byte + 2);
+    while (!ts_node_is_null(node)) {
+        const char *type = ts_node_type(node);
+        if (strcmp(type, "Name")     == 0 ||
+            strcmp(type, "name")     == 0 ||
+            strcmp(type, "tag_name") == 0) {
+            // Only count it if it starts exactly at or right after the cursor.
+            NSUInteger nodeStart = ts_node_start_byte(node) / 2;
+            if (nodeStart <= offset + 1) {
+                return [self _tagNameStringFromTagNode:ts_node_parent(node)
+                                                model:model];
+            }
+        }
+        node = ts_node_parent(node);
+    }
+    return nil;
+}
+
+#ifdef DEBUG
+- (void)_debugPrintSubtreeAtOffset:(NSUInteger)offset
+                              tree:(const TSTree *)tree
+                             model:(UDTextModel *)model {
+    TSNode root = ts_tree_root_node(tree);
+    uint32_t byte = byteFromChar(offset);
+    TSNode node = ts_node_descendant_for_byte_range(root, byte, byte);
+    NSString *fullText = [model getValue];
+    NSLog(@"[XMLTagMirror] === tree at offset %lu (char '%@') ===",
+          (unsigned long)offset,
+          offset < (NSUInteger)fullText.length
+              ? [fullText substringWithRange:NSMakeRange(offset, 1)] : @"<end>");
+    int depth = 0;
+    while (!ts_node_is_null(node)) {
+        NSUInteger s = ts_node_start_byte(node) / 2;
+        NSUInteger e = ts_node_end_byte(node)   / 2;
+        NSUInteger snippetLen = MIN(e - s, 30);
+        NSString *snippet = (s < (NSUInteger)fullText.length)
+            ? [fullText substringWithRange:NSMakeRange(s,
+                  MIN(snippetLen, fullText.length - s))]
+            : @"<eof>";
+        NSLog(@"  [%d] %-20s hasError=%-1d  [%lu,%lu)  '%@'",
+              depth, ts_node_type(node), ts_node_has_error(node),
+              (unsigned long)s, (unsigned long)e, snippet);
+        node = ts_node_parent(node);
+        depth++;
+    }
+}
+#endif
 
 @end

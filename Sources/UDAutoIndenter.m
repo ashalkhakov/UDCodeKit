@@ -118,30 +118,23 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     //     BEFORE NSTextView applies it (e.g. XML tag-name synchronisation). ---
     if (mods == 0 && (event.keyCode == kKeyCodeBackspace ||
                       event.keyCode == kKeyCodeForwardDelete)) {
-        id<UDLanguageKeyHandler> handler = _languageKeyHandler;
-        if ([handler respondsToSelector:
-             @selector(handleDeleteRange:parseTree:textModel:cursorsController:)]) {
-            NSRange   sel    = _textView.selectedRange;
-            NSInteger docLen = [_textModel getLength];
-            NSRange   delRange = NSMakeRange(0, 0);
-            BOOL      valid  = NO;
-            if (sel.length > 0) {
-                delRange = sel;
-                valid    = YES;
-            } else if (event.keyCode == kKeyCodeBackspace && sel.location > 0) {
-                delRange = NSMakeRange(sel.location - 1, 1);
-                valid    = YES;
-            } else if (event.keyCode == kKeyCodeForwardDelete &&
-                       (NSInteger)sel.location < docLen) {
-                delRange = NSMakeRange(sel.location, 1);
-                valid    = YES;
-            }
-            if (valid) {
-                return [handler handleDeleteRange:delRange
-                                        parseTree:_highlighter.currentParseTree
-                                        textModel:_textModel
-                                cursorsController:_cursorsController];
-            }
+        NSRange   sel    = _textView.selectedRange;
+        NSInteger docLen = [_textModel getLength];
+        NSRange   delRange = NSMakeRange(0, 0);
+        BOOL      valid  = NO;
+        if (sel.length > 0) {
+            delRange = sel;
+            valid    = YES;
+        } else if (event.keyCode == kKeyCodeBackspace && sel.location > 0) {
+            delRange = NSMakeRange(sel.location - 1, 1);
+            valid    = YES;
+        } else if (event.keyCode == kKeyCodeForwardDelete &&
+                   (NSInteger)sel.location < docLen) {
+            delRange = NSMakeRange(sel.location, 1);
+            valid    = YES;
+        }
+        if (valid) {
+            return [self handleDeleteRange:delRange];
         }
     }
 
@@ -167,19 +160,34 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Cursor sync helper
+// ---------------------------------------------------------------------------
+
+/// Pushes the controller's primary selection back into NSTextView.
+/// Call this after any edit that moves the cursor through the controller.
+- (void)_syncTextViewCursor {
+    if (_cursorsController.selections.count == 0) return;
+    UDSelection s = [_cursorsController.selections.firstObject ud_selectionValue];
+    NSUInteger offset = (NSUInteger)[_textModel getOffsetAt:s.positionLineNumber
+                                                     column:s.positionColumn];
+    NSUInteger safe = MIN(offset, (NSUInteger)[_textModel getLength]);
+    [_textView setSelectedRange:NSMakeRange(safe, 0)];
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Return key (smart indentation)
 // ---------------------------------------------------------------------------
 
 - (BOOL)handleReturnKey {
-    if (!_textView || !_textModel) return NO;
+    if (!_textModel || !_cursorsController) return NO;
 
-    NSRange   sel    = _textView.selectedRange;
     NSInteger docLen = [_textModel getLength];
-
-    // When the document is empty, fall through to NSTextView default.
     if (docLen == 0) return NO;
 
-    NSUInteger cursorPos = sel.location;
+    // Read cursor position from the controller.
+    UDSelection primarySel = [_cursorsController.selections.firstObject ud_selectionValue];
+    NSUInteger cursorPos = (NSUInteger)[_textModel getOffsetAt:primarySel.positionLineNumber
+                                                        column:primarySel.positionColumn];
 
     // ------------------------------------------------------------------
     // 1. Indentation of the current line.
@@ -188,16 +196,9 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 
     // ------------------------------------------------------------------
     // 2. Does the cursor immediately follow an indent-opening bracket?
-    //    Only increase indentation when:
-    //      (a) the last non-space character on the current line is an
-    //          opening bracket from the language's bracket configuration
-    //          (falls back to { and [ when no config is set), AND
-    //      (b) the tree-sitter query confirms we are inside an @indent node
-    //          (this rules out brackets inside string literals).
     // ------------------------------------------------------------------
     unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos];
 
-    // Build the set of open/close bracket characters from language config.
     NSString *openChars  = nil;
     NSString *closeChars = nil;
     UDLanguageConfiguration *config = _languageConfiguration;
@@ -205,53 +206,47 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
         openChars  = [config openBracketCharacters];
         closeChars = [config closeBracketCharacters];
     }
-    // Fall back to the built-in defaults when no config is available.
     if (!openChars.length)  openChars  = @"{[";
     if (!closeChars.length) closeChars = @"}]";
 
-    BOOL isOpenBracket = charBefore != 0
+    BOOL isOpenBracket  = charBefore != 0
         && ([openChars rangeOfString:[NSString stringWithCharacters:&charBefore length:1]].location != NSNotFound);
-    BOOL increaseIndent = isOpenBracket
-                         && [self _isInsideIndentNodeAtOffset:cursorPos];
-
+    BOOL increaseIndent = isOpenBracket && [self _isInsideIndentNodeAtOffset:cursorPos];
     NSString *newIndent = increaseIndent
         ? [lineIndent stringByAppendingString:_indentUnit]
         : lineIndent;
 
     // ------------------------------------------------------------------
-    // 3. Electric-pair split: if a closing bracket sits right after the
-    //    cursor (e.g.  { | } ), split it so the cursor ends up on the
-    //    indented middle line and the closing bracket moves to its own line.
+    // 3. Electric-pair split.
     // ------------------------------------------------------------------
-    NSUInteger afterPos  = sel.location + sel.length;
-    unichar    charAfter = (afterPos < (NSUInteger)docLen)
-                               ? [_textModel getCharacterAtOffset:afterPos] : 0;
+    unichar charAfter = ((NSUInteger)docLen > cursorPos)
+        ? [_textModel getCharacterAtOffset:cursorPos] : 0;
     BOOL isCloseBracket = charAfter != 0
         && ([closeChars rangeOfString:[NSString stringWithCharacters:&charAfter length:1]].location != NSNotFound);
     BOOL split = increaseIndent && isCloseBracket;
 
     // ------------------------------------------------------------------
-    // 4. Build the replacement string.
-    //
-    //    Normal:  "\n<newIndent>"
-    //    Split:   "\n<newIndent>\n<lineIndent>"   (cursor on first new line)
+    // 4. Insert via the controller so the edit is attributed correctly.
     // ------------------------------------------------------------------
     NSString *insertText = split
         ? [NSString stringWithFormat:@"\n%@\n%@", newIndent, lineIndent]
         : [NSString stringWithFormat:@"\n%@",     newIndent];
 
-    // Apply via NSTextView so the edit flows through the normal
-    // NSTextStorage → UDTextModel pipeline (undo, re-parse, highlights).
-    [_textView insertText:insertText replacementRange:sel];
+    [_cursorsController typeText:insertText source:@"indent"];
 
+    // For a split, the controller leaves the cursor at the very end of the
+    // inserted text (after <lineIndent>). Move it back to the middle line,
+    // right after <newIndent>.
     if (split) {
-        // insertText:replacementRange: leaves the cursor at the very end of
-        // the inserted text (after <lineIndent>).  Move it back to the middle
-        // line, right after <newIndent>.
         NSUInteger newCursorPos = cursorPos + 1 + newIndent.length;
-        [_textView setSelectedRange:NSMakeRange(newCursorPos, 0)];
+        UDPosition newPos = [_textModel getPositionAt:(NSInteger)newCursorPos];
+        _cursorsController.selections = @[
+            [NSValue ud_valueWithSelection:
+                UDSelectionFromPosition(newPos.line, newPos.column)]
+        ];
     }
 
+    [self _syncTextViewCursor];
     return YES;
 }
 
@@ -260,26 +255,30 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // ---------------------------------------------------------------------------
 
 - (BOOL)handleShiftTabKey {
-    if (!_textView || !_textModel) return NO;
+    if (!_textModel || !_cursorsController) return NO;
 
-    NSRange   sel    = _textView.selectedRange;
     NSInteger docLen = [_textModel getLength];
     if (docLen == 0) return NO;
+
+    // Read selection from the controller.
+    UDSelection primarySel = [_cursorsController.selections.firstObject ud_selectionValue];
+    NSUInteger selStart = (NSUInteger)[_textModel getOffsetAt:primarySel.selectionStartLineNumber
+                                                       column:primarySel.selectionStartColumn];
+    NSUInteger selEnd   = (NSUInteger)[_textModel getOffsetAt:primarySel.positionLineNumber
+                                                       column:primarySel.positionColumn];
+    if (selStart > selEnd) { NSUInteger tmp = selStart; selStart = selEnd; selEnd = tmp; }
 
     // ------------------------------------------------------------------
     // 1. Determine the range of lines to de-indent.
     // ------------------------------------------------------------------
-    UDPosition startPos  = [_textModel getPositionAt:(NSInteger)sel.location];
+    UDPosition startPos  = [_textModel getPositionAt:(NSInteger)selStart];
     NSInteger  startLine = startPos.line;
 
     NSInteger endLine;
-    if (sel.length == 0) {
+    if (selStart == selEnd) {
         endLine = startLine;
     } else {
-        NSUInteger endOffset = sel.location + sel.length;
-        UDPosition endPos    = [_textModel getPositionAt:(NSInteger)endOffset];
-        // If the selection ends exactly at column 1 of a new line, don't
-        // include that line — it has no visible characters selected.
+        UDPosition endPos = [_textModel getPositionAt:(NSInteger)selEnd];
         endLine = (endPos.column == 1 && endPos.line > startLine)
             ? endPos.line - 1
             : endPos.line;
@@ -303,38 +302,52 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     NSInteger totalStripped = 0;
     for (NSNumber *n in stripLens) totalStripped += n.integerValue;
 
-    // Consume the event even when there is nothing to strip.
     if (totalStripped == 0) return YES;
 
     // ------------------------------------------------------------------
-    // 3. Apply deletions from last line to first so that earlier character
-    //    offsets remain valid after each individual edit.
+    // 3. Apply deletions last-to-first through the controller.
+    //    Each deletion is a collapsed selection at the strip range,
+    //    replaced with empty text.
     // ------------------------------------------------------------------
     for (NSInteger i = numLines - 1; i >= 0; i--) {
         NSInteger strip     = [stripLens[(NSUInteger)i] integerValue];
         if (strip == 0) continue;
         NSInteger lineStart = [lineStartOffsets[(NSUInteger)i] integerValue];
-        NSRange   delRange  = NSMakeRange((NSUInteger)lineStart, (NSUInteger)strip);
-        [_textView insertText:@"" replacementRange:delRange];
+
+        UDPosition ps = [_textModel getPositionAt:lineStart];
+        UDPosition pe = [_textModel getPositionAt:lineStart + strip];
+        _cursorsController.selections = @[
+            [NSValue ud_valueWithSelection:
+                UDSelectionMake(ps.line, ps.column, pe.line, pe.column)]
+        ];
+        [_cursorsController typeText:@"" source:@"dedent"];
     }
 
     // ------------------------------------------------------------------
-    // 4. Restore the selection, adjusted for the removed characters.
+    // 4. Restore selection adjusted for removed characters.
     // ------------------------------------------------------------------
-    NSInteger firstStripped    = [stripLens[0] integerValue];
-    NSInteger lineStartOffset  = [lineStartOffsets[0] integerValue];
-    NSInteger rawNewStart      = (NSInteger)sel.location - firstStripped;
-    NSUInteger newSelStart     = (NSUInteger)MAX(rawNewStart, lineStartOffset);
+    NSInteger firstStripped   = [stripLens[0] integerValue];
+    NSInteger lineStartOffset = [lineStartOffsets[0] integerValue];
+    NSInteger rawNewStart     = (NSInteger)selStart - firstStripped;
+    NSUInteger newSelStart    = (NSUInteger)MAX(rawNewStart, lineStartOffset);
 
-    if (sel.length == 0) {
-        [_textView setSelectedRange:NSMakeRange(newSelStart, 0)];
+    if (selStart == selEnd) {
+        UDPosition p = [_textModel getPositionAt:(NSInteger)newSelStart];
+        _cursorsController.selections = @[
+            [NSValue ud_valueWithSelection:UDSelectionFromPosition(p.line, p.column)]
+        ];
     } else {
-        NSInteger newEnd = (NSInteger)(sel.location + sel.length) - totalStripped;
+        NSInteger newEnd = (NSInteger)selEnd - totalStripped;
         if (newEnd < (NSInteger)newSelStart) newEnd = (NSInteger)newSelStart;
-        [_textView setSelectedRange:NSMakeRange(newSelStart,
-                                        (NSUInteger)(newEnd - (NSInteger)newSelStart))];
+        UDPosition ps = [_textModel getPositionAt:(NSInteger)newSelStart];
+        UDPosition pe = [_textModel getPositionAt:newEnd];
+        _cursorsController.selections = @[
+            [NSValue ud_valueWithSelection:
+                UDSelectionMake(ps.line, ps.column, pe.line, pe.column)]
+        ];
     }
 
+    [self _syncTextViewCursor];
     return YES;
 }
 
@@ -352,10 +365,16 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
             @selector(handleTypedCharacter:parseTree:textModel:cursorsController:)])
         return NO;
 
-    return [handler handleTypedCharacter:chars
-                               parseTree:_highlighter.currentParseTree
-                               textModel:model
-                       cursorsController:ctrl];
+    BOOL consumed = [handler handleTypedCharacter:chars
+                                        parseTree:_highlighter.currentParseTree
+                                        textModel:model
+                                cursorsController:ctrl];
+
+    if (consumed) {
+        [self _syncTextViewCursor];
+    }
+
+    return consumed;
 }
 
 - (BOOL)handleDeleteRange:(NSRange)deleteRange {
@@ -368,10 +387,16 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
             @selector(handleDeleteRange:parseTree:textModel:cursorsController:)])
         return NO;
 
-    return [handler handleDeleteRange:deleteRange
-                            parseTree:_highlighter.currentParseTree
-                            textModel:model
-                    cursorsController:ctrl];
+    BOOL consumed = [handler handleDeleteRange:deleteRange
+                                     parseTree:_highlighter.currentParseTree
+                                     textModel:model
+                             cursorsController:ctrl];
+
+    if (consumed) {
+        [self _syncTextViewCursor];
+    }
+
+    return consumed;
 }
 
 // ---------------------------------------------------------------------------

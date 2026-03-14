@@ -13,7 +13,23 @@
 		CE0C2E382F5F1E5400566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E362F5F1E5400566368 /* Info.plist */; };
 		CE0C2E392F5F1E5400566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E352F5F1E5400566368 /* highlights.scm */; };
 		CE0C2E3A2F5F1E5400566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E372F5F1E5400566368 /* LanguageInfo.plist */; };
+		CE7CFB982F65B5EB00F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB972F65B5EB00F294D4 /* UDPieceTable.framework */; };
+		CE7CFB992F65B5EB00F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB972F65B5EB00F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		CE7CFB9A2F65B5EB00F294D4 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				CE7CFB992F65B5EB00F294D4 /* UDPieceTable.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		8D33C905C6D1E7421929B462 /* TreeSitterMake.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterMake.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -24,6 +40,7 @@
 		CE0C2E352F5F1E5400566368 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
 		CE0C2E362F5F1E5400566368 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE0C2E372F5F1E5400566368 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
+		CE7CFB972F65B5EB00F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -31,6 +48,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE7CFB982F65B5EB00F294D4 /* UDPieceTable.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -73,6 +91,14 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		CE7CFB962F65B5EB00F294D4 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CE7CFB972F65B5EB00F294D4 /* UDPieceTable.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		D1339546657C3551CB25BEB4 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -88,6 +114,7 @@
 				0EB8BC8FAA65776FFC25CFF3 /* src */,
 				19373D71B7A3C4F1367F61FA /* Sources */,
 				74D16131BB6C5CD08752F708 /* Resources */,
+				CE7CFB962F65B5EB00F294D4 /* Frameworks */,
 				D1339546657C3551CB25BEB4 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -102,6 +129,7 @@
 				12C50A1ACE73B444BB757EC3 /* Sources */,
 				45ACCE0AED11E1677821A934 /* Frameworks */,
 				A6E1D19FCC0133B95BD448A9 /* Resources */,
+				CE7CFB9A2F65B5EB00F294D4 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);

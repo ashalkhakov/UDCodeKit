@@ -39,7 +39,7 @@
  *    `<fo|o>text</foo>` → Backspace → `<fo>text</fo>`   (open→close)
  *    `<foo>text</fo|o>` → Backspace → `<fo>text</fo>`   (close→open)
  *--------------------------------------------------------------------------------------------*/
-
+/*
 #import <Foundation/Foundation.h>
 #import "UDLanguageKeyHandler.h"
 
@@ -52,3 +52,4 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
+*/

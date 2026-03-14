@@ -47,9 +47,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import <UDPieceTable/UDPieceTable.h>   // UDTextModel, UDTypes, UDRange, etc.
 #import <tree_sitter/api.h>
 #import "UDLanguageKeyHandler.h"
-#import "UDTextEditing.h"
 
 @protocol UDExtension <NSObject>
 

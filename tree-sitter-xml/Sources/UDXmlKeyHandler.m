@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------------------------
  *  UDXmlKeyHandler.m
  *--------------------------------------------------------------------------------------------*/
-
+#if 0
 #import "UDXmlKeyHandler.h"
 #import <tree_sitter/api.h>
 #include <string.h>
@@ -522,3 +522,4 @@ static BOOL _findTagNamePair(TSNode tagNameNode, BOOL *outIsOpenTag, TSNode *out
 }
 
 @end
+#endif

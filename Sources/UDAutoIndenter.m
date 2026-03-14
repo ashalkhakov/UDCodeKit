@@ -4,7 +4,6 @@
 
 #import "UDAutoIndenter.h"
 #import "UDLanguageKeyHandler.h"
-#import "UDTextModel+TextAccess.h"
 #import <tree_sitter/api.h>
 #import <string.h>
 
@@ -41,10 +40,16 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // MARK: - Init / dealloc
 // ---------------------------------------------------------------------------
 
-- (instancetype)initWithHighlighter:(nullable UDTreeSitterHighlighter *)highlighter {
+- (instancetype)initWithHighlighter:(nullable UDTreeSitterHighlighter *)highlighter
+                           textView:(NSTextView *)textView
+                          textModel:(UDTextModel *)textModel
+                  cursorsController:(nonnull UDCursorsController *)cursorsController {
     self = [super init];
     if (!self) return nil;
     _highlighter = highlighter;
+    _textView = textView;
+    _textModel = textModel;
+    _cursorsController = cursorsController;
     _indentUnit  = @"  "; // default: 2 spaces
     return self;
 }
@@ -88,10 +93,8 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // MARK: - Unified key event dispatch
 // ---------------------------------------------------------------------------
 
-- (BOOL)handleKeyEvent:(NSEvent *)event
-              textView:(NSTextView *)tv
-                 model:(UDTextModel *)model {
-    if (!tv || !model) return NO;
+- (BOOL)handleKeyEvent:(NSEvent *)event {
+    if (!_textModel) return NO;
 
     NSEventModifierFlags mods =
         event.modifierFlags & (NSEventModifierFlagCommand |
@@ -103,12 +106,12 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     if (mods == 0 &&
             (event.keyCode == kKeyCodeReturn ||
              event.keyCode == kKeyCodeKeypadReturn)) {
-        return [self handleReturnKeyWithTextView:tv model:model];
+        return [self handleReturnKey];
     }
 
     // --- Shift-Tab: dedent ---
     if (mods == NSEventModifierFlagShift && event.keyCode == kKeyCodeTab) {
-        return [self handleShiftTabKeyWithTextView:tv model:model];
+        return [self handleShiftTabKey];
     }
 
     // --- Delete key: give the language handler a chance to mirror the deletion
@@ -117,10 +120,10 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
                       event.keyCode == kKeyCodeForwardDelete)) {
         id<UDLanguageKeyHandler> handler = _languageKeyHandler;
         if ([handler respondsToSelector:
-                @selector(handleDeleteRange:parseTree:textModel:newCursorOffsetOut:)]) {
-            NSRange   sel    = tv.selectedRange;
-            NSInteger docLen = [model getLength];
-            NSRange   delRange;
+             @selector(handleDeleteRange:parseTree:textModel:cursorsController:)]) {
+            NSRange   sel    = _textView.selectedRange;
+            NSInteger docLen = [_textModel getLength];
+            NSRange   delRange = NSMakeRange(0, 0);
             BOOL      valid  = NO;
             if (sel.length > 0) {
                 delRange = sel;
@@ -134,17 +137,10 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
                 valid    = YES;
             }
             if (valid) {
-                NSUInteger newCursor = NSNotFound;
-                BOOL consumed = [handler handleDeleteRange:delRange
-                                                 parseTree:_highlighter.currentParseTree
-                                                 textModel:model
-                                         newCursorOffsetOut:&newCursor];
-                if (consumed) {
-                    if (newCursor != NSNotFound) {
-                        [tv setSelectedRange:NSMakeRange(newCursor, 0)];
-                    }
-                    return YES;
-                }
+                return [handler handleDeleteRange:delRange
+                                        parseTree:_highlighter.currentParseTree
+                                        textModel:_textModel
+                                cursorsController:_cursorsController];
             }
         }
     }
@@ -162,31 +158,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
             // Arrow keys and other function keys have code points in 0xF700–0xF8FF
             // (NSFunctionKeyMask area) and must not be treated as typed text.
             if (ch >= ' ' && ch != 0x7f && ch < kFunctionKeyRangeStart) {
-                BOOL baseConsumed =
-                    [self handleTypedCharacter:chars textView:tv model:model];
-
-                // Always give the language handler a chance, even when the base
-                // already consumed the event (e.g. it may add a trailing comma
-                // after an auto-inserted `}`).
-                BOOL langConsumed = NO;
-                id<UDLanguageKeyHandler> handler = _languageKeyHandler;
-                if ([handler respondsToSelector:
-                        @selector(handleTypedCharacter:parseTree:textModel:cursorOffset:newCursorOffsetOut:)]) {
-                    NSUInteger cursorAfterBase = tv.selectedRange.location;
-                    NSUInteger newCursor = NSNotFound;
-                    langConsumed = [handler handleTypedCharacter:chars
-                                                      parseTree:_highlighter.currentParseTree
-                                                      textModel:model
-                                                   cursorOffset:cursorAfterBase
-                                             newCursorOffsetOut:&newCursor];
-                    // If the handler applied edits via textModel.applyEdits:, the
-                    // UDTextModelDidChangeNotification path reports a full-document
-                    // range to NSTextView which may reset the cursor.  Restore it.
-                    if (newCursor != NSNotFound) {
-                        [tv setSelectedRange:NSMakeRange(newCursor, 0)];
-                    }
-                }
-                return baseConsumed || langConsumed;
+                return [self handleTypedCharacter:chars];
             }
         }
     }
@@ -198,11 +170,11 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // MARK: - Return key (smart indentation)
 // ---------------------------------------------------------------------------
 
-- (BOOL)handleReturnKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model {
-    if (!tv || !model) return NO;
+- (BOOL)handleReturnKey {
+    if (!_textView || !_textModel) return NO;
 
-    NSRange   sel    = tv.selectedRange;
-    NSInteger docLen = [model getLength];
+    NSRange   sel    = _textView.selectedRange;
+    NSInteger docLen = [_textModel getLength];
 
     // When the document is empty, fall through to NSTextView default.
     if (docLen == 0) return NO;
@@ -212,7 +184,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     // ------------------------------------------------------------------
     // 1. Indentation of the current line.
     // ------------------------------------------------------------------
-    NSString *lineIndent = [self _indentOfLineContaining:cursorPos inModel:model];
+    NSString *lineIndent = [self _indentOfLineContaining:cursorPos];
 
     // ------------------------------------------------------------------
     // 2. Does the cursor immediately follow an indent-opening bracket?
@@ -223,7 +195,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     //      (b) the tree-sitter query confirms we are inside an @indent node
     //          (this rules out brackets inside string literals).
     // ------------------------------------------------------------------
-    unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos inModel:model];
+    unichar charBefore = [self _lastNonSpaceCharBefore:cursorPos];
 
     // Build the set of open/close bracket characters from language config.
     NSString *openChars  = nil;
@@ -240,7 +212,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     BOOL isOpenBracket = charBefore != 0
         && ([openChars rangeOfString:[NSString stringWithCharacters:&charBefore length:1]].location != NSNotFound);
     BOOL increaseIndent = isOpenBracket
-                         && [self _isInsideIndentNodeAtOffset:cursorPos inModel:model];
+                         && [self _isInsideIndentNodeAtOffset:cursorPos];
 
     NSString *newIndent = increaseIndent
         ? [lineIndent stringByAppendingString:_indentUnit]
@@ -253,7 +225,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     // ------------------------------------------------------------------
     NSUInteger afterPos  = sel.location + sel.length;
     unichar    charAfter = (afterPos < (NSUInteger)docLen)
-                               ? [model getCharacterAtOffset:afterPos] : 0;
+                               ? [_textModel getCharacterAtOffset:afterPos] : 0;
     BOOL isCloseBracket = charAfter != 0
         && ([closeChars rangeOfString:[NSString stringWithCharacters:&charAfter length:1]].location != NSNotFound);
     BOOL split = increaseIndent && isCloseBracket;
@@ -270,14 +242,14 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 
     // Apply via NSTextView so the edit flows through the normal
     // NSTextStorage → UDTextModel pipeline (undo, re-parse, highlights).
-    [tv insertText:insertText replacementRange:sel];
+    [_textView insertText:insertText replacementRange:sel];
 
     if (split) {
         // insertText:replacementRange: leaves the cursor at the very end of
         // the inserted text (after <lineIndent>).  Move it back to the middle
         // line, right after <newIndent>.
         NSUInteger newCursorPos = cursorPos + 1 + newIndent.length;
-        [tv setSelectedRange:NSMakeRange(newCursorPos, 0)];
+        [_textView setSelectedRange:NSMakeRange(newCursorPos, 0)];
     }
 
     return YES;
@@ -287,17 +259,17 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // MARK: - Shift-Tab (dedent)
 // ---------------------------------------------------------------------------
 
-- (BOOL)handleShiftTabKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model {
-    if (!tv || !model) return NO;
+- (BOOL)handleShiftTabKey {
+    if (!_textView || !_textModel) return NO;
 
-    NSRange   sel    = tv.selectedRange;
-    NSInteger docLen = [model getLength];
+    NSRange   sel    = _textView.selectedRange;
+    NSInteger docLen = [_textModel getLength];
     if (docLen == 0) return NO;
 
     // ------------------------------------------------------------------
     // 1. Determine the range of lines to de-indent.
     // ------------------------------------------------------------------
-    UDPosition startPos  = [model getPositionAt:(NSInteger)sel.location];
+    UDPosition startPos  = [_textModel getPositionAt:(NSInteger)sel.location];
     NSInteger  startLine = startPos.line;
 
     NSInteger endLine;
@@ -305,7 +277,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
         endLine = startLine;
     } else {
         NSUInteger endOffset = sel.location + sel.length;
-        UDPosition endPos    = [model getPositionAt:(NSInteger)endOffset];
+        UDPosition endPos    = [_textModel getPositionAt:(NSInteger)endOffset];
         // If the selection ends exactly at column 1 of a new line, don't
         // include that line — it has no visible characters selected.
         endLine = (endPos.column == 1 && endPos.line > startLine)
@@ -321,9 +293,9 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     NSMutableArray<NSNumber *> *stripLens        = [NSMutableArray arrayWithCapacity:(NSUInteger)numLines];
 
     for (NSInteger line = startLine; line <= endLine; line++) {
-        NSString  *content   = [model getLineContent:line];
+        NSString  *content   = [_textModel getLineContent:line];
         NSInteger  strip     = [self _stripLengthForLine:content];
-        NSInteger  lineStart = [model getOffsetAt:line column:1];
+        NSInteger  lineStart = [_textModel getOffsetAt:line column:1];
         [lineStartOffsets addObject:@(lineStart)];
         [stripLens        addObject:@(strip)];
     }
@@ -343,7 +315,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
         if (strip == 0) continue;
         NSInteger lineStart = [lineStartOffsets[(NSUInteger)i] integerValue];
         NSRange   delRange  = NSMakeRange((NSUInteger)lineStart, (NSUInteger)strip);
-        [tv insertText:@"" replacementRange:delRange];
+        [_textView insertText:@"" replacementRange:delRange];
     }
 
     // ------------------------------------------------------------------
@@ -355,11 +327,11 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     NSUInteger newSelStart     = (NSUInteger)MAX(rawNewStart, lineStartOffset);
 
     if (sel.length == 0) {
-        [tv setSelectedRange:NSMakeRange(newSelStart, 0)];
+        [_textView setSelectedRange:NSMakeRange(newSelStart, 0)];
     } else {
         NSInteger newEnd = (NSInteger)(sel.location + sel.length) - totalStripped;
         if (newEnd < (NSInteger)newSelStart) newEnd = (NSInteger)newSelStart;
-        [tv setSelectedRange:NSMakeRange(newSelStart,
+        [_textView setSelectedRange:NSMakeRange(newSelStart,
                                         (NSUInteger)(newEnd - (NSInteger)newSelStart))];
     }
 
@@ -370,83 +342,36 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // MARK: - Electric-pair insertion
 // ---------------------------------------------------------------------------
 
-- (BOOL)handleTypedCharacter:(NSString *)chars
-                    textView:(NSTextView *)tv
-                       model:(UDTextModel *)model {
-    if (chars.length != 1) return NO;
+- (BOOL)handleTypedCharacter:(NSString *)chars {
+    UDTextModel         *model = _textModel;
+    UDCursorsController *ctrl  = _cursorsController;
+    if (!model || !ctrl) return NO;
 
-    UDLanguageConfiguration *config = _languageConfiguration;
-    if (!config.autoClosingPairs.count) return NO;
+    id<UDLanguageKeyHandler> handler = _languageKeyHandler;
+    if (!handler || ![handler respondsToSelector:
+            @selector(handleTypedCharacter:parseTree:textModel:cursorsController:)])
+        return NO;
 
-    if (!tv || !model) return NO;
+    return [handler handleTypedCharacter:chars
+                               parseTree:_highlighter.currentParseTree
+                               textModel:model
+                       cursorsController:ctrl];
+}
 
-    NSRange   sel      = tv.selectedRange;
-    NSInteger docLen   = [model getLength];
+- (BOOL)handleDeleteRange:(NSRange)deleteRange {
+    UDTextModel         *model = _textModel;
+    UDCursorsController *ctrl  = _cursorsController;
+    if (!model || !ctrl) return NO;
 
-    unichar    typedChar = [chars characterAtIndex:0];
-    NSUInteger cursorPos = sel.location;
+    id<UDLanguageKeyHandler> handler = _languageKeyHandler;
+    if (!handler || ![handler respondsToSelector:
+            @selector(handleDeleteRange:parseTree:textModel:cursorsController:)])
+        return NO;
 
-    // ------------------------------------------------------------------
-    // 1. Skip-over: if the typed char is a close-bracket that already sits
-    //    immediately to the right of the cursor (insertion point only),
-    //    advance the cursor rather than inserting.  Only applies to
-    //    asymmetric pairs (open != close) to avoid false-positives with
-    //    symmetric pairs like quotes.
-    // ------------------------------------------------------------------
-    if (sel.length == 0 && cursorPos < (NSUInteger)docLen) {
-        for (UDAutoClosingPair *pair in config.autoClosingPairs) {
-            if (pair.close.length == 1
-                    && [pair.close characterAtIndex:0] == typedChar
-                    && ![pair.open isEqualToString:pair.close]) {
-                unichar nextChar = [model getCharacterAtOffset:cursorPos];
-                if (nextChar == typedChar) {
-                    [tv setSelectedRange:NSMakeRange(cursorPos + 1, 0)];
-                    return YES;
-                }
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // 2. Auto-close: if the typed char is an open-bracket of a pair, insert
-    //    open + close and place the cursor between them.
-    // ------------------------------------------------------------------
-    if (sel.length > 0) return NO;   // don't auto-close when text is selected
-
-    for (UDAutoClosingPair *pair in config.autoClosingPairs) {
-        if (pair.open.length != 1) continue;
-        if ([pair.open characterAtIndex:0] != typedChar) continue;
-
-        // autoCloseBefore: the character to the right of the cursor must be
-        // in this set (or absent) for auto-close to fire.
-        if (config.autoCloseBefore.length) {
-            unichar charAfter = (cursorPos < (NSUInteger)docLen)
-                              ? [model getCharacterAtOffset:cursorPos] : 0;
-            if (charAfter != 0) {
-                NSString *charAfterStr =
-                    [NSString stringWithCharacters:&charAfter length:1];
-                if ([config.autoCloseBefore
-                        rangeOfString:charAfterStr].location == NSNotFound) {
-                    return NO;
-                }
-            }
-        }
-
-        // notIn: suppress auto-close when inside a restricted node type.
-        if (pair.notIn.count > 0
-                && [self _cursorAtOffset:cursorPos isInsideNodeTypes:pair.notIn]) {
-            return NO;
-        }
-
-        // Insert the pair and position the cursor between open and close.
-        NSString *insert =
-            [NSString stringWithFormat:@"%@%@", pair.open, pair.close];
-        [tv insertText:insert replacementRange:sel];
-        [tv setSelectedRange:NSMakeRange(cursorPos + 1, 0)];
-        return YES;
-    }
-
-    return NO;
+    return [handler handleDeleteRange:deleteRange
+                            parseTree:_highlighter.currentParseTree
+                            textModel:model
+                    cursorsController:ctrl];
 }
 
 // ---------------------------------------------------------------------------
@@ -507,12 +432,11 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 }
 
 /// Returns the leading-whitespace prefix of the line that contains @c offset.
-- (NSString *)_indentOfLineContaining:(NSUInteger)offset
-                               inModel:(UDTextModel *)model {
-    if (!model) return @"";
+- (NSString *)_indentOfLineContaining:(NSUInteger)offset {
+    if (!_textModel) return @"";
 
-    UDPosition pos = [model getPositionAt:(NSInteger)offset];
-    NSString  *lineContent = [model getLineContent:pos.line];
+    UDPosition pos = [_textModel getPositionAt:(NSInteger)offset];
+    NSString  *lineContent = [_textModel getLineContent:pos.line];
 
     NSUInteger limit = (NSUInteger)(pos.column - 1);
     NSMutableString *indent = [NSMutableString string];
@@ -526,12 +450,11 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 
 /// Returns the last non-space/tab character before @c offset on the SAME LINE,
 /// or 0 if none is found.
-- (unichar)_lastNonSpaceCharBefore:(NSUInteger)offset
-                            inModel:(UDTextModel *)model {
-    if (!model || offset == 0) return 0;
+- (unichar)_lastNonSpaceCharBefore:(NSUInteger)offset {
+    if (!_textModel || offset == 0) return 0;
 
-    UDPosition pos = [model getPositionAt:(NSInteger)offset];
-    NSString  *lineContent = [model getLineContent:pos.line];
+    UDPosition pos = [_textModel getPositionAt:(NSInteger)offset];
+    NSString  *lineContent = [_textModel getLineContent:pos.line];
 
     NSInteger startIdx = (NSInteger)pos.column - 2;
     for (NSInteger j = startIdx; j >= 0; j--) {
@@ -544,14 +467,13 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 
 /// Returns YES when the cursor at @c offset is strictly inside an @indent
 /// tree-sitter node, meaning a newline here should increase indentation.
-- (BOOL)_isInsideIndentNodeAtOffset:(NSUInteger)offset
-                             inModel:(UDTextModel *)model {
+- (BOOL)_isInsideIndentNodeAtOffset:(NSUInteger)offset {
     if (!_tsIndentQuery || !_tsQueryCursor) return YES;
 
     const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
     if (!tree) return YES;
 
-    NSInteger docLen = [model getLength];
+    NSInteger docLen = [_textModel getLength];
     if (docLen <= 0) return NO;
 
     uint32_t byte = byteFromChar(offset);

@@ -128,7 +128,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
 /// to -[super keyDown:] for NSTextView's normal key-binding pipeline.
 - (void)keyDown:(NSEvent *)event {
     // 1. Smart key handling (indentation, electric pairs, language-specific).
-    if ([_autoIndenter handleKeyEvent:event textView:self model:_textModel]) return;
+    if ([_autoIndenter handleKeyEvent:event]) return;
 
     // 2. Option + Arrow: tree-structured navigation.
     NSEventModifierFlags mods =

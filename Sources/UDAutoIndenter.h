@@ -71,13 +71,25 @@ NS_ASSUME_NONNULL_BEGIN
 /// giving the bundle a chance to react to typed characters.
 @property (nonatomic, strong, nullable) id<UDLanguageKeyHandler> languageKeyHandler;
 
+/// cursorsController is passed to -handleTypedCharacter: and -handleDeleteRange:
+/// so that language handlers can drive multi-cursor edits atomically.
+@property (nonatomic, weak, nullable) UDCursorsController *cursorsController;
+
+@property (nonatomic, weak) UDTextModel *textModel;
+
+@property (nonatomic, weak) NSTextView *textView;
+
 /// Designated initializer.
 ///
 /// @param highlighter  The tree-sitter highlighter that owns the current parse
 ///                     tree.  Used for @indent-node checking and notIn suppression.
 ///                     May be nil (disables tree-sitter-dependent features; all
 ///                     bracket-based rules still apply).
+/// @param cursorsController The multi-cursor controller.
 - (instancetype)initWithHighlighter:(nullable UDTreeSitterHighlighter *)highlighter
+                           textView:(NSTextView *)textView
+                          textModel:(UDTextModel *)textModel
+                  cursorsController:(UDCursorsController *)cursorsController
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -114,9 +126,7 @@ NS_ASSUME_NONNULL_BEGIN
 ///
 /// @return YES if the event was consumed and must not be passed to NSTextView's
 ///         default key-binding pipeline; NO to let the event through.
-- (BOOL)handleKeyEvent:(NSEvent *)event
-              textView:(NSTextView *)tv
-                 model:(UDTextModel *)model;
+- (BOOL)handleKeyEvent:(NSEvent *)event;
 
 // ---------------------------------------------------------------------------
 // MARK: - Individual key handlers (also callable directly, e.g. from tests)
@@ -130,7 +140,7 @@ NS_ASSUME_NONNULL_BEGIN
 ///
 /// @return YES if the event was consumed; NO if the document is empty
 ///         (callers should let NSTextView handle it).
-- (BOOL)handleReturnKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model;
+- (BOOL)handleReturnKey;
 
 /// Handle a Shift-Tab key press: remove one indentation level from every line
 /// that the current selection touches (or just the current line when there is
@@ -142,15 +152,15 @@ NS_ASSUME_NONNULL_BEGIN
 ///   - Otherwise            -> nothing removed.
 ///
 /// @return YES if the event was consumed; NO if the document is empty.
-- (BOOL)handleShiftTabKeyWithTextView:(NSTextView *)tv model:(UDTextModel *)model;
+- (BOOL)handleShiftTabKey;
 
 /// Handle a single typed character for electric-pair insertion / skip-over.
 ///
 /// @param chars  The string produced by the key event (must have length == 1).
 /// @return YES if the event was consumed; NO to let NSTextView handle it.
-- (BOOL)handleTypedCharacter:(NSString *)chars
-                    textView:(NSTextView *)tv
-                       model:(UDTextModel *)model;
+- (BOOL)handleTypedCharacter:(NSString *)chars;
+
+- (BOOL)handleDeleteRange:(NSRange)deleteRange;
 
 @end
 

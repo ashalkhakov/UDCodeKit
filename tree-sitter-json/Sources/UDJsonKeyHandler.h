@@ -29,7 +29,7 @@
  *  Example:
  *      {"key"|"value"}   →  type the closing `"` of "key"  →   {"key": |"value"}
  *--------------------------------------------------------------------------------------------*/
-
+/*
 #import <Foundation/Foundation.h>
 #import "UDLanguageKeyHandler.h"
 
@@ -42,3 +42,4 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
+*/

@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "TreeSitterXmlPlugin.h"
-#import "UDXmlKeyHandler.h"
+#import "UDXMLTagMirror.h"
 
 // Forward-declare the tree-sitter language factory.
 typedef struct TSLanguage TSLanguage;
@@ -36,7 +36,7 @@ const TSLanguage *tree_sitter_xml(void);
 }
 
 - (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:@"xml"]) return [UDXmlKeyHandler sharedHandler];
+    if ([identifier isEqualToString:@"xml"]) return [[UDXMLTagMirror alloc] init];
     return nil;
 }
 

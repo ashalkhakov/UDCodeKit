@@ -76,6 +76,7 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 - (const void *)currentParseTree   { return _tsCurrentTree;    }
 - (const void *)currentQuery       { return _tsQuery;          }
 - (const void *)currentQueryCursor { return _tsQueryCursor;    }
+- (NSString   *)currentSourceText  { return _tsPreviousString; }
 
 - (void)setLanguageFunc:(nullable LanguageFunc)languageFunc
     withHighlightsQuery:(nullable NSString *)queryText {

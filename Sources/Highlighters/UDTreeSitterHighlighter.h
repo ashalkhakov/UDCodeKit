@@ -31,6 +31,15 @@ typedef const void *_Nullable(*LanguageFunc)(void);
 /// Cast to TSQueryCursor * after importing <tree_sitter/api.h>.  Do NOT free.
 @property (nonatomic, readonly, nullable) const void *currentQueryCursor;
 
+/// The source text that was used during the most recent tree-sitter parse.
+///
+/// This is a copy of the string snapshot created in @c processEditing and used as
+/// input to @c ts_parser_parse.  It is immutable, always consistent with
+/// @c currentParseTree, and safe to capture and read from any thread.
+///
+/// @c nil when no language has been configured yet.
+@property (nonatomic, readonly, nullable) NSString *currentSourceText;
+
 /// Character ranges (NSValue-wrapped NSRanges, 0-based character offsets)
 /// that changed in the most recent incremental re-parse.
 /// Nil after a full re-parse (initial load, undo/redo).

@@ -160,14 +160,14 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         UDTreeSitterHighlighter *hl = self->_textStorage.highlighter;
         const void *tree = hl.currentParseTree;
         if (tree) {
-            NSArray<NSValue *> *changed = hl.lastChangedCharRanges;
-            UDTextModel        *model   = self->_textStorage.textModel;
+            NSArray<NSValue *> *changed    = hl.lastChangedCharRanges;
+            NSString           *sourceText = hl.currentSourceText;
             for (id<UDDocumentService> svc in self->_mutableDocumentServices) {
                 if ([svc respondsToSelector:
-                        @selector(treeDidUpdateWithNewTree:changedRanges:textModel:)]) {
+                        @selector(treeDidUpdateWithNewTree:changedRanges:sourceText:)]) {
                     [svc treeDidUpdateWithNewTree:tree
                                    changedRanges:changed
-                                       textModel:model];
+                                      sourceText:sourceText ?: @""];
                 }
             }
         }
@@ -534,13 +534,13 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 
     // Kick off the initial validation pass with the current parse tree.
     if ([svc respondsToSelector:
-            @selector(treeDidUpdateWithNewTree:changedRanges:textModel:)]) {
+            @selector(treeDidUpdateWithNewTree:changedRanges:sourceText:)]) {
         UDTreeSitterHighlighter *hl = ctx.textStorage.highlighter;
         const void *tree = hl.currentParseTree;
         if (tree) {
             [svc treeDidUpdateWithNewTree:tree
                             changedRanges:nil  // full parse on open
-                               textModel:ctx.textStorage.textModel];
+                               sourceText:hl.currentSourceText ?: @""];
         }
     }
 }

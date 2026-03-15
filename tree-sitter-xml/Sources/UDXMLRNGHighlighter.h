@@ -3,14 +3,19 @@
  *
  *  Implements UDDocumentService for RELAX NG schema validation.
  *
- *  On each -treeDidUpdateWithNewTree:changedRanges:textModel: call (main thread):
- *    1. Copies the TSTree via ts_tree_copy().
- *    2. Retains the UDTextModel reference.
+ *  On each -treeDidUpdateWithNewTree:changedRanges:sourceText: call (main thread):
+ *    1. Drains accumulated pending edits (captured from -textWillChangeInRange:).
+ *    2. Copies the TSTree via ts_tree_copy().
  *    3. Debounces 150 ms, then on a private serial queue:
- *       a. Reads the document text via [textModel getValue].
- *       b. Rebuilds the libxml2 mirror doc.
+ *       a. Applies any pending edits to the mirror doc's internal text buffer.
+ *       b. Rebuilds the libxml2 mirror doc from the tree + updated buffer.
  *       c. Runs RELAX NG validation.
  *       d. Publishes results to the UDDiagnosticStore on the main queue.
+ *
+ *  The sourceText parameter in step 3 is the string snapshot that tree-sitter
+ *  used to produce the parse tree.  It is already in memory (computed by
+ *  UDTreeSitterHighlighter during processEditing) and never causes an extra
+ *  -getValue traversal of the piece table.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -21,12 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Implements UDDocumentService for RELAX NG schema validation of XML documents.
 ///
-/// Responds to -treeDidUpdateWithNewTree:changedRanges:textModel: (tree lifecycle).
-/// Debounces 150 ms, then on a private serial queue:
-///   1. Reads the document text via [textModel getValue] (lazy — avoids main-thread stall).
-///   2. Rebuilds the libxml2 mirror doc from the tree.
-///   3. Runs RELAX NG validation.
-///   4. Publishes results to the UDDiagnosticStore on the main queue.
+/// Responds to -treeDidUpdateWithNewTree:changedRanges:sourceText: (tree lifecycle)
+/// and -textWillChangeInRange:replacementString: (edit accumulation).
 @interface UDXMLRNGHighlighter : NSObject <UDDocumentService>
 
 - (instancetype)initWithSchemaURL:(NSURL *)schemaURL

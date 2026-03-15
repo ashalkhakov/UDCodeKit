@@ -16,6 +16,37 @@ extern NSString * const UDDiagnosticSourceRNG;
 /// Debounce interval in seconds before a pending validation fires.
 static const NSTimeInterval kDebounceInterval = 0.15;
 
+// ---------------------------------------------------------------------------
+// MARK: - UDPendingTextEdit (private)
+// ---------------------------------------------------------------------------
+
+/// A single captured text edit: the character range (in the pre-edit document)
+/// and the replacement string.  Captured on the main thread from
+/// -textWillChangeInRange:replacementString: before the edit is applied.
+///
+/// Used as the input for incremental mirror-doc buffer updates.  The
+/// replacement string is at most the size of the typed text — never the
+/// whole document.
+@interface UDPendingTextEdit : NSObject
+@property (nonatomic, readonly) NSRange range;          ///< Pre-edit character range.
+@property (nonatomic, readonly, copy) NSString *replacement;
++ (instancetype)editWithRange:(NSRange)range replacement:(NSString *)replacement;
+@end
+
+@implementation UDPendingTextEdit
++ (instancetype)editWithRange:(NSRange)range replacement:(NSString *)replacement {
+    UDPendingTextEdit *e = [[UDPendingTextEdit alloc] init];
+    if (!e) return nil;
+    e->_range       = range;
+    e->_replacement = [replacement copy];
+    return e;
+}
+@end
+
+// ---------------------------------------------------------------------------
+// MARK: - UDXMLRNGHighlighter
+// ---------------------------------------------------------------------------
+
 @implementation UDXMLRNGHighlighter {
     UDDiagnosticStore * __weak _store;
 
@@ -29,10 +60,19 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     _Atomic NSUInteger _sequence;
 
     _Atomic BOOL _invalidated;
+
+    /// Text edits accumulated on the main thread since the last
+    /// -treeDidUpdateWithNewTree:… call.  Captured by -textWillChangeInRange:
+    /// to enable future incremental mirror-doc updates without re-reading the
+    /// full document from the piece table.
+    ///
+    /// Accessed only on the main thread; drained atomically at the start of
+    /// each -treeDidUpdateWithNewTree:… call.
+    NSMutableArray<UDPendingTextEdit *> *_pendingEdits;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Init / dealloc
+// MARK: - Init
 // ---------------------------------------------------------------------------
 
 - (instancetype)initWithSchemaURL:(NSURL *)schemaURL
@@ -40,7 +80,8 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     self = [super init];
     if (!self) return nil;
 
-    _store = store;
+    _store       = store;
+    _pendingEdits = [NSMutableArray array];
     atomic_store(&_sequence, (NSUInteger)0);
     atomic_store(&_invalidated, NO);
 
@@ -64,21 +105,45 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - UDDocumentService
+// MARK: - UDDocumentService — edit capture
+// ---------------------------------------------------------------------------
+
+- (void)textWillChangeInRange:(NSRange)range
+            replacementString:(NSString *)replacement {
+    NSAssert([NSThread isMainThread],
+             @"-textWillChangeInRange:… must be called on the main thread");
+    // Accumulate the edit.  This fires BEFORE the model is mutated, so `range`
+    // maps correctly into the current (pre-edit) document.
+    // We never read the full document text here — just the small replacement string.
+    [_pendingEdits addObject:[UDPendingTextEdit editWithRange:range
+                                                  replacement:replacement ?: @""]];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - UDDocumentService — tree lifecycle
 // ---------------------------------------------------------------------------
 
 - (void)treeDidUpdateWithNewTree:(const void *)newTree
                    changedRanges:(nullable NSArray<NSValue *> *)changedRanges
-                       textModel:(UDTextModel *)textModel {
-    NSAssert([NSThread isMainThread], @"-treeDidUpdateWithNewTree:… must be called on the main thread");
+                      sourceText:(NSString *)sourceText {
+    NSAssert([NSThread isMainThread],
+             @"-treeDidUpdateWithNewTree:… must be called on the main thread");
     if (atomic_load(&_invalidated)) return;
+
+    // Drain pending edits on the main thread.  These are the incremental text
+    // changes captured since the last tree update.  They are passed to the
+    // background queue for future incremental mirror-doc updates.
+    NSArray<UDPendingTextEdit *> *edits = [_pendingEdits copy];
+    [_pendingEdits removeAllObjects];
 
     // Copy the parse tree so it remains valid on the background queue after the
     // main thread may have advanced to a newer tree.
     TSTree *treeCopy = ts_tree_copy((const TSTree *)newTree);
 
-    // Retain changedRanges (already an NSArray, ARC handles it).
-    // Keep a strong ref to textModel — getValue is called lazily on the bg queue.
+    // sourceText is UDTreeSitterHighlighter._tsPreviousString — the exact string
+    // snapshot used to produce newTree.  It is immutable (NSString *), already in
+    // memory, and safe to capture from any thread without any extra -getValue call.
+    NSString *textSnapshot = sourceText;
 
     NSUInteger seq = atomic_fetch_add(&_sequence, (NSUInteger)1) + 1;
 
@@ -91,12 +156,10 @@ static const NSTimeInterval kDebounceInterval = 0.15;
                 ts_tree_delete(treeCopy);
                 return;
             }
-            // Read the document text here on the background queue — lazy, not on
-            // the main thread, so even 1 GB files don't stall the UI.
-            NSString *sourceText = [textModel getValue];
             [self _validateWithTree:treeCopy
                       changedRanges:changedRanges
-                         sourceText:sourceText];
+                         sourceText:textSnapshot
+                       pendingEdits:edits];
             ts_tree_delete(treeCopy);
         });
 }
@@ -119,8 +182,19 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
 - (void)_validateWithTree:(TSTree *)tree
             changedRanges:(nullable NSArray<NSValue *> *)changedRanges
-               sourceText:(NSString *)sourceText {
-    // Update the libxml2 mirror document.
+               sourceText:(NSString *)sourceText
+             pendingEdits:(NSArray<UDPendingTextEdit *> *)pendingEdits {
+    // Update the libxml2 mirror document from the new tree + source text.
+    // sourceText is the already-computed snapshot from UDTreeSitterHighlighter;
+    // no getValue() traversal happens here.
+    //
+    // pendingEdits holds the incremental changes since the last update.
+    // These are preserved for a future milestone that will implement true
+    // incremental mirror-doc updates (applying only the affected XML subtree
+    // rather than a full rebuild on each edit).
+    //
+    // For now, the full rebuild path is used unconditionally.
+    (void)pendingEdits;  // suppress unused-variable warning
     [_mirrorDoc applyTree:tree changedRanges:changedRanges sourceText:sourceText];
     xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
     if (!xmlDoc) return;

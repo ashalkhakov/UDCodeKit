@@ -15,7 +15,11 @@
  *  Event ordering per edit:
  *    1. -textWillChangeInRange:replacementString:   (before the edit is applied)
  *    2. NSTextStorageDidProcessEditingNotification fires; tree-sitter re-parses
- *    3. -treeDidUpdateWithNewTree:changedRanges:textModel:  (after re-parse)
+ *    3. -treeDidUpdateWithNewTree:changedRanges:sourceText:  (after re-parse)
+ *
+ *  The sourceText passed in step 3 is the string snapshot that tree-sitter just
+ *  parsed (UDTreeSitterHighlighter._tsPreviousString).  It is immutable, already
+ *  in memory, and safe to capture and read from any background queue.
  *
  *  Thread safety:
  *    All calls are made on the main thread.  Services are responsible for
@@ -23,7 +27,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
-#import <UDPieceTable/UDPieceTable.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -75,12 +78,15 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param changedRanges  @c NSValue-wrapped @c NSRange character regions that changed
 ///                       structurally between the previous and new parse trees.
 ///                       @c nil for a full re-parse (initial load, undo/redo, etc.).
-/// @param textModel      The document text model.  Do @b not call @c -getValue on
-///                       the main thread; capture this reference and call @c -getValue
-///                       from a background queue when the text is actually needed.
+/// @param sourceText     The document source text as of this parse.  This is the
+///                       same string snapshot that tree-sitter used to produce
+///                       @p newTree.  It is immutable and safe to capture in a
+///                       block and read from a background queue without copying.
+///                       Never call @c -getValue on @c UDTextModel from a
+///                       background queue — use this parameter instead.
 - (void)treeDidUpdateWithNewTree:(const void *)newTree
                    changedRanges:(nullable NSArray<NSValue *> *)changedRanges
-                       textModel:(UDTextModel *)textModel;
+                      sourceText:(NSString *)sourceText;
 
 @end
 

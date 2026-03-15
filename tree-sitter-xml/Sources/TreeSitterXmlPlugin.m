@@ -103,7 +103,7 @@ const TSLanguage *tree_sitter_xml(void);
 
 + (void)load {
     // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -extensionDidLoad: is the preferred hook.
+    // Nothing to do here; -extensionDidLoad: is the preferred lifecycle hook.
 }
 
 @end

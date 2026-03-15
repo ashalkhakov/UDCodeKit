@@ -21,7 +21,6 @@
 		CE0C2E632F5F1EF800566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */; };
 		CE0C2E642F5F1EF800566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E602F5F1EF800566368 /* highlights.scm */; };
 		CE0C2E652F5F1EF800566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E612F5F1EF800566368 /* Info.plist */; };
-		CE7CFA312F62922700F294D4 /* UDXmlKeyHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFA302F62922700F294D4 /* UDXmlKeyHandler.m */; };
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
 		CE7CFB852F65B53600F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -63,8 +62,6 @@
 		CE0C2E602F5F1EF800566368 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
 		CE0C2E612F5F1EF800566368 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
-		CE7CFA2F2F62922700F294D4 /* UDXmlKeyHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXmlKeyHandler.h; sourceTree = "<group>"; };
-		CE7CFA302F62922700F294D4 /* UDXmlKeyHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXmlKeyHandler.m; sourceTree = "<group>"; };
 		CE7CFB7A2F65A5F300F294D4 /* UDXMLTagMirror.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLTagMirror.h; sourceTree = "<group>"; };
 		CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirror.m; sourceTree = "<group>"; };
 		CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -129,8 +126,6 @@
 			children = (
 				CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */,
 				CE7CFB7A2F65A5F300F294D4 /* UDXMLTagMirror.h */,
-				CE7CFA2F2F62922700F294D4 /* UDXmlKeyHandler.h */,
-				CE7CFA302F62922700F294D4 /* UDXmlKeyHandler.m */,
 				CE0C2E5D2F5F1EEC00566368 /* TreeSitterXmlPlugin.h */,
 				CE0C2E5E2F5F1EEC00566368 /* TreeSitterXmlPlugin.m */,
 			);
@@ -277,7 +272,6 @@
 				CE0C2E582F5F1ED500566368 /* lib.c in Sources */,
 				CE0C2E5F2F5F1EEC00566368 /* TreeSitterXmlPlugin.m in Sources */,
 				CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */,
-				CE7CFA312F62922700F294D4 /* UDXmlKeyHandler.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

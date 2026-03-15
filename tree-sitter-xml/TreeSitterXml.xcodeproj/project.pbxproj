@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		ABCD00050000000000000005 /* UDXMLTagMirrorTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */; };
+		ABCD00060000000000000006 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
+		ABCD00070000000000000007 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
+		ABCD00080000000000000008 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
+		ABCD00090000000000000009 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
+		ABCD000A000000000000000A /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABCD00030000000000000003 /* XCTest.framework */; };
+		ABCD000B000000000000000B /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
 		CE0C2E582F5F1ED500566368 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
 		CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
 		CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
@@ -18,14 +25,17 @@
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
 		CE7CFB852F65B53600F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		ABCD00050000000000000005 /* UDXMLTagMirrorTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */; };
-		ABCD00060000000000000006 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
-		ABCD00070000000000000007 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
-		ABCD00080000000000000008 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
-		ABCD00090000000000000009 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
-		ABCD000A000000000000000A /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABCD00030000000000000003 /* XCTest.framework */; };
-		ABCD000B000000000000000B /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
-	/* End PBXBuildFile section */
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CEA452442F66CE38002FB56E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EC2587C0ADAE009F46940E2F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7EBF16AB9443CCE643F3FC03;
+			remoteInfo = TreeSitterXml;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		CE7CFB862F65B53600F294D4 /* Embed Frameworks */ = {
@@ -42,6 +52,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirrorTests.m; sourceTree = "<group>"; };
+		ABCD00030000000000000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXmlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
 		CE0C2E592F5F1EDF00566368 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
 		CE0C2E5A2F5F1EDF00566368 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
@@ -56,10 +69,7 @@
 		CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirror.m; sourceTree = "<group>"; };
 		CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXml.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
-		ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirrorTests.m; sourceTree = "<group>"; };
-		ABCD00030000000000000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
-		ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXmlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-	/* End PBXFileReference section */
+/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		785D8B4A6D7ED60D051E9BBB /* Frameworks */ = {
@@ -70,7 +80,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-
 		ABCD000D000000000000000D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -80,7 +89,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-	/* End PBXFrameworksBuildPhase section */
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		08202D4F7AD131F7C2368987 /* src */ = {
@@ -102,6 +111,7 @@
 				ABCD00010000000000000001 /* Tests */,
 				CE7CFB822F65B53600F294D4 /* Frameworks */,
 				F2D4919B8B35789642FF7A97 /* Products */,
+				CEA451712F66CDDA002FB56E /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -127,12 +137,28 @@
 			path = Sources;
 			sourceTree = "<group>";
 		};
+		ABCD00010000000000000001 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
 		CE7CFB822F65B53600F294D4 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		CEA451712F66CDDA002FB56E /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				ABCD00030000000000000003 /* XCTest.framework */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 		DBD42C81241E8CD2B9D95C23 /* Resources */ = {
@@ -154,16 +180,7 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-
-		ABCD00010000000000000001 /* Tests */ = {
-			isa = PBXGroup;
-			children = (
-				ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */,
-			);
-			path = Tests;
-			sourceTree = "<group>";
-		};
-	/* End PBXGroup section */
+/* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		7EBF16AB9443CCE643F3FC03 /* TreeSitterXml */ = {
@@ -184,7 +201,6 @@
 			productReference = E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */;
 			productType = "com.apple.product-type.bundle";
 		};
-
 		ABCD00110000000000000011 /* TreeSitterXmlTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = ABCD00100000000000000010 /* Build configuration list for PBXNativeTarget "TreeSitterXmlTests" */;
@@ -195,13 +211,14 @@
 			buildRules = (
 			);
 			dependencies = (
+				CEA452452F66CE38002FB56E /* PBXTargetDependency */,
 			);
 			name = TreeSitterXmlTests;
 			productName = TreeSitterXmlTests;
 			productReference = ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-	/* End PBXNativeTarget section */
+/* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		EC2587C0ADAE009F46940E2F /* Project object */ = {
@@ -209,12 +226,12 @@
 			attributes = {
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					7EBF16AB9443CCE643F3FC03 = {
+						CreatedOnToolsVersion = 15.0;
+					};
 					ABCD00110000000000000011 = {
 						CreatedOnToolsVersion = 15.0;
 						TestTargetID = 7EBF16AB9443CCE643F3FC03;
-					};
-					7EBF16AB9443CCE643F3FC03 = {
-						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -264,7 +281,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-
 		ABCD000C000000000000000C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -277,7 +293,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-	/* End PBXSourcesBuildPhase section */
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CEA452452F66CE38002FB56E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7EBF16AB9443CCE643F3FC03 /* TreeSitterXml */;
+			targetProxy = CEA452442F66CE38002FB56E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0F9664DEF39655606E3AC74E /* Debug */ = {
@@ -367,17 +391,18 @@
 			};
 			name = Release;
 		};
-
 		ABCD000E000000000000000E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_ARC = YES;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(BUILT_PRODUCTS_DIR)",
 				);
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
@@ -386,7 +411,7 @@
 					"$(SRCROOT)/../Sources/Extensions",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "org.underivable.treesitter.xml.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml.tests;
 				PRODUCT_NAME = TreeSitterXmlTests;
 				WRAPPER_EXTENSION = xctest;
 			};
@@ -396,12 +421,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_ARC = YES;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(BUILT_PRODUCTS_DIR)",
 				);
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
@@ -410,13 +437,13 @@
 					"$(SRCROOT)/../Sources/Extensions",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "org.underivable.treesitter.xml.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml.tests;
 				PRODUCT_NAME = TreeSitterXmlTests;
 				WRAPPER_EXTENSION = xctest;
 			};
 			name = Release;
 		};
-	/* End XCBuildConfiguration section */
+/* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
 		5FDFF74904724BFED24CC3A7 /* Build configuration list for PBXProject "TreeSitterXml" */ = {
@@ -424,6 +451,15 @@
 			buildConfigurations = (
 				857F9607DC70C5B3A098F8B8 /* Debug */,
 				9AC2F69C107282558C0891D6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		ABCD00100000000000000010 /* Build configuration list for PBXNativeTarget "TreeSitterXmlTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ABCD000E000000000000000E /* Debug */,
+				ABCD000F000000000000000F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -437,17 +473,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-
-		ABCD00100000000000000010 /* Build configuration list for PBXNativeTarget "TreeSitterXmlTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				ABCD000E000000000000000E /* Debug */,
-				ABCD000F000000000000000F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-	/* End XCConfigurationList section */
+/* End XCConfigurationList section */
 	};
 	rootObject = EC2587C0ADAE009F46940E2F /* Project object */;
 }

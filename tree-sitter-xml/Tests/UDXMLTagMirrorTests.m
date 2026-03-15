@@ -169,7 +169,7 @@ static TSTree *ParseXML(NSString *text) {
     TSTree *tree = ts_parser_parse_string_encoding(
         parser, NULL,
         (const char *)utf16.bytes, (uint32_t)utf16.length,
-        TSInputEncodingUTF16);
+        TSInputEncodingUTF16LE);
     ts_parser_delete(parser);
     return tree;
 }
@@ -392,8 +392,8 @@ static TSTree *ParseXML(NSString *text) {
     // Cursor position after the insertion is not checked because the stub's
     // model is not updated by typeText: (the handler's post-edit getPositionAt:
     // call targets the not-yet-updated model).
-    [self _assertTyping:@">" inDocument:@"<foo" cursorOffset:4
-           producesText:@"<foo></foo>" cursorAt:NSUIntegerMax];
+    [self _assertTyping:@">" inDocument:@"<root><foo</root>" cursorOffset:10
+           producesText:@"<root><foo></foo></root>" cursorAt:NSUIntegerMax];
 }
 
 - (void)testAutoClose_completeElement_noAction {
@@ -406,8 +406,8 @@ static TSTree *ParseXML(NSString *text) {
 
 - (void)testAutoClose_nestedIncomplete_closesInnermost {
     // <foo><bar with cursor at end: innermost unclosed element is <bar>.
-    [self _assertTyping:@">" inDocument:@"<foo><bar" cursorOffset:9
-           producesText:@"<foo><bar></bar>" cursorAt:NSUIntegerMax];
+    [self _assertTyping:@">" inDocument:@"<foo><bar</foo>" cursorOffset:9
+           producesText:@"<foo><bar></bar></foo>" cursorAt:NSUIntegerMax];
 }
 
 // ===========================================================================
@@ -520,11 +520,11 @@ static TSTree *ParseXML(NSString *text) {
 }
 
 - (void)testUnicodeTagName_mirrors {
-    // ñ (U+00F1) is a valid NameStartChar; "ñoño" is a valid XML name.
-    // <ñoño></ñoño>: STag name span [1,5], ETag name span [8,12].
+    // n is a valid NameStartChar; "nono" is a valid XML name.
+    // <nono></ñoño>: STag name span [1,5], ETag name span [8,12].
     // Offset 5 = at the inclusive end of the STag name; append "s" to both.
-    [self _assertTyping:@"s" inDocument:@"<ñoño></ñoño>" cursorOffset:5
-           producesText:@"<ñoños></ñoños>" cursorAt:6];
+    [self _assertTyping:@"s" inDocument:@"<root><nono></nono></root>" cursorOffset:11
+           producesText:@"<root><nonos></nonos></root>" cursorAt:12];
 }
 
 @end

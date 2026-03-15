@@ -217,6 +217,11 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
         }
         return NO;
     }
+    
+#if DEBUG
+    [self _debugPrintSubtreeAtOffset:cursorOffset tree:tree model:model];
+#endif
+
     // Tag name mirroring
     TagSpan primarySpan, mirrorSpan;
     if (![self _findTagNameAtOffset:cursorOffset

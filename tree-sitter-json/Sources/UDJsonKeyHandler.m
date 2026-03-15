@@ -195,16 +195,13 @@ static BOOL _isJSONValueStart(unichar c) {
     // Extend deletion to also remove the `,` + any whitespace between it and deleteRange.
     NSUInteger newStart = prevPos - 1; // position of the `,`
 
+    // Use ctrl typeText:@"" (non-collapsed selection) so both the production
+    // model and the test stub's NSMutableString are updated consistently.
     UDPosition sp = [model getPositionAt:(NSInteger)newStart];
     UDPosition ep = [model getPositionAt:(NSInteger)end];
-    UDRange range = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
-    UDTextModelEdit *edit = [[UDTextModelEdit alloc] initWithRange:range text:@""];
-    [model applyEdits:@[edit]];
-
-    // Place cursor at newStart.
-    UDPosition newCursorPos = [model getPositionAt:(NSInteger)newStart];
     ctrl.selections = @[ [NSValue ud_valueWithSelection:
-                          UDSelectionFromPosition(newCursorPos.line, newCursorPos.column)] ];
+                          UDSelectionMake(sp.line, sp.column, ep.line, ep.column)] ];
+    [ctrl typeText:@"" source:@"autocomma"];
     return YES;
 }
 

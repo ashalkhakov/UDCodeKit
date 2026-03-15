@@ -645,12 +645,11 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
                 // (after skipping over whitespace).
                 if (strcmp(pt, "ERROR") == 0) {
                     NSUInteger nameStart = ts_node_start_byte(node) / 2;
-                    NSString *text = [model getValue];
                     // Look backward from nameStart for a non-whitespace char.
                     NSUInteger scan = nameStart;
                     while (scan > 0) {
                         scan--;
-                        unichar c = [text characterAtIndex:scan];
+                        unichar c = [model getCharacterAtOffset:scan];
                         if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
                             continue;
                         // First non-whitespace char before the name node:

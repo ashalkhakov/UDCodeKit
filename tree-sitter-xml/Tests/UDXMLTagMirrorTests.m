@@ -545,7 +545,7 @@ static TSTree *ParseXML(NSString *text) {
     [self _assertTyping:@"=" inDocument:@"<foo bar"
            cursorOffset:8
            producesText:@"<foo bar=\"\""
-               cursorAt:10];
+               cursorAt:8];
 }
 
 - (void)testEquals_afterAttrName_insideCompleteTag {

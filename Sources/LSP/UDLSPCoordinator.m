@@ -32,7 +32,7 @@
 #pragma mark - Document lifecycle
 // ---------------------------------------------------------------------------
 
-- (void)openDocument:(NSString *)content {
+- (void)documentDidOpenWithContent:(NSString *)content {
     if (!_client) return;
     [_client addObserver:self];
 

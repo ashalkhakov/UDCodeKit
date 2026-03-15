@@ -38,7 +38,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 /// UDEditorTabContext adds the AppKit-specific bridge layer on top:
 ///   • UDTextModelTextStorage (NSTextStorage backed by the document's textModel)
 ///   • tree-sitter parse highlighters and error collectors
-///   • an optional LSP coordinator
+///   • document services (LSP, RNG validators, etc.)
 ///
 /// Multiple UDTextEditorViewControllers may be wired to the same context: each
 /// adds its own NSLayoutManager to the shared UDTextModelTextStorage, so edits
@@ -49,7 +49,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 ///   2. -activateWithTheme:…           — call AFTER the first editor VC's
 ///      -viewDidLoad has run so its layout manager is attached to textStorage
 ///      before the first tree-sitter parse fires.
-///   3. Set lspCoordinator if available.
+///   3. Add document services via -addDocumentService:.
 @interface UDEditorTabContext : NSObject
 
 /// Pure model backing this editor tab.
@@ -62,14 +62,12 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 @property (nonatomic, readonly, nullable) NSURL     *fileURL;
 @property (nonatomic, readonly) NSString            *tabTitle;
 
-/// Optional LSP coordinator; set by the owner after -activateWithTheme:…
-@property (nonatomic, strong, nullable) UDLSPCoordinator *lspCoordinator;
+/// All active per-document services (LSP coordinators, RNG validators, etc.).
+/// The host fans out lifecycle events to every service in this list.
+@property (nonatomic, readonly) NSArray<id<UDDocumentService>> *documentServices;
 
-/// Optional per-document validator returned by the extension's
-/// -documentValidatorForDocumentURL:store: factory.
-/// The host calls -treeDidUpdateWithNewTree:changedRanges:sourceText: after each parse
-/// and -invalidate when the tab closes.
-@property (nonatomic, strong, nullable) id<UDDocumentValidator> documentValidator;
+/// Add a service to the list.  Must be called before the first event is fanned out.
+- (void)addDocumentService:(id<UDDocumentService>)service;
 
 - (instancetype)initWithDocument:(UDCodeDocument *)document NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -84,9 +82,10 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // ---- Private extension ----
 
 @interface UDEditorTabContext ()
-@property (nonatomic, strong) UDMissingNodeHighlighter *missingNodeHighlighter;
-@property (nonatomic, strong) UDParseErrorHighlighter  *parseErrorHighlighter;
-@property (nonatomic, strong) UDParseErrorCollector    *parseErrorCollector;
+@property (nonatomic, strong) UDMissingNodeHighlighter        *missingNodeHighlighter;
+@property (nonatomic, strong) UDParseErrorHighlighter         *parseErrorHighlighter;
+@property (nonatomic, strong) UDParseErrorCollector           *parseErrorCollector;
+@property (nonatomic, strong) NSMutableArray<id<UDDocumentService>> *mutableDocumentServices;
 @end
 
 @implementation UDEditorTabContext
@@ -94,10 +93,19 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 - (instancetype)initWithDocument:(UDCodeDocument *)document {
     self = [super init];
     if (!self) return nil;
-    _document    = document;
+    _document                = document;
     // Wrap the document's textModel in the AppKit text-storage bridge.
-    _textStorage = [[UDTextModelTextStorage alloc] initWithTextModel:document.textModel];
+    _textStorage             = [[UDTextModelTextStorage alloc] initWithTextModel:document.textModel];
+    _mutableDocumentServices = [NSMutableArray array];
     return self;
+}
+
+- (NSArray<id<UDDocumentService>> *)documentServices {
+    return [_mutableDocumentServices copy];
+}
+
+- (void)addDocumentService:(id<UDDocumentService>)service {
+    [_mutableDocumentServices addObject:service];
 }
 
 // Convenience forwarding accessors ----------------------------------------
@@ -149,14 +157,18 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         [self->_missingNodeHighlighter update];
         [self->_parseErrorHighlighter  update];
         [self->_parseErrorCollector    update];
-        id<UDDocumentValidator> validator = self->_documentValidator;
-        if (validator) {
-            UDTreeSitterHighlighter *hl = self->_textStorage.highlighter;
-            const void *tree = hl.currentParseTree;
-            if (tree) {
-                [validator treeDidUpdateWithNewTree:tree
-                                      changedRanges:hl.lastChangedCharRanges
-                                          textModel:self->_textStorage.textModel];
+        UDTreeSitterHighlighter *hl = self->_textStorage.highlighter;
+        const void *tree = hl.currentParseTree;
+        if (tree) {
+            NSArray<NSValue *> *changed = hl.lastChangedCharRanges;
+            UDTextModel        *model   = self->_textStorage.textModel;
+            for (id<UDDocumentService> svc in self->_mutableDocumentServices) {
+                if ([svc respondsToSelector:
+                        @selector(treeDidUpdateWithNewTree:changedRanges:textModel:)]) {
+                    [svc treeDidUpdateWithNewTree:tree
+                                   changedRanges:changed
+                                       textModel:model];
+                }
             }
         }
     });
@@ -411,8 +423,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     // d. LSP coordinator.
     [self _setupLSPCoordinatorForContext:ctx];
 
-    // d2. RNG highlighter (optional — only when the extension provides one).
-    [self _setupDocumentValidatorForContext:ctx];
+    // d2. Extension service (optional — only when the extension provides one).
+    [self _setupExtensionServiceForContext:ctx];
 
     // e. Register diagnostics observer (once per unique store).
     if (![_observedStores containsObject:ctx.diagnosticStore]) {
@@ -437,7 +449,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 }
 
 /// Add a second (or further) view of an already-active context.  The new tab
-/// shares the context's textStorage, diagnosticStore, and lspCoordinator;
+/// shares the context's textStorage, diagnosticStore, and document services;
 /// edits in either tab appear immediately in both.
 - (void)_addViewTabForContext:(UDEditorTabContext *)ctx {
     UDTextEditorViewController *editorVC =
@@ -503,30 +515,32 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Document validator setup
+// MARK: - Extension document service setup
 // ---------------------------------------------------------------------------
 
-- (void)_setupDocumentValidatorForContext:(UDEditorTabContext *)ctx {
+- (void)_setupExtensionServiceForContext:(UDEditorTabContext *)ctx {
     UDLanguageMode *mode = ctx.document.languageMode;
     id<UDExtension> ext = mode.extension;
     if (!ext) return;
 
-    SEL sel = @selector(documentValidatorForDocumentURL:store:);
+    SEL sel = @selector(documentServiceForDocumentURL:store:);
     if (![ext respondsToSelector:sel]) return;
 
-    id<UDDocumentValidator> validator =
-        [(id<UDExtension>)ext documentValidatorForDocumentURL:ctx.fileURL
-                                                        store:ctx.diagnosticStore];
-    ctx.documentValidator = validator;
+    id<UDDocumentService> svc =
+        [(id<UDExtension>)ext documentServiceForDocumentURL:ctx.fileURL
+                                                      store:ctx.diagnosticStore];
+    if (!svc) return;
+    [ctx addDocumentService:svc];
 
     // Kick off the initial validation pass with the current parse tree.
-    if (validator) {
+    if ([svc respondsToSelector:
+            @selector(treeDidUpdateWithNewTree:changedRanges:textModel:)]) {
         UDTreeSitterHighlighter *hl = ctx.textStorage.highlighter;
         const void *tree = hl.currentParseTree;
         if (tree) {
-            [validator treeDidUpdateWithNewTree:tree
-                                  changedRanges:nil  // full parse on open
-                                      textModel:ctx.textStorage.textModel];
+            [svc treeDidUpdateWithNewTree:tree
+                            changedRanges:nil  // full parse on open
+                               textModel:ctx.textStorage.textModel];
         }
     }
 }
@@ -572,12 +586,13 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         [[UDLSPDiagnosticHighlighter alloc] initWithTextStorage:ts
                                                      highlighter:ts.highlighter
                                                            store:ctx.diagnosticStore];
-    ctx.lspCoordinator =
+    UDLSPCoordinator *lsp =
         [[UDLSPCoordinator alloc] initWithTextStorage:ts
                                                client:client
                                           documentURL:docURL
                                 diagnosticHighlighter:lspHL];
-    [ctx.lspCoordinator openDocument:[ts.textModel getValue]];
+    [ctx addDocumentService:lsp];
+    [lsp documentDidOpenWithContent:[ts.textModel getValue]];
 }
 
 // ---------------------------------------------------------------------------
@@ -585,14 +600,22 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // ---------------------------------------------------------------------------
 
 - (void)documentWillSave {
-    [_tabContexts.firstObject.lspCoordinator documentWillSave];
+    for (id<UDDocumentService> svc in _tabContexts.firstObject.documentServices) {
+        if ([svc respondsToSelector:@selector(documentWillSave)]) {
+            [svc documentWillSave];
+        }
+    }
 }
 
 - (void)documentDidSave:(BOOL)success {
-    [_tabContexts.firstObject.lspCoordinator documentDidSave];
+    for (id<UDDocumentService> svc in _tabContexts.firstObject.documentServices) {
+        if ([svc respondsToSelector:@selector(documentDidSave)]) {
+            [svc documentDidSave];
+        }
+    }
     if (!success) {
         NSLog(@"[UDDocumentWindowController] File save failed; "
-              @"LSP server has been notified of the save attempt.");
+              @"all services have been notified of the save attempt.");
     }
 }
 
@@ -605,10 +628,9 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     NSMutableSet<UDEditorTabContext *> *seen = [NSMutableSet set];
     for (UDEditorTabContext *ctx in _tabContexts) {
         if (![seen containsObject:ctx]) {
-            [ctx.lspCoordinator closeDocument];
-            // Invalidate and release the document validator.
-            [ctx.documentValidator invalidate];
-            ctx.documentValidator = nil;
+            for (id<UDDocumentService> svc in ctx.documentServices) {
+                [svc closeDocument];
+            }
             [seen addObject:ctx];
         }
     }
@@ -627,9 +649,13 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 - (BOOL)textView:(NSTextView *)textView
     shouldChangeTextInRange:(NSRange)affectedCharRange
           replacementString:(nullable NSString *)replacementString {
-    [[self _activeContext].lspCoordinator
-        textWillChangeInRange:affectedCharRange
-            replacementString:replacementString ?: @""];
+    for (id<UDDocumentService> svc in [self _activeContext].documentServices) {
+        if ([svc respondsToSelector:
+                @selector(textWillChangeInRange:replacementString:)]) {
+            [svc textWillChangeInRange:affectedCharRange
+                     replacementString:replacementString ?: @""];
+        }
+    }
     return YES;
 }
 

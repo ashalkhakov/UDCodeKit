@@ -50,7 +50,7 @@
 #import <UDPieceTable/UDPieceTable.h>   // UDTextModel, UDTypes, UDRange, etc.
 #import <tree_sitter/api.h>
 #import "UDLanguageKeyHandler.h"
-#import "UDDocumentValidator.h"
+#import "UDDocumentService.h"
 
 // Forward declarations for types used in optional factory methods.
 @class UDDiagnosticStore;
@@ -108,21 +108,23 @@
 /// Implement this method only for modes that need custom key handling.
 - (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier;
 
-/// Per-document factory: create a validator that reacts to tree-sitter parse results.
+/// Per-document factory: create a service that handles change events for one document tab.
 ///
 /// Called once when a new editor tab is opened for a document whose language mode is
-/// provided by this extension.  The host retains the returned object for the lifetime
-/// of the tab and drives it by calling:
-///   • -treeDidUpdateWithNewTree:changedRanges:sourceText: after each parse (main thread)
-///   • -invalidate when the tab closes (main thread)
+/// provided by this extension.  The host adds the returned object to its per-tab service
+/// list and fans out lifecycle events to it:
+///   • -documentDidOpenWithContent:          — once, on tab activate
+///   • -treeDidUpdateWithNewTree:…           — after every tree-sitter re-parse
+///   • -textWillChangeInRange:…              — before every text edit
+///   • -documentWillSave / -documentDidSave — around saves
+///   • -closeDocument                        — on tab close (mandatory)
 ///
-/// Return @c nil to opt-out of validation for this document (e.g. when no schema is
-/// found for an XML file).
+/// Return @c nil to opt-out (e.g. no schema found for an XML file).
 ///
-/// @param documentURL  File URL of the document being opened, or @c nil for an unsaved buffer.
-/// @param store        The diagnostic store for this document.  The validator stores this
-///                     reference and uses it to publish errors or clear its partition.
-- (nullable id<UDDocumentValidator>)documentValidatorForDocumentURL:(nullable NSURL *)documentURL
-                                                               store:(UDDiagnosticStore *)store;
+/// @param documentURL  File URL of the document, or @c nil for an unsaved buffer.
+/// @param store        Diagnostic store for this document.  The service should write
+///                     all its diagnostics here and clear them in @c -closeDocument.
+- (nullable id<UDDocumentService>)documentServiceForDocumentURL:(nullable NSURL *)documentURL
+                                                           store:(UDDiagnosticStore *)store;
 
 @end

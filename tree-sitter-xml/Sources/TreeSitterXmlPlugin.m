@@ -42,10 +42,10 @@ const TSLanguage *tree_sitter_xml(void);
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - UDDocumentValidator factory
+// MARK: - UDDocumentService factory
 // ---------------------------------------------------------------------------
 
-- (nullable id<UDDocumentValidator>)documentValidatorForDocumentURL:(nullable NSURL *)documentURL
+- (nullable id<UDDocumentService>)documentServiceForDocumentURL:(nullable NSURL *)documentURL
                                                                store:(UDDiagnosticStore *)store {
     NSURL *schemaURL = [self _schemaURLForDocumentURL:documentURL];
     if (!schemaURL) return nil;

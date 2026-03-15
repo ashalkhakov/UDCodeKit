@@ -64,7 +64,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - UDDocumentValidator
+// MARK: - UDDocumentService
 // ---------------------------------------------------------------------------
 
 - (void)treeDidUpdateWithNewTree:(const void *)newTree
@@ -101,7 +101,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
         });
 }
 
-- (void)invalidate {
+- (void)closeDocument {
     atomic_store(&_invalidated, YES);
     atomic_fetch_add(&_sequence, (NSUInteger)1); // Cancel any pending debounce block.
 

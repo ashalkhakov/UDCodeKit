@@ -165,7 +165,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UDXMLMirrorDoc : NSObject
 
 /// The current mirror document.  Valid after -rebuildFromTree:sourceText: or
-/// -applyTree:changedRanges:rangeCount:sourceText: completes.
+/// -applyTree:changedRanges:sourceText: completes.
 /// Ownership remains with this object; do NOT xmlFreeDoc.
 @property (nonatomic, readonly, nullable) xmlDocPtr xmlDoc;
 
@@ -175,7 +175,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Full rebuild from a complete parse tree.  Discards any previous xmlDoc.
 /// @param tree  TSTree * (cast from const void *).
-/// @param sourceText  Full UTF-8 source text of the document.
+/// @param sourceText  Full UTF-16 source text of the document.
 - (void)rebuildFromTree:(const void *)tree
              sourceText:(NSString *)sourceText;
 
@@ -183,11 +183,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param newTree      Newly parsed TSTree * (cast from const void *).
 /// @param changedRanges  Array of TSRange values covering structurally changed
 ///                       regions (from ts_tree_get_changed_ranges).
-/// @param rangeCount   Number of elements in changedRanges.
-/// @param sourceText   Full UTF-8 source text after the edit.
+/// @param sourceText   Full UTF-16 source text after the edit.
 - (void)applyTree:(const void *)newTree
     changedRanges:(const void *)changedRanges
-       rangeCount:(NSUInteger)rangeCount
        sourceText:(NSString *)sourceText;
 
 @end
@@ -409,7 +407,7 @@ NS_ASSUME_NONNULL_END
     │
     ▼  (timer fires)
 [_validationQueue] update mirror doc:
-              mirrorDoc.applyTree:changedRanges:rangeCount:sourceText:
+              mirrorDoc.applyTree:changedRanges:sourceText:
     │
     ▼
 [_validationQueue] validate:

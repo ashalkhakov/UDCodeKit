@@ -19,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Maintains a live libxml2 xmlDoc mirroring the Tree-sitter XML parse tree.
 ///
 /// Call -rebuildFromTree:sourceText: for a full rebuild, or
-/// -applyTree:changedRanges:rangeCount:sourceText: for an incremental update
+/// -applyTree:changedRanges:sourceText: for an incremental update
 /// after a Tree-sitter incremental re-parse.
 ///
 /// The xmlDoc is owned by this object; callers must not call xmlFreeDoc on it.

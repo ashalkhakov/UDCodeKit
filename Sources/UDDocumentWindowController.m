@@ -65,11 +65,11 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 /// Optional LSP coordinator; set by the owner after -activateWithTheme:…
 @property (nonatomic, strong, nullable) UDLSPCoordinator *lspCoordinator;
 
-/// Optional RNG highlighter returned by the extension's
-/// -rngHighlighterForDocumentURL:highlighter:textModel:store:.
-/// The host calls -update on it (via performSelector:) after each edit and
-/// -invalidate (via performSelector:) when the tab closes.
-@property (nonatomic, strong, nullable) id rngHighlighter;
+/// Optional per-document validator returned by the extension's
+/// -documentValidatorForDocumentURL:store: factory.
+/// The host calls -treeDidUpdateWithNewTree:changedRanges:sourceText: after each parse
+/// and -invalidate when the tab closes.
+@property (nonatomic, strong, nullable) id<UDDocumentValidator> documentValidator;
 
 - (instancetype)initWithDocument:(UDCodeDocument *)document NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -149,9 +149,15 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         [self->_missingNodeHighlighter update];
         [self->_parseErrorHighlighter  update];
         [self->_parseErrorCollector    update];
-        id rngHL = self->_rngHighlighter;
-        if ([rngHL respondsToSelector:@selector(update)]) {
-            [rngHL performSelector:@selector(update)];
+        id<UDDocumentValidator> validator = self->_documentValidator;
+        if (validator) {
+            UDTreeSitterHighlighter *hl = self->_textStorage.highlighter;
+            const void *tree = hl.currentParseTree;
+            if (tree) {
+                [validator treeDidUpdateWithNewTree:tree
+                                      changedRanges:hl.lastChangedCharRanges
+                                         sourceText:[self->_textStorage.textModel getValue]];
+            }
         }
     });
 }
@@ -406,7 +412,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     [self _setupLSPCoordinatorForContext:ctx];
 
     // d2. RNG highlighter (optional — only when the extension provides one).
-    [self _setupRNGHighlighterForContext:ctx];
+    [self _setupDocumentValidatorForContext:ctx];
 
     // e. Register diagnostics observer (once per unique store).
     if (![_observedStores containsObject:ctx.diagnosticStore]) {
@@ -497,27 +503,31 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - RNG highlighter setup
+// MARK: - Document validator setup
 // ---------------------------------------------------------------------------
 
-- (void)_setupRNGHighlighterForContext:(UDEditorTabContext *)ctx {
+- (void)_setupDocumentValidatorForContext:(UDEditorTabContext *)ctx {
     UDLanguageMode *mode = ctx.document.languageMode;
     id<UDExtension> ext = mode.extension;
     if (!ext) return;
 
-    SEL rngSel = @selector(rngHighlighterForDocumentURL:highlighter:textModel:store:);
-    if (![ext respondsToSelector:rngSel]) return;
+    SEL sel = @selector(documentValidatorForDocumentURL:store:);
+    if (![ext respondsToSelector:sel]) return;
 
-    UDTextModelTextStorage *ts = ctx.textStorage;
-    id rngHL = [(id<UDExtension>)ext rngHighlighterForDocumentURL:ctx.fileURL
-                                          highlighter:ts.highlighter
-                                            textModel:ts.textModel
-                                                store:ctx.diagnosticStore];
-    ctx.rngHighlighter = rngHL;
+    id<UDDocumentValidator> validator =
+        [(id<UDExtension>)ext documentValidatorForDocumentURL:ctx.fileURL
+                                                        store:ctx.diagnosticStore];
+    ctx.documentValidator = validator;
 
-    // Kick off the initial validation pass.
-    if ([rngHL respondsToSelector:@selector(update)]) {
-        [rngHL performSelector:@selector(update)];
+    // Kick off the initial validation pass with the current parse tree.
+    if (validator) {
+        UDTreeSitterHighlighter *hl = ctx.textStorage.highlighter;
+        const void *tree = hl.currentParseTree;
+        if (tree) {
+            [validator treeDidUpdateWithNewTree:tree
+                                  changedRanges:nil  // full parse on open
+                                     sourceText:[ctx.textStorage.textModel getValue]];
+        }
     }
 }
 
@@ -596,12 +606,9 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     for (UDEditorTabContext *ctx in _tabContexts) {
         if (![seen containsObject:ctx]) {
             [ctx.lspCoordinator closeDocument];
-            // Invalidate and release the RNG highlighter.
-            id rngHL = ctx.rngHighlighter;
-            if ([rngHL respondsToSelector:@selector(invalidate)]) {
-                [rngHL performSelector:@selector(invalidate)];
-            }
-            ctx.rngHighlighter = nil;
+            // Invalidate and release the document validator.
+            [ctx.documentValidator invalidate];
+            ctx.documentValidator = nil;
             [seen addObject:ctx];
         }
     }

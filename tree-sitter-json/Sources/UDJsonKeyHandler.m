@@ -142,6 +142,7 @@ static BOOL _isJSONValueStart(unichar c) {
 
     NSUInteger cursorPos = (NSUInteger)[model getOffsetAt:primary.positionLineNumber
                                                    column:primary.positionColumn];
+    if ([model getCharacterAtOffset:cursorPos] == ':') return NO;
 
     const TSTree *tree = (const TSTree *)parseTree;
     if (![self _cursorIsAfterObjectKey:cursorPos tree:tree model:model]) return NO;
@@ -340,7 +341,7 @@ static BOOL _isJSONValueStart(unichar c) {
             if (!t) break;
             if (strcmp(t, "array") == 0) return YES;
             if (strcmp(t, "object") == 0 || strcmp(t, "pair") == 0) return NO;
-            if (strcmp(t, "document") == 0) break;
+            if (strcmp(t, "document") == 0 /*|| strcmp(t, "ERROR") == 0*/) break;
             node = ts_node_parent(node);
         }
         return NO;
@@ -429,7 +430,7 @@ static BOOL _isJSONValueStart(unichar c) {
                         // (has no value child yet).
                         return ts_node_named_child_count(parent) < 2;
                     }
-                } else if (strcmp(pt, "object") == 0) {
+                } else if (strcmp(pt, "object") == 0 || strcmp(pt, "ERROR") == 0) {
                     // Direct child of object — error-recovered unpaired key.
                     return YES;
                 }
@@ -501,7 +502,7 @@ static BOOL _isJSONValueStart(unichar c) {
         TSNode parent = ts_node_parent(node);
         if (ts_node_is_null(parent)) return NO;
         const char *pt = ts_node_type(parent);
-        return pt && (strcmp(pt, "array") == 0 || strcmp(pt, "object") == 0);
+        return pt && _isJSONValueType(pt);
     }
 
     return YES; // Without tree, trust the value-start check.

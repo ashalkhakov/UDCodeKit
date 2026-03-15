@@ -641,9 +641,9 @@ static TSTree *ParseJSON(NSString *text) {
 - (void)testBooleanCompletion_false_afterCommaInArray {
     // [1, <cursor>  — comma in array → value position.
     // 0:[ 1:1 2:, 3:  cursor=4
-    [self _assertTyping:@"f" inDocument:@"[1, "
+    [self _assertTyping:@"f" inDocument:@"[1, ]"
            cursorOffset:4
-           producesText:@"[1, false"
+           producesText:@"[1, false]"
                cursorAt:9];
 }
 
@@ -697,9 +697,9 @@ static TSTree *ParseJSON(NSString *text) {
 }
 
 - (void)testBooleanCompletion_true_afterCommaInArray {
-    [self _assertTyping:@"t" inDocument:@"[1, "
+    [self _assertTyping:@"t" inDocument:@"[1, ]"
            cursorOffset:4
-           producesText:@"[1, true"
+           producesText:@"[1, true]"
                cursorAt:8];
 }
 
@@ -728,9 +728,9 @@ static TSTree *ParseJSON(NSString *text) {
 }
 
 - (void)testBooleanCompletion_null_afterCommaInArray {
-    [self _assertTyping:@"n" inDocument:@"[1, "
+    [self _assertTyping:@"n" inDocument:@"[1, ]"
            cursorOffset:4
-           producesText:@"[1, null"
+           producesText:@"[1, null]"
                cursorAt:8];
 }
 

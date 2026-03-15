@@ -611,4 +611,203 @@ static TSTree *ParseJSON(NSString *text) {
     XCTAssertEqualObjects(ctrl.text, @"[1, 2]");
 }
 
+// ===========================================================================
+// MARK: 9. `f` / `t` / `n` typed — keyword-literal autocomplete
+// ===========================================================================
+// Typing `f`, `t`, or `n` in a JSON value position inserts the complete
+// keyword (`false` / `true` / `null`) and consumes the event.  In any
+// non-value position (object key start, inside a string, after an unrelated
+// character) the handler returns NO.
+
+// --- f → false ---
+
+- (void)testBooleanCompletion_false_afterColon {
+    // {"k": <cursor>  — value position after `:`.
+    // 0:{ 1:" 2:k 3:" 4:: 5:  cursor=6
+    [self _assertTyping:@"f" inDocument:@"{\"k\": "
+           cursorOffset:6
+           producesText:@"{\"k\": false"
+               cursorAt:11];
+}
+
+- (void)testBooleanCompletion_false_afterOpenBracket {
+    // []  — cursor at 1 (inside empty array, first element position).
+    [self _assertTyping:@"f" inDocument:@"[]"
+           cursorOffset:1
+           producesText:@"[false]"
+               cursorAt:6];
+}
+
+- (void)testBooleanCompletion_false_afterCommaInArray {
+    // [1, <cursor>  — comma in array → value position.
+    // 0:[ 1:1 2:, 3:  cursor=4
+    [self _assertTyping:@"f" inDocument:@"[1, "
+           cursorOffset:4
+           producesText:@"[1, false"
+               cursorAt:9];
+}
+
+- (void)testBooleanCompletion_false_atDocumentRoot {
+    // Empty document — cursor at 0 (document start is a value position).
+    [self _assertTyping:@"f" inDocument:@""
+           cursorOffset:0
+           producesText:@"false"
+               cursorAt:5];
+}
+
+- (void)testBooleanCompletion_false_noCompletion_afterCommaInObject {
+    // {"a": 1, <cursor>  — comma in object → next token must be a key, not a value.
+    // 0:{ 1:" 2:a 3:" 4:: 5:  6:1 7:, 8:  cursor=9
+    BOOL consumed = [self _handlerConsumedChar:@"f"
+                                   inDocument:@"{\"a\": 1, "
+                                 cursorOffset:9];
+    XCTAssertFalse(consumed);
+}
+
+- (void)testBooleanCompletion_false_noCompletion_insideString {
+    // ["inside"]  — cursor inside string_content → NO.
+    // 0:[ 1:" 2:i 3:n 4:s 5:i 6:d 7:e 8:" 9:]  cursor=3
+    BOOL consumed = [self _handlerConsumedChar:@"f"
+                                   inDocument:@"[\"inside\"]"
+                                 cursorOffset:3];
+    XCTAssertFalse(consumed);
+}
+
+- (void)testBooleanCompletion_false_noCompletion_afterOpenBrace {
+    // {<cursor>  — first token in object is a key (must be a string), not a value.
+    BOOL consumed = [self _handlerConsumedChar:@"f" inDocument:@"{" cursorOffset:1];
+    XCTAssertFalse(consumed);
+}
+
+// --- t → true ---
+
+- (void)testBooleanCompletion_true_afterColon {
+    // {"k": <cursor>
+    [self _assertTyping:@"t" inDocument:@"{\"k\": "
+           cursorOffset:6
+           producesText:@"{\"k\": true"
+               cursorAt:10];
+}
+
+- (void)testBooleanCompletion_true_afterOpenBracket {
+    [self _assertTyping:@"t" inDocument:@"[]"
+           cursorOffset:1
+           producesText:@"[true]"
+               cursorAt:5];
+}
+
+- (void)testBooleanCompletion_true_afterCommaInArray {
+    [self _assertTyping:@"t" inDocument:@"[1, "
+           cursorOffset:4
+           producesText:@"[1, true"
+               cursorAt:8];
+}
+
+- (void)testBooleanCompletion_true_noCompletion_afterCommaInObject {
+    BOOL consumed = [self _handlerConsumedChar:@"t"
+                                   inDocument:@"{\"a\": 1, "
+                                 cursorOffset:9];
+    XCTAssertFalse(consumed);
+}
+
+// --- n → null ---
+
+- (void)testBooleanCompletion_null_afterColon {
+    // {"k": <cursor>
+    [self _assertTyping:@"n" inDocument:@"{\"k\": "
+           cursorOffset:6
+           producesText:@"{\"k\": null"
+               cursorAt:10];
+}
+
+- (void)testBooleanCompletion_null_afterOpenBracket {
+    [self _assertTyping:@"n" inDocument:@"[]"
+           cursorOffset:1
+           producesText:@"[null]"
+               cursorAt:5];
+}
+
+- (void)testBooleanCompletion_null_afterCommaInArray {
+    [self _assertTyping:@"n" inDocument:@"[1, "
+           cursorOffset:4
+           producesText:@"[1, null"
+               cursorAt:8];
+}
+
+- (void)testBooleanCompletion_null_noCompletion_afterCommaInObject {
+    BOOL consumed = [self _handlerConsumedChar:@"n"
+                                   inDocument:@"{\"a\": 1, "
+                                 cursorOffset:9];
+    XCTAssertFalse(consumed);
+}
+
+// ===========================================================================
+// MARK: 10. Delete — whole-literal deletion for JSON keyword constants
+// ===========================================================================
+// A partial backspace/forward-delete that lands strictly inside a `true`,
+// `false`, or `null` node is expanded to delete the entire keyword in one
+// keystroke.  Deleting a range that already covers the full literal, or
+// deleting inside a non-keyword token (e.g. a number), falls through unchanged.
+
+- (void)testLiteralDelete_false_fromLastChar {
+    // [false]  — backspace on the last char 'e' (offset 5, length 1).
+    // 0:[ 1:f 2:a 3:l 4:s 5:e 6:]
+    [self _assertDelete:NSMakeRange(5, 1) inDocument:@"[false]"
+           producesText:@"[]"];
+}
+
+- (void)testLiteralDelete_false_fromMiddleChar {
+    // [false]  — backspace on the middle char 'l' (offset 3, length 1).
+    [self _assertDelete:NSMakeRange(3, 1) inDocument:@"[false]"
+           producesText:@"[]"];
+}
+
+- (void)testLiteralDelete_false_fromFirstChar {
+    // [false]  — backspace on the first char 'f' (offset 1, length 1).
+    [self _assertDelete:NSMakeRange(1, 1) inDocument:@"[false]"
+           producesText:@"[]"];
+}
+
+- (void)testLiteralDelete_true_fromLastChar {
+    // [true]  — backspace on the last char 'e' (offset 4, length 1).
+    // 0:[ 1:t 2:r 3:u 4:e 5:]
+    [self _assertDelete:NSMakeRange(4, 1) inDocument:@"[true]"
+           producesText:@"[]"];
+}
+
+- (void)testLiteralDelete_null_fromLastChar {
+    // [null]  — backspace on the last char 'l' (offset 4, length 1).
+    // 0:[ 1:n 2:u 3:l 4:l 5:]
+    [self _assertDelete:NSMakeRange(4, 1) inDocument:@"[null]"
+           producesText:@"[]"];
+}
+
+- (void)testLiteralDelete_false_inObject {
+    // {"k": false}  — backspace on 'e' of false (offset 10, length 1).
+    // 0:{ 1:" 2:k 3:" 4:: 5:  6:f 7:a 8:l 9:s 10:e 11:}
+    [self _assertDelete:NSMakeRange(10, 1) inDocument:@"{\"k\": false}"
+           producesText:@"{\"k\": }"];
+}
+
+- (void)testLiteralDelete_noExpansion_fullLiteralSelected {
+    // [false]  — deleteRange already covers the entire literal (1..5, length 5).
+    // The handler does NOT expand it; the test stub's text stays unchanged.
+    [self _assertDelete:NSMakeRange(1, 5) inDocument:@"[false]"
+           producesText:@"[false]"];
+}
+
+- (void)testLiteralDelete_noExpansion_onNumber {
+    // [42]  — backspace on '4' (offset 1, length 1).  Numbers are not keywords.
+    [self _assertDelete:NSMakeRange(1, 1) inDocument:@"[42]"
+           producesText:@"[42]"];
+}
+
+- (void)testLiteralDelete_false_lastElementWithPrecedingComma {
+    // [1, false]  — backspace on 'e' of false expands to delete only 'false';
+    // the comma cleanup is a separate, subsequent keystroke.
+    // 0:[ 1:1 2:, 3:  4:f 5:a 6:l 7:s 8:e 9:]
+    [self _assertDelete:NSMakeRange(8, 1) inDocument:@"[1, false]"
+           producesText:@"[1, ]"];
+}
+
 @end

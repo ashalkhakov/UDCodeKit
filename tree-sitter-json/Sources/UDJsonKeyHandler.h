@@ -30,6 +30,27 @@
  *  (i.e. inside an incomplete `pair` node), types `: ` so the user can
  *  immediately enter the value.
  *
+ *  `f` typed  (value context)
+ *  ----------------------------
+ *  When the cursor is in a JSON value position (after `:`, after `[`, after `,`
+ *  inside an array, or at the document root), typing `f` inserts the complete
+ *  keyword `false` and advances the cursor past it.
+ *
+ *  `t` typed  (value context)
+ *  ----------------------------
+ *  Same as above but inserts `true`.
+ *
+ *  `n` typed  (value context)
+ *  ----------------------------
+ *  Same as above but inserts `null`.
+ *
+ *  Delete key  (keyword-literal cleanup)
+ *  ----------------------------------------
+ *  When the deletion range (e.g. a single-character backspace) falls strictly
+ *  inside a `true`, `false`, or `null` node, the handler expands it to delete
+ *  the entire keyword in one keystroke, so the user never ends up with a
+ *  partially-deleted literal.
+ *
  *  Delete key  (trailing-comma cleanup)
  *  --------------------------------------
  *  When the deletion range represents the last element / property in an

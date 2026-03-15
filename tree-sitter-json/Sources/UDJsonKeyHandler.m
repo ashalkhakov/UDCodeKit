@@ -74,6 +74,11 @@ static BOOL _isJSONValueStart(unichar c) {
                                  cursor:cursorPos docLen:docLen];
     }
 
+    if (ch == 't' || ch == 'f' || ch == 'n') {
+        return [self _handleBooleanLiteral:ch parseTree:parseTree model:model ctrl:ctrl
+                                    cursor:cursorPos docLen:docLen];
+    }
+
     return NO;
 }
 
@@ -171,6 +176,40 @@ static BOOL _isJSONValueStart(unichar c) {
     NSUInteger end   = deleteRange.location + deleteRange.length;
     if ((NSInteger)end > docLen) return NO;
 
+    // Whole-word deletion for JSON keyword literals (true / false / null).
+    // When a partial delete (e.g. a single backspace) falls inside a keyword
+    // literal, expand the range to delete the entire word in one keystroke.
+    if (parseTree) {
+        const TSTree *tree = (const TSTree *)parseTree;
+        uint32_t byte = _charToByte(start);
+        TSNode node = ts_node_descendant_for_byte_range(ts_tree_root_node(tree), byte, byte);
+        while (!ts_node_is_null(node)) {
+            const char *t = ts_node_type(node);
+            if (!t) break;
+            if (strcmp(t, "true") == 0 || strcmp(t, "false") == 0 || strcmp(t, "null") == 0) {
+                NSUInteger nodeStart = _byteToChar(ts_node_start_byte(node));
+                NSUInteger nodeEnd   = _byteToChar(ts_node_end_byte(node));
+                // Only expand when deleteRange is a strict subset of the literal
+                // (i.e. the user pressed backspace/forward-delete inside the word).
+                // A range already covering the full literal falls through to the
+                // trailing-comma cleanup below.
+                if (deleteRange.length < nodeEnd - nodeStart &&
+                    start >= nodeStart && end <= nodeEnd) {
+                    UDPosition sp = [model getPositionAt:(NSInteger)nodeStart];
+                    UDPosition ep = [model getPositionAt:(NSInteger)nodeEnd];
+                    ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                          UDSelectionMake(sp.line, sp.column,
+                                                          ep.line, ep.column)] ];
+                    [ctrl typeText:@"" source:@"deleteliteral"];
+                    return YES;
+                }
+                break;
+            }
+            if (strcmp(t, "document") == 0) break;
+            node = ts_node_parent(node);
+        }
+    }
+
     // Check what follows the deletion range (skip whitespace).
     NSUInteger nextPos = end;
     while ((NSInteger)nextPos < docLen) {
@@ -234,6 +273,80 @@ static BOOL _isJSONValueStart(unichar c) {
                                UDSelectionFromPosition(pos.line, pos.column)] ];
     }
     return YES;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Private: `t` / `f` handler — boolean-literal autocomplete
+// ---------------------------------------------------------------------------
+
+- (BOOL)_handleBooleanLiteral:(unichar)ch
+                    parseTree:(nullable const void *)parseTree
+                        model:(UDTextModel *)model
+                         ctrl:(UDCursorsController *)ctrl
+                       cursor:(NSUInteger)cursorPos
+                       docLen:(NSInteger)docLen {
+    if (![self _cursorIsInValuePosition:cursorPos model:model parseTree:parseTree]) return NO;
+    NSString *completion = (ch == 't') ? @"true" : (ch == 'f') ? @"false" : @"null";
+    [ctrl typeText:completion source:@"autocomplete"];
+    return YES;
+}
+
+/// Returns YES when `cursorPos` is a JSON value-start position:
+///   • right after `:` (object value)
+///   • right after `[` (first array element)
+///   • right after `,` inside an array (subsequent element)
+///   • at offset 0 (root document value)
+///
+/// Returns NO when the cursor is inside a string node (via tree) or when the
+/// preceding context is a comma in an object (next token should be a key).
+- (BOOL)_cursorIsInValuePosition:(NSUInteger)cursorPos
+                           model:(UDTextModel *)model
+                       parseTree:(nullable const void *)parseTree {
+    // Cursor inside a string node → not a literal-start position.
+    if (parseTree && cursorPos > 0) {
+        const TSTree *tree = (const TSTree *)parseTree;
+        uint32_t byte = _charToByte(cursorPos - 1);
+        TSNode node = ts_node_descendant_for_byte_range(ts_tree_root_node(tree), byte, byte);
+        while (!ts_node_is_null(node)) {
+            const char *t = ts_node_type(node);
+            if (!t) break;
+            if (strcmp(t, "string") == 0 || strcmp(t, "string_content") == 0) return NO;
+            if (strcmp(t, "document") == 0) break;
+            node = ts_node_parent(node);
+        }
+    }
+
+    // Find the preceding non-whitespace character.
+    NSUInteger scanPos = cursorPos;
+    while (scanPos > 0) {
+        unichar c = [model getCharacterAtOffset:scanPos - 1];
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') { scanPos--; } else { break; }
+    }
+    if (scanPos == 0) return YES; // start of document → root value position
+    unichar prev = [model getCharacterAtOffset:scanPos - 1];
+
+    if (prev == ':') return YES; // object pair value
+    if (prev == '[') return YES; // first array element
+
+    if (prev == ',') {
+        // Use the tree to distinguish a comma in an array (value follows)
+        // from a comma in an object (key follows).
+        if (!parseTree) return YES; // no tree: assume value position
+        const TSTree *tree = (const TSTree *)parseTree;
+        uint32_t byte = _charToByte(scanPos - 1);
+        TSNode node = ts_node_descendant_for_byte_range(ts_tree_root_node(tree), byte, byte);
+        while (!ts_node_is_null(node)) {
+            const char *t = ts_node_type(node);
+            if (!t) break;
+            if (strcmp(t, "array") == 0) return YES;
+            if (strcmp(t, "object") == 0 || strcmp(t, "pair") == 0) return NO;
+            if (strcmp(t, "document") == 0) break;
+            node = ts_node_parent(node);
+        }
+        return NO;
+    }
+
+    return NO;
 }
 
 // ---------------------------------------------------------------------------

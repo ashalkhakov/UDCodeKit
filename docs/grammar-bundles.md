@@ -458,3 +458,13 @@ shipped *by the grammar* must match the version used to generate `parser.c`:
 When the update script vendors a grammar and the upstream does not ship
 `src/tree_sitter/parser.h`, copy the appropriate version from an existing
 grammar's `src/tree_sitter/` directory.
+
+---
+
+## Language-specific validation
+
+Grammar bundles may provide **real-time document validation** beyond syntax checking
+by implementing optional methods on `UDExtension`.  The XML bundle uses this to run
+RELAX NG validation via libxml2.
+
+See [docs/relaxng-validation.md](relaxng-validation.md) for the full design.

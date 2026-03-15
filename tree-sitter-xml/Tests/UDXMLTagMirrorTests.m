@@ -47,6 +47,9 @@ typedef struct {
 - (nullable NSString *)_unclosedTagNameAtOffset:(NSUInteger)offset
                                            tree:(const void *)tree
                                           model:(UDTextModel *)model;
+- (BOOL)_cursorIsAfterAttributeNameInStartTag:(NSUInteger)cursorOffset
+                                         tree:(const void *)tree
+                                        model:(UDTextModel *)model;
 @end
 
 // ---------------------------------------------------------------------------
@@ -525,6 +528,114 @@ static TSTree *ParseXML(NSString *text) {
     // Offset 5 = at the inclusive end of the STag name; append "s" to both.
     [self _assertTyping:@"s" inDocument:@"<root><nono></nono></root>" cursorOffset:11
            producesText:@"<root><nonos></nonos></root>" cursorAt:12];
+}
+
+// ===========================================================================
+// MARK: 8. `=` typed — attribute-value auto-insert
+// ===========================================================================
+// When the cursor is right after an attribute name inside a start tag, typing
+// `=` should insert `=""` and leave the cursor between the two quotes.
+// In any other position (inside a value, inside an end tag, etc.) the handler
+// must return NO.
+
+- (void)testEquals_afterAttrName_insertsQuotedValue {
+    // <foo bar  — cursor at 8 (right after 'r' of attribute name "bar").
+    // 0:< 1:f 2:o 3:o 4:  5:b 6:a 7:r  cursor=8
+    // Typing '=' should produce `<foo bar=""` with cursor at 10 (between the "").
+    [self _assertTyping:@"=" inDocument:@"<foo bar"
+           cursorOffset:8
+           producesText:@"<foo bar=\"\""
+               cursorAt:10];
+}
+
+- (void)testEquals_afterAttrName_insideCompleteTag {
+    // <foo bar baz>content</foo>
+    // Cursor at 8 (after "bar"), before the space and "baz".
+    // 0:< 1:f 2:o 3:o 4:  5:b 6:a 7:r 8:  ...
+    // cursor=8 is right after 'r' of "bar".
+    [self _assertTyping:@"=" inDocument:@"<foo bar baz>content</foo>"
+           cursorOffset:8
+           producesText:@"<foo bar=\"\" baz>content</foo>"
+               cursorAt:10];
+}
+
+- (void)testEquals_noAction_afterTagName {
+    // Cursor right after the element name "foo" — that is a tag name, not an
+    // attribute name: handler must return NO.
+    // <foo  — cursor at 4 (after "foo").
+    BOOL consumed = [self _mirrorConsumedChar:@"="
+                                   inDocument:@"<foo"
+                                 cursorOffset:4];
+    XCTAssertFalse(consumed);
+}
+
+- (void)testEquals_noAction_insideAttributeValue {
+    // Cursor inside the quoted attribute value — must not fire.
+    // <foo bar="x"  — cursor at 11 (inside the value string).
+    // 0:< 1:f 2:o 3:o 4:  5:b 6:a 7:r 8:= 9:" 10:x 11:"
+    BOOL consumed = [self _mirrorConsumedChar:@"="
+                                   inDocument:@"<foo bar=\"x\""
+                                 cursorOffset:10];
+    XCTAssertFalse(consumed);
+}
+
+- (void)testEquals_noAction_alreadyHasEquals {
+    // Attribute already has '=': next char is '=', handler returns NO.
+    // <foo bar  — but the model already has '=' right after the cursor.
+    // Simulate: document = "<foo bar=" and cursor is at 8 (after 'r').
+    // Since getCharacterAtOffset:8 == '=', handler must return NO.
+    BOOL consumed = [self _mirrorConsumedChar:@"="
+                                   inDocument:@"<foo bar="
+                                 cursorOffset:8];
+    XCTAssertFalse(consumed);
+}
+
+- (void)testEquals_noAction_inEndTag {
+    // Cursor inside an end tag name — must not fire.
+    // </foo  — cursor at 4 (inside 'foo').
+    BOOL consumed = [self _mirrorConsumedChar:@"="
+                                   inDocument:@"<foo></foo"
+                                 cursorOffset:8];
+    XCTAssertFalse(consumed);
+}
+
+- (void)testEquals_noAction_nilParseTree {
+    // Without a parse tree the handler returns NO.
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"<foo bar"];
+    NSMutableString *mutable = [@"<foo bar" mutableCopy];
+    UDStubCursorsController *ctrl = [[UDStubCursorsController alloc] initWithText:mutable];
+    UDPosition pos = [model getPositionAt:8];
+    ctrl.selections = @[[NSValue ud_valueWithSelection:
+                         UDSelectionFromPosition(pos.line, pos.column)]];
+    BOOL consumed = NO;
+    XCTAssertNoThrow(consumed = [_mirror handleTypedCharacter:@"="
+                                                    parseTree:nil
+                                                    textModel:model
+                                            cursorsController:ctrl]);
+    XCTAssertFalse(consumed);
+}
+
+// White-box: verify the helper directly.
+- (void)testHelperCursorIsAfterAttributeName_YES {
+    // <foo bar  — cursor at 8 (after 'r'): should be YES.
+    TSTree *tree = ParseXML(@"<foo bar");
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"<foo bar"];
+    BOOL result = [_mirror _cursorIsAfterAttributeNameInStartTag:8
+                                                           tree:tree
+                                                          model:model];
+    ts_tree_delete(tree);
+    XCTAssertTrue(result);
+}
+
+- (void)testHelperCursorIsAfterAttributeName_NO_afterTagName {
+    // <foo  — cursor at 4 (after tag name "foo"): should be NO.
+    TSTree *tree = ParseXML(@"<foo");
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"<foo"];
+    BOOL result = [_mirror _cursorIsAfterAttributeNameInStartTag:4
+                                                           tree:tree
+                                                          model:model];
+    ts_tree_delete(tree);
+    XCTAssertFalse(result);
 }
 
 @end

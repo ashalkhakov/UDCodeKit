@@ -90,6 +90,34 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
                                                       column:primary.positionColumn];
     const TSTree *tree = (const TSTree *)parseTree;
 
+    // "=": auto-insert ="" with cursor between the quotes when typed right
+    // after an attribute name inside a start tag.
+    if ([chars isEqualToString:@"="]) {
+        if ([self _cursorIsAfterAttributeNameInStartTag:cursorOffset
+                                                   tree:tree
+                                                  model:model]) {
+            // Do not insert if '=' is already the next character (already has value).
+            NSInteger docLen = [model getLength];
+            if ((NSInteger)cursorOffset < docLen &&
+                [model getCharacterAtOffset:cursorOffset] == '=') {
+                return NO;
+            }
+            UDPosition pos = [model getPositionAt:(NSInteger)cursorOffset];
+            ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                   UDSelectionFromPosition(pos.line, pos.column)] ];
+            [ctrl typeText:@"=\"\"" source:@"autoattr"];
+            // Place cursor between the two quotes: cursorOffset + 2
+            // (after '=' and the opening '"').
+            NSUInteger insideOffset = cursorOffset + 2;
+            UDPosition insidePos = [model getPositionAt:(NSInteger)insideOffset];
+            ctrl.selections = @[ [NSValue ud_valueWithSelection:
+                                   UDSelectionFromPosition(insidePos.line,
+                                                           insidePos.column)] ];
+            return YES;
+        }
+        return NO;
+    }
+
     // ">": auto-insert closing tag when the element is incomplete.
     if ([chars isEqualToString:@">"]) {
         // Search from cursorOffset itself — the cursor is still inside the
@@ -567,6 +595,68 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
         node = ts_node_parent(node);
     }
     return nil;
+}
+
+/// Returns YES when the cursor is positioned right after an attribute name
+/// token inside a start tag, indicating that typing `=` should expand to
+/// `=""`.  Specifically, looks for a `Name`/`name`/`attribute_name` node
+/// whose end offset equals `cursorOffset` and whose parent (or grandparent
+/// through an `Attribute` node) is an `STag` / `start_tag`.
+- (BOOL)_cursorIsAfterAttributeNameInStartTag:(NSUInteger)cursorOffset
+                                         tree:(const TSTree *)tree
+                                        model:(UDTextModel *)model {
+    if (cursorOffset == 0) return NO;
+    TSNode root = ts_tree_root_node(tree);
+    uint32_t byte = byteFromChar(cursorOffset - 1);
+    TSNode node = ts_node_descendant_for_byte_range(root, byte, byte);
+
+    while (!ts_node_is_null(node)) {
+        const char *type = ts_node_type(node);
+        if (!type) break;
+
+        // Skip string / AttValue internals — we must not fire inside a value.
+        if (strcmp(type, "AttValue")        == 0 ||
+            strcmp(type, "quoted_attribute_value") == 0 ||
+            strcmp(type, "attribute_value") == 0 ||
+            strcmp(type, "string")          == 0 ||
+            strcmp(type, "string_content")  == 0) return NO;
+
+        // A Name/name/attribute_name node whose end is exactly at the cursor.
+        BOOL isNameNode = strcmp(type, "Name")           == 0
+                       || strcmp(type, "name")           == 0
+                       || strcmp(type, "attribute_name") == 0;
+        if (isNameNode && ts_node_end_byte(node) / 2 == cursorOffset) {
+            // Walk up to verify: parent is Attribute/attribute or STag/start_tag.
+            TSNode parent = ts_node_parent(node);
+            while (!ts_node_is_null(parent)) {
+                const char *pt = ts_node_type(parent);
+                if (!pt) break;
+                // STag / start_tag reached — we are in attribute-name position.
+                if (strcmp(pt, "STag")       == 0 ||
+                    strcmp(pt, "start_tag")  == 0) return YES;
+                // Attribute node — keep walking up.
+                if (strcmp(pt, "Attribute")  == 0 ||
+                    strcmp(pt, "attribute")  == 0) {
+                    parent = ts_node_parent(parent);
+                    continue;
+                }
+                // Hit something else: not an attribute context.
+                break;
+            }
+            return NO;
+        }
+
+        // Reached the tag itself without a matching name node.
+        if (strcmp(type, "STag")      == 0 ||
+            strcmp(type, "start_tag") == 0 ||
+            strcmp(type, "ETag")      == 0 ||
+            strcmp(type, "end_tag")   == 0 ||
+            strcmp(type, "element")   == 0 ||
+            strcmp(type, "document")  == 0) break;
+
+        node = ts_node_parent(node);
+    }
+    return NO;
 }
 
 #ifdef DEBUG

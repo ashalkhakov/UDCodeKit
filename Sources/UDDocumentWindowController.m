@@ -156,7 +156,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
             if (tree) {
                 [validator treeDidUpdateWithNewTree:tree
                                       changedRanges:hl.lastChangedCharRanges
-                                         sourceText:[self->_textStorage.textModel getValue]];
+                                          textModel:self->_textStorage.textModel];
             }
         }
     });
@@ -526,7 +526,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         if (tree) {
             [validator treeDidUpdateWithNewTree:tree
                                   changedRanges:nil  // full parse on open
-                                     sourceText:[ctx.textStorage.textModel getValue]];
+                                      textModel:ctx.textStorage.textModel];
         }
     }
 }

@@ -6,7 +6,7 @@
  *  -documentValidatorForDocumentURL:store: factory method (declared in UDExtension.h).
  *
  *  The host retains the validator for the lifetime of the editor tab and drives it by:
- *    1. Calling -treeDidUpdateWithNewTree:changedRanges:sourceText: after each parse.
+ *    1. Calling -treeDidUpdateWithNewTree:changedRanges:textModel: after each parse.
  *    2. Calling -invalidate when the tab closes.
  *
  *  All calls are made on the main thread.  The validator is responsible for dispatching
@@ -15,6 +15,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import <UDPieceTable/UDPieceTable.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -31,10 +32,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param changedRanges  NSValue-wrapped NSRanges of the character regions that
 ///                       changed structurally between the previous and new parse trees.
 ///                       nil for a full re-parse (initial load, undo/redo, etc.).
-/// @param sourceText     The complete UTF-16 document text after the edit.
+/// @param textModel      The document text model.  Do NOT call -getValue on the main
+///                       thread; instead capture this reference and call -getValue from
+///                       a background queue when the actual text is needed.
 - (void)treeDidUpdateWithNewTree:(const void *)newTree
                    changedRanges:(nullable NSArray<NSValue *> *)changedRanges
-                      sourceText:(NSString *)sourceText;
+                       textModel:(UDTextModel *)textModel;
 
 /// Called when the document tab closes.
 ///

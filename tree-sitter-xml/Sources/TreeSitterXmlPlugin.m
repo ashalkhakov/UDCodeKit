@@ -42,54 +42,34 @@ const TSLanguage *tree_sitter_xml(void);
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - RELAX NG validation (optional UDExtension methods)
+// MARK: - UDDocumentValidator factory
 // ---------------------------------------------------------------------------
 
-- (nullable NSURL *)schemaURLForDocumentURL:(nullable NSURL *)documentURL
-                               languageMode:(NSString *)languageMode {
-    if (![languageMode isEqualToString:@"xml"]) return nil;
-
-    // 1. Inspect the first ~1 KB of the document for an xml-model PI.
-    //    <?xml-model href="..." type="application/relax-ng-compact-syntax"?>
-    //    <?xml-model href="..." type="application/xml"?>
-    if (documentURL) {
-        NSString *schemaPath = [self _schemaPathFromXmlModelPI:documentURL];
-        if (schemaPath) {
-            NSURL *base = documentURL.URLByDeletingLastPathComponent;
-            return [NSURL URLWithString:schemaPath relativeToURL:base].absoluteURL;
-        }
-    }
-
-    // 2. Check for a bundled schema matching the document's root element namespace.
-    //    (Catalog lookup / bundled schemas — deferred to a later milestone.)
-
-    return nil;
-}
-
-- (nullable id)rngHighlighterForDocumentURL:(nullable NSURL *)documentURL
-                                 highlighter:(UDTreeSitterHighlighter *)highlighter
-                                   textModel:(UDTextModel *)textModel
-                                       store:(UDDiagnosticStore *)store {
-    NSURL *schemaURL = [self schemaURLForDocumentURL:documentURL
-                                        languageMode:@"xml"];
+- (nullable id<UDDocumentValidator>)documentValidatorForDocumentURL:(nullable NSURL *)documentURL
+                                                               store:(UDDiagnosticStore *)store {
+    NSURL *schemaURL = [self _schemaURLForDocumentURL:documentURL];
     if (!schemaURL) return nil;
-
-    UDXMLRNGHighlighter *h = [[UDXMLRNGHighlighter alloc]
-        initWithHighlighter:highlighter
-                  textModel:textModel
-                      store:store];
-    [h setSchemaURL:schemaURL];
-    return h;
+    return [[UDXMLRNGHighlighter alloc] initWithSchemaURL:schemaURL store:store];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - xml-model PI scanner
+// MARK: - Schema discovery (private)
 // ---------------------------------------------------------------------------
 
-/// Reads the first 1 KB of the document at @p url and looks for an
-/// @c xml-model processing instruction carrying a @c href attribute.
-/// Returns the href value string, or nil if not found.
-- (nullable NSString *)_schemaPathFromXmlModelPI:(NSURL *)url {
+/// Resolves a RELAX NG schema URL for @p documentURL by scanning the document's
+/// opening bytes for an @c xml-model processing instruction.
+/// Returns @c nil when no schema can be found.
+- (nullable NSURL *)_schemaURLForDocumentURL:(nullable NSURL *)documentURL {
+    if (!documentURL) return nil;
+    NSString *href = [self _hrefFromXmlModelPI:documentURL];
+    if (!href) return nil;
+    NSURL *base = documentURL.URLByDeletingLastPathComponent;
+    return [NSURL URLWithString:href relativeToURL:base].absoluteURL;
+}
+
+/// Reads the first 1 KB of the document at @p url and returns the @c href
+/// value from an @c <?xml-model?> PI, or @c nil if not found.
+- (nullable NSString *)_hrefFromXmlModelPI:(NSURL *)url {
     NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:url.path];
     if (!fh) return nil;
     NSData *header = [fh readDataOfLength:1024];
@@ -98,7 +78,6 @@ const TSLanguage *tree_sitter_xml(void);
     NSString *text = [[NSString alloc] initWithData:header encoding:NSUTF8StringEncoding];
     if (!text) return nil;
 
-    // Simple regex-free scan for <?xml-model href="..." or href='...'
     NSRange piRange = [text rangeOfString:@"<?xml-model"];
     if (piRange.location == NSNotFound) return nil;
 
@@ -124,7 +103,7 @@ const TSLanguage *tree_sitter_xml(void);
 
 + (void)load {
     // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -pluginDidLoad: is the preferred hook.
+    // Nothing to do here; -extensionDidLoad: is the preferred hook.
 }
 
 @end

@@ -45,7 +45,7 @@ static NSString *_findExecutable(NSArray<NSString *> *candidates) {
 }
 
 - (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier {
-    //if ([identifier isEqualToString:@"json"]) return [UDJsonKeyHandler sharedHandler];
+    if ([identifier isEqualToString:@"json"]) return [UDJsonKeyHandler sharedHandler];
     return nil;
 }
 

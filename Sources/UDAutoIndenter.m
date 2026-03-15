@@ -109,11 +109,51 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     if (mods == 0 &&
             (event.keyCode == kKeyCodeReturn ||
              event.keyCode == kKeyCodeKeypadReturn)) {
+        // Give the language handler first crack.
+        id<UDLanguageKeyHandler> retHandler = _languageKeyHandler;
+        if ([retHandler respondsToSelector:
+                @selector(handleReturnKeyWithParseTree:textModel:cursorsController:)]) {
+            BOOL consumed = [retHandler handleReturnKeyWithParseTree:_highlighter.currentParseTree
+                                                          textModel:_textModel
+                                                  cursorsController:_cursorsController];
+            if (consumed) {
+                [self _syncTextViewCursor];
+                return YES;
+            }
+        }
         return [self handleReturnKey];
+    }
+
+    // --- Tab (no modifiers): give language handler first crack, else default insert ---
+    if (mods == 0 && event.keyCode == kKeyCodeTab) {
+        id<UDLanguageKeyHandler> tabHandler = _languageKeyHandler;
+        if ([tabHandler respondsToSelector:
+                @selector(handleTabKeyWithParseTree:textModel:cursorsController:)]) {
+            BOOL consumed = [tabHandler handleTabKeyWithParseTree:_highlighter.currentParseTree
+                                                       textModel:_textModel
+                                               cursorsController:_cursorsController];
+            if (consumed) {
+                [self _syncTextViewCursor];
+                return YES;
+            }
+        }
+        // Fall through to NSTextView default tab handling.
+        return NO;
     }
 
     // --- Shift-Tab: dedent ---
     if (mods == NSEventModifierFlagShift && event.keyCode == kKeyCodeTab) {
+        id<UDLanguageKeyHandler> stHandler = _languageKeyHandler;
+        if ([stHandler respondsToSelector:
+                @selector(handleShiftTabKeyWithParseTree:textModel:cursorsController:)]) {
+            BOOL consumed = [stHandler handleShiftTabKeyWithParseTree:_highlighter.currentParseTree
+                                                           textModel:_textModel
+                                                   cursorsController:_cursorsController];
+            if (consumed) {
+                [self _syncTextViewCursor];
+                return YES;
+            }
+        }
         return [self handleShiftTabKey];
     }
 

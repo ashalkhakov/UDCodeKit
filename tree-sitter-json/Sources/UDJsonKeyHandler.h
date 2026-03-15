@@ -1,35 +1,44 @@
 /*---------------------------------------------------------------------------------------------
  *  UDJsonKeyHandler.h  —  Language-specific key handler for JSON documents.
  *
- *  Implements UDLanguageKeyHandler to provide JSON-aware editing behaviour on top
- *  of the generic electric-pair handling in UDAutoIndenter:
+ *  Implements UDLanguageKeyHandler to provide JSON-aware editing:
  *
- *  Trailing-comma insertion  (`{` / `[`)
+ *  `"` typed  (string context)
+ *  ----------------------------
+ *  Symmetric skip-over: advances the cursor past an already-present closing `"`.
+ *  Auto-colon: when the skip-over closes a property key string (the preceding
+ *  context is `{` or `,`), inserts `: ` immediately after and leaves the cursor
+ *  ready to type a value.
+ *
+ *  `{` / `[` typed  (object / array context)
+ *  ------------------------------------------
+ *  When the cursor is immediately before another JSON value in an array or
+ *  object, inserts `{}` or `[]` followed by `,` so the document stays valid.
+ *  Otherwise returns NO and lets the base electric-pair insert the plain pair.
+ *
+ *  Return key  (object / array context, value end)
+ *  -------------------------------------------------
+ *  When the cursor is positioned at the end of a JSON value (string, number,
+ *  literal, nested object/array) inside an object or array, and the next
+ *  non-whitespace token is another element (not `}` / `]`), inserts `,\n` +
+ *  the current line's indentation.  If the element is the last (followed by
+ *  `}` / `]`) just inserts `\n` + indentation, delegating to the base handler.
+ *
+ *  Tab key  (key position)
+ *  ------------------------
+ *  When the cursor is positioned right after a property key string in an object
+ *  (i.e. inside an incomplete `pair` node), types `: ` so the user can
+ *  immediately enter the value.
+ *
+ *  Delete key  (trailing-comma cleanup)
  *  --------------------------------------
- *  When the user types `{` or `[`, UDAutoIndenter auto-inserts `{}` or `[]` and
- *  places the cursor between the brackets.  UDJsonKeyHandler is then called; it
- *  uses the tree-sitter parse tree to check whether position afterClose (the
- *  character after the closing bracket) is the start of a JSON value inside an
- *  array.  If so, a `,` is inserted after the closing bracket so the document
- *  stays syntactically valid.  When no parse tree is available the check falls
- *  back to inspecting the first character.
- *
- *  Example:
- *      ["first", |"second"]   →  type `{`  →   ["first", {},"second"]
- *                                                          ^cursor inside {}
- *
- *  Auto-colon insertion  (`"`)
- *  ---------------------------
- *  When the user closes a JSON property-key string (the cursor moves past the
- *  closing `"` via skip-over), the parse tree is used to detect whether the
- *  finished `string` is a direct child of an `object` node — meaning it is an
- *  unpaired key with no `:` yet.  If so, `: ` is inserted immediately after the
- *  cursor and the cursor advances to after the `: `.
- *
- *  Example:
- *      {"key"|"value"}   →  type the closing `"` of "key"  →   {"key": |"value"}
+ *  When the deletion range represents the last element / property in an
+ *  object or array (next non-whitespace is `}` or `]`) AND the character
+ *  immediately before the range (after skipping whitespace) is `,`, the comma
+ *  and any intervening whitespace are included in the deletion so the document
+ *  stays valid.
  *--------------------------------------------------------------------------------------------*/
-/*
+
 #import <Foundation/Foundation.h>
 #import "UDLanguageKeyHandler.h"
 
@@ -42,4 +51,3 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
-*/

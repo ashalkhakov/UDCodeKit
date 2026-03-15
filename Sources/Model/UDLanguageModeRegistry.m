@@ -295,7 +295,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
          languageServerCommand:serverCmd
         defaultNewDocumentText:defaultText
             languageConfiguration:config
-                     keyHandler:keyHandler];
+                     keyHandler:keyHandler
+                      extension:ext];
 
         [self _registerModeUnsafe:mode];
     }
@@ -324,7 +325,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
      languageServerCommand:nil
     defaultNewDocumentText:@""
         languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-                 keyHandler:nil];
+                 keyHandler:nil
+                  extension:nil];
     [self _registerModeUnsafe:_plaintextFallback];
 
     // Load grammar bundles from the app's PlugIns directory.

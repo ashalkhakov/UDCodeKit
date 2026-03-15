@@ -51,6 +51,11 @@
 #import <tree_sitter/api.h>
 #import "UDLanguageKeyHandler.h"
 
+// Forward declarations for types used in optional factory methods.
+// Full headers are in Sources/Highlighters/ and Sources/Diagnostics/.
+@class UDTreeSitterHighlighter;
+@class UDDiagnosticStore;
+
 @protocol UDExtension <NSObject>
 
 /// Called by the host after the bundle has been loaded and the principal-class
@@ -103,5 +108,47 @@
 ///
 /// Implement this method only for modes that need custom key handling.
 - (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier;
+
+/// Returns the RELAX NG schema URL to use when validating a document at
+/// @p documentURL in the given language mode, or @c nil to skip validation.
+///
+/// Called on a background queue.  The implementation may perform file I/O
+/// (e.g. reading the first 1 KB of the document to inspect @c xml-model PIs,
+/// or consulting a catalog file) but should not block for more than a few
+/// hundred milliseconds.
+///
+/// Accepted URL schemes:
+///   • @c file:// — path to a @c .rng (XML syntax) or @c .rnc (compact syntax) file.
+///   • @c https:// — remote schema (downloaded and cached on first use).
+///
+/// Returns @c nil if no schema is found, suppressing RNG validation for this
+/// document.
+- (nullable NSURL *)schemaURLForDocumentURL:(nullable NSURL *)documentURL
+                               languageMode:(NSString *)languageMode;
+
+/// Returns an opaque RNG-highlighter object that validates the document against
+/// a RELAX NG schema and publishes errors to @p store, or @c nil when validation
+/// is not applicable (e.g. no schema found for the document).
+///
+/// The host retains the returned object for the lifetime of the editor tab.
+/// When the tab closes (or the document URL changes) the host calls
+/// @c -invalidate on the object and releases its reference, which clears the
+/// @c UDDiagnosticSourceRNG partition from @p store.
+///
+/// The host also calls @c -update on the object (via @c performSelector:) after
+/// each text-storage edit, giving the highlighter a chance to re-validate.
+///
+/// Follows the same per-document factory pattern as @c keyHandlerForIdentifier:
+/// — the extension creates and configures the object; the host manages its lifetime.
+///
+/// @param documentURL  File URL of the document being opened, or @c nil for an
+///                     unsaved buffer.
+/// @param highlighter  The tree-sitter highlighter for this document's tab.
+/// @param textModel    The text model for this document's tab.
+/// @param store        The diagnostic store into which RNG errors are published.
+- (nullable id)rngHighlighterForDocumentURL:(nullable NSURL *)documentURL
+                                 highlighter:(UDTreeSitterHighlighter *)highlighter
+                                   textModel:(UDTextModel *)textModel
+                                       store:(UDDiagnosticStore *)store;
 
 @end

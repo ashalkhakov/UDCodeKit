@@ -31,7 +31,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@""
     languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-               keyHandler:nil];
+               keyHandler:nil
+               extension:nil];
     XCTAssertEqualObjects(mode.identifier, @"test");
 }
 
@@ -47,7 +48,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@""
     languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-               keyHandler:nil];
+               keyHandler:nil
+               extension:nil];
     XCTAssertEqualObjects(mode.displayName, @"Test Language");
 }
 
@@ -63,7 +65,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@""
      languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-                keyHandler:nil];
+                keyHandler:nil
+               extension:nil];
     XCTAssertEqualObjects(mode.fileExtensions, (@[@"foo", @"bar"]));
 }
 
@@ -79,7 +82,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@"{}"
      languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-                keyHandler:nil];
+                keyHandler:nil
+               extension:nil];
     XCTAssertEqualObjects(mode.lspLanguageID, @"json");
 }
 
@@ -95,7 +99,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@""
      languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-                keyHandler:nil];
+                keyHandler:nil
+               extension:nil];
     XCTAssertTrue(mode.languageFunc == NULL);
     XCTAssertNil(mode.highlightsQuery);
 }
@@ -395,7 +400,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@""
     languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-               keyHandler:nil];
+               keyHandler:nil
+               extension:nil];
     [reg registerMode:custom];
 
     // The registry uses dispatch_barrier_async for writes and dispatch_sync for
@@ -421,7 +427,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@""
      languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
-                keyHandler:nil];
+                keyHandler:nil
+               extension:nil];
     [reg registerMode:custom];
 
     NSArray *all = reg.allModes;
@@ -587,7 +594,8 @@
      languageServerCommand:nil
     defaultNewDocumentText:@""
      languageConfiguration:nil
-                keyHandler:nil];
+                keyHandler:nil
+               extension:nil];
 
     // nil config should be replaced by emptyConfiguration — never nil
     XCTAssertNotNil(mode.languageConfiguration);

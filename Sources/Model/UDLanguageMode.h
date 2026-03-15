@@ -25,6 +25,8 @@
 #import "UDLanguageConfiguration.h"
 #import "UDLanguageKeyHandler.h"
 
+@protocol UDExtension;
+
 NS_ASSUME_NONNULL_BEGIN
 
 // ---------------------------------------------------------------------------
@@ -117,6 +119,12 @@ typedef const void *(*LanguageFunc)(void);
 /// nil for modes that provide no special handling.
 @property (nonatomic, strong, readonly, nullable) id<UDLanguageKeyHandler> keyHandler;
 
+/// The grammar bundle extension that provided this mode.
+/// Used by the host to call optional per-document factory methods such as
+/// @c rngHighlighterForDocumentURL:highlighter:textModel:store:.
+/// nil for built-in (non-bundle) modes.
+@property (nonatomic, strong, readonly, nullable) id<UDExtension> extension;
+
 // ---------------------------------------------------------------------------
 // MARK: - New document defaults
 // ---------------------------------------------------------------------------
@@ -141,6 +149,7 @@ typedef const void *(*LanguageFunc)(void);
             defaultNewDocumentText:(NSString *)defaultNewDocumentText
                 languageConfiguration:(UDLanguageConfiguration *)languageConfiguration
                          keyHandler:(nullable id<UDLanguageKeyHandler>)keyHandler
+                          extension:(nullable id<UDExtension>)extension
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

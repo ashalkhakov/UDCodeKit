@@ -14,6 +14,7 @@ typedef NS_ENUM(NSInteger, UDDiagnosticSeverity) {
 typedef NSString *UDDiagnosticSource NS_TYPED_EXTENSIBLE_ENUM;
 extern UDDiagnosticSource const UDDiagnosticSourceParser;   // tree-sitter
 extern UDDiagnosticSource const UDDiagnosticSourceLSP;      // language server
+extern UDDiagnosticSource const UDDiagnosticSourceRNG;      // RELAX NG validator
 
 /// Source-agnostic diagnostic item.  Both the tree-sitter parse-error
 /// collector and the LSP client produce these; the UI consumes them.

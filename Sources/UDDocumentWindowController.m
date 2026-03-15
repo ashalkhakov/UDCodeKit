@@ -14,6 +14,7 @@
 #import "UDCodeDocument.h"
 #import "UDWorkspaceModel.h"
 #import "UDLanguageModeRegistry.h"
+#import "UDExtension.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 // ---------------------------------------------------------------------------
@@ -63,6 +64,12 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 
 /// Optional LSP coordinator; set by the owner after -activateWithTheme:…
 @property (nonatomic, strong, nullable) UDLSPCoordinator *lspCoordinator;
+
+/// Optional RNG highlighter returned by the extension's
+/// -rngHighlighterForDocumentURL:highlighter:textModel:store:.
+/// The host calls -update on it (via performSelector:) after each edit and
+/// -invalidate (via performSelector:) when the tab closes.
+@property (nonatomic, strong, nullable) id rngHighlighter;
 
 - (instancetype)initWithDocument:(UDCodeDocument *)document NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -142,6 +149,10 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         [self->_missingNodeHighlighter update];
         [self->_parseErrorHighlighter  update];
         [self->_parseErrorCollector    update];
+        id rngHL = self->_rngHighlighter;
+        if ([rngHL respondsToSelector:@selector(update)]) {
+            [rngHL performSelector:@selector(update)];
+        }
     });
 }
 
@@ -394,6 +405,9 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     // d. LSP coordinator.
     [self _setupLSPCoordinatorForContext:ctx];
 
+    // d2. RNG highlighter (optional — only when the extension provides one).
+    [self _setupRNGHighlighterForContext:ctx];
+
     // e. Register diagnostics observer (once per unique store).
     if (![_observedStores containsObject:ctx.diagnosticStore]) {
         [_observedStores addObject:ctx.diagnosticStore];
@@ -483,6 +497,31 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - RNG highlighter setup
+// ---------------------------------------------------------------------------
+
+- (void)_setupRNGHighlighterForContext:(UDEditorTabContext *)ctx {
+    UDLanguageMode *mode = ctx.document.languageMode;
+    id<UDExtension> ext = mode.extension;
+    if (!ext) return;
+
+    SEL rngSel = @selector(rngHighlighterForDocumentURL:highlighter:textModel:store:);
+    if (![ext respondsToSelector:rngSel]) return;
+
+    UDTextModelTextStorage *ts = ctx.textStorage;
+    id rngHL = [(id<UDExtension>)ext rngHighlighterForDocumentURL:ctx.fileURL
+                                          highlighter:ts.highlighter
+                                            textModel:ts.textModel
+                                                store:ctx.diagnosticStore];
+    ctx.rngHighlighter = rngHL;
+
+    // Kick off the initial validation pass.
+    if ([rngHL respondsToSelector:@selector(update)]) {
+        [rngHL performSelector:@selector(update)];
+    }
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - LSP setup
 // ---------------------------------------------------------------------------
 
@@ -557,6 +596,12 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     for (UDEditorTabContext *ctx in _tabContexts) {
         if (![seen containsObject:ctx]) {
             [ctx.lspCoordinator closeDocument];
+            // Invalidate and release the RNG highlighter.
+            id rngHL = ctx.rngHighlighter;
+            if ([rngHL respondsToSelector:@selector(invalidate)]) {
+                [rngHL performSelector:@selector(invalidate)];
+            }
+            ctx.rngHighlighter = nil;
             [seen addObject:ctx];
         }
     }

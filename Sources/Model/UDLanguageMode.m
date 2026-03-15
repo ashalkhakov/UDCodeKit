@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDLanguageMode.h"
+#import "UDExtension.h"
 
 @implementation UDLanguageMode
 
@@ -16,7 +17,8 @@
              languageServerCommand:(nullable NSArray<NSString *> *)languageServerCommand
             defaultNewDocumentText:(NSString *)defaultNewDocumentText
                 languageConfiguration:(UDLanguageConfiguration *)languageConfiguration
-                         keyHandler:(nullable id<UDLanguageKeyHandler>)keyHandler {
+                         keyHandler:(nullable id<UDLanguageKeyHandler>)keyHandler
+                          extension:(nullable id<UDExtension>)extension {
     self = [super init];
     if (!self) return nil;
 
@@ -31,6 +33,7 @@
     _defaultNewDocumentText = [defaultNewDocumentText copy];
     _languageConfiguration  = languageConfiguration ?: [UDLanguageConfiguration emptyConfiguration];
     _keyHandler             = keyHandler;
+    _extension              = extension;
 
     return self;
 }

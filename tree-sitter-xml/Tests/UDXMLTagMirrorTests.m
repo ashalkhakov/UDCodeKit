@@ -521,7 +521,7 @@ static TSTree *ParseXML(NSString *text) {
 
 - (void)testUnicodeTagName_mirrors {
     // n is a valid NameStartChar; "nono" is a valid XML name.
-    // <nono></ñoño>: STag name span [1,5], ETag name span [8,12].
+    // <nono></nono>: STag name span [1,5], ETag name span [8,12].
     // Offset 5 = at the inclusive end of the STag name; append "s" to both.
     [self _assertTyping:@"s" inDocument:@"<root><nono></nono></root>" cursorOffset:11
            producesText:@"<root><nonos></nonos></root>" cursorAt:12];

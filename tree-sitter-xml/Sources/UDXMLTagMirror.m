@@ -124,7 +124,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
         // ------------------------------------------------------------------
         TagSpan primarySpan;
 #if DEBUG
-        [self _debugPrintSubtreeAtOffset:cursorOffset tree:tree model:model];
+        //[self _debugPrintSubtreeAtOffset:cursorOffset tree:tree model:model];
 #endif
         BOOL insideTagName = [self _findTagNameAtOffset:cursorOffset
                                                    tree:tree
@@ -135,8 +135,8 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
             // from a broken end tag (</foo> → <foo> after deleting '/') or
             // the user just started typing a new tag. In either case, '/'
             // should not auto-close.
-            if (primarySpan.start > 0 &&
-                [model getCharacterAtOffset:primarySpan.start - 1] == '<') {
+            if (cursorOffset > 0 &&
+                [model getCharacterAtOffset:cursorOffset - 1] == '<') {
                 return NO;
             }
 

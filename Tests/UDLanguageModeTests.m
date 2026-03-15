@@ -30,7 +30,8 @@
              lspLanguageID:nil
      languageServerCommand:nil
     defaultNewDocumentText:@""
-    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+               keyHandler:nil];
     XCTAssertEqualObjects(mode.identifier, @"test");
 }
 
@@ -45,7 +46,8 @@
              lspLanguageID:nil
      languageServerCommand:nil
     defaultNewDocumentText:@""
-    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+               keyHandler:nil];
     XCTAssertEqualObjects(mode.displayName, @"Test Language");
 }
 
@@ -60,7 +62,8 @@
              lspLanguageID:nil
      languageServerCommand:nil
     defaultNewDocumentText:@""
-    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+     languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+                keyHandler:nil];
     XCTAssertEqualObjects(mode.fileExtensions, (@[@"foo", @"bar"]));
 }
 
@@ -75,7 +78,8 @@
              lspLanguageID:@"json"
      languageServerCommand:nil
     defaultNewDocumentText:@"{}"
-    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+     languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+                keyHandler:nil];
     XCTAssertEqualObjects(mode.lspLanguageID, @"json");
 }
 
@@ -90,7 +94,8 @@
              lspLanguageID:@"html"
      languageServerCommand:nil
     defaultNewDocumentText:@""
-    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+     languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+                keyHandler:nil];
     XCTAssertTrue(mode.languageFunc == NULL);
     XCTAssertNil(mode.highlightsQuery);
 }
@@ -389,7 +394,8 @@
              lspLanguageID:nil
      languageServerCommand:nil
     defaultNewDocumentText:@""
-    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+               keyHandler:nil];
     [reg registerMode:custom];
 
     // The registry uses dispatch_barrier_async for writes and dispatch_sync for
@@ -414,7 +420,8 @@
              lspLanguageID:nil
      languageServerCommand:nil
     defaultNewDocumentText:@""
-    languageConfiguration:[UDLanguageConfiguration emptyConfiguration]];
+     languageConfiguration:[UDLanguageConfiguration emptyConfiguration]
+                keyHandler:nil];
     [reg registerMode:custom];
 
     NSArray *all = reg.allModes;
@@ -579,7 +586,9 @@
              lspLanguageID:nil
      languageServerCommand:nil
     defaultNewDocumentText:@""
-     languageConfiguration:nil];
+     languageConfiguration:nil
+                keyHandler:nil];
+
     // nil config should be replaced by emptyConfiguration — never nil
     XCTAssertNotNil(mode.languageConfiguration);
 }

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CE7CFB892F65B5D200F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB882F65B5D200F294D4 /* UDPieceTable.framework */; };
+		CE7CFB8A2F65B5D200F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB882F65B5D200F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CEED68072F61C80200473B16 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CEED68062F61C80200473B16 /* lib.c */; };
 		CEED680A2F61C81400473B16 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CEED68092F61C81400473B16 /* scanner.c */; };
 		CEED680B2F61C81400473B16 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CEED68082F61C81400473B16 /* parser.c */; };
@@ -16,8 +18,23 @@
 		CEED681B2F61C94E00473B16 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CEED68102F61C83400473B16 /* Info.plist */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		CE7CFB8B2F65B5D200F294D4 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				CE7CFB8A2F65B5D200F294D4 /* UDPieceTable.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		080F31D49507FF3BB4961FBD /* TreeSitterBash.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterBash.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE7CFB882F65B5D200F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEED68062F61C80200473B16 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
 		CEED68082F61C81400473B16 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
 		CEED68092F61C81400473B16 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
@@ -33,6 +50,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CE7CFB892F65B5D200F294D4 /* UDPieceTable.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -91,8 +109,17 @@
 				82EC2CCEA90921204043DA61 /* src */,
 				005E91DA0FC0ED688EAAD9FF /* Sources */,
 				479B740CE0B44D7A4C7F5C00 /* Resources */,
+				CE7CFB872F65B5D200F294D4 /* Frameworks */,
 				11360CF67CBA8DB357578643 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		CE7CFB872F65B5D200F294D4 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				CE7CFB882F65B5D200F294D4 /* UDPieceTable.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -105,6 +132,7 @@
 				D95220B3171846D9F0113B08 /* Sources */,
 				02DC6C957B70BC5D8F148A1C /* Frameworks */,
 				3862A44ACBA0F100F4392AB7 /* Resources */,
+				CE7CFB8B2F65B5D200F294D4 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);

@@ -1,6 +1,20 @@
 /*---------------------------------------------------------------------------------------------
  *  UDExtension.h  —  Protocol adopted by the principal class of every grammar bundle.
  *
+ *  PUBLIC API
+ *  ----------
+ *  The Sources/Extensions/ directory is the public API of the editor exposed to
+ *  extension bundles.  All headers that extension code may import are here:
+ *    • UDExtension.h       — this file; extension lifecycle + factory methods
+ *    • UDLanguageKeyHandler.h — key-event handling protocol
+ *    • UDTextEditing.h     — Foundation-only text-model access protocol (UDTextAccess)
+ *
+ *  Extension bundle targets have $(SRCROOT)/../Sources/Extensions in their
+ *  HEADER_SEARCH_PATHS, making these headers available as #import "...".
+ *  The UDTextModel implementation lives in the app; it conforms to UDTextAccess
+ *  via a category (Sources/TextModel/UDTextModel+TextAccess.{h,m}).  Symbols are
+ *  resolved at runtime via -undefined dynamic_lookup.
+ *
  *  OVERVIEW
  *  --------
  *  Each grammar bundle exposes a single Objective-C entry point: its NSPrincipalClass,
@@ -33,7 +47,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+#import <UDPieceTable/UDPieceTable.h>   // UDTextModel, UDTypes, UDRange, etc.
 #import <tree_sitter/api.h>
+#import "UDLanguageKeyHandler.h"
 
 @protocol UDExtension <NSObject>
 
@@ -74,5 +90,18 @@
 /// If this method is not implemented, or returns @c nil, the host will not
 /// start a language server for the corresponding mode.
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier;
+
+/// Returns a language-specific key handler for the given language mode
+/// identifier, or @c nil when this extension provides no special key handling
+/// for that mode.
+///
+/// The host retains the returned object and attaches it to the
+/// @c UDLanguageMode.keyHandler property.  The editor's @c UDAutoIndenter then
+/// delegates typed-character events to it, giving the bundle a chance to
+/// implement language-aware behaviour such as XML auto-close-tag on @c > or
+/// JSON trailing-comma insertion.
+///
+/// Implement this method only for modes that need custom key handling.
+- (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier;
 
 @end

@@ -16,17 +16,6 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
 static CGFloat const kEditorLineGutterWidth = 48.0;
 
 // ---------------------------------------------------------------------------
-// MARK: - Key codes
-// ---------------------------------------------------------------------------
-
-static const unsigned short kEditorKeyCodeUpArrow      = 126;
-static const unsigned short kEditorKeyCodeDownArrow    = 125;
-static const unsigned short kEditorKeyCodeLeftArrow    = 123;
-static const unsigned short kEditorKeyCodeRightArrow   = 124;
-static const unsigned short kEditorKeyCodeReturn       = 36;
-static const unsigned short kEditorKeyCodeKeypadReturn = 76;
-
-// ---------------------------------------------------------------------------
 // MARK: - Private interface
 // ---------------------------------------------------------------------------
 
@@ -45,9 +34,6 @@ static const unsigned short kEditorKeyCodeKeypadReturn = 76;
 @property (nonatomic, strong) UDBracketMatchHighlighter *bracketMatchHighlighter;
 @property (nonatomic, strong) UDStructuredNavigator    *structuredNavigator;
 @property (nonatomic, strong) UDAutoIndenter           *autoIndenter;
-
-// Local key-down event monitor (must be removed in -dealloc).
-@property (nonatomic, strong, nullable) id keyEventMonitor;
 
 // Text-model state.
 @property (nonatomic, strong) UDTextModelTextStorage   *textStorage;
@@ -74,10 +60,6 @@ static const unsigned short kEditorKeyCodeKeypadReturn = 76;
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
-    if (_keyEventMonitor) {
-        [NSEvent removeMonitor:_keyEventMonitor];
-        _keyEventMonitor = nil;
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +76,9 @@ static const unsigned short kEditorKeyCodeKeypadReturn = 76;
 
     // 2. Configure text view.
     _textView.textModel = _textStorage.textModel;
+    _textView.cursorsController = _textStorage.cursorsController;
+    // Ensure the cursor controller reflects the text view's initial position.
+    [_textView syncCursorControllerFromSelection];
 
     // 3. Compute frames from the initial XIB bounds.
     NSView  *container = self.view;
@@ -159,59 +144,29 @@ static const unsigned short kEditorKeyCodeKeypadReturn = 76;
 
     // 11. Auto-indenter (caller calls -configureWithLanguageFunc:indentsQuery: after viewDidLoad).
     _autoIndenter =
-        [[UDAutoIndenter alloc] initWithTextView:_textView
-                                      highlighter:_textStorage.highlighter
-                                        textModel:_textStorage.textModel];
+        [[UDAutoIndenter alloc] initWithHighlighter:_textStorage.highlighter
+                                           textView:_textView
+                                          textModel:_textStorage.textModel
+                                  cursorsController:_textStorage.cursorsController];
 
-    // 12. Find field setup.
+    // 12. Wire the text view's key-handler references so that keyDown: in
+    //     UDDiagnosticTextView can dispatch Return, Option+Arrow, and
+    //     electric-pair events without a global NSEvent monitor.
+    _textView.autoIndenter        = _autoIndenter;
+    _textView.structuredNavigator = _structuredNavigator;
+
+    // 13. Find field setup.
     _findField.delegate = self;
     _findField.target   = self;
     _findField.action   = @selector(_findFieldDidChange:);
     ((NSSearchFieldCell *)_findField.cell).sendsSearchStringImmediately = YES;
 
-    // 13. Observe text-storage edits for folding, bracket match, and find.
+    // 14. Observe text-storage edits for folding, bracket match, and find.
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(_textStorageDidEdit:)
                name:NSTextStorageDidProcessEditingNotification
              object:_textStorage];
-
-    // 14. Key monitor for structured navigation + auto-indent.
-    __weak typeof(self) weakSelf = self;
-    _keyEventMonitor =
-    [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
-                                          handler:^NSEvent *(NSEvent *event) {
-        UDTextEditorViewController *vc = weakSelf;
-        if (!vc) return event;
-        if (vc->_textView.window.firstResponder != vc->_textView) return event;
-
-        NSEventModifierFlags mods =
-            event.modifierFlags & (NSEventModifierFlagCommand |
-                                   NSEventModifierFlagControl |
-                                   NSEventModifierFlagOption  |
-                                   NSEventModifierFlagShift);
-        if (mods == 0) {
-            switch (event.keyCode) {
-                case kEditorKeyCodeReturn:
-                case kEditorKeyCodeKeypadReturn:
-                    if ([vc->_autoIndenter handleReturnKey]) return nil;
-                    return event;
-            }
-        }
-        if (event.modifierFlags & NSEventModifierFlagOption) {
-            switch (event.keyCode) {
-                case kEditorKeyCodeUpArrow:
-                    [vc->_structuredNavigator moveToParent];      return nil;
-                case kEditorKeyCodeDownArrow:
-                    [vc->_structuredNavigator moveToFirstChild];  return nil;
-                case kEditorKeyCodeLeftArrow:
-                    [vc->_structuredNavigator moveToPrevSibling]; return nil;
-                case kEditorKeyCodeRightArrow:
-                    [vc->_structuredNavigator moveToNextSibling]; return nil;
-            }
-        }
-        return event;
-    }];
 }
 
 // ---------------------------------------------------------------------------

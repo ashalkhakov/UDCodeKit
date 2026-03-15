@@ -56,4 +56,52 @@ static inline UDRange PTRangeMake(NSInteger sl, NSInteger sc, NSInteger el, NSIn
     return (UDRange){sl, sc, el, ec};
 }
 
+static inline NSValue *UDNSValueFromRange(UDRange r) {
+    return [NSValue valueWithBytes:&r objCType:@encode(UDRange)];
+}
+
+static inline UDRange UDRangeFromNSValue(NSValue *v) {
+    UDRange r;
+    [v getValue:&r];
+    return r;
+}
+
+// MARK: - UDSelection
+// Mirrors VS Code's Selection (a Range with a "direction" / active end).
+
+typedef struct {
+    NSInteger selectionStartLineNumber;  // 1-based
+    NSInteger selectionStartColumn;
+    NSInteger positionLineNumber;        // the "active" / cursor end
+    NSInteger positionColumn;
+} UDSelection;
+
+static inline UDSelection UDSelectionMake(NSInteger ssl, NSInteger ssc,
+                                           NSInteger pl,  NSInteger pc) {
+    return (UDSelection){ssl, ssc, pl, pc};
+}
+
+/// Collapsed cursor at a position (no selection).
+static inline UDSelection UDSelectionFromPosition(NSInteger line, NSInteger col) {
+    return UDSelectionMake(line, col, line, col);
+}
+
+static inline BOOL UDSelectionIsEmpty(UDSelection s) {
+    return s.selectionStartLineNumber == s.positionLineNumber
+        && s.selectionStartColumn    == s.positionColumn;
+}
+
+static inline UDRange UDRangeFromSelection(UDSelection s) {
+    // Normalize so start <= end.
+    BOOL forward = (s.selectionStartLineNumber < s.positionLineNumber)
+        || (s.selectionStartLineNumber == s.positionLineNumber
+            && s.selectionStartColumn <= s.positionColumn);
+    if (forward)
+        return PTRangeMake(s.selectionStartLineNumber, s.selectionStartColumn,
+                           s.positionLineNumber, s.positionColumn);
+    else
+        return PTRangeMake(s.positionLineNumber, s.positionColumn,
+                           s.selectionStartLineNumber, s.selectionStartColumn);
+}
+
 NS_ASSUME_NONNULL_END

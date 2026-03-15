@@ -1110,6 +1110,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/Sources",
+					"$(SRCROOT)/Sources/Extensions",
 					"$(SRCROOT)/Sources/Diagnostics",
 					"$(SRCROOT)/Sources/Model",
 					"$(SRCROOT)/tree-sitter/include",
@@ -1135,6 +1136,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/Sources",
+					"$(SRCROOT)/Sources/Extensions",
 					"$(SRCROOT)/Sources/Diagnostics",
 					"$(SRCROOT)/Sources/Model",
 					"$(SRCROOT)/tree-sitter/include",

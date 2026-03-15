@@ -626,14 +626,39 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
                        || strcmp(type, "name")           == 0
                        || strcmp(type, "attribute_name") == 0;
         if (isNameNode && ts_node_end_byte(node) / 2 == cursorOffset) {
-            // Walk up to verify: parent is Attribute/attribute or STag/start_tag.
+            // Walk up to verify: parent is Attribute/attribute or STag/start_tag,
+            // or ERROR (which tree-sitter uses for incomplete start tags such as
+            // `<foo bar` that haven't been closed with `>` yet).
             TSNode parent = ts_node_parent(node);
             while (!ts_node_is_null(parent)) {
                 const char *pt = ts_node_type(parent);
                 if (!pt) break;
                 // STag / start_tag reached — we are in attribute-name position.
-                if (strcmp(pt, "STag")       == 0 ||
-                    strcmp(pt, "start_tag")  == 0) return YES;
+                if (strcmp(pt, "STag")      == 0 ||
+                    strcmp(pt, "start_tag") == 0) return YES;
+                // ERROR: tree-sitter wraps incomplete start-tag content in an
+                // ERROR node.  Accept it as an attribute-name context only if
+                // the Name node is NOT the first word token (the first word
+                // is the element/tag name, not an attribute name).
+                // We detect "first word" by checking whether the character
+                // immediately before the name node's start byte is `<`
+                // (after skipping over whitespace).
+                if (strcmp(pt, "ERROR") == 0) {
+                    NSUInteger nameStart = ts_node_start_byte(node) / 2;
+                    NSString *text = [model getValue];
+                    // Look backward from nameStart for a non-whitespace char.
+                    NSUInteger scan = nameStart;
+                    while (scan > 0) {
+                        scan--;
+                        unichar c = [text characterAtIndex:scan];
+                        if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+                            continue;
+                        // First non-whitespace char before the name node:
+                        // if it's '<' then this is the tag name, not an attr name.
+                        return (c != '<');
+                    }
+                    return NO;
+                }
                 // Attribute node — keep walking up.
                 if (strcmp(pt, "Attribute")  == 0 ||
                     strcmp(pt, "attribute")  == 0) {

@@ -448,7 +448,7 @@ static BOOL _isJSONValueStart(unichar c) {
                 return !ts_node_is_null(key) &&
                        ts_node_start_byte(key) == ts_node_start_byte(node);
             }
-            if (strcmp(pt, "object") == 0) return YES; // error-recovered key
+            if (strcmp(pt, "object") == 0 || strcmp(pt, "ERROR") == 0) return YES; // error-recovered key
             return NO;
         }
 

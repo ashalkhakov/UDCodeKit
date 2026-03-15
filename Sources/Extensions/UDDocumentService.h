@@ -15,11 +15,13 @@
  *  Event ordering per edit:
  *    1. -textWillChangeInRange:replacementString:   (before the edit is applied)
  *    2. NSTextStorageDidProcessEditingNotification fires; tree-sitter re-parses
- *    3. -treeDidUpdateWithNewTree:changedRanges:sourceText:  (after re-parse)
+ *    3. -treeDidUpdateWithNewTree:changedRanges:textModel:  (after re-parse)
  *
- *  The sourceText passed in step 3 is the string snapshot that tree-sitter just
- *  parsed (UDTreeSitterHighlighter._tsPreviousString).  It is immutable, already
- *  in memory, and safe to capture and read from any background queue.
+ *  The textModel in step 3 is valid for main-thread access only during the call.
+ *  When changedRanges is non-nil (keystroke), services should use their own
+ *  incrementally-maintained text state instead of calling -getValue.
+ *  When changedRanges is nil (undo/redo, full re-parse), calling -getValue on
+ *  the main thread before dispatching to a background queue is safe.
  *
  *  Thread safety:
  *    All calls are made on the main thread.  Services are responsible for
@@ -27,6 +29,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
+
+@class UDTextModel;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -78,15 +82,15 @@ NS_ASSUME_NONNULL_BEGIN
 /// @param changedRanges  @c NSValue-wrapped @c NSRange character regions that changed
 ///                       structurally between the previous and new parse trees.
 ///                       @c nil for a full re-parse (initial load, undo/redo, etc.).
-/// @param sourceText     The document source text as of this parse.  This is the
-///                       same string snapshot that tree-sitter used to produce
-///                       @p newTree.  It is immutable and safe to capture in a
-///                       block and read from a background queue without copying.
-///                       Never call @c -getValue on @c UDTextModel from a
-///                       background queue — use this parameter instead.
+/// @param textModel      The live document text model.  Valid for @b main-thread
+///                       access only during the duration of this call.  When
+///                       @p changedRanges is @c nil (undo / redo / initial open),
+///                       calling @c -getValue on the main thread to capture a
+///                       snapshot before dispatching to a background queue is safe.
+///                       Never call @c -getValue from a background queue.
 - (void)treeDidUpdateWithNewTree:(const void *)newTree
                    changedRanges:(nullable NSArray<NSValue *> *)changedRanges
-                      sourceText:(NSString *)sourceText;
+                       textModel:(UDTextModel *)textModel;
 
 @end
 

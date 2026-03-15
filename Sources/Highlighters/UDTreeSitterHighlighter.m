@@ -2,24 +2,30 @@
 #import <tree_sitter/api.h>
 
 // ---------------------------------------------------------------------------
-#pragma mark - UTF-16 read callback
+#pragma mark - UTF-16 read callback (reads directly from UDTextModel)
 // ---------------------------------------------------------------------------
 
+/// Buffer size for the tree-sitter read callback.  Tree-sitter requests
+/// TS_READ_BUFFER_CHARS UTF-16 code units at a time; we fill the buffer from
+/// the model using fillCharacters:range: — no full-document materialisation.
 #define TS_READ_BUFFER_CHARS 1024
 
 typedef struct {
-    NSString  *string;
-    NSUInteger length;
-    unichar    buffer[TS_READ_BUFFER_CHARS];
-} TSReadContext;
+    /// The text model to read from.  This struct is only ever used on the main
+    /// thread (tree-sitter parsing always runs on the main thread), so retaining
+    /// a raw pointer with __unsafe_unretained is safe here.
+    __unsafe_unretained UDTextModel *model;
+    NSUInteger                       length; ///< Current document length (chars).
+    unichar                          buffer[TS_READ_BUFFER_CHARS];
+} TSModelReadContext;
 
-static const char *tsReadCallback(void *payload, uint32_t byteOffset,
-                                   TSPoint position, uint32_t *bytesRead) {
-    TSReadContext *ctx = (TSReadContext *)payload;
+static const char *tsModelReadCallback(void *payload, uint32_t byteOffset,
+                                        TSPoint position, uint32_t *bytesRead) {
+    TSModelReadContext *ctx = (TSModelReadContext *)payload;
     NSUInteger charOffset = byteOffset / 2;
     if (charOffset >= ctx->length) { *bytesRead = 0; return NULL; }
     NSUInteger n = MIN(TS_READ_BUFFER_CHARS, ctx->length - charOffset);
-    [ctx->string getCharacters:ctx->buffer range:NSMakeRange(charOffset, n)];
+    [ctx->model fillCharacters:ctx->buffer range:NSMakeRange(charOffset, n)];
     *bytesRead = (uint32_t)(n * sizeof(unichar));
     return (const char *)ctx->buffer;
 }
@@ -38,7 +44,6 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 @property (nonatomic, assign) TSTree        *tsCurrentTree;
 @property (nonatomic, assign) TSQuery       *tsQuery;
 @property (nonatomic, assign) TSQueryCursor *tsQueryCursor;
-@property (nonatomic, copy)   NSString      *tsPreviousString;
 @property (nonatomic, copy, nullable) NSArray<NSValue *> *lastChangedCharRanges;
 @end
 
@@ -51,8 +56,7 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 - (instancetype)initWithTextModel:(UDTextModel *)model {
     self = [super init];
     if (!self) return nil;
-    _textModel        = model;
-    _tsPreviousString = @"";
+    _textModel = model;
     return self;
 }
 
@@ -76,13 +80,11 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 - (const void *)currentParseTree   { return _tsCurrentTree;    }
 - (const void *)currentQuery       { return _tsQuery;          }
 - (const void *)currentQueryCursor { return _tsQueryCursor;    }
-- (NSString   *)currentSourceText  { return _tsPreviousString; }
 
 - (void)setLanguageFunc:(nullable LanguageFunc)languageFunc
     withHighlightsQuery:(nullable NSString *)queryText {
     _languageFuncInternal = languageFunc;
     [self _tearDown];
-    _tsPreviousString = @"";
 
     if (!languageFunc) return;
 
@@ -107,8 +109,7 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 }
 
 - (void)performIncrementalParseAfterEdit:(NSRange)editedRange
-                           changeInLength:(NSInteger)delta
-                            currentString:(NSString *)s {
+                           changeInLength:(NSInteger)delta {
     if (!_tsParser) return;
     TSTree *oldTree = _tsCurrentTree;
     if (oldTree && editedRange.location != NSNotFound) {
@@ -120,26 +121,28 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
         TSInputEdit ie = { sb, oeb, neb, {0,0}, {0,0}, {0,0} };
         ts_tree_edit(oldTree, &ie);
     }
-    [self _runParseWithString:s oldTree:oldTree];
+    [self _runParseOldTree:oldTree];
 }
 
-- (void)reparseFullString:(NSString *)s {
+- (void)reparseFromModel {
     if (!_tsParser) return;
     if (_tsCurrentTree) { ts_tree_delete(_tsCurrentTree); _tsCurrentTree = NULL; }
-    _tsPreviousString = @"";
-    [self _runParseWithString:s oldTree:NULL];
+    [self _runParseOldTree:NULL];
 }
 
 // ---------------------------------------------------------------------------
 #pragma mark - Parsing internals
 // ---------------------------------------------------------------------------
 
-- (void)_runParseWithString:(NSString *)s oldTree:(nullable TSTree *)oldTree {
-    if (!s) s = @"";
-    if ([s isEqualToString:_tsPreviousString] && _tsCurrentTree) return;
+/// Core parse step.  Reads from the UDTextModel via tsModelReadCallback —
+/// no full-document NSString materialisation needed.
+- (void)_runParseOldTree:(nullable TSTree *)oldTree {
+    UDTextModel *model = _textModel;
+    if (!model) return;
 
-    TSReadContext ctx = { .string = s, .length = s.length };
-    TSInput input = { &ctx, tsReadCallback, TSInputEncodingUTF16LE };
+    NSUInteger len = (NSUInteger)[model getLength];
+    TSModelReadContext ctx = { .model = model, .length = len };
+    TSInput input = { &ctx, tsModelReadCallback, TSInputEncodingUTF16LE };
     TSTree *newTree = ts_parser_parse(_tsParser, oldTree, input);
     if (!newTree) return;
 
@@ -162,8 +165,7 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
         _lastChangedCharRanges = nil;
     }
 
-    _tsCurrentTree    = newTree;
-    _tsPreviousString = [s copy];
+    _tsCurrentTree = newTree;
 }
 
 @end

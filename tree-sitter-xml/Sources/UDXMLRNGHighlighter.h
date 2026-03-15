@@ -3,19 +3,20 @@
  *
  *  Implements UDDocumentService for RELAX NG schema validation.
  *
- *  On each -treeDidUpdateWithNewTree:changedRanges:sourceText: call (main thread):
- *    1. Drains accumulated pending edits (captured from -textWillChangeInRange:).
- *    2. Copies the TSTree via ts_tree_copy().
- *    3. Debounces 150 ms, then on a private serial queue:
- *       a. Applies any pending edits to the mirror doc's internal text buffer.
- *       b. Rebuilds the libxml2 mirror doc from the tree + updated buffer.
- *       c. Runs RELAX NG validation.
- *       d. Publishes results to the UDDiagnosticStore on the main queue.
- *
- *  The sourceText parameter in step 3 is the string snapshot that tree-sitter
- *  used to produce the parse tree.  It is already in memory (computed by
- *  UDTreeSitterHighlighter during processEditing) and never causes an extra
- *  -getValue traversal of the piece table.
+ *  Text handling (no full-document getValue on keystrokes):
+ *    • -documentDidOpenWithContent: seeds the mirror doc's text buffer once.
+ *    • -textWillChangeInRange:replacementString: accumulates pending edits
+ *      (each is just the small replacement NSString, not the whole document).
+ *    • -treeDidUpdateWithNewTree:changedRanges:textModel: drains the pending
+ *      edits and dispatches a debounced validation block:
+ *        – Keystroke path (changedRanges != nil, pending edits present):
+ *            Applies each edit to the mirror doc's NSMutableString buffer
+ *            (O(edit-size) per edit, never O(document-size)).  Each
+ *            replacement string is transcoded UTF-16 → UTF-8 on the fly when
+ *            the mirror doc passes it to libxml2 — no full UTF-8 copy is kept.
+ *        – Full-rebuild path (changedRanges == nil or no pending edits):
+ *            Calls [textModel getValue] on the main thread (safe), then resets
+ *            the mirror doc buffer and rebuilds the xmlDoc from scratch.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -25,9 +26,6 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /// Implements UDDocumentService for RELAX NG schema validation of XML documents.
-///
-/// Responds to -treeDidUpdateWithNewTree:changedRanges:sourceText: (tree lifecycle)
-/// and -textWillChangeInRange:replacementString: (edit accumulation).
 @interface UDXMLRNGHighlighter : NSObject <UDDocumentService>
 
 - (instancetype)initWithSchemaURL:(NSURL *)schemaURL

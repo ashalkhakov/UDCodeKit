@@ -228,7 +228,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     }
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self->_highlighter reparseFullString:[self->_textModel getValue]];
+        [self->_highlighter reparseFromModel];
         [self->_syntaxHighlighter update];
         [self applyDecorationHighlights];
     });
@@ -336,10 +336,8 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     [super processEditing];
 
     if ((mask & NSTextStorageEditedCharacters) && _highlighter.isActive) {
-        NSString *snap = [_textModel getValue];
         [_highlighter performIncrementalParseAfterEdit:editedRange
-                                         changeInLength:delta
-                                          currentString:snap];
+                                         changeInLength:delta];
         dispatch_async(dispatch_get_main_queue(), ^{
             [self->_syntaxHighlighter update];
             [self applyDecorationHighlights];
@@ -363,7 +361,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     withHighlightsQuery:(NSString *)queryText {
     [_highlighter setLanguageFunc:languageFunc withHighlightsQuery:queryText];
     if (languageFunc) {
-        [_highlighter reparseFullString:[_textModel getValue]];
+        [_highlighter reparseFromModel];
         [_syntaxHighlighter update];
     }
     // Force a full redraw regardless of whether decoration notifications fired,

@@ -12,16 +12,14 @@
 // ---------------------------------------------------------------------------
 
 @implementation UDXMLMirrorDoc {
-    xmlDocPtr          _xmlDoc;
-    xmlNodePtr         _dirtyRoot;
+    xmlDocPtr  _xmlDoc;
+    xmlNodePtr _dirtyRoot;
 
-    /// Text snapshot captured from UDTextModel on the main thread.
-    /// Updated via -updateTextSnapshot:lineIndexData: before each -applyTree:… call.
-    NSString          *_textSnapshot;
-
-    /// Pre-built line-start index (C array wrapped in NSData).
-    /// lineIndex[i] = 0-based UTF-16 char offset of the start of 0-indexed line i.
-    NSData            *_lineIndexData;
+    /// Text source valid only during -applyTree:changedRanges:textSource:.
+    /// Set to the caller's snapshot at the start of that method and cleared
+    /// to nil before the method returns.  All helpers that need text call
+    /// _textSliceFrom:to: which reads this field.
+    NSString * __unsafe_unretained _currentSource;
 }
 
 - (void)dealloc {
@@ -35,46 +33,22 @@
 - (xmlNodePtr)dirtyRoot { return _dirtyRoot; }
 
 // ---------------------------------------------------------------------------
-// MARK: - Text snapshot management
+// MARK: - Text helpers (use _currentSource, valid only during applyTree:…)
 // ---------------------------------------------------------------------------
 
-- (void)updateTextSnapshot:(NSString *)text lineIndexData:(NSData *)lineIndexData {
-    _textSnapshot  = [text copy];
-    _lineIndexData = [lineIndexData copy];
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - Text helpers (use current snapshot)
-// ---------------------------------------------------------------------------
-
-/// Returns the substring of the current text snapshot for [startByte, endByte).
-/// Tree-sitter byte offsets are UTF-16 units (byte = charIndex × 2).
+/// Returns the substring of the current text source for [startByte, endByte).
+/// Tree-sitter byte offsets are UTF-16 code-unit indices × 2.
 - (NSString *)_textSliceFrom:(uint32_t)startByte to:(uint32_t)endByte {
     NSUInteger s = charFromByte(startByte);
     NSUInteger e = charFromByte(endByte);
-    NSUInteger len = _textSnapshot.length;
+    NSUInteger len = _currentSource.length;
     if (s >= len || e <= s) return @"";
-    NSAssert(e <= len, @"_textSliceFrom:to: endByte %u (char %lu) exceeds snapshot length %lu; "
-                        "check for stale tree-sitter byte offsets or a snapshot/tree mismatch",
+    NSAssert(e <= len,
+             @"_textSliceFrom:to: endByte %u (char %lu) exceeds source length %lu; "
+              "check for stale tree-sitter byte offsets or a source/tree mismatch",
              endByte, (unsigned long)e, (unsigned long)len);
     if (e > len) e = len;
-    return [_textSnapshot substringWithRange:NSMakeRange(s, e - s)];
-}
-
-/// Returns the 1-based line number for @p charOffset using a binary search
-/// on the pre-built line-start index — O(log lineCount).
-- (int)_lineNumberForChar:(NSUInteger)charOffset {
-    if (!_lineIndexData || _lineIndexData.length == 0) return 1;
-    NSUInteger lineCount = _lineIndexData.length / sizeof(NSUInteger);
-    const NSUInteger *idx = (const NSUInteger *)_lineIndexData.bytes;
-    // Find the largest i such that idx[i] <= charOffset; result is 1-based line.
-    NSUInteger lo = 0, hi = lineCount;
-    while (lo < hi) {
-        NSUInteger mid = (lo + hi) / 2;
-        if (idx[mid] <= charOffset) lo = mid + 1;
-        else hi = mid;
-    }
-    return (lo > 0) ? (int)lo : 1;
+    return [_currentSource substringWithRange:NSMakeRange(s, e - s)];
 }
 
 // ---------------------------------------------------------------------------
@@ -82,8 +56,12 @@
 // ---------------------------------------------------------------------------
 
 - (void)applyTree:(const void *)newTree
-    changedRanges:(nullable NSArray<NSValue *> *)changedRanges {
+    changedRanges:(nullable NSArray<NSValue *> *)changedRanges
+       textSource:(NSString *)textSource {
     (void)changedRanges; // Reserved for future optimisation
+
+    // Stash the text source for use by helpers during this call only.
+    _currentSource = textSource;
     _dirtyRoot = NULL;
 
     TSNode newRoot = ts_tree_root_node((const TSTree *)newTree);
@@ -91,15 +69,16 @@
     if (!_xmlDoc) {
         // First call: full build from scratch.
         _xmlDoc = xmlNewDoc(BAD_CAST "1.0");
-        if (!_xmlDoc) return;
+        if (!_xmlDoc) { _currentSource = nil; return; }
         [self _buildDocumentFromRoot:newRoot];
         _dirtyRoot = xmlDocGetRootElement(_xmlDoc);
-        return;
+    } else {
+        // Diffing rebuild: traverse old libxml2 tree and new tree-sitter tree
+        // in lockstep, patching the libxml2 tree in-place.
+        [self _syncDocumentFromRoot:newRoot];
     }
 
-    // Diffing rebuild: traverse old libxml2 tree and new tree-sitter tree
-    // in lockstep, updating the libxml2 tree in-place.
-    [self _syncDocumentFromRoot:newRoot];
+    _currentSource = nil;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,8 +169,9 @@
     BOOL dirty = NO;
 
     // Update the stored 1-based line number.
-    NSUInteger startChar = charFromByte(ts_node_start_byte(tsElem));
-    int lineNo = [self _lineNumberForChar:startChar];
+    // ts_node_start_point() gives {row, column} where row is the 0-based line
+    // number — no external line-start index is required.
+    int lineNo = (int)(ts_node_start_point(tsElem).row + 1);
     if ((int)xmlElem->line != lineNo) {
         xmlElem->line = lineNo;
         dirty = YES;
@@ -278,7 +258,7 @@
         TSNode child = ts_node_child(tsElem, i);
         const char *ct = ts_node_type(child);
         if (isTagBoundary(ct)) continue; // skip start/end/self-closing wrappers
-        if (strcmp(ct, "element")  == 0 ||
+        if (strcmp(ct, "element") == 0 ||
             isTextNode(ct) || isComment(ct) || isCDATA(ct) || isProcessingInstruction(ct))
             [tsIndices addObject:@(i)];
     }
@@ -286,10 +266,10 @@
     // Capture XML child pointers BEFORE any mutations.
     NSMutableArray<NSValue *> *xmlPtrs = [NSMutableArray array];
     for (xmlNodePtr child = xmlParent->children; child; child = child->next) {
-        if (child->type == XML_ELEMENT_NODE      ||
-            child->type == XML_TEXT_NODE         ||
-            child->type == XML_COMMENT_NODE      ||
-            child->type == XML_CDATA_SECTION_NODE||
+        if (child->type == XML_ELEMENT_NODE       ||
+            child->type == XML_TEXT_NODE          ||
+            child->type == XML_COMMENT_NODE       ||
+            child->type == XML_CDATA_SECTION_NODE ||
             child->type == XML_PI_NODE)
             [xmlPtrs addObject:[NSValue valueWithPointer:child]];
     }
@@ -335,6 +315,7 @@
 /// Replaces the XML node when types differ; updates in-place when they match.
 - (BOOL)_syncTSChild:(TSNode)tsNode withXmlNode:(xmlNodePtr)xmlNode
               parent:(xmlNodePtr)parent {
+    (void)parent;
     const char *tsType = ts_node_type(tsNode);
 
     // --- element ---
@@ -459,8 +440,9 @@
     if (!node) return NULL;
 
     // Record the 1-based line number for diagnostic position mapping.
-    NSUInteger startChar = charFromByte(ts_node_start_byte(elemNode));
-    int lineNo = [self _lineNumberForChar:startChar];
+    // ts_node_start_point() gives {row, column}; row is the 0-based line
+    // number — no external line-start index is needed.
+    int lineNo = (int)(ts_node_start_point(elemNode).row + 1);
     if (lineNo < 1) lineNo = 1;
     node->line = lineNo;
 
@@ -561,7 +543,7 @@
 
 /// Add a processing instruction node as a child of xmlParent (or the document root).
 - (void)_addProcessingInstruction:(TSNode)piNode toParent:(nullable xmlNodePtr)parent {
-    xmlNodePtr pi = [self _buildTSChildNode:piNode]; // handles PI building
+    xmlNodePtr pi = [self _buildTSChildNode:piNode];
     if (!pi) return;
     if (parent) xmlAddChild(parent, pi);
     else        xmlAddChild((xmlNodePtr)_xmlDoc, pi);

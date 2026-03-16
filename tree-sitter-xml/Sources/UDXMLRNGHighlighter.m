@@ -81,7 +81,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
     // Capture the full text snapshot on the main thread.
     // UDTextModel.getValue is safe on the main thread; the background validation
-    // queue must not call it — it receives the snapshot via updateTextSnapshot:.
+    // queue must not call it — it receives the snapshot via the applyTree: call.
     NSString *textSnapshot = [textModel getValue];
 
     // Build the line-start index from the TextModel's piece-tree index.
@@ -116,14 +116,13 @@ static const NSTimeInterval kDebounceInterval = 0.15;
                 return;
             }
 
-            // Forward the text snapshot and line index to the mirror doc FIRST,
-            // so -applyTree:changedRanges: can extract text slices and line numbers.
-            [self->_mirrorDoc updateTextSnapshot:textSnapshot lineIndexData:lineIndexData];
-
-            // Diffing rebuild + validation.
+            // Forward the text snapshot to the mirror doc and do the diffing
+            // rebuild.  Line numbers are derived from ts_node_start_point() inside
+            // the mirror doc — no line-start index is needed by applyTree:.
             [self _validateWithTree:treeCopy
                       changedRanges:capturedRanges
-                      lineIndexData:lineIndexData];
+                        textSnapshot:textSnapshot
+                       lineIndexData:lineIndexData];
             ts_tree_delete(treeCopy);
         });
 }
@@ -146,11 +145,12 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
 - (void)_validateWithTree:(TSTree *)tree
             changedRanges:(nullable NSArray<NSValue *> *)changedRanges
+             textSnapshot:(NSString *)textSnapshot
             lineIndexData:(NSData *)lineIndexData {
-    // Diffing rebuild: update the libxml2 mirror doc from the new tree-sitter
-    // tree.  Text snapshot and line index were forwarded via
-    // -updateTextSnapshot:lineIndexData: just before this call.
-    [_mirrorDoc applyTree:tree changedRanges:changedRanges];
+    // Diffing rebuild: pass the text snapshot directly to applyTree: so it can
+    // extract text slices from node byte offsets on the fly.  The mirror doc
+    // does NOT retain the snapshot — it is used only during this call.
+    [_mirrorDoc applyTree:tree changedRanges:changedRanges textSource:textSnapshot];
     xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
     if (!xmlDoc) return;
 

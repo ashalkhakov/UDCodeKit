@@ -8,15 +8,16 @@
  *    2. Builds a pre-computed line-start index from the TextModel's internal
  *       piece-tree: lineIndex[i] = UTF-16 char offset of line i (0-indexed).
  *       This is O(lineCount) piece-tree lookups; no character-by-character scan.
+ *       The line index is used ONLY by the RELAX NG validator to map libxml2
+ *       error line numbers back to document character offsets.
  *    3. Copies the TSTree via ts_tree_copy().
  *    4. Debounces 150 ms, then on the private serial validation queue:
- *       a. Forwards the text snapshot and line index to UDXMLMirrorDoc via
- *          -updateTextSnapshot:lineIndexData:.
- *       b. Calls -applyTree:changedRanges: which performs a diffing rebuild:
- *          the existing libxml2 tree and the new tree-sitter tree are traversed
- *          in lockstep; added, deleted, and modified nodes are patched in-place.
- *       c. Runs RELAX NG validation from dirtyRoot (or the full document).
- *       d. Publishes results to the UDDiagnosticStore on the main queue.
+ *       a. Calls -applyTree:changedRanges:textSource: on UDXMLMirrorDoc,
+ *          passing the text snapshot directly.  The mirror doc uses
+ *          ts_node_start_point().row for O(1) line numbers and extracts
+ *          text slices from the snapshot on the fly — no persistent copy.
+ *       b. Runs RELAX NG validation.
+ *       c. Publishes results to the UDDiagnosticStore on the main queue.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>

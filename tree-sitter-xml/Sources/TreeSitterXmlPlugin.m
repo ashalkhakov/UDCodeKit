@@ -47,41 +47,79 @@ const TSLanguage *tree_sitter_xml(void);
 
 - (nullable id<UDDocumentService>)documentServiceForDocumentURL:(nullable NSURL *)documentURL
                                                                store:(UDDiagnosticStore *)store {
-    NSURL *schemaURL = [self _schemaURLForDocumentURL:documentURL];
-    if (!schemaURL) return nil;
-    return [[UDXMLRNGHighlighter alloc] initWithSchemaURL:schemaURL store:store];
+    if (!documentURL) return nil;
+
+    NSDictionary<NSString *, id> *schemas = [self _schemasForDocumentURL:documentURL];
+    NSURL *rngURL = schemas[@"rng"];
+    NSArray<NSURL *> *schematronURLs = schemas[@"schematron"] ?: @[];
+
+    if (!rngURL && schematronURLs.count == 0) return nil;
+
+    return [[UDXMLRNGHighlighter alloc] initWithRNGSchemaURL:rngURL
+                                               schematronURLs:schematronURLs
+                                                        store:store];
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - Schema discovery (private)
 // ---------------------------------------------------------------------------
 
-/// Resolves a RELAX NG schema URL for @p documentURL by scanning the document's
-/// opening bytes for an @c xml-model processing instruction.
-/// Returns @c nil when no schema can be found.
-- (nullable NSURL *)_schemaURLForDocumentURL:(nullable NSURL *)documentURL {
-    if (!documentURL) return nil;
-    NSString *href = [self _hrefFromXmlModelPI:documentURL];
-    if (!href) return nil;
-    NSURL *base = documentURL.URLByDeletingLastPathComponent;
-    return [NSURL URLWithString:href relativeToURL:base].absoluteURL;
-}
-
-/// Reads the first 1 KB of the document at @p url and returns the @c href
-/// value from an @c <?xml-model?> PI, or @c nil if not found.
-- (nullable NSString *)_hrefFromXmlModelPI:(NSURL *)url {
-    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:url.path];
-    if (!fh) return nil;
-    NSData *header = [fh readDataOfLength:1024];
+/// Scans the document header for all @c <?xml-model?> processing instructions
+/// and separates them by type (RNG vs Schematron).
+///
+/// Returns a dictionary with keys:
+///   @c "rng"         → @c NSURL  (the first RNG schema found, or absent)
+///   @c "schematron"  → @c NSArray<NSURL *>  (all Schematron schemas found)
+- (NSDictionary<NSString *, id> *)_schemasForDocumentURL:(NSURL *)documentURL {
+    NSFileHandle *fh = [NSFileHandle fileHandleForReadingAtPath:documentURL.path];
+    if (!fh) return @{};
+    NSData *header = [fh readDataOfLength:2048];
     [fh closeFile];
 
     NSString *text = [[NSString alloc] initWithData:header encoding:NSUTF8StringEncoding];
-    if (!text) return nil;
+    if (!text) return @{};
 
-    NSRange piRange = [text rangeOfString:@"<?xml-model"];
-    if (piRange.location == NSNotFound) return nil;
+    NSURL *base = documentURL.URLByDeletingLastPathComponent;
+    NSURL *rngURL = nil;
+    NSMutableArray<NSURL *> *schematronURLs = [NSMutableArray array];
 
-    NSString *tail = [text substringFromIndex:NSMaxRange(piRange)];
+    // Scan for every occurrence of "<?xml-model" in the header.
+    NSUInteger searchStart = 0;
+    while (searchStart < text.length) {
+        NSRange piRange = [text rangeOfString:@"<?xml-model"
+                                      options:0
+                                        range:NSMakeRange(searchStart,
+                                                          text.length - searchStart)];
+        if (piRange.location == NSNotFound) break;
+        searchStart = NSMaxRange(piRange);
+
+        // Extract the href value from this PI.
+        NSString *tail = [text substringFromIndex:searchStart];
+        NSString *href = [self _hrefFromPITail:tail];
+        if (!href) continue;
+
+        NSURL *url = [NSURL URLWithString:href relativeToURL:base].absoluteURL;
+        if (!url) continue;
+
+        NSString *ext = url.pathExtension.lowercaseString;
+        if ([ext isEqualToString:@"rng"]) {
+            if (!rngURL) rngURL = url; // use the first RNG schema
+        } else if ([ext isEqualToString:@"sch"] ||
+                   [ext isEqualToString:@"schematron"]) {
+            [schematronURLs addObject:url];
+        }
+        // Unsupported schema types (e.g. .rnc) are silently skipped.
+    }
+
+    NSMutableDictionary<NSString *, id> *result = [NSMutableDictionary dictionary];
+    if (rngURL)               result[@"rng"]         = rngURL;
+    if (schematronURLs.count) result[@"schematron"]  = [schematronURLs copy];
+    return [result copy];
+}
+
+/// Extracts the @c href attribute value from the tail of an @c <?xml-model?> PI
+/// (i.e. the text after @c "<?xml-model").  Returns @c nil when not found.
+- (nullable NSString *)_hrefFromPITail:(NSString *)tail {
     NSRange hrefRange = [tail rangeOfString:@"href="];
     if (hrefRange.location == NSNotFound) return nil;
 

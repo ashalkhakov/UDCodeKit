@@ -6,12 +6,15 @@
 #import "UDXMLMirrorDoc.h"
 #import "UDXMLGapBuffer.h"
 #import "UDRNGValidator.h"
+#import "UDSchematronValidator.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <tree_sitter/api.h>
 #import <stdatomic.h>
 
 // UDDiagnosticSourceRNG is defined in UDRNGValidator.m in the host app.
 extern NSString * const UDDiagnosticSourceRNG;
+// UDDiagnosticSourceSchematron is defined in UDSchematronValidator.m.
+extern NSString * const UDDiagnosticSourceSchematron;
 
 /// Debounce interval in seconds before a pending validation fires.
 static const NSTimeInterval kDebounceInterval = 0.15;
@@ -26,6 +29,9 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     dispatch_queue_t   _validationQueue;
     UDXMLMirrorDoc    *_mirrorDoc;
     UDRNGValidator    *_validator;
+
+    /// Zero or more Schematron validators, validated in order after RNG.
+    NSArray<UDSchematronValidator *> *_schematronValidators;
 
     /// Gap buffer containing the current document text as UTF-16 code units.
     /// Seeded lazily on the first treeDidUpdateWithNewTree: call (from
@@ -50,8 +56,9 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 // MARK: - Init
 // ---------------------------------------------------------------------------
 
-- (instancetype)initWithSchemaURL:(NSURL *)schemaURL
-                            store:(UDDiagnosticStore *)store {
+- (instancetype)initWithRNGSchemaURL:(nullable NSURL *)rngSchemaURL
+                       schematronURLs:(NSArray<NSURL *> *)schematronURLs
+                                store:(UDDiagnosticStore *)store {
     self = [super init];
     if (!self) return nil;
 
@@ -66,16 +73,43 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     _mirrorDoc = [[UDXMLMirrorDoc alloc] init];
     _validator = [[UDRNGValidator alloc] init];
 
-    // Load the schema on the validation queue so the main thread is never blocked.
+    // Build Schematron validator instances.
+    NSMutableArray<UDSchematronValidator *> *svs =
+        [NSMutableArray arrayWithCapacity:schematronURLs.count];
+    for (NSURL *url in schematronURLs) {
+        [svs addObject:[[UDSchematronValidator alloc] init]];
+        (void)url; // URLs loaded async below.
+    }
+    _schematronValidators = [svs copy];
+
+    // Load all schemas on the validation queue so the main thread is never blocked.
+    NSArray<NSURL *> *capturedSchematronURLs = [schematronURLs copy];
     dispatch_async(_validationQueue, ^{
-        NSError *err = nil;
-        if (![self->_validator setSchemaURL:schemaURL error:&err]) {
-            NSLog(@"[UDXMLRNGHighlighter] Schema load failed: %@",
-                  err.localizedDescription);
+        if (rngSchemaURL) {
+            NSError *err = nil;
+            if (![self->_validator setSchemaURL:rngSchemaURL error:&err]) {
+                NSLog(@"[UDXMLRNGHighlighter] RNG schema load failed: %@",
+                      err.localizedDescription);
+            }
         }
+        [capturedSchematronURLs enumerateObjectsUsingBlock:
+            ^(NSURL *url, NSUInteger idx, BOOL *stop) {
+                NSError *err = nil;
+                if (![self->_schematronValidators[idx] setSchemaURL:url error:&err]) {
+                    NSLog(@"[UDXMLRNGHighlighter] Schematron schema load failed: %@",
+                          err.localizedDescription);
+                }
+            }];
     });
 
     return self;
+}
+
+- (instancetype)initWithSchemaURL:(NSURL *)schemaURL
+                            store:(UDDiagnosticStore *)store {
+    return [self initWithRNGSchemaURL:schemaURL
+                        schematronURLs:@[]
+                                 store:store];
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +223,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     if (store) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [store clearSource:UDDiagnosticSourceRNG];
+            [store clearSource:UDDiagnosticSourceSchematron];
         });
     }
 }
@@ -315,6 +350,35 @@ static NSUInteger upperBound(NSMutableArray<UDDiagnosticItem *> *arr,
         NSArray<UDDiagnosticItem *> *snapshot = merged;
         dispatch_async(dispatch_get_main_queue(), ^{
             [store setDiagnostics:snapshot forSource:UDDiagnosticSourceRNG];
+        });
+    }
+
+    // Run Schematron validators (always full-document) after RNG.
+    // Schematron validation doesn't need to be incremental: run it every cycle
+    // that produces a structural change (dirtyRoot != NULL).
+    if (_schematronValidators.count == 0) return;
+
+    NSMutableArray<UDDiagnosticItem *> *schematronItems = [NSMutableArray array];
+    for (UDSchematronValidator *sv in _schematronValidators) {
+        [sv validateDoc:xmlDoc
+              lineIndex:lineIndex
+              lineCount:lineCount
+             completion:^(NSArray<UDDiagnosticItem *> *items) {
+            [schematronItems addObjectsFromArray:items];
+        }];
+    }
+    // Sort by (line, column) so the store's merge stays ordered.
+    [schematronItems sortUsingComparator:^NSComparisonResult(UDDiagnosticItem *a,
+                                                              UDDiagnosticItem *b) {
+        if (a.line != b.line) return a.line < b.line ? NSOrderedAscending : NSOrderedDescending;
+        if (a.column != b.column) return a.column < b.column ? NSOrderedAscending : NSOrderedDescending;
+        return NSOrderedSame;
+    }];
+
+    if (store) {
+        NSArray<UDDiagnosticItem *> *schSnapshot = [schematronItems copy];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [store setDiagnostics:schSnapshot forSource:UDDiagnosticSourceSchematron];
         });
     }
 }

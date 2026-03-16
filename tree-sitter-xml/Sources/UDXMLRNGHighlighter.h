@@ -36,11 +36,28 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Implements UDDocumentService for RELAX NG schema validation of XML documents.
+/// Implements UDDocumentService for RELAX NG and optional Schematron schema
+/// validation of XML documents.
+///
+/// Multiple Schematron schemas may be supplied; they are all validated
+/// against the full document after RELAX NG validation completes.
 @interface UDXMLRNGHighlighter : NSObject <UDDocumentService>
 
+/// Designated initialiser.
+///
+/// @param rngSchemaURL      URL of the RELAX NG schema (@c .rng).
+///                          May be @c nil to skip RELAX NG validation.
+/// @param schematronURLs    URLs of Schematron schemas (@c .sch / @c .schematron).
+///                          May be empty.  All are validated in order after RNG.
+/// @param store             Diagnostic store to publish results to.
+- (instancetype)initWithRNGSchemaURL:(nullable NSURL *)rngSchemaURL
+                       schematronURLs:(NSArray<NSURL *> *)schematronURLs
+                                store:(UDDiagnosticStore *)store NS_DESIGNATED_INITIALIZER;
+
+/// Convenience initialiser — RELAX NG only (no Schematron schemas).
 - (instancetype)initWithSchemaURL:(NSURL *)schemaURL
-                            store:(UDDiagnosticStore *)store NS_DESIGNATED_INITIALIZER;
+                            store:(UDDiagnosticStore *)store;
+
 - (instancetype)init NS_UNAVAILABLE;
 
 @end

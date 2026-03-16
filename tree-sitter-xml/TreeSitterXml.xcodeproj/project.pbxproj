@@ -24,6 +24,9 @@
 		CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA02 /* UDXMLMirrorDoc.m */; };
 		CE000001000000000000BB08 /* UDRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA04 /* UDRNGValidator.m */; };
 		CE000001000000000000BB09 /* UDDiagnosticItem.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0A /* UDDiagnosticItem.m */; };
+		CE000001000000000000BB0A /* UDSchematronValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0C /* UDSchematronValidator.m */; };
+		CE000001000000000000BB0B /* UDSchematronValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0C /* UDSchematronValidator.m */; };
+		CE000001000000000000BB0C /* UDXMLSchematronTests.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0D /* UDXMLSchematronTests.m */; };
 		CE0C2E582F5F1ED500566368 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
 		CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
 		CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
@@ -75,6 +78,9 @@
 		CE000001000000000000AA08 /* UDXMLGapBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLGapBuffer.m; sourceTree = "<group>"; };
 		CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLRNGHighlighterTests.m; sourceTree = "<group>"; };
 		CE000001000000000000AA0A /* UDDiagnosticItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = UDDiagnosticItem.m; path = "../Sources/Extensions/UDDiagnosticItem.m"; sourceTree = SOURCE_ROOT; };
+		CE000001000000000000AA0B /* UDSchematronValidator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDSchematronValidator.h; sourceTree = "<group>"; };
+		CE000001000000000000AA0C /* UDSchematronValidator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDSchematronValidator.m; sourceTree = "<group>"; };
+		CE000001000000000000AA0D /* UDXMLSchematronTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLSchematronTests.m; sourceTree = "<group>"; };
 		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
 		CE0C2E592F5F1EDF00566368 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
 		CE0C2E5A2F5F1EDF00566368 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
@@ -158,6 +164,8 @@
 				CE000001000000000000AA07 /* UDXMLGapBuffer.h */,
 				CE000001000000000000AA08 /* UDXMLGapBuffer.m */,
 				CE000001000000000000AA0A /* UDDiagnosticItem.m */,
+				CE000001000000000000AA0B /* UDSchematronValidator.h */,
+				CE000001000000000000AA0C /* UDSchematronValidator.m */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -168,6 +176,7 @@
 				ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */,
 				ABCD00120000000000000012 /* UDXMLGapBufferTests.m */,
 				CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */,
+				CE000001000000000000AA0D /* UDXMLSchematronTests.m */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -308,6 +317,7 @@
 				CE000001000000000000BB02 /* UDRNGValidator.m in Sources */,
 				CE000001000000000000BB03 /* UDXMLRNGHighlighter.m in Sources */,
 				CE000001000000000000BB04 /* UDXMLGapBuffer.m in Sources */,
+				CE000001000000000000BB0A /* UDSchematronValidator.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -326,6 +336,8 @@
 				CE000001000000000000BB08 /* UDRNGValidator.m in Sources */,
 				CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */,
 				CE000001000000000000BB09 /* UDDiagnosticItem.m in Sources */,
+				CE000001000000000000BB0B /* UDSchematronValidator.m in Sources */,
+				CE000001000000000000BB0C /* UDXMLSchematronTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

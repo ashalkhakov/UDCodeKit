@@ -54,8 +54,9 @@
     NSUInteger e = charFromByte(endByte);
     NSUInteger len = _textSnapshot.length;
     if (s >= len || e <= s) return @"";
-    NSAssert(e <= len, @"_textSliceFrom:to: endByte %u maps beyond snapshot length %lu",
-             endByte, (unsigned long)len);
+    NSAssert(e <= len, @"_textSliceFrom:to: endByte %u (char %lu) exceeds snapshot length %lu; "
+                        "check for stale tree-sitter byte offsets or a snapshot/tree mismatch",
+             endByte, (unsigned long)e, (unsigned long)len);
     if (e > len) e = len;
     return [_textSnapshot substringWithRange:NSMakeRange(s, e - s)];
 }

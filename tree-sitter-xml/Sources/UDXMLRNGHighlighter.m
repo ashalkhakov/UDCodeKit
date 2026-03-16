@@ -76,7 +76,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
                    changedRanges:(nullable NSArray<NSValue *> *)changedRanges
                        textModel:(UDTextModel *)textModel {
     NSAssert([NSThread isMainThread],
-             @"-treeDidUpdateWithNewTree:… must be called on the main thread");
+             @"-treeDidUpdateWithNewTree:changedRanges:textModel: must be called on the main thread");
     if (atomic_load(&_invalidated)) return;
 
     // Capture the full text snapshot on the main thread.

@@ -14,7 +14,7 @@
  *         (once per document open, not per keystroke).
  *      2. The gap buffer is captured by strong reference for the dispatch block —
  *         NO full-document snapshot is taken.  The gap buffer's
- *         -utf8DataFromByte:toByte: method extracts only the text slices actually
+ *         -utf8DataFromByte:toByte:intoBuffer: method extracts only the text slices actually
  *         needed by UDXMLMirrorDoc, proportional to each individual node's size.
  *
  *  On each debounced validation (serial background queue):
@@ -24,7 +24,7 @@
  *       The line index is used ONLY by the RELAX NG validator to map libxml2
  *       error line numbers back to document character offsets.
  *    2. Calls -applyTree:changedRanges:gapBuffer: on UDXMLMirrorDoc, passing the
- *       gap buffer directly.  UDXMLMirrorDoc calls -utf8DataFromByte:toByte: on
+ *       gap buffer directly.  UDXMLMirrorDoc calls -utf8DataFromByte:toByte:intoBuffer: on
  *       the buffer for each node it needs to encode — never the whole document.
  *    3. Runs RELAX NG validation.
  *    4. Publishes results to the UDDiagnosticStore on the main queue.

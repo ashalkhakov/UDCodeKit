@@ -9,7 +9,7 @@
  *    UDXMLMirrorDoc does NOT own a persistent text buffer.  The caller passes
  *    a UDXMLGapBuffer reference directly to -applyTree:changedRanges:gapBuffer:.
  *    Text slices for individual XML nodes are extracted on the fly by calling
- *    -[UDXMLGapBuffer utf8DataFromByte:toByte:], which encodes only the
+ *    -[UDXMLGapBuffer utf8DataFromByte:toByte:intoBuffer:], which encodes only the
  *    requested byte range as UTF-8 — no full-document snapshot is ever created.
  *
  *    Element line numbers are derived directly from tree-sitter node start points
@@ -78,7 +78,7 @@ NS_ASSUME_NONNULL_BEGIN
 ///                      slices for XML element names, attribute names/values, and
 ///                      text content.  Tree-sitter byte offsets (UTF-16 char index
 ///                      × 2) are forwarded directly to
-///                      -[UDXMLGapBuffer utf8DataFromByte:toByte:] — no full-buffer
+///                      -[UDXMLGapBuffer utf8DataFromByte:toByte:intoBuffer:] — no full-buffer
 ///                      snapshot is ever materialised.
 ///                      The buffer is NOT retained past the return of this method;
 ///                      the caller must ensure it is not concurrently mutated.

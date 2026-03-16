@@ -114,8 +114,10 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     // Lazy-initialise the gap buffer on the first call.
     // This fallback only fires if the service was registered AFTER
     // -documentDidOpenWithContent: was dispatched (e.g. a grammar bundle loaded
-    // mid-session).  In the normal flow the host calls -documentDidOpenWithContent:
-    // first so getValue is never reached here.
+    // mid-session), or if the host does not implement documentDidOpenWithContent:.
+    // In the normal lifecycle the host seeds the buffer once via that method and
+    // this path is never reached.  getValue() materialises the full piece-tree
+    // once; all subsequent edits are O(edit-size) via textWillChangeInRange:.
     if (!_gapBuffer) {
         _gapBuffer = [[UDXMLGapBuffer alloc] initWithString:[textModel getValue]];
     }
@@ -191,7 +193,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
                gapBuffer:(UDXMLGapBuffer *)gapBuffer
             lineIndexData:(NSData *)lineIndexData {
     // Diffing rebuild: pass the gap buffer directly to applyTree: so it can
-    // extract UTF-8 slices on demand via utf8DataFromByte:toByte:.
+    // extract UTF-8 slices on demand via utf8DataFromByte:toByte:intoBuffer:.
     // No full-buffer snapshot is created — only the slices actually needed by
     // individual XML nodes are encoded.
     [_mirrorDoc applyTree:tree changedRanges:changedRanges gapBuffer:gapBuffer];

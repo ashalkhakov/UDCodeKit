@@ -135,25 +135,32 @@ static const NSUInteger kGrowMinGapSize = 256;
 // MARK: - UTF-8 slice
 // ---------------------------------------------------------------------------
 
-- (NSData *)utf8DataFromByte:(uint32_t)startByte toByte:(uint32_t)endByte {
+- (void)utf8DataFromByte:(uint32_t)startByte
+                  toByte:(uint32_t)endByte
+              intoBuffer:(NSMutableData *)buffer {
     static const char kNul = '\0';
 
+    // Always reset the buffer so callers get a valid NUL-terminated result.
+    [buffer setLength:0];
+
     // Convert tree-sitter byte offsets to char indices.
-    // The redundant `startByte >= endByte` guard is intentional: it makes the
-    // empty-range check explicit at the byte-offset level before the division.
     NSUInteger start = (NSUInteger)(startByte / 2);
     NSUInteger end   = (NSUInteger)(endByte   / 2);
     NSUInteger totalLen = self.length;
 
     if (start >= totalLen || end <= start) {
-        return [NSData dataWithBytes:&kNul length:1];
+        [buffer appendBytes:&kNul length:1];
+        return;
     }
     if (end > totalLen) end = totalLen;
     NSUInteger sliceLen = end - start;
 
     // Allocate a temporary buffer for just the slice's unichar values.
     unichar *tmp = (unichar *)malloc(sliceLen * sizeof(unichar));
-    if (!tmp) return [NSData dataWithBytes:&kNul length:1];
+    if (!tmp) {
+        [buffer appendBytes:&kNul length:1];
+        return;
+    }
 
     // Fill from the two segments of the gap buffer, skipping the gap itself.
     //
@@ -182,7 +189,7 @@ static const NSUInteger kGrowMinGapSize = 256;
     }
 
     NSAssert(written == sliceLen,
-             @"[UDXMLGapBuffer] utf8DataFromByte:toByte: slice length mismatch: "
+             @"[UDXMLGapBuffer] utf8DataFromByte:toByte:intoBuffer: slice length mismatch: "
               "expected %lu, wrote %lu", (unsigned long)sliceLen, (unsigned long)written);
 
     // Wrap the unichar array in an NSString without copying (transfers ownership).
@@ -192,17 +199,39 @@ static const NSUInteger kGrowMinGapSize = 256;
                                                        freeWhenDone:YES];
     if (!sliceStr) {
         free(tmp);
-        return [NSData dataWithBytes:&kNul length:1];
+        [buffer appendBytes:&kNul length:1];
+        return;
     }
 
-    // Encode as UTF-8 and append a NUL terminator for libxml2 / C-string use.
-    NSData *utf8 = [sliceStr dataUsingEncoding:NSUTF8StringEncoding];
-    if (!utf8) return [NSData dataWithBytes:&kNul length:1];
+    // Encode UTF-8 directly into the caller-provided buffer using
+    // getBytes:maxLength:usedLength:encoding:options:range:remainingRange:
+    // This writes into pre-allocated mutableBytes without allocating any
+    // intermediate NSData — zero extra heap objects are created.
+    //
+    // Worst case: each UTF-16 code unit encodes to at most 3 UTF-8 bytes
+    // (code points in U+0800-U+FFFF, including all BMP non-surrogates).
+    // Surrogate pairs are 2 UTF-16 units → 4 UTF-8 bytes (≤ 2 bytes per unit).
+    // +1 for the NUL terminator appended below.
+    NSUInteger maxUTF8Len = sliceLen * 3 + 1;
+    [buffer setLength:maxUTF8Len]; // pre-allocate (may keep existing capacity)
 
-    NSMutableData *result = [NSMutableData dataWithCapacity:utf8.length + 1];
-    [result appendData:utf8];
-    [result appendBytes:&kNul length:1];
-    return result;
+    NSUInteger usedLen = 0;
+    BOOL ok = [sliceStr getBytes:buffer.mutableBytes
+                       maxLength:maxUTF8Len
+                      usedLength:&usedLen
+                        encoding:NSUTF8StringEncoding
+                         options:0
+                           range:NSMakeRange(0, sliceLen)
+                  remainingRange:NULL];
+    if (!ok) {
+        [buffer setLength:0];
+        [buffer appendBytes:&kNul length:1];
+        return;
+    }
+
+    // Write NUL terminator and trim the buffer to the actual encoded length.
+    ((char *)buffer.mutableBytes)[usedLen] = '\0';
+    [buffer setLength:usedLen + 1];
 }
 
 // ---------------------------------------------------------------------------

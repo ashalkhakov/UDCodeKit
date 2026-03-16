@@ -21,6 +21,11 @@
     /// __unsafe_unretained makes the transient lifetime explicit and avoids an
     /// extra retain/release pair.  Never stored past the return of that method.
     UDXMLGapBuffer * __unsafe_unretained _gapBuffer;
+
+    /// Reusable scratch buffer for UTF-8 slice encoding.
+    /// Allocated once; reused for every _utf8SliceFrom:to: call during a single
+    /// applyTree: invocation, eliminating per-node NSData allocations.
+    NSMutableData *_sliceBuffer;
 }
 
 - (void)dealloc {
@@ -37,11 +42,12 @@
 // MARK: - Text helpers (use _gapBuffer, valid only during applyTree:…)
 // ---------------------------------------------------------------------------
 
-/// Returns null-terminated UTF-8 NSData for the text span [startByte, endByte).
-/// Tree-sitter byte offsets are UTF-16 code-unit indices × 2.
-/// The gap buffer does the actual encoding — no full-buffer snapshot is needed.
-- (NSData *)_utf8SliceFrom:(uint32_t)startByte to:(uint32_t)endByte {
-    return [_gapBuffer utf8DataFromByte:startByte toByte:endByte];
+/// Fills _sliceBuffer with null-terminated UTF-8 for [startByte, endByte) and
+/// returns it.  The same NSMutableData object is returned on every call —
+/// callers must consume .bytes before calling again.  No new NSData is allocated.
+- (NSMutableData *)_utf8SliceFrom:(uint32_t)startByte to:(uint32_t)endByte {
+    [_gapBuffer utf8DataFromByte:startByte toByte:endByte intoBuffer:_sliceBuffer];
+    return _sliceBuffer;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +61,9 @@
 
     // Stash the gap buffer reference for use by slice helpers during this call.
     _gapBuffer = gapBuffer;
+    // Lazily create the slice scratch buffer; it is reused for every node visit,
+    // eliminating per-node NSData allocations.
+    if (!_sliceBuffer) _sliceBuffer = [NSMutableData dataWithCapacity:256];
     _dirtyRoot = NULL;
 
     TSNode newRoot = ts_tree_root_node((const TSTree *)newTree);

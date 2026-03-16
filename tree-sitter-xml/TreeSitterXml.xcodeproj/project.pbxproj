@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		ABCD00050000000000000005 /* UDXMLTagMirrorTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */; };
+		ABCD00130000000000000013 /* UDXMLGapBufferTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00120000000000000012 /* UDXMLGapBufferTests.m */; };
 		ABCD00060000000000000006 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		ABCD00070000000000000007 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
 		ABCD00080000000000000008 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
@@ -27,6 +28,8 @@
 		CE000001000000000000BB01 /* UDXMLMirrorDoc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA02 /* UDXMLMirrorDoc.m */; };
 		CE000001000000000000BB02 /* UDRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA04 /* UDRNGValidator.m */; };
 		CE000001000000000000BB03 /* UDXMLRNGHighlighter.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA06 /* UDXMLRNGHighlighter.m */; };
+		CE000001000000000000BB04 /* UDXMLGapBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA08 /* UDXMLGapBuffer.m */; };
+		CE000001000000000000BB05 /* UDXMLGapBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA08 /* UDXMLGapBuffer.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,6 +58,7 @@
 
 /* Begin PBXFileReference section */
 		ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirrorTests.m; sourceTree = "<group>"; };
+		ABCD00120000000000000012 /* UDXMLGapBufferTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLGapBufferTests.m; sourceTree = "<group>"; };
 		ABCD00030000000000000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXmlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
@@ -74,6 +78,8 @@
 		CE000001000000000000AA04 /* UDRNGValidator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDRNGValidator.m; sourceTree = "<group>"; };
 		CE000001000000000000AA05 /* UDXMLRNGHighlighter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLRNGHighlighter.h; sourceTree = "<group>"; };
 		CE000001000000000000AA06 /* UDXMLRNGHighlighter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLRNGHighlighter.m; sourceTree = "<group>"; };
+		CE000001000000000000AA07 /* UDXMLGapBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLGapBuffer.h; sourceTree = "<group>"; };
+		CE000001000000000000AA08 /* UDXMLGapBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLGapBuffer.m; sourceTree = "<group>"; };
 		E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXml.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -143,6 +149,8 @@
 				CE000001000000000000AA04 /* UDRNGValidator.m */,
 				CE000001000000000000AA05 /* UDXMLRNGHighlighter.h */,
 				CE000001000000000000AA06 /* UDXMLRNGHighlighter.m */,
+				CE000001000000000000AA07 /* UDXMLGapBuffer.h */,
+				CE000001000000000000AA08 /* UDXMLGapBuffer.m */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -151,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */,
+				ABCD00120000000000000012 /* UDXMLGapBufferTests.m */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -290,6 +299,7 @@
 				CE000001000000000000BB01 /* UDXMLMirrorDoc.m in Sources */,
 				CE000001000000000000BB02 /* UDRNGValidator.m in Sources */,
 				CE000001000000000000BB03 /* UDXMLRNGHighlighter.m in Sources */,
+				CE000001000000000000BB04 /* UDXMLGapBuffer.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -302,6 +312,8 @@
 				ABCD00070000000000000007 /* lib.c in Sources */,
 				ABCD00080000000000000008 /* parser.c in Sources */,
 				ABCD00090000000000000009 /* scanner.c in Sources */,
+				CE000001000000000000BB05 /* UDXMLGapBuffer.m in Sources */,
+				ABCD00130000000000000013 /* UDXMLGapBufferTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

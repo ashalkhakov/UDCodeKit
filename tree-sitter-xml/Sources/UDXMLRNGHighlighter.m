@@ -4,6 +4,7 @@
 
 #import "UDXMLRNGHighlighter.h"
 #import "UDXMLMirrorDoc.h"
+#import "UDXMLGapBuffer.h"
 #import "UDRNGValidator.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <tree_sitter/api.h>
@@ -27,6 +28,12 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     dispatch_queue_t   _validationQueue;
     UDXMLMirrorDoc    *_mirrorDoc;
     UDRNGValidator    *_validator;
+
+    /// Gap buffer containing the current document text as UTF-16 code units.
+    /// Seeded lazily on the first treeDidUpdateWithNewTree: call (from
+    /// [textModel getValue]) and updated incrementally on each
+    /// textWillChangeInRange:replacementString: callback thereafter.
+    UDXMLGapBuffer    *_gapBuffer;
 
     /// Monotonically increasing sequence number.  Each treeDidUpdate call
     /// increments this atomically before dispatching the debounced block.
@@ -69,6 +76,31 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - UDDocumentService — text lifecycle
+// ---------------------------------------------------------------------------
+
+/// Called once when the document tab opens, before the first tree parse.
+/// Seeds the gap buffer with the initial document content.
+- (void)documentDidOpenWithContent:(NSString *)content {
+    NSAssert([NSThread isMainThread],
+             @"-documentDidOpenWithContent: must be called on the main thread");
+    _gapBuffer = [[UDXMLGapBuffer alloc] initWithString:content];
+}
+
+/// Called just before each text edit, before the tree-sitter re-parse.
+/// Applies the edit to the gap buffer in O(edit size + gap-move).
+- (void)textWillChangeInRange:(NSRange)range
+            replacementString:(NSString *)replacement {
+    NSAssert([NSThread isMainThread],
+             @"-textWillChangeInRange:replacementString: must be called on the main thread");
+    // _gapBuffer is nil until the first treeDidUpdateWithNewTree: call (which lazily
+    // initialises it from [textModel getValue]).  In that window no edits can have
+    // fired yet, so skipping the update here is safe.
+    if (!_gapBuffer) return;
+    [_gapBuffer replaceCharactersInRange:range withString:replacement];
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - UDDocumentService — tree lifecycle
 // ---------------------------------------------------------------------------
 
@@ -79,14 +111,23 @@ static const NSTimeInterval kDebounceInterval = 0.15;
              @"-treeDidUpdateWithNewTree:changedRanges:textModel: must be called on the main thread");
     if (atomic_load(&_invalidated)) return;
 
-    // Capture the full text snapshot on the main thread.
-    // UDTextModel.getValue is safe on the main thread; the background validation
-    // queue must not call it — it receives the snapshot via the applyTree: call.
-    NSString *textSnapshot = [textModel getValue];
+    // Lazy-initialise the gap buffer on the first call (when documentDidOpenWithContent:
+    // was not invoked by the host, as is the case for extension-bundle services).
+    // getValue is called ONCE per document open — never again on subsequent edits.
+    if (!_gapBuffer) {
+        _gapBuffer = [[UDXMLGapBuffer alloc] initWithString:[textModel getValue]];
+    }
+
+    // Snapshot the gap buffer: produces a compact NSString in O(n) but only at
+    // validation time, not on every keystroke.  Edits to the gap buffer are
+    // incremental O(edit size) via textWillChangeInRange:.
+    NSString *textSnapshot = [_gapBuffer snapshotString];
 
     // Build the line-start index from the TextModel's piece-tree index.
     // lineIndex[i] = 0-based UTF-16 char offset of the start of 0-indexed line i.
     // This is O(lineCount) piece-tree lookups — no character-by-character scan.
+    // The index is used ONLY by the RELAX NG validator to map libxml2 error line
+    // numbers back to document character offsets; it is NOT used by UDXMLMirrorDoc.
     NSInteger lineCountSigned = [textModel getLineCount];
     NSUInteger lineCount = (lineCountSigned > 0) ? (NSUInteger)lineCountSigned : 1;
     NSMutableData *lineIndexData =
@@ -116,13 +157,10 @@ static const NSTimeInterval kDebounceInterval = 0.15;
                 return;
             }
 
-            // Forward the text snapshot to the mirror doc and do the diffing
-            // rebuild.  Line numbers are derived from ts_node_start_point() inside
-            // the mirror doc — no line-start index is needed by applyTree:.
             [self _validateWithTree:treeCopy
                       changedRanges:capturedRanges
-                        textSnapshot:textSnapshot
-                       lineIndexData:lineIndexData];
+                       textSnapshot:textSnapshot
+                      lineIndexData:lineIndexData];
             ts_tree_delete(treeCopy);
         });
 }
@@ -130,6 +168,8 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 - (void)closeDocument {
     atomic_store(&_invalidated, YES);
     atomic_fetch_add(&_sequence, (NSUInteger)1); // Cancel any pending debounce block.
+
+    _gapBuffer = nil; // Release the text buffer; the document is closed.
 
     UDDiagnosticStore *store = _store;
     if (store) {
@@ -176,3 +216,4 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 }
 
 @end
+

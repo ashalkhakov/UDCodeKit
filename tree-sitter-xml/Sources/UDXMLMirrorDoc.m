@@ -16,9 +16,10 @@
     xmlNodePtr _dirtyRoot;
 
     /// Text source valid only during -applyTree:changedRanges:textSource:.
-    /// Set to the caller's snapshot at the start of that method and cleared
-    /// to nil before the method returns.  All helpers that need text call
-    /// _textSliceFrom:to: which reads this field.
+    /// The caller (UDXMLRNGHighlighter) guarantees that the NSString it passes
+    /// outlives the duration of that method call, so __unsafe_unretained avoids
+    /// an extra retain/release pair and makes the transient lifetime explicit.
+    /// Never stored past the return of -applyTree:changedRanges:textSource:.
     NSString * __unsafe_unretained _currentSource;
 }
 

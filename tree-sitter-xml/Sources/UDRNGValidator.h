@@ -54,6 +54,33 @@ NS_ASSUME_NONNULL_BEGIN
           lineCount:(NSUInteger)lineCount
          completion:(void (^)(NSArray<UDDiagnosticItem *> *diagnostics))completion;
 
+/// Validate only the subtree rooted at @p node against the loaded schema,
+/// using libxml2's progressive validation API.
+///
+/// Use this instead of -validateDoc:… when UDXMLMirrorDoc.dirtyRoot identifies
+/// a non-root element that was the only structural change.  This avoids
+/// re-validating the entire document on every keystroke.
+///
+/// @param node        The xmlNodePtr returned by UDXMLMirrorDoc.dirtyRoot.
+///                    Must be a non-root element node whose parent is already
+///                    part of @p doc.
+/// @param doc         The full xmlDoc (owned by UDXMLMirrorDoc).
+/// @param lineIndex   Same contract as -validateDoc:lineIndex:lineCount:completion:.
+/// @param lineCount   Number of elements in @p lineIndex.
+/// @param completion  Called synchronously before this method returns.
+///                    @c newDiagnostics contains the errors found inside the
+///                    dirty subtree.  @c firstLine and @c lastLine are the
+///                    1-based line numbers spanning the dirty subtree; the
+///                    caller uses them to remove the stale diagnostics in that
+///                    range from the previous full results before merging.
+- (void)validateSubtree:(xmlNodePtr)node
+                    doc:(xmlDocPtr)doc
+              lineIndex:(const NSUInteger *)lineIndex
+              lineCount:(NSUInteger)lineCount
+             completion:(void (^)(NSArray<UDDiagnosticItem *> *newDiagnostics,
+                                  NSInteger firstLine,
+                                  NSInteger lastLine))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

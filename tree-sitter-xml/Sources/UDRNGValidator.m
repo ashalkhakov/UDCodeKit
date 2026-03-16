@@ -145,6 +145,63 @@ static void rngValidError(void *userData, xmlErrorPtr error) {
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Subtree line-range helper
+// ---------------------------------------------------------------------------
+
+/// Walk all descendants of @p node and return the maximum 1-based line number.
+/// Used to compute the dirty subtree's end line for diagnostic merging.
+/// Iterative BFS to avoid stack overflow on deeply nested documents.
+static NSInteger maxLineInSubtree(xmlNodePtr node) {
+    if (!node) return 0;
+    NSInteger max = (NSInteger)node->line;
+    // Use a simple linked-list stack via the existing xmlNode sibling/children
+    // pointers rather than allocating a separate container.  We walk the
+    // descendants iteratively using a manual explicit stack stored as a
+    // C array that is grown on demand.
+    const int kInitialCap = 64;
+    xmlNodePtr *stack = (xmlNodePtr *)malloc((size_t)kInitialCap * sizeof(xmlNodePtr));
+    if (!stack) {
+        // Malloc failed: fall back to the node's own line only.
+        return max;
+    }
+    int capacity = kInitialCap;
+    int top = 0;
+
+    // Push all direct children of node to seed the traversal.
+    for (xmlNodePtr c = node->children; c; c = c->next) {
+        if (top >= capacity) {
+            int newCap = capacity * 2;
+            xmlNodePtr *bigger = (xmlNodePtr *)realloc(stack,
+                                     (size_t)newCap * sizeof(xmlNodePtr));
+            if (!bigger) { free(stack); return max; }
+            stack = bigger;
+            capacity = newCap;
+        }
+        stack[top++] = c;
+    }
+
+    while (top > 0) {
+        xmlNodePtr curr = stack[--top];
+        NSInteger line = (NSInteger)curr->line;
+        if (line > max) max = line;
+        for (xmlNodePtr c = curr->children; c; c = c->next) {
+            if (top >= capacity) {
+                int newCap = capacity * 2;
+                xmlNodePtr *bigger = (xmlNodePtr *)realloc(stack,
+                                         (size_t)newCap * sizeof(xmlNodePtr));
+                if (!bigger) { free(stack); return max; }
+                stack = bigger;
+                capacity = newCap;
+            }
+            stack[top++] = c;
+        }
+    }
+
+    free(stack);
+    return max;
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Validation
 // ---------------------------------------------------------------------------
 
@@ -174,6 +231,42 @@ static void rngValidError(void *userData, xmlErrorPtr error) {
     xmlRelaxNGFreeValidCtxt(validCtxt);
 
     completion([ctx.items copy]);
+}
+
+- (void)validateSubtree:(xmlNodePtr)node
+                    doc:(xmlDocPtr)doc
+              lineIndex:(const NSUInteger *)lineIndex
+              lineCount:(NSUInteger)lineCount
+             completion:(void (^)(NSArray<UDDiagnosticItem *> *newDiagnostics,
+                                  NSInteger firstLine,
+                                  NSInteger lastLine))completion {
+    // Compute the line span of the dirty subtree up front so that the caller
+    // can remove stale diagnostics in that range even if validation produces
+    // no new errors.
+    NSInteger firstLine = node ? (NSInteger)node->line : 0;
+    NSInteger lastLine  = node ? maxLineInSubtree(node) : 0;
+
+    if (!_schema || !node || !doc) {
+        completion(@[], firstLine, lastLine);
+        return;
+    }
+
+    _UDRNGValidationCtx *ctx = [[_UDRNGValidationCtx alloc] init];
+    ctx.lineIndex = lineIndex;
+    ctx.lineCount = lineCount;
+
+    xmlRelaxNGValidCtxtPtr validCtxt = xmlRelaxNGNewValidCtxt(_schema);
+    if (!validCtxt) {
+        completion(@[], firstLine, lastLine);
+        return;
+    }
+
+    xmlRelaxNGSetValidStructuredErrors(validCtxt, rngValidError,
+                                       (__bridge void *)ctx);
+    xmlRelaxNGValidateFullElement(validCtxt, doc, node);
+    xmlRelaxNGFreeValidCtxt(validCtxt);
+
+    completion([ctx.items copy], firstLine, lastLine);
 }
 
 @end

@@ -39,6 +39,11 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     _Atomic NSUInteger _sequence;
 
     _Atomic BOOL _invalidated;
+
+    /// Cached copy of the last full diagnostic set posted to UDDiagnosticStore.
+    /// Maintained on _validationQueue; used to merge incremental subtree results
+    /// without re-validating the unchanged portions of the document.
+    NSMutableArray<UDDiagnosticItem *> *_currentDiagnostics;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +179,12 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
     _gapBuffer = nil; // Release the text buffer; the document is closed.
 
+    // Reset the diagnostics cache on the validation queue so that if this
+    // instance were ever reused, partial merges would start from a clean slate.
+    dispatch_async(_validationQueue, ^{
+        self->_currentDiagnostics = nil;
+    });
+
     UDDiagnosticStore *store = _store;
     if (store) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -190,31 +201,87 @@ static const NSTimeInterval kDebounceInterval = 0.15;
             changedRanges:(nullable NSArray<NSValue *> *)changedRanges
                gapBuffer:(UDXMLGapBuffer *)gapBuffer
             lineIndexData:(NSData *)lineIndexData {
-    // Diffing rebuild: pass the gap buffer directly to applyTree: so it can
-    // extract UTF-8 slices on demand via utf8DataFromByte:toByte:intoBuffer:.
-    // No full-buffer snapshot is created — only the slices actually needed by
-    // individual XML nodes are encoded.
+    // Sync the mirror doc.
     [_mirrorDoc applyTree:tree changedRanges:changedRanges gapBuffer:gapBuffer];
     xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
     if (!xmlDoc) return;
 
-    // The line index was built on the main thread from UDTextModel; re-use it
-    // directly for the validator — no second character scan is needed here.
+    xmlNodePtr dirtyRoot = _mirrorDoc.dirtyRoot;
+
+    // Nothing changed since the last validation — no need to re-run.
+    if (!dirtyRoot) return;
+
     NSUInteger lineCount = lineIndexData.length / sizeof(NSUInteger);
     const NSUInteger *lineIndex = (const NSUInteger *)lineIndexData.bytes;
 
-    __block NSArray<UDDiagnosticItem *> *results = nil;
-    [_validator validateDoc:xmlDoc
-                  lineIndex:lineIndex
-                  lineCount:lineCount
-                 completion:^(NSArray<UDDiagnosticItem *> *items) {
-        results = items;
-    }];
+    // Lazy-init the diagnostics cache.
+    if (!_currentDiagnostics) _currentDiagnostics = [NSMutableArray array];
+
+    NSArray<UDDiagnosticItem *> *merged = nil;
+    xmlNodePtr docRoot = xmlDocGetRootElement(xmlDoc);
+
+    if (dirtyRoot == docRoot) {
+        // Full rebuild (first parse or root element replaced): validate the whole
+        // document and replace the diagnostics cache entirely.
+        // NOTE: the completion block is always called synchronously (see UDRNGValidator
+        // header); `merged` is assigned before the __block capture is released.
+        __block NSArray<UDDiagnosticItem *> *results = nil;
+        [_validator validateDoc:xmlDoc
+                      lineIndex:lineIndex
+                      lineCount:lineCount
+                     completion:^(NSArray<UDDiagnosticItem *> *items) {
+            results = items;
+        }];
+        merged = results ?: @[];
+    } else {
+        // Incremental update: only the subtree rooted at dirtyRoot changed.
+        // 1. Run a partial validation of the dirty subtree.
+        // 2. Merge: drop stale diagnostics in [firstLine, lastLine] from the
+        //    cache, then add the new ones.
+        // NOTE: the completion block is always called synchronously (see UDRNGValidator
+        // header); all __block vars are populated before the merge logic below runs.
+        __block NSArray<UDDiagnosticItem *> *newItems = nil;
+        __block NSInteger firstLine = 0, lastLine = 0;
+        [_validator validateSubtree:dirtyRoot
+                                doc:xmlDoc
+                          lineIndex:lineIndex
+                          lineCount:lineCount
+                         completion:^(NSArray<UDDiagnosticItem *> *items,
+                                      NSInteger fl, NSInteger ll) {
+            newItems   = items;
+            firstLine  = fl;
+            lastLine   = ll;
+        }];
+
+        // Remove existing diagnostics that fall inside the dirty subtree's line
+        // range, then append the freshly validated ones.
+        NSMutableArray<UDDiagnosticItem *> *mergedMutable =
+            [NSMutableArray arrayWithCapacity:_currentDiagnostics.count + newItems.count];
+        for (UDDiagnosticItem *item in _currentDiagnostics) {
+            if (item.line < firstLine || item.line > lastLine)
+                [mergedMutable addObject:item];
+        }
+        [mergedMutable addObjectsFromArray:newItems];
+        // Re-sort by (line, column) so the UI always gets an ordered list.
+        [mergedMutable sortUsingComparator:^NSComparisonResult(UDDiagnosticItem *a,
+                                                               UDDiagnosticItem *b) {
+            if (a.line != b.line)
+                return a.line < b.line ? NSOrderedAscending : NSOrderedDescending;
+            if (a.column != b.column)
+                return a.column < b.column ? NSOrderedAscending : NSOrderedDescending;
+            return NSOrderedSame;
+        }];
+        merged = [mergedMutable copy];
+    }
+
+    // Update the cache so future partial merges see the current full result.
+    [_currentDiagnostics setArray:merged];
 
     UDDiagnosticStore *store = _store;
-    if (store && results) {
+    if (store) {
+        NSArray<UDDiagnosticItem *> *snapshot = merged;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [store setDiagnostics:results forSource:UDDiagnosticSourceRNG];
+            [store setDiagnostics:snapshot forSource:UDDiagnosticSourceRNG];
         });
     }
 }

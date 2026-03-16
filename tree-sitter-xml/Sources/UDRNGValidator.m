@@ -6,6 +6,8 @@
 #import <libxml/relaxng.h>
 #import <libxml/xmlerror.h>
 
+UDDiagnosticSource const UDDiagnosticSourceRNG    = @"rng";
+
 // ---------------------------------------------------------------------------
 // MARK: - Error accumulation context
 // ---------------------------------------------------------------------------

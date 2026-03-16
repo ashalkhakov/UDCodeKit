@@ -2,7 +2,6 @@
 
 UDDiagnosticSource const UDDiagnosticSourceParser = @"parser";
 UDDiagnosticSource const UDDiagnosticSourceLSP    = @"lsp";
-UDDiagnosticSource const UDDiagnosticSourceRNG    = @"rng";
 
 @implementation UDDiagnosticItem
 

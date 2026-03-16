@@ -10,9 +10,7 @@
 #import <tree_sitter/api.h>
 #import <stdatomic.h>
 
-// UDDiagnosticSourceRNG is defined in UDDiagnosticItem.m in the host app.
-// The bundle uses -undefined dynamic_lookup, so the symbol resolves at runtime.
-// We re-declare it here so the compiler accepts the reference.
+// UDDiagnosticSourceRNG is defined in UDRNGValidator.m in the host app.
 extern NSString * const UDDiagnosticSourceRNG;
 
 /// Debounce interval in seconds before a pending validation fires.
@@ -222,4 +220,3 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 }
 
 @end
-

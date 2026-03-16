@@ -258,20 +258,35 @@
     return YES;
 }
 
-/// Sync the content children of @p tsElem (skipping structural tag boundaries)
+/// Sync the content children of @p tsElem (via its "content" wrapper node)
 /// against the content children of @p xmlParent by position.
 /// Returns YES if anything was changed.
 - (BOOL)_syncChildrenFromTS:(TSNode)tsElem toXmlParent:(xmlNodePtr)xmlParent {
-    // Collect indices of "significant" TS children (those that map to XML nodes).
-    NSMutableArray<NSNumber *> *tsIndices = [NSMutableArray array];
-    uint32_t tsChildCount = ts_node_child_count(tsElem);
-    for (uint32_t i = 0; i < tsChildCount; i++) {
+    // The tree-sitter XML grammar wraps element content in a "content" node
+    // (direct children of an element are STag/ETag plus a "content" wrapper).
+    // Self-closing elements (EmptyElemTag) have no "content" node.
+    TSNode contentNode = {0};
+    uint32_t elemChildCount = ts_node_child_count(tsElem);
+    for (uint32_t i = 0; i < elemChildCount; i++) {
         TSNode child = ts_node_child(tsElem, i);
-        const char *ct = ts_node_type(child);
-        if (isTagBoundary(ct)) continue; // skip start/end/self-closing wrappers
-        if (strcmp(ct, "element") == 0 ||
-            isTextNode(ct) || isComment(ct) || isCDATA(ct) || isProcessingInstruction(ct))
-            [tsIndices addObject:@(i)];
+        if (strcmp(ts_node_type(child), "content") == 0) {
+            contentNode = child;
+            break;
+        }
+    }
+
+    // Collect indices of "significant" TS children from the content node
+    // (those that map to XML nodes: elements, text, comment, CDATA, PI).
+    NSMutableArray<NSNumber *> *tsIndices = [NSMutableArray array];
+    if (!ts_node_is_null(contentNode)) {
+        uint32_t tsChildCount = ts_node_child_count(contentNode);
+        for (uint32_t i = 0; i < tsChildCount; i++) {
+            TSNode child = ts_node_child(contentNode, i);
+            const char *ct = ts_node_type(child);
+            if (strcmp(ct, "element") == 0 ||
+                isTextNode(ct) || isComment(ct) || isCDATA(ct) || isProcessingInstruction(ct))
+                [tsIndices addObject:@(i)];
+        }
     }
 
     // Capture XML child pointers BEFORE any mutations.
@@ -300,13 +315,13 @@
         } else if (i >= xmlCount) {
             // New TS node: insert.
             uint32_t idx = (uint32_t)[[tsIndices objectAtIndex:i] unsignedIntegerValue];
-            TSNode tsChild = ts_node_child(tsElem, idx);
+            TSNode tsChild = ts_node_child(contentNode, idx);
             xmlNodePtr newXML = [self _buildTSChildNode:tsChild];
             if (newXML) { xmlAddChild(xmlParent, newXML); dirty = YES; }
         } else {
             // Both present: sync by type and content.
             uint32_t idx = (uint32_t)[[tsIndices objectAtIndex:i] unsignedIntegerValue];
-            TSNode tsChild = ts_node_child(tsElem, idx);
+            TSNode tsChild = ts_node_child(contentNode, idx);
             xmlNodePtr xmlN = (xmlNodePtr)[[xmlPtrs objectAtIndex:i] pointerValue];
             dirty |= [self _syncTSChild:tsChild withXmlNode:xmlN parent:xmlParent];
         }
@@ -532,11 +547,25 @@
 
 /// Recursively build children of an `element` node and append them to xmlParent.
 - (void)_buildChildren:(TSNode)elemNode intoParent:(xmlNodePtr)parent {
-    uint32_t count = ts_node_child_count(elemNode);
-    for (uint32_t i = 0; i < count; i++) {
+    // The tree-sitter XML grammar wraps element content in a "content" node
+    // (direct children of an element are STag/ETag plus a single "content"
+    // node that holds the actual child content).  Self-closing elements use
+    // EmptyElemTag and have no "content" node, so we return early.
+    TSNode contentNode = {0};
+    uint32_t elemChildCount = ts_node_child_count(elemNode);
+    for (uint32_t i = 0; i < elemChildCount; i++) {
         TSNode child = ts_node_child(elemNode, i);
+        if (strcmp(ts_node_type(child), "content") == 0) {
+            contentNode = child;
+            break;
+        }
+    }
+    if (ts_node_is_null(contentNode)) return; // self-closing (EmptyElemTag) — no content
+
+    uint32_t count = ts_node_child_count(contentNode);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode child = ts_node_child(contentNode, i);
         const char *ct = ts_node_type(child);
-        if (isStartTag(ct) || isEndTag(ct)) continue; // structural — not content
         if (strcmp(ct, "element") == 0) {
             xmlNodePtr childElem = [self _buildElement:child];
             if (childElem) xmlAddChild(parent, childElem);

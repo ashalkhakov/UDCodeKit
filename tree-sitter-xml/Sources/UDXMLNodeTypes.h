@@ -42,9 +42,9 @@ static inline BOOL isEndTag(const char *t) {
     return strcmp(t, "end_tag") == 0 || strcmp(t, "ETag") == 0;
 }
 
-/// Returns YES if @p t is a self-closing tag node (@c self_closing_tag).
+/// Returns YES if @p t is a self-closing tag node (@c self_closing_tag / @c EmptyElemTag).
 static inline BOOL isSelfClosingTag(const char *t) {
-    return strcmp(t, "self_closing_tag") == 0;
+    return strcmp(t, "self_closing_tag") == 0 || strcmp(t, "EmptyElemTag") == 0;
 }
 
 /// Returns YES if @p t is a tag-boundary node (start, end, or self-closing).

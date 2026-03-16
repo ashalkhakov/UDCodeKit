@@ -1,12 +1,18 @@
 /*---------------------------------------------------------------------------------------------
  *  UDSchematronValidator.h
  *
- *  Wraps libxml2's Schematron validation API.  Loads a compiled schema from a
- *  file URL and validates an xmlDoc, returning UDDiagnosticItem instances for
- *  each assertion failure.
+ *  XPath-based Schematron validator.  Parses a .sch file, compiles each rule's
+ *  context expression with xmlPatterncompile() and each assertion's test with
+ *  xmlXPathCtxtCompile(), then during validation walks the document in
+ *  document order and evaluates each test in its matched context.
  *
- *  Schematron validation is always full-document (there is no subtree API in
- *  libxml2's implementation).  Run it after RELAX NG validation completes.
+ *  This implementation intentionally bypasses libxml2's xmlSchematronValidateDoc()
+ *  because Ubuntu 24.04 LTS's patched libxml2 2.9.14 has a regression where
+ *  xmlSchematronParse() produces a schema with rules=NULL, causing
+ *  xmlSchematronValidateDoc() to silently return -1 for every document.
+ *
+ *  Schematron validation is always full-document.  Run it after RELAX NG
+ *  validation completes.
  *
  *  Thread safety:
  *    All methods must be called on the same serial background queue (owned by

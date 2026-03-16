@@ -87,9 +87,9 @@ static const NSUInteger kGrowMinGapSize = 256;
     unichar *newBuf = (unichar *)malloc(newCap * sizeof(unichar));
     if (!newBuf) {
         NSLog(@"[UDXMLGapBuffer] -_ensureGapCapacity: malloc failed (requested %lu unichars); "
-              @"buffer is no longer consistent — validation results may be incorrect",
+              @"buffer could not grow to accommodate insertion — edit may be lost",
               (unsigned long)newCap);
-        return; // out of memory — buffer is left intact but may be too small to insert
+        return; // out of memory — buffer is left intact but cannot accept the pending edit
     }
 
     // Copy pre-gap text.

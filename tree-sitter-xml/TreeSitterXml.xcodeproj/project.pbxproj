@@ -23,6 +23,7 @@
 		CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */; };
 		CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA02 /* UDXMLMirrorDoc.m */; };
 		CE000001000000000000BB08 /* UDRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA04 /* UDRNGValidator.m */; };
+		CE000001000000000000BB09 /* UDDiagnosticItem.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0A /* UDDiagnosticItem.m */; };
 		CE0C2E582F5F1ED500566368 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
 		CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
 		CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
@@ -73,6 +74,7 @@
 		CE000001000000000000AA07 /* UDXMLGapBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLGapBuffer.h; sourceTree = "<group>"; };
 		CE000001000000000000AA08 /* UDXMLGapBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLGapBuffer.m; sourceTree = "<group>"; };
 		CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLRNGHighlighterTests.m; sourceTree = "<group>"; };
+		CE000001000000000000AA0A /* UDDiagnosticItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = UDDiagnosticItem.m; path = "../Sources/Extensions/UDDiagnosticItem.m"; sourceTree = SOURCE_ROOT; };
 		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
 		CE0C2E592F5F1EDF00566368 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
 		CE0C2E5A2F5F1EDF00566368 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 				CE000001000000000000AA06 /* UDXMLRNGHighlighter.m */,
 				CE000001000000000000AA07 /* UDXMLGapBuffer.h */,
 				CE000001000000000000AA08 /* UDXMLGapBuffer.m */,
+				CE000001000000000000AA0A /* UDDiagnosticItem.m */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -322,6 +325,7 @@
 				CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */,
 				CE000001000000000000BB08 /* UDRNGValidator.m in Sources */,
 				CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */,
+				CE000001000000000000BB09 /* UDDiagnosticItem.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -455,8 +459,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				OTHER_LDFLAGS = (
-					"-undefined",
-					dynamic_lookup,
 					"-lxml2",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml.tests;
@@ -489,8 +491,6 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				OTHER_LDFLAGS = (
-					"-undefined",
-					dynamic_lookup,
 					"-lxml2",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml.tests;

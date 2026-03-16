@@ -50,10 +50,10 @@ static void rngValidError(void *userData, xmlErrorPtr error) {
     NSInteger col1  = (NSInteger)error->int2;   // 1-based column (may be 0)
 
     NSInteger charOffset = 0;
-    if (line1 >= 1 && ctx->_lineIndex && ctx->_lineCount > 0) {
+    if (line1 >= 1 && ctx.lineIndex && ctx.lineCount > 0) {
         NSUInteger lineIdx = (NSUInteger)(line1 - 1); // 0-based
-        if (lineIdx < ctx->_lineCount) {
-            charOffset = (NSInteger)ctx->_lineIndex[lineIdx];
+        if (lineIdx < ctx.lineCount) {
+            charOffset = (NSInteger)ctx.lineIndex[lineIdx];
             if (col1 > 1) charOffset += col1 - 1;
         }
     }
@@ -70,7 +70,7 @@ static void rngValidError(void *userData, xmlErrorPtr error) {
              message:  msg
             severity:  UDDiagnosticSeverityError
               source:  UDDiagnosticSourceRNG];
-    [ctx->_items addObject:item];
+    [ctx.items addObject:item];
 }
 
 // ---------------------------------------------------------------------------

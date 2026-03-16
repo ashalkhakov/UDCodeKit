@@ -355,7 +355,7 @@ static NSString * const kSchemaXML =
 
 - (void)testFullValidation_validDocument_producesNoErrors {
     UDXMLMirrorDoc *doc = [self _mirrorDocForXML:@"<root><item>hello</item></root>"];
-    XCTAssertNotNil(doc.xmlDoc, @"Mirror doc should be built");
+    XCTAssert(doc.xmlDoc != NULL, @"Mirror doc should be built");
 
     __block NSArray<UDDiagnosticItem *> *diagnostics = nil;
     [_validator validateDoc:doc.xmlDoc
@@ -372,7 +372,7 @@ static NSString * const kSchemaXML =
 - (void)testFullValidation_wrongRootElement_producesError {
     // <wrong/> is not a valid root — the schema requires <root>.
     UDXMLMirrorDoc *doc = [self _mirrorDocForXML:@"<wrong/>"];
-    XCTAssertNotNil(doc.xmlDoc, @"Mirror doc should be built");
+    XCTAssert(doc.xmlDoc != NULL, @"Mirror doc should be built");
 
     __block NSArray<UDDiagnosticItem *> *diagnostics = nil;
     [_validator validateDoc:doc.xmlDoc
@@ -393,7 +393,7 @@ static NSString * const kSchemaXML =
 - (void)testFullValidation_invalidChild_producesError {
     // <bad/> is not a valid child of <root> — the schema requires <item> (oneOrMore).
     UDXMLMirrorDoc *doc = [self _mirrorDocForXML:@"<root><bad/></root>"];
-    XCTAssertNotNil(doc.xmlDoc);
+    XCTAssert(doc.xmlDoc != NULL);
 
     __block NSArray<UDDiagnosticItem *> *diagnostics = nil;
     [_validator validateDoc:doc.xmlDoc
@@ -409,7 +409,7 @@ static NSString * const kSchemaXML =
 - (void)testFullValidation_multipleInvalidChildren_producesMultipleErrors {
     UDXMLMirrorDoc *doc = [self _mirrorDocForXML:
                            @"<root><bad/><also-bad/></root>"];
-    XCTAssertNotNil(doc.xmlDoc);
+    XCTAssert(doc.xmlDoc != NULL);
 
     __block NSArray<UDDiagnosticItem *> *diagnostics = nil;
     [_validator validateDoc:doc.xmlDoc
@@ -470,8 +470,8 @@ static NSString * const kSchemaXML =
     [doc applyTree:tree changedRanges:nil gapBuffer:buf];
     ts_tree_delete(tree);
 
-    XCTAssertNotNil(doc.xmlDoc);
-    XCTAssertNotNil((__bridge id)doc.dirtyRoot,
+    XCTAssert(doc.xmlDoc != NULL);
+    XCTAssert(doc.dirtyRoot != NULL,
                     @"First build must set dirtyRoot to the root element");
     XCTAssertEqual(doc.dirtyRoot, xmlDocGetRootElement(doc.xmlDoc),
                    @"On first build dirtyRoot must equal the document root element");
@@ -503,9 +503,9 @@ static NSString * const kSchemaXML =
     NSString *xml2 = @"<root><item>hello</item><wrong>world</wrong></root>";
 
     UDXMLMirrorDoc *doc = [self _incrementalMirrorDocFrom:xml1 to:xml2];
-    XCTAssertNotNil(doc.xmlDoc);
+    XCTAssert(doc.xmlDoc != NULL);
     xmlNodePtr dirtyRoot = doc.dirtyRoot;
-    XCTAssertNotNil((__bridge id)dirtyRoot,
+    XCTAssert(dirtyRoot != NULL,
                     @"Structural change must set dirtyRoot");
     XCTAssertNotEqual(dirtyRoot, xmlDocGetRootElement(doc.xmlDoc),
                       @"Only a child was changed: dirtyRoot should NOT be the document root");
@@ -518,7 +518,7 @@ static NSString * const kSchemaXML =
     NSString *xml2 = @"<root><item>goodbye</item></root>";
 
     UDXMLMirrorDoc *doc = [self _incrementalMirrorDocFrom:xml1 to:xml2];
-    XCTAssertNotNil(doc.xmlDoc);
+    XCTAssert(doc.xmlDoc != NULL);
 
     // dirtyRoot may be NULL (text changes may not trigger a structural diff) or
     // may be the item element.  If it IS set, validate it and expect no errors.
@@ -550,7 +550,7 @@ static NSString * const kSchemaXML =
     NSString *xml2 = @"<root><item>hello</item><wrong>world</wrong></root>";
 
     UDXMLMirrorDoc *doc = [self _incrementalMirrorDocFrom:xml1 to:xml2];
-    XCTAssertNotNil(doc.xmlDoc);
+    XCTAssert(doc.xmlDoc != NULL);
     xmlNodePtr dirtyRoot = doc.dirtyRoot;
     if (!dirtyRoot) {
         XCTFail(@"Expected dirtyRoot to be set after changing child element name");
@@ -584,7 +584,7 @@ static NSString * const kSchemaXML =
     NSString *xml2 = @"<root>\n<wrong>\nwrong content\n</wrong>\n</root>";
 
     UDXMLMirrorDoc *doc = [self _incrementalMirrorDocFrom:xml1 to:xml2];
-    XCTAssertNotNil(doc.xmlDoc);
+    XCTAssert(doc.xmlDoc != NULL);
     xmlNodePtr dirtyRoot = doc.dirtyRoot;
     if (!dirtyRoot) return; // no structural change detected
 

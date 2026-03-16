@@ -5,16 +5,28 @@
  *  Used by UDRNGValidator so that libxml2's relaxng.h API can validate the
  *  document structure without re-parsing the source text.
  *
- *  Text buffer:
- *    UDXMLMirrorDoc owns a private NSMutableString that is kept in sync with
- *    the document text without ever materialising the full document as a snapshot.
+ *  Text handling:
+ *    UDXMLMirrorDoc does NOT own a text buffer.  The caller captures a text
+ *    snapshot from UDTextModel.getValue on the main thread and forwards it (along
+ *    with a pre-built line-start index) to the background serial queue via
+ *    -updateTextSnapshot:lineIndexData: before each -applyTree:changedRanges: call.
  *
- *    • -setInitialContent: seeds the buffer once (on document open or after undo).
- *    • -applyEditWithCharRange:replacement: applies each incremental edit (typed
- *      text, delete, etc.) in O(edit-size) time with no full-document copy.
- *    • When building XML nodes, text is extracted from the buffer by character
- *      range and transcoded UTF-16 → UTF-8 on the fly for libxml2 — no separate
- *      UTF-8 copy of the whole document is kept.
+ *    Text slices for individual nodes are extracted on the fly from the
+ *    snapshot and transcoded UTF-16 → UTF-8 via .UTF8String — no persistent
+ *    UTF-8 copy of the whole document is kept.
+ *
+ *    Element line numbers are resolved in O(log n) via binary search on the
+ *    pre-built line-start index, rather than O(char count) newline scans.
+ *
+ *  Rebuild strategy:
+ *    -applyTree:changedRanges: uses a single "diffing rebuild" that traverses
+ *    the existing libxml2 tree and the new tree-sitter tree in lockstep.  It
+ *    finds (a) deleted nodes, (b) added nodes, and (c) modified nodes, then
+ *    updates the libxml2 tree in-place, recording the shallowest dirty element
+ *    in the `dirtyRoot` property for incremental revalidation by the caller.
+ *
+ *    A full build is performed on the first call (when there is no existing
+ *    xmlDoc) or when the root element tag name has changed.
  *
  *  Thread safety:
  *    All methods must be called on the same serial background queue (owned by
@@ -29,63 +41,57 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Maintains a live libxml2 xmlDoc mirroring the Tree-sitter XML parse tree.
 ///
-/// Call -setInitialContent: once before the first parse, then
-/// -applyEditWithCharRange:replacement: for each subsequent keystroke.
-/// Call -rebuildFromTree: for a full rebuild, or
-/// -applyTree:changedRanges: for an update after an incremental re-parse.
+/// Before each -applyTree:changedRanges: call, the caller must update the
+/// stored text snapshot via -updateTextSnapshot:lineIndexData:.  Both methods
+/// must be called on the same serial background queue.
 ///
 /// The xmlDoc is owned by this object; callers must not call xmlFreeDoc on it.
 @interface UDXMLMirrorDoc : NSObject
 
-/// The current mirror document.  Valid after a successful -rebuild… or -apply…
-/// call; NULL if no tree has been built yet or the last build failed.
+/// The current mirror document.  Valid after a successful -applyTree:… call;
+/// NULL if no tree has been built yet or the last build failed.
 /// Do NOT free this pointer — it is owned by UDXMLMirrorDoc.
 @property (nonatomic, readonly, nullable) xmlDocPtr xmlDoc;
 
-/// The xmlNode that was touched during the most recent incremental update.
-/// The validator re-walks the subtree rooted here rather than the whole doc.
-/// NULL after a full rebuild or if the last update was a no-op.
+/// The shallowest xmlNode that was changed during the most recent
+/// -applyTree:changedRanges: call.  NULL if the document was unchanged.
+/// The validator can use this to revalidate only the affected subtree.
+/// Do NOT free this pointer — it is part of the xmlDoc tree.
 @property (nonatomic, readonly, nullable) xmlNodePtr dirtyRoot;
 
-/// The current text content of the internal buffer.  The returned string is
-/// @c _textBuffer itself (not a copy); callers on the same serial queue may
-/// read it safely.  Do not retain past the next -applyEditWithCharRange: call.
-@property (nonatomic, readonly, nullable) NSString *textContent;
-
 // ---------------------------------------------------------------------------
-// MARK: - Text buffer management
+// MARK: - Text snapshot management
 // ---------------------------------------------------------------------------
 
-/// Seeds the internal text buffer with @p content.
-/// Call this once on document open and on any full-rebuild (undo/redo).
+/// Update the stored text snapshot and line-start index.
 ///
-/// @param content  The full document text.
-- (void)setInitialContent:(NSString *)content;
-
-/// Applies a single incremental text edit to the internal buffer.
-/// The parameters match those from -textWillChangeInRange:replacementString:.
+/// Must be called on the validation queue before each -applyTree:changedRanges:
+/// call.  Both parameters are captured on the main thread from UDTextModel and
+/// forwarded to the background queue.
 ///
-/// Each replacement string is transcoded from UTF-16 to UTF-8 on the fly
-/// when it is later passed to libxml2 — no full-document UTF-8 copy is made.
-///
-/// @param charRange   Pre-edit character range (0-based UTF-16 code units).
-/// @param replacement Replacement string (may be empty for deletions).
-- (void)applyEditWithCharRange:(NSRange)charRange replacement:(NSString *)replacement;
+/// @param text          Full document text snapshot (UTF-16 NSString).
+/// @param lineIndexData NSData wrapping a C array of @c NSUInteger values where
+///                      @c lineIndex[i] is the 0-based UTF-16 char offset of the
+///                      start of 0-indexed line i.  @c lineIndex[0] == 0.
+///                      The number of lines equals
+///                      @c data.length / sizeof(NSUInteger).
+- (void)updateTextSnapshot:(NSString *)text lineIndexData:(NSData *)lineIndexData;
 
 // ---------------------------------------------------------------------------
 // MARK: - XML tree operations
 // ---------------------------------------------------------------------------
 
-/// Full rebuild from a complete parse tree using the internal text buffer.
-/// Discards any previous xmlDoc.
+/// Diffing rebuild: traverses the old libxml2 tree and the new tree-sitter tree
+/// in lockstep, detecting added, deleted, and modified nodes, then updates the
+/// libxml2 tree in-place.
 ///
-/// @param tree  TSTree * (cast from const void *) produced by tree-sitter.
-- (void)rebuildFromTree:(const void *)tree;
-
-/// Incremental update driven by tree-sitter's changed ranges.
-/// Falls back to a full rebuild when the changed ranges are nil or empty.
+/// -updateTextSnapshot:lineIndexData: must have been called before this method.
 ///
-/// @param newTree       Newly parsed TSTree * (cast from const void *).
+/// On the first call (no existing xmlDoc) a full build is performed.
+/// The @p changedRanges parameter is reserved for a future optimisation that
+/// limits traversal to structurally changed regions; it is currently unused.
+///
+/// @param newTree       TSTree * (cast from const void *) produced by tree-sitter.
 /// @param changedRanges NSArray of NSValue-wrapped NSRanges covering the
 ///                      structurally changed character regions.  May be nil.
 - (void)applyTree:(const void *)newTree

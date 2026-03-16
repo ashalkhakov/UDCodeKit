@@ -3,94 +3,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDXMLMirrorDoc.h"
+#import "UDXMLNodeTypes.h"
 #import <libxml/parser.h>
 #import <libxml/tree.h>
-
-// ---------------------------------------------------------------------------
-// MARK: - Byte-offset helpers (tree-sitter uses UTF-16: byte = char * 2)
-// ---------------------------------------------------------------------------
-
-static inline NSUInteger charFromByte(uint32_t byte) { return (NSUInteger)(byte / 2); }
-
-// ---------------------------------------------------------------------------
-// MARK: - Node-type helpers
-// ---------------------------------------------------------------------------
-
-static inline BOOL isTagName(const char *type) {
-    return strcmp(type, "tag_name") == 0 ||
-           strcmp(type, "name")     == 0 ||
-           strcmp(type, "Name")     == 0;
-}
-
-static inline BOOL isStartTag(const char *type) {
-    return strcmp(type, "start_tag") == 0 || strcmp(type, "STag") == 0;
-}
-
-static inline BOOL isEndTag(const char *type) {
-    return strcmp(type, "end_tag") == 0 || strcmp(type, "ETag") == 0;
-}
-
-static inline BOOL isSelfClosingTag(const char *type) {
-    return strcmp(type, "self_closing_tag") == 0;
-}
-
-static inline BOOL isAttributeNode(const char *type) {
-    return strcmp(type, "attribute") == 0 || strcmp(type, "Attribute") == 0;
-}
-
-static inline BOOL isAttributeName(const char *type) {
-    return strcmp(type, "attribute_name") == 0 ||
-           strcmp(type, "Name")           == 0 ||
-           strcmp(type, "name")           == 0;
-}
-
-static inline BOOL isAttributeValue(const char *type) {
-    return strcmp(type, "attribute_value")         == 0 ||
-           strcmp(type, "quoted_attribute_value")  == 0 ||
-           strcmp(type, "AttValue")                == 0;
-}
-
-static inline BOOL isTextNode(const char *type) {
-    return strcmp(type, "text")     == 0 ||
-           strcmp(type, "CharData") == 0;
-}
-
-static inline BOOL isComment(const char *type) {
-    return strcmp(type, "comment") == 0 || strcmp(type, "Comment") == 0;
-}
-
-static inline BOOL isCDATA(const char *type) {
-    return strcmp(type, "cdata_section") == 0 || strcmp(type, "CDSect") == 0;
-}
-
-static inline BOOL isProcessingInstruction(const char *type) {
-    return strcmp(type, "processing_instruction") == 0 || strcmp(type, "PI") == 0;
-}
-
-// ---------------------------------------------------------------------------
-// MARK: - Attribute-value stripping
-// ---------------------------------------------------------------------------
-
-/// Strip surrounding single- or double-quotes from an attribute value string.
-static NSString *stripQuotes(NSString *s) {
-    if (s.length >= 2) {
-        unichar first = [s characterAtIndex:0];
-        unichar last  = [s characterAtIndex:s.length - 1];
-        if ((first == '"' || first == '\'') && last == first) {
-            return [s substringWithRange:NSMakeRange(1, s.length - 2)];
-        }
-    }
-    return s;
-}
 
 // ---------------------------------------------------------------------------
 // MARK: - UDXMLMirrorDoc
 // ---------------------------------------------------------------------------
 
 @implementation UDXMLMirrorDoc {
-    xmlDocPtr        _xmlDoc;
-    xmlNodePtr       _dirtyRoot;
-    NSMutableString *_textBuffer;  ///< Incrementally-maintained document text (UTF-16).
+    xmlDocPtr          _xmlDoc;
+    xmlNodePtr         _dirtyRoot;
+
+    /// Text snapshot captured from UDTextModel on the main thread.
+    /// Updated via -updateTextSnapshot:lineIndexData: before each -applyTree:… call.
+    NSString          *_textSnapshot;
+
+    /// Pre-built line-start index (C array wrapped in NSData).
+    /// lineIndex[i] = 0-based UTF-16 char offset of the start of 0-indexed line i.
+    NSData            *_lineIndexData;
 }
 
 - (void)dealloc {
@@ -100,89 +31,78 @@ static NSString *stripQuotes(NSString *s) {
     }
 }
 
-- (xmlDocPtr)xmlDoc      { return _xmlDoc;       }
-- (xmlNodePtr)dirtyRoot  { return _dirtyRoot;    }
-- (NSString *)textContent { return _textBuffer;  }
+- (xmlDocPtr)xmlDoc     { return _xmlDoc;    }
+- (xmlNodePtr)dirtyRoot { return _dirtyRoot; }
 
 // ---------------------------------------------------------------------------
-// MARK: - Text buffer management
+// MARK: - Text snapshot management
 // ---------------------------------------------------------------------------
 
-- (void)setInitialContent:(NSString *)content {
-    _textBuffer = [content mutableCopy];
-}
-
-- (void)applyEditWithCharRange:(NSRange)charRange replacement:(NSString *)replacement {
-    if (!_textBuffer) return;
-    NSUInteger bufLen = _textBuffer.length;
-    // Clamp the range defensively.
-    NSUInteger clampLoc = MIN(charRange.location, bufLen);
-    NSUInteger clampEnd = MIN(NSMaxRange(charRange), bufLen);
-    NSRange safe = NSMakeRange(clampLoc, clampEnd - clampLoc);
-    // Apply the edit in-place.  The replacement string is typically very small
-    // (one or a few characters), so this is O(edit-size), not O(document-size).
-    [_textBuffer replaceCharactersInRange:safe withString:replacement ?: @""];
+- (void)updateTextSnapshot:(NSString *)text lineIndexData:(NSData *)lineIndexData {
+    _textSnapshot  = [text copy];
+    _lineIndexData = [lineIndexData copy];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Text extraction (reads from _textBuffer on the fly)
+// MARK: - Text helpers (use current snapshot)
 // ---------------------------------------------------------------------------
 
-/// Returns the substring of the internal buffer covered by [startByte, endByte).
-/// Tree-sitter byte offsets are in UTF-16 units (byte = charIndex * 2).
-/// The returned NSString is transcoded to UTF-8 by libxml2 callers via .UTF8String —
-/// no separate UTF-8 copy of the whole document is maintained.
+/// Returns the substring of the current text snapshot for [startByte, endByte).
+/// Tree-sitter byte offsets are UTF-16 units (byte = charIndex × 2).
 - (NSString *)_textSliceFrom:(uint32_t)startByte to:(uint32_t)endByte {
     NSUInteger s = charFromByte(startByte);
     NSUInteger e = charFromByte(endByte);
-    NSUInteger len = _textBuffer.length;
+    NSUInteger len = _textSnapshot.length;
     if (s >= len || e <= s) return @"";
-    NSAssert(e <= len, @"_textSliceFrom:to: endByte %u maps beyond buffer length %lu",
+    NSAssert(e <= len, @"_textSliceFrom:to: endByte %u maps beyond snapshot length %lu",
              endByte, (unsigned long)len);
-    if (e > len) e = len;  // defensive clamp (silently recover in release builds)
-    return [_textBuffer substringWithRange:NSMakeRange(s, e - s)];
+    if (e > len) e = len;
+    return [_textSnapshot substringWithRange:NSMakeRange(s, e - s)];
 }
 
-/// Returns the 1-based line number for the character at charOffset in _textBuffer.
+/// Returns the 1-based line number for @p charOffset using a binary search
+/// on the pre-built line-start index — O(log lineCount).
 - (int)_lineNumberForChar:(NSUInteger)charOffset {
-    if (!_textBuffer) return 1;
-    if (charOffset == 0) return 1;
-    NSUInteger limit = MIN(charOffset, _textBuffer.length);
-    int line = 1;
-    for (NSUInteger i = 0; i < limit; i++) {
-        if ([_textBuffer characterAtIndex:i] == '\n') line++;
+    if (!_lineIndexData || _lineIndexData.length == 0) return 1;
+    NSUInteger lineCount = _lineIndexData.length / sizeof(NSUInteger);
+    const NSUInteger *idx = (const NSUInteger *)_lineIndexData.bytes;
+    // Find the largest i such that idx[i] <= charOffset; result is 1-based line.
+    NSUInteger lo = 0, hi = lineCount;
+    while (lo < hi) {
+        NSUInteger mid = (lo + hi) / 2;
+        if (idx[mid] <= charOffset) lo = mid + 1;
+        else hi = mid;
     }
-    return line;
+    return (lo > 0) ? (int)lo : 1;
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - Public API
 // ---------------------------------------------------------------------------
 
-- (void)rebuildFromTree:(const void *)tree {
-    if (_xmlDoc) {
-        xmlFreeDoc(_xmlDoc);
-        _xmlDoc = NULL;
-    }
-    _dirtyRoot = NULL;
-
-    _xmlDoc = xmlNewDoc(BAD_CAST "1.0");
-    if (!_xmlDoc) return;
-
-    TSNode root = ts_tree_root_node((const TSTree *)tree);
-    [self _buildDocumentFromRoot:root];
-}
-
 - (void)applyTree:(const void *)newTree
     changedRanges:(nullable NSArray<NSValue *> *)changedRanges {
-    // For this implementation, always do a full rebuild from _textBuffer.
-    // A true incremental update (using changedRanges + the TSNode→xmlNode map)
-    // is deferred to a later milestone.
-    [self rebuildFromTree:newTree];
+    (void)changedRanges; // Reserved for future optimisation
+    _dirtyRoot = NULL;
+
+    TSNode newRoot = ts_tree_root_node((const TSTree *)newTree);
+
+    if (!_xmlDoc) {
+        // First call: full build from scratch.
+        _xmlDoc = xmlNewDoc(BAD_CAST "1.0");
+        if (!_xmlDoc) return;
+        [self _buildDocumentFromRoot:newRoot];
+        _dirtyRoot = xmlDocGetRootElement(_xmlDoc);
+        return;
+    }
+
+    // Diffing rebuild: traverse old libxml2 tree and new tree-sitter tree
+    // in lockstep, updating the libxml2 tree in-place.
+    [self _syncDocumentFromRoot:newRoot];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Document builder
+// MARK: - Full document builder (used for the first call)
 // ---------------------------------------------------------------------------
 
 - (void)_buildDocumentFromRoot:(TSNode)root {
@@ -190,12 +110,9 @@ static NSString *stripQuotes(NSString *s) {
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(root, i);
         const char *type = ts_node_type(child);
-
         if (strcmp(type, "element") == 0) {
             xmlNodePtr elem = [self _buildElement:child];
-            if (elem) {
-                xmlDocSetRootElement(_xmlDoc, elem);
-            }
+            if (elem) xmlDocSetRootElement(_xmlDoc, elem);
         } else if (isProcessingInstruction(type)) {
             [self _addProcessingInstruction:child toParent:NULL];
         } else if (isComment(type)) {
@@ -207,121 +124,409 @@ static NSString *stripQuotes(NSString *s) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - Diffing rebuild
+// ---------------------------------------------------------------------------
+
+/// Top-level diffing entry point: syncs the root element.
+- (void)_syncDocumentFromRoot:(TSNode)tsDoc {
+    // Find the root element in the new TS tree.
+    TSNode tsRootElem = {0};
+    uint32_t count = ts_node_child_count(tsDoc);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode child = ts_node_child(tsDoc, i);
+        if (strcmp(ts_node_type(child), "element") == 0) {
+            tsRootElem = child;
+            break;
+        }
+    }
+
+    xmlNodePtr xmlRootElem = xmlDocGetRootElement(_xmlDoc);
+
+    if (ts_node_is_null(tsRootElem) && !xmlRootElem) return; // Both empty.
+
+    if (ts_node_is_null(tsRootElem)) {
+        // Root element was removed.
+        if (xmlRootElem) {
+            xmlUnlinkNode(xmlRootElem);
+            xmlFreeNode(xmlRootElem);
+        }
+        return;
+    }
+
+    if (!xmlRootElem) {
+        // Root element was added.
+        xmlNodePtr newNode = [self _buildElement:tsRootElem];
+        if (newNode) {
+            xmlDocSetRootElement(_xmlDoc, newNode);
+            _dirtyRoot = newNode;
+        }
+        return;
+    }
+
+    // Both exist: sync in-place.
+    [self _syncTSElement:tsRootElem withXmlElement:xmlRootElem];
+}
+
+/// Sync a single tree-sitter element node against the corresponding xmlNodePtr.
+/// Updates the xmlNode in-place when the tag name matches, or replaces it when
+/// the name has changed.  Returns YES if anything was changed.
+- (BOOL)_syncTSElement:(TSNode)tsElem withXmlElement:(xmlNodePtr)xmlElem {
+    NSString *newName = [self _tagNameFromElement:tsElem] ?: @"";
+    NSString *oldName = xmlElem->name ? @((const char *)xmlElem->name) : @"";
+
+    if (![newName isEqualToString:oldName]) {
+        // Tag name changed: full replacement of this subtree.
+        xmlNodePtr newNode = [self _buildElement:tsElem];
+        if (newNode) {
+            xmlReplaceNode(xmlElem, newNode);
+            xmlFreeNode(xmlElem);
+            if (!_dirtyRoot) _dirtyRoot = newNode;
+        }
+        return YES;
+    }
+
+    BOOL dirty = NO;
+
+    // Update the stored 1-based line number.
+    NSUInteger startChar = charFromByte(ts_node_start_byte(tsElem));
+    int lineNo = [self _lineNumberForChar:startChar];
+    if ((int)xmlElem->line != lineNo) {
+        xmlElem->line = lineNo;
+        dirty = YES;
+    }
+
+    // Sync attributes.
+    if ([self _syncAttributesFromTS:tsElem toXmlNode:xmlElem]) dirty = YES;
+
+    // Sync children recursively by position.
+    if ([self _syncChildrenFromTS:tsElem toXmlParent:xmlElem]) dirty = YES;
+
+    if (dirty && !_dirtyRoot) _dirtyRoot = xmlElem;
+
+    return dirty;
+}
+
+/// Sync the attribute set of @p tsElem onto @p xmlNode.
+/// Removes all old attributes and adds all new ones when the sets differ.
+/// Returns YES if the attribute set changed.
+- (BOOL)_syncAttributesFromTS:(TSNode)tsElem toXmlNode:(xmlNodePtr)xmlNode {
+    // Find the start_tag (or self_closing_tag) for the attribute list.
+    TSNode startTag = {0};
+    uint32_t count = ts_node_child_count(tsElem);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode child = ts_node_child(tsElem, i);
+        const char *ct = ts_node_type(child);
+        if (isStartTag(ct) || isSelfClosingTag(ct)) { startTag = child; break; }
+    }
+
+    // Collect new attributes as ordered name/value arrays.
+    NSMutableArray<NSString *> *newNames  = [NSMutableArray array];
+    NSMutableArray<NSString *> *newValues = [NSMutableArray array];
+    if (!ts_node_is_null(startTag)) {
+        uint32_t stCount = ts_node_child_count(startTag);
+        for (uint32_t i = 0; i < stCount; i++) {
+            TSNode child = ts_node_child(startTag, i);
+            if (!isAttributeNode(ts_node_type(child))) continue;
+            NSString *name = nil, *value = @"";
+            uint32_t ac = ts_node_child_count(child);
+            for (uint32_t j = 0; j < ac; j++) {
+                TSNode gc = ts_node_child(child, j);
+                const char *gt = ts_node_type(gc);
+                if (isAttributeName(gt) && !name)
+                    name = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+                else if (isAttributeValue(gt)) {
+                    NSString *raw = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+                    value = stripQuotes(raw);
+                }
+            }
+            if (name.length) { [newNames addObject:name]; [newValues addObject:value]; }
+        }
+    }
+
+    // Collect old attributes.
+    NSMutableArray<NSString *> *oldNames  = [NSMutableArray array];
+    NSMutableArray<NSString *> *oldValues = [NSMutableArray array];
+    for (xmlAttr *attr = xmlNode->properties; attr; attr = attr->next) {
+        if (!attr->name) continue;
+        [oldNames addObject:@((const char *)attr->name)];
+        xmlChar *val = xmlGetProp(xmlNode, attr->name);
+        [oldValues addObject:val ? @((const char *)val) : @""];
+        if (val) xmlFree(val);
+    }
+
+    if ([newNames isEqualToArray:oldNames] && [newValues isEqualToArray:oldValues]) return NO;
+
+    // Sets differ: remove all old, then add all new.
+    xmlAttr *a = xmlNode->properties;
+    while (a) { xmlAttr *next = a->next; xmlRemoveProp(a); a = next; }
+    for (NSUInteger i = 0; i < newNames.count; i++)
+        xmlNewProp(xmlNode, BAD_CAST newNames[i].UTF8String, BAD_CAST newValues[i].UTF8String);
+
+    return YES;
+}
+
+/// Sync the content children of @p tsElem (skipping structural tag boundaries)
+/// against the content children of @p xmlParent by position.
+/// Returns YES if anything was changed.
+- (BOOL)_syncChildrenFromTS:(TSNode)tsElem toXmlParent:(xmlNodePtr)xmlParent {
+    // Collect indices of "significant" TS children (those that map to XML nodes).
+    NSMutableArray<NSNumber *> *tsIndices = [NSMutableArray array];
+    uint32_t tsChildCount = ts_node_child_count(tsElem);
+    for (uint32_t i = 0; i < tsChildCount; i++) {
+        TSNode child = ts_node_child(tsElem, i);
+        const char *ct = ts_node_type(child);
+        if (isTagBoundary(ct)) continue; // skip start/end/self-closing wrappers
+        if (strcmp(ct, "element")  == 0 ||
+            isTextNode(ct) || isComment(ct) || isCDATA(ct) || isProcessingInstruction(ct))
+            [tsIndices addObject:@(i)];
+    }
+
+    // Capture XML child pointers BEFORE any mutations.
+    NSMutableArray<NSValue *> *xmlPtrs = [NSMutableArray array];
+    for (xmlNodePtr child = xmlParent->children; child; child = child->next) {
+        if (child->type == XML_ELEMENT_NODE      ||
+            child->type == XML_TEXT_NODE         ||
+            child->type == XML_COMMENT_NODE      ||
+            child->type == XML_CDATA_SECTION_NODE||
+            child->type == XML_PI_NODE)
+            [xmlPtrs addObject:[NSValue valueWithPointer:child]];
+    }
+
+    NSUInteger tsCount  = tsIndices.count;
+    NSUInteger xmlCount = xmlPtrs.count;
+    NSUInteger maxCount = MAX(tsCount, xmlCount);
+    BOOL dirty = NO;
+
+    NSMutableArray<NSValue *> *toDelete = [NSMutableArray array];
+
+    for (NSUInteger i = 0; i < maxCount; i++) {
+        if (i >= tsCount) {
+            // Extra XML node: mark for deletion.
+            [toDelete addObject:[xmlPtrs objectAtIndex:i]];
+            dirty = YES;
+        } else if (i >= xmlCount) {
+            // New TS node: insert.
+            uint32_t idx = (uint32_t)[[tsIndices objectAtIndex:i] unsignedIntegerValue];
+            TSNode tsChild = ts_node_child(tsElem, idx);
+            xmlNodePtr newXML = [self _buildTSChildNode:tsChild];
+            if (newXML) { xmlAddChild(xmlParent, newXML); dirty = YES; }
+        } else {
+            // Both present: sync by type and content.
+            uint32_t idx = (uint32_t)[[tsIndices objectAtIndex:i] unsignedIntegerValue];
+            TSNode tsChild = ts_node_child(tsElem, idx);
+            xmlNodePtr xmlN = (xmlNodePtr)[[xmlPtrs objectAtIndex:i] pointerValue];
+            dirty |= [self _syncTSChild:tsChild withXmlNode:xmlN parent:xmlParent];
+        }
+    }
+
+    // Free nodes collected for deletion.
+    for (NSValue *ptr in toDelete) {
+        xmlNodePtr node = (xmlNodePtr)[ptr pointerValue];
+        xmlUnlinkNode(node);
+        xmlFreeNode(node);
+    }
+
+    return dirty;
+}
+
+/// Sync a single TS content child against the corresponding XML node.
+/// Replaces the XML node when types differ; updates in-place when they match.
+- (BOOL)_syncTSChild:(TSNode)tsNode withXmlNode:(xmlNodePtr)xmlNode
+              parent:(xmlNodePtr)parent {
+    const char *tsType = ts_node_type(tsNode);
+
+    // --- element ---
+    if (strcmp(tsType, "element") == 0) {
+        if (xmlNode->type != XML_ELEMENT_NODE) {
+            xmlNodePtr newNode = [self _buildElement:tsNode];
+            if (newNode) { xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode);
+                           if (!_dirtyRoot) _dirtyRoot = newNode; }
+            return YES;
+        }
+        return [self _syncTSElement:tsNode withXmlElement:xmlNode];
+    }
+
+    // --- text ---
+    if (isTextNode(tsType)) {
+        NSString *newContent = [self _textSliceFrom:ts_node_start_byte(tsNode)
+                                                 to:ts_node_end_byte(tsNode)];
+        if (xmlNode->type == XML_TEXT_NODE) {
+            NSString *oldContent = xmlNode->content ? @((const char *)xmlNode->content) : @"";
+            if ([newContent isEqualToString:oldContent]) return NO;
+            xmlNodeSetContent(xmlNode, BAD_CAST newContent.UTF8String);
+            return YES;
+        }
+        xmlNodePtr newNode = xmlNewText(BAD_CAST newContent.UTF8String);
+        if (newNode) { xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode); }
+        return YES;
+    }
+
+    // --- comment ---
+    if (isComment(tsType)) {
+        NSString *newContent = [self _commentText:tsNode];
+        if (xmlNode->type == XML_COMMENT_NODE) {
+            NSString *oldContent = xmlNode->content ? @((const char *)xmlNode->content) : @"";
+            if ([newContent isEqualToString:oldContent]) return NO;
+            xmlNodeSetContent(xmlNode, BAD_CAST newContent.UTF8String);
+            return YES;
+        }
+        xmlNodePtr newNode = xmlNewComment(BAD_CAST newContent.UTF8String);
+        if (newNode) { xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode); }
+        return YES;
+    }
+
+    // --- CDATA, PI, or other: rebuild unconditionally ---
+    xmlNodePtr newNode = [self _buildTSChildNode:tsNode];
+    if (newNode) { xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode); }
+    return YES;
+}
+
+/// Build an xmlNodePtr for any significant TS content child.
+/// Does NOT attach the node to any parent; returns NULL if building fails.
+- (nullable xmlNodePtr)_buildTSChildNode:(TSNode)tsNode {
+    const char *type = ts_node_type(tsNode);
+
+    if (strcmp(type, "element") == 0)
+        return [self _buildElement:tsNode];
+
+    if (isTextNode(type)) {
+        NSString *text = [self _textSliceFrom:ts_node_start_byte(tsNode)
+                                           to:ts_node_end_byte(tsNode)];
+        return xmlNewText(BAD_CAST text.UTF8String);
+    }
+
+    if (isComment(type)) {
+        NSString *text = [self _commentText:tsNode];
+        return xmlNewComment(BAD_CAST text.UTF8String);
+    }
+
+    if (isCDATA(type)) {
+        NSString *raw = [self _textSliceFrom:ts_node_start_byte(tsNode)
+                                          to:ts_node_end_byte(tsNode)];
+        NSString *content = raw;
+        if ([content hasPrefix:@"<![CDATA["]) content = [content substringFromIndex:9];
+        if ([content hasSuffix:@"]]>"])        content = [content substringToIndex:content.length - 3];
+        return xmlNewCDataBlock(_xmlDoc,
+                                BAD_CAST content.UTF8String,
+                                (int)strlen(content.UTF8String));
+    }
+
+    if (isProcessingInstruction(type)) {
+        NSString *raw = [self _textSliceFrom:ts_node_start_byte(tsNode)
+                                          to:ts_node_end_byte(tsNode)];
+        if ([raw hasPrefix:@"<?"]) raw = [raw substringFromIndex:2];
+        if ([raw hasSuffix:@"?>"]) raw = [raw substringToIndex:raw.length - 2];
+        NSRange ws = [raw rangeOfCharacterFromSet:
+                      [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        NSString *target  = ws.location != NSNotFound ? [raw substringToIndex:ws.location] : raw;
+        NSString *content = ws.location != NSNotFound
+            ? [[raw substringFromIndex:NSMaxRange(ws)]
+                   stringByTrimmingCharactersInSet:
+                       [NSCharacterSet whitespaceAndNewlineCharacterSet]]
+            : @"";
+        if (!target.length) return NULL;
+        return xmlNewPI(BAD_CAST target.UTF8String,
+                        content.length ? BAD_CAST content.UTF8String : NULL);
+    }
+
+    return NULL;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Full element builder (used for the first call and for new subtrees)
+// ---------------------------------------------------------------------------
+
 /// Build an xmlNode hierarchy for an `element` TS node.
 /// Returns the xmlNodePtr (not yet attached to a parent), or NULL on error.
 - (nullable xmlNodePtr)_buildElement:(TSNode)elemNode {
-    // Find the start_tag (or self_closing_tag) to get the element name.
     TSNode startTagNode = {0};
     BOOL selfClosing = NO;
     uint32_t count = ts_node_child_count(elemNode);
-
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(elemNode, i);
         const char *ct = ts_node_type(child);
-        if (isStartTag(ct)) {
-            startTagNode = child;
-            break;
-        }
-        if (isSelfClosingTag(ct)) {
-            startTagNode = child;
-            selfClosing = YES;
-            break;
-        }
+        if (isStartTag(ct))       { startTagNode = child; break; }
+        if (isSelfClosingTag(ct)) { startTagNode = child; selfClosing = YES; break; }
     }
-
     if (ts_node_is_null(startTagNode)) return NULL;
 
-    // Extract element name.
     NSString *elemName = [self _tagNameFrom:startTagNode];
     if (!elemName.length) return NULL;
 
-    // Create the xmlNode.
     xmlNodePtr node = xmlNewNode(NULL, BAD_CAST elemName.UTF8String);
     if (!node) return NULL;
 
-    // Record the 1-based line number on the xmlNode for diagnostic position mapping.
+    // Record the 1-based line number for diagnostic position mapping.
     NSUInteger startChar = charFromByte(ts_node_start_byte(elemNode));
     int lineNo = [self _lineNumberForChar:startChar];
-    // Clamp defensively: xmlNode->line is an int; valid documents fit, but guard anyway.
     if (lineNo < 1) lineNo = 1;
     node->line = lineNo;
 
-    // Attach attributes.
     [self _attachAttributes:startTagNode toNode:node];
-
-    if (!selfClosing) {
-        // Recurse into element content.
-        [self _buildChildren:elemNode intoParent:node];
-    }
+    if (!selfClosing) [self _buildChildren:elemNode intoParent:node];
 
     return node;
 }
 
-/// Extract the tag name string from a start_tag / self_closing_tag / end_tag node.
+/// Extract the tag name string from a start_tag/self_closing_tag/end_tag node.
 - (nullable NSString *)_tagNameFrom:(TSNode)tagNode {
     uint32_t count = ts_node_child_count(tagNode);
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(tagNode, i);
+        if (isTagName(ts_node_type(child)))
+            return [self _textSliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
+    }
+    return nil;
+}
+
+/// Extract the tag name from an `element` node (searches for the start_tag child).
+- (nullable NSString *)_tagNameFromElement:(TSNode)elemNode {
+    uint32_t count = ts_node_child_count(elemNode);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode child = ts_node_child(elemNode, i);
         const char *ct = ts_node_type(child);
-        if (isTagName(ct)) {
-            return [self _textSliceFrom:ts_node_start_byte(child)
-                                     to:ts_node_end_byte(child)];
-        }
+        if (isStartTag(ct) || isSelfClosingTag(ct))
+            return [self _tagNameFrom:child];
     }
     return nil;
 }
 
 /// Attach XML attributes from a start_tag node to an xmlNodePtr.
-- (void)_attachAttributes:(TSNode)startTagNode
-                   toNode:(xmlNodePtr)node {
+- (void)_attachAttributes:(TSNode)startTagNode toNode:(xmlNodePtr)node {
     uint32_t count = ts_node_child_count(startTagNode);
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(startTagNode, i);
-        const char *ct = ts_node_type(child);
-        if (!isAttributeNode(ct)) continue;
-
-        NSString *attrName  = nil;
-        NSString *attrValue = @"";
+        if (!isAttributeNode(ts_node_type(child))) continue;
+        NSString *attrName = nil, *attrValue = @"";
         uint32_t ac = ts_node_child_count(child);
-
         for (uint32_t j = 0; j < ac; j++) {
             TSNode gc = ts_node_child(child, j);
             const char *gt = ts_node_type(gc);
-            if (isAttributeName(gt) && !attrName) {
-                attrName = [self _textSliceFrom:ts_node_start_byte(gc)
-                                             to:ts_node_end_byte(gc)];
-            } else if (isAttributeValue(gt)) {
-                NSString *raw = [self _textSliceFrom:ts_node_start_byte(gc)
-                                                  to:ts_node_end_byte(gc)];
+            if (isAttributeName(gt) && !attrName)
+                attrName = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+            else if (isAttributeValue(gt)) {
+                NSString *raw = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
                 attrValue = stripQuotes(raw);
             }
         }
-
-        if (attrName.length) {
+        if (attrName.length)
             xmlNewProp(node, BAD_CAST attrName.UTF8String, BAD_CAST attrValue.UTF8String);
-        }
     }
 }
 
 /// Recursively build children of an `element` node and append them to xmlParent.
-- (void)_buildChildren:(TSNode)elemNode
-            intoParent:(xmlNodePtr)parent {
+- (void)_buildChildren:(TSNode)elemNode intoParent:(xmlNodePtr)parent {
     uint32_t count = ts_node_child_count(elemNode);
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(elemNode, i);
         const char *ct = ts_node_type(child);
-
-        if (isStartTag(ct) || isEndTag(ct)) {
-            // Structural tag nodes — not content.
-            continue;
-        }
-
+        if (isStartTag(ct) || isEndTag(ct)) continue; // structural — not content
         if (strcmp(ct, "element") == 0) {
             xmlNodePtr childElem = [self _buildElement:child];
             if (childElem) xmlAddChild(parent, childElem);
         } else if (isTextNode(ct)) {
-            NSString *text = [self _textSliceFrom:ts_node_start_byte(child)
-                                               to:ts_node_end_byte(child)];
+            NSString *text = [self _textSliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
             xmlNodePtr textNode = xmlNewText(BAD_CAST text.UTF8String);
             if (textNode) xmlAddChild(parent, textNode);
         } else if (isComment(ct)) {
@@ -329,14 +534,10 @@ static NSString *stripQuotes(NSString *s) {
             xmlNodePtr commentNode = xmlNewComment(BAD_CAST text.UTF8String);
             if (commentNode) xmlAddChild(parent, commentNode);
         } else if (isCDATA(ct)) {
-            NSString *raw = [self _textSliceFrom:ts_node_start_byte(child)
-                                              to:ts_node_end_byte(child)];
-            // Strip "<![CDATA[" prefix and "]]>" suffix.
+            NSString *raw = [self _textSliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
             NSString *cdataContent = raw;
-            if ([cdataContent hasPrefix:@"<![CDATA["])
-                cdataContent = [cdataContent substringFromIndex:9];
-            if ([cdataContent hasSuffix:@"]]>"])
-                cdataContent = [cdataContent substringToIndex:cdataContent.length - 3];
+            if ([cdataContent hasPrefix:@"<![CDATA["]) cdataContent = [cdataContent substringFromIndex:9];
+            if ([cdataContent hasSuffix:@"]]>"])        cdataContent = [cdataContent substringToIndex:cdataContent.length - 3];
             xmlNodePtr cdataNode = xmlNewCDataBlock(_xmlDoc,
                 BAD_CAST cdataContent.UTF8String,
                 (int)strlen(cdataContent.UTF8String));
@@ -357,32 +558,12 @@ static NSString *stripQuotes(NSString *s) {
     return raw;
 }
 
-/// Add a processing instruction node as a child of xmlParent (or the doc root).
-- (void)_addProcessingInstruction:(TSNode)piNode
-                          toParent:(nullable xmlNodePtr)parent {
-    NSString *raw = [self _textSliceFrom:ts_node_start_byte(piNode)
-                                      to:ts_node_end_byte(piNode)];
-    // Format: <?target content?> — strip <? and ?>
-    if ([raw hasPrefix:@"<?"]) raw = [raw substringFromIndex:2];
-    if ([raw hasSuffix:@"?>"]) raw = [raw substringToIndex:raw.length - 2];
-
-    // Split into target and content on first whitespace.
-    NSRange ws = [raw rangeOfCharacterFromSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    NSString *target  = ws.location != NSNotFound ? [raw substringToIndex:ws.location] : raw;
-    NSString *content = ws.location != NSNotFound ? [[raw substringFromIndex:NSMaxRange(ws)]
-                                                      stringByTrimmingCharactersInSet:
-                                                          [NSCharacterSet whitespaceAndNewlineCharacterSet]]
-                                                  : @"";
-
-    if (!target.length) return;
-    xmlNodePtr pi = xmlNewPI(BAD_CAST target.UTF8String,
-                             content.length ? BAD_CAST content.UTF8String : NULL);
+/// Add a processing instruction node as a child of xmlParent (or the document root).
+- (void)_addProcessingInstruction:(TSNode)piNode toParent:(nullable xmlNodePtr)parent {
+    xmlNodePtr pi = [self _buildTSChildNode:piNode]; // handles PI building
     if (!pi) return;
-    if (parent) {
-        xmlAddChild(parent, pi);
-    } else {
-        xmlAddChild((xmlNodePtr)_xmlDoc, pi);
-    }
+    if (parent) xmlAddChild(parent, pi);
+    else        xmlAddChild((xmlNodePtr)_xmlDoc, pi);
 }
 
 @end

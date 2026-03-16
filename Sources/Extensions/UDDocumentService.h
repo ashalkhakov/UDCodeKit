@@ -18,10 +18,11 @@
  *    3. -treeDidUpdateWithNewTree:changedRanges:textModel:  (after re-parse)
  *
  *  The textModel in step 3 is valid for main-thread access only during the call.
- *  When changedRanges is non-nil (keystroke), services should use their own
- *  incrementally-maintained text state instead of calling -getValue.
- *  When changedRanges is nil (undo/redo, full re-parse), calling -getValue on
- *  the main thread before dispatching to a background queue is safe.
+ *  Calling -getValue on the main thread to capture a text snapshot before
+ *  dispatching to a background queue is always safe, regardless of whether
+ *  changedRanges is nil or non-nil.  Services that need sub-keystroke granularity
+ *  (e.g. LSP) may use -textWillChangeInRange:replacementString: to maintain their
+ *  own incremental text state instead.
  *
  *  Thread safety:
  *    All calls are made on the main thread.  Services are responsible for
@@ -83,11 +84,10 @@ NS_ASSUME_NONNULL_BEGIN
 ///                       structurally between the previous and new parse trees.
 ///                       @c nil for a full re-parse (initial load, undo/redo, etc.).
 /// @param textModel      The live document text model.  Valid for @b main-thread
-///                       access only during the duration of this call.  When
-///                       @p changedRanges is @c nil (undo / redo / initial open),
-///                       calling @c -getValue on the main thread to capture a
-///                       snapshot before dispatching to a background queue is safe.
-///                       Never call @c -getValue from a background queue.
+///                       access only during the duration of this call.
+///                       Calling @c -getValue on the main thread to capture a
+///                       snapshot before dispatching to a background queue is
+///                       always safe.
 - (void)treeDidUpdateWithNewTree:(const void *)newTree
                    changedRanges:(nullable NSArray<NSValue *> *)changedRanges
                        textModel:(UDTextModel *)textModel;

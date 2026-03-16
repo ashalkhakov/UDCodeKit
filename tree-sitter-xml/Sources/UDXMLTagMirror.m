@@ -1,8 +1,7 @@
 #import "UDXMLTagMirror.h"
+#import "UDXMLNodeTypes.h"
 #import <tree_sitter/api.h>
 #import <UDPieceTable/UDPieceTable.h>
-
-static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 
 typedef struct {
     NSUInteger start;
@@ -355,15 +354,13 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
 
         while (!ts_node_is_null(node)) {
             const char *type = ts_node_type(node);
-            if (strcmp(type, "tag_name") == 0 || strcmp(type, "name") == 0 || strcmp(type, "Name") == 0) {
+            if (isTagName(type)) {
                 TSNode parent = ts_node_parent(node);
                 if (!ts_node_is_null(parent)) {
                     const char *pt = ts_node_type(parent);
-                    BOOL isSTag = strcmp(pt, "start_tag") == 0
-                                    || strcmp(pt, "STag")      == 0;
-                    BOOL isETag = strcmp(pt, "end_tag")   == 0
-                                    || strcmp(pt, "ETag")      == 0;
-                    BOOL isSelfClose = strcmp(pt, "self_closing_tag") == 0;
+                    BOOL isSTag = isStartTag(pt);
+                    BOOL isETag = isEndTag(pt);
+                    BOOL isSelfClose = isSelfClosingTag(pt);
 
                     if (isSTag || isETag || isSelfClose) {
 
@@ -398,12 +395,12 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     TSNode nameNode = ts_node_descendant_for_byte_range(root, byte, byte);
 
     const char *nt = ts_node_type(nameNode);
-    if (strcmp(nt, "tag_name") != 0 && strcmp(nt, "name") != 0 && strcmp(nt, "Name") != 0) return NO;
+    if (!isTagName(nt)) return NO;
 
     TSNode tagNode = ts_node_parent(nameNode);
     if (ts_node_is_null(tagNode)) return NO;
     const char *tt = ts_node_type(tagNode);
-    if (strcmp(tt, "self_closing_tag") == 0) return NO; // nothing to mirror
+    if (isSelfClosingTag(tt)) return NO; // nothing to mirror
     BOOL isStart = primary.isStartTag;
 
     TSNode element = ts_node_parent(tagNode);
@@ -413,14 +410,14 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(element, i);
         const char *ct = ts_node_type(child);
-        if (isStart && strcmp(ct, "end_tag")  != 0  && strcmp(ct, "ETag") != 0) continue;
-        if (!isStart && strcmp(ct, "start_tag") != 0 && strcmp(ct, "STag") != 0) continue;
+        if (isStart && !isEndTag(ct)) continue;
+        if (!isStart && !isStartTag(ct)) continue;
 
         uint32_t cc = ts_node_child_count(child);
         for (uint32_t j = 0; j < cc; j++) {
             TSNode gc = ts_node_child(child, j);
             const char *gt = ts_node_type(gc);
-            if (strcmp(gt, "tag_name") == 0 || strcmp(gt, "name") == 0 || strcmp(gt, "Name") == 0) {
+            if (isTagName(gt)) {
                 outMirror->start        = ts_node_start_byte(gc) / 2;
                 outMirror->end          = ts_node_end_byte(gc)   / 2;
                 outMirror->isStartTag   = !isStart;
@@ -462,19 +459,14 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
         const char *type = ts_node_type(node);
 
         // Remember the most recent STag/start_tag we pass through on the way up.
-        if (strcmp(type, "STag")      == 0 ||
-            strcmp(type, "start_tag") == 0) {
+        if (isStartTag(type)) {
             lastSTag = node;
             node = ts_node_parent(node);
             continue;
         }
 
         // Skip other tag-internal nodes without resetting lastSTag.
-        if (strcmp(type, "ETag")     == 0 ||
-            strcmp(type, "end_tag")  == 0 ||
-            strcmp(type, "Name")     == 0 ||
-            strcmp(type, "name")     == 0 ||
-            strcmp(type, "tag_name") == 0) {
+        if (isEndTag(type) || isTagName(type)) {
             node = ts_node_parent(node);
             continue;
         }
@@ -546,9 +538,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(tagNode, i);
         const char *ct = ts_node_type(child);
-        if (strcmp(ct, "Name") == 0 ||
-            strcmp(ct, "name") == 0 ||
-            strcmp(ct, "tag_name") == 0) {
+        if (isTagName(ct)) {
             NSUInteger start = ts_node_start_byte(child) / 2;
             NSUInteger end   = ts_node_end_byte(child)   / 2;
             NSString *full   = [model getValue];
@@ -582,9 +572,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     TSNode node = ts_node_descendant_for_byte_range(root, byte, byte + 2);
     while (!ts_node_is_null(node)) {
         const char *type = ts_node_type(node);
-        if (strcmp(type, "Name")     == 0 ||
-            strcmp(type, "name")     == 0 ||
-            strcmp(type, "tag_name") == 0) {
+        if (isTagName(type)) {
             // Only count it if it starts exactly at or right after the cursor.
             NSUInteger nodeStart = ts_node_start_byte(node) / 2;
             if (nodeStart <= offset + 1) {
@@ -622,9 +610,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
             strcmp(type, "string_content")  == 0) return NO;
 
         // A Name/name/attribute_name node whose end is exactly at the cursor.
-        BOOL isNameNode = strcmp(type, "Name")           == 0
-                       || strcmp(type, "name")           == 0
-                       || strcmp(type, "attribute_name") == 0;
+        BOOL isNameNode = isAttributeName(type);
         if (isNameNode && ts_node_end_byte(node) / 2 == cursorOffset) {
             // Walk up to verify: parent is Attribute/attribute or STag/start_tag,
             // or ERROR (which tree-sitter uses for incomplete start tags such as
@@ -634,8 +620,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
                 const char *pt = ts_node_type(parent);
                 if (!pt) break;
                 // STag / start_tag reached — we are in attribute-name position.
-                if (strcmp(pt, "STag")      == 0 ||
-                    strcmp(pt, "start_tag") == 0) return YES;
+                if (isStartTag(pt)) return YES;
                 // ERROR: tree-sitter wraps incomplete start-tag content in an
                 // ERROR node.  Accept it as an attribute-name context only if
                 // the Name node is NOT the first word token (the first word
@@ -659,8 +644,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
                     return NO;
                 }
                 // Attribute node — keep walking up.
-                if (strcmp(pt, "Attribute")  == 0 ||
-                    strcmp(pt, "attribute")  == 0) {
+                if (isAttributeNode(pt)) {
                     parent = ts_node_parent(parent);
                     continue;
                 }
@@ -671,10 +655,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
         }
 
         // Reached the tag itself without a matching name node.
-        if (strcmp(type, "STag")      == 0 ||
-            strcmp(type, "start_tag") == 0 ||
-            strcmp(type, "ETag")      == 0 ||
-            strcmp(type, "end_tag")   == 0 ||
+        if (isStartTag(type) || isEndTag(type) ||
             strcmp(type, "element")   == 0 ||
             strcmp(type, "document")  == 0) break;
 

@@ -21,9 +21,6 @@
 /// Convert a 0-based UTF-16 character index to a tree-sitter byte offset.
 static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 
-/// Convert a tree-sitter byte offset to a 0-based UTF-16 character index.
-static inline NSUInteger charFromByte(uint32_t byte) { return (NSUInteger)(byte / 2); }
-
 // ---------------------------------------------------------------------------
 // MARK: - Node-type predicates
 // ---------------------------------------------------------------------------

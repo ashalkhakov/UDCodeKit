@@ -111,17 +111,14 @@ static const NSTimeInterval kDebounceInterval = 0.15;
              @"-treeDidUpdateWithNewTree:changedRanges:textModel: must be called on the main thread");
     if (atomic_load(&_invalidated)) return;
 
-    // Lazy-initialise the gap buffer on the first call (when documentDidOpenWithContent:
-    // was not invoked by the host, as is the case for extension-bundle services).
-    // getValue is called ONCE per document open — never again on subsequent edits.
+    // Lazy-initialise the gap buffer on the first call.
+    // This fallback only fires if the service was registered AFTER
+    // -documentDidOpenWithContent: was dispatched (e.g. a grammar bundle loaded
+    // mid-session).  In the normal flow the host calls -documentDidOpenWithContent:
+    // first so getValue is never reached here.
     if (!_gapBuffer) {
         _gapBuffer = [[UDXMLGapBuffer alloc] initWithString:[textModel getValue]];
     }
-
-    // Snapshot the gap buffer: produces a compact NSString in O(n) but only at
-    // validation time, not on every keystroke.  Edits to the gap buffer are
-    // incremental O(edit size) via textWillChangeInRange:.
-    NSString *textSnapshot = [_gapBuffer snapshotString];
 
     // Build the line-start index from the TextModel's piece-tree index.
     // lineIndex[i] = 0-based UTF-16 char offset of the start of 0-indexed line i.
@@ -144,8 +141,14 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
     NSUInteger seq = atomic_fetch_add(&_sequence, (NSUInteger)1) + 1;
 
-    // Capture changedRanges for the block (it is already retained by ARC).
+    // Capture changedRanges and the gap buffer for the block.
+    // The gap buffer is captured by strong reference and read on the validation
+    // queue.  It is mutated on the main thread via textWillChangeInRange:.
+    // The 150 ms debounce means there is typically no concurrent mutation during
+    // validation; if there is, the sequence check ensures stale results are
+    // discarded and a fresh validation cycle follows.
     NSArray<NSValue *> *capturedRanges = changedRanges;
+    UDXMLGapBuffer *capturedGapBuffer  = _gapBuffer;
 
     dispatch_after(
         dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDebounceInterval * NSEC_PER_SEC)),
@@ -159,7 +162,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
             [self _validateWithTree:treeCopy
                       changedRanges:capturedRanges
-                       textSnapshot:textSnapshot
+                          gapBuffer:capturedGapBuffer
                       lineIndexData:lineIndexData];
             ts_tree_delete(treeCopy);
         });
@@ -185,12 +188,13 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
 - (void)_validateWithTree:(TSTree *)tree
             changedRanges:(nullable NSArray<NSValue *> *)changedRanges
-             textSnapshot:(NSString *)textSnapshot
+               gapBuffer:(UDXMLGapBuffer *)gapBuffer
             lineIndexData:(NSData *)lineIndexData {
-    // Diffing rebuild: pass the text snapshot directly to applyTree: so it can
-    // extract text slices from node byte offsets on the fly.  The mirror doc
-    // does NOT retain the snapshot — it is used only during this call.
-    [_mirrorDoc applyTree:tree changedRanges:changedRanges textSource:textSnapshot];
+    // Diffing rebuild: pass the gap buffer directly to applyTree: so it can
+    // extract UTF-8 slices on demand via utf8DataFromByte:toByte:.
+    // No full-buffer snapshot is created — only the slices actually needed by
+    // individual XML nodes are encoded.
+    [_mirrorDoc applyTree:tree changedRanges:changedRanges gapBuffer:gapBuffer];
     xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
     if (!xmlDoc) return;
 

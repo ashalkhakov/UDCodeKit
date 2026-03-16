@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDXMLMirrorDoc.h"
+#import "UDXMLGapBuffer.h"
 #import "UDXMLNodeTypes.h"
 #import <libxml/parser.h>
 #import <libxml/tree.h>
@@ -15,12 +16,11 @@
     xmlDocPtr  _xmlDoc;
     xmlNodePtr _dirtyRoot;
 
-    /// Text source valid only during -applyTree:changedRanges:textSource:.
-    /// The caller (UDXMLRNGHighlighter) guarantees that the NSString it passes
-    /// outlives the duration of that method call, so __unsafe_unretained avoids
-    /// an extra retain/release pair and makes the transient lifetime explicit.
-    /// Never stored past the return of -applyTree:changedRanges:textSource:.
-    NSString * __unsafe_unretained _currentSource;
+    /// Gap buffer reference valid only during -applyTree:changedRanges:gapBuffer:.
+    /// The caller (UDXMLRNGHighlighter) guarantees the buffer outlives this call;
+    /// __unsafe_unretained makes the transient lifetime explicit and avoids an
+    /// extra retain/release pair.  Never stored past the return of that method.
+    UDXMLGapBuffer * __unsafe_unretained _gapBuffer;
 }
 
 - (void)dealloc {
@@ -34,22 +34,14 @@
 - (xmlNodePtr)dirtyRoot { return _dirtyRoot; }
 
 // ---------------------------------------------------------------------------
-// MARK: - Text helpers (use _currentSource, valid only during applyTree:…)
+// MARK: - Text helpers (use _gapBuffer, valid only during applyTree:…)
 // ---------------------------------------------------------------------------
 
-/// Returns the substring of the current text source for [startByte, endByte).
+/// Returns null-terminated UTF-8 NSData for the text span [startByte, endByte).
 /// Tree-sitter byte offsets are UTF-16 code-unit indices × 2.
-- (NSString *)_textSliceFrom:(uint32_t)startByte to:(uint32_t)endByte {
-    NSUInteger s = charFromByte(startByte);
-    NSUInteger e = charFromByte(endByte);
-    NSUInteger len = _currentSource.length;
-    if (s >= len || e <= s) return @"";
-    NSAssert(e <= len,
-             @"_textSliceFrom:to: endByte %u (char %lu) exceeds source length %lu; "
-              "check for stale tree-sitter byte offsets or a source/tree mismatch",
-             endByte, (unsigned long)e, (unsigned long)len);
-    if (e > len) e = len;
-    return [_currentSource substringWithRange:NSMakeRange(s, e - s)];
+/// The gap buffer does the actual encoding — no full-buffer snapshot is needed.
+- (NSData *)_utf8SliceFrom:(uint32_t)startByte to:(uint32_t)endByte {
+    return [_gapBuffer utf8DataFromByte:startByte toByte:endByte];
 }
 
 // ---------------------------------------------------------------------------
@@ -58,11 +50,11 @@
 
 - (void)applyTree:(const void *)newTree
     changedRanges:(nullable NSArray<NSValue *> *)changedRanges
-       textSource:(NSString *)textSource {
+        gapBuffer:(UDXMLGapBuffer *)gapBuffer {
     (void)changedRanges; // Reserved for future optimisation
 
-    // Stash the text source for use by helpers during this call only.
-    _currentSource = textSource;
+    // Stash the gap buffer reference for use by slice helpers during this call.
+    _gapBuffer = gapBuffer;
     _dirtyRoot = NULL;
 
     TSNode newRoot = ts_tree_root_node((const TSTree *)newTree);
@@ -70,7 +62,7 @@
     if (!_xmlDoc) {
         // First call: full build from scratch.
         _xmlDoc = xmlNewDoc(BAD_CAST "1.0");
-        if (!_xmlDoc) { _currentSource = nil; return; }
+        if (!_xmlDoc) { _gapBuffer = nil; return; }
         [self _buildDocumentFromRoot:newRoot];
         _dirtyRoot = xmlDocGetRootElement(_xmlDoc);
     } else {
@@ -79,7 +71,7 @@
         [self _syncDocumentFromRoot:newRoot];
     }
 
-    _currentSource = nil;
+    _gapBuffer = nil;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,8 +89,13 @@
         } else if (isProcessingInstruction(type)) {
             [self _addProcessingInstruction:child toParent:NULL];
         } else if (isComment(type)) {
-            NSString *text = [self _commentText:child];
-            xmlNodePtr c = xmlNewComment(BAD_CAST text.UTF8String);
+            NSData *text = [self _utf8SliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
+            NSString *raw = [[NSString alloc] initWithBytes:text.bytes
+                                                     length:text.length - 1
+                                                   encoding:NSUTF8StringEncoding] ?: @"";
+            if ([raw hasPrefix:@"<!--"]) raw = [raw substringFromIndex:4];
+            if ([raw hasSuffix:@"-->"]) raw = [raw substringToIndex:raw.length - 3];
+            xmlNodePtr c = xmlNewComment(BAD_CAST raw.UTF8String);
             if (c) xmlAddChild((xmlNodePtr)_xmlDoc, c);
         }
         // xml_decl / DOCTYPE are transparent to RNG validation
@@ -215,10 +212,14 @@
             for (uint32_t j = 0; j < ac; j++) {
                 TSNode gc = ts_node_child(child, j);
                 const char *gt = ts_node_type(gc);
-                if (isAttributeName(gt) && !name)
-                    name = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
-                else if (isAttributeValue(gt)) {
-                    NSString *raw = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+                if (isAttributeName(gt) && !name) {
+                    NSData *d = [self _utf8SliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+                    name = [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                                  encoding:NSUTF8StringEncoding] ?: @"";
+                } else if (isAttributeValue(gt)) {
+                    NSData *d = [self _utf8SliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+                    NSString *raw = [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                                           encoding:NSUTF8StringEncoding] ?: @"";
                     value = stripQuotes(raw);
                 }
             }
@@ -332,29 +333,36 @@
 
     // --- text ---
     if (isTextNode(tsType)) {
-        NSString *newContent = [self _textSliceFrom:ts_node_start_byte(tsNode)
-                                                 to:ts_node_end_byte(tsNode)];
+        NSData *newData = [self _utf8SliceFrom:ts_node_start_byte(tsNode)
+                                            to:ts_node_end_byte(tsNode)];
+        const xmlChar *newUTF8 = (const xmlChar *)newData.bytes;
         if (xmlNode->type == XML_TEXT_NODE) {
-            NSString *oldContent = xmlNode->content ? @((const char *)xmlNode->content) : @"";
-            if ([newContent isEqualToString:oldContent]) return NO;
-            xmlNodeSetContent(xmlNode, BAD_CAST newContent.UTF8String);
+            const char *oldUTF8 = xmlNode->content ? (const char *)xmlNode->content : "";
+            if (strcmp((const char *)newUTF8, oldUTF8) == 0) return NO;
+            xmlNodeSetContent(xmlNode, newUTF8);
             return YES;
         }
-        xmlNodePtr newNode = xmlNewText(BAD_CAST newContent.UTF8String);
+        xmlNodePtr newNode = xmlNewText(newUTF8);
         if (newNode) { xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode); }
         return YES;
     }
 
     // --- comment ---
     if (isComment(tsType)) {
-        NSString *newContent = [self _commentText:tsNode];
+        NSData *rawData = [self _utf8SliceFrom:ts_node_start_byte(tsNode)
+                                            to:ts_node_end_byte(tsNode)];
+        NSString *raw = [[NSString alloc] initWithBytes:rawData.bytes length:rawData.length - 1
+                                               encoding:NSUTF8StringEncoding] ?: @"";
+        if ([raw hasPrefix:@"<!--"]) raw = [raw substringFromIndex:4];
+        if ([raw hasSuffix:@"-->"]) raw = [raw substringToIndex:raw.length - 3];
+        const char *commentUTF8 = raw.UTF8String ?: "";
         if (xmlNode->type == XML_COMMENT_NODE) {
-            NSString *oldContent = xmlNode->content ? @((const char *)xmlNode->content) : @"";
-            if ([newContent isEqualToString:oldContent]) return NO;
-            xmlNodeSetContent(xmlNode, BAD_CAST newContent.UTF8String);
+            const char *oldUTF8 = xmlNode->content ? (const char *)xmlNode->content : "";
+            if (strcmp(commentUTF8, oldUTF8) == 0) return NO;
+            xmlNodeSetContent(xmlNode, (const xmlChar *)commentUTF8);
             return YES;
         }
-        xmlNodePtr newNode = xmlNewComment(BAD_CAST newContent.UTF8String);
+        xmlNodePtr newNode = xmlNewComment((const xmlChar *)commentUTF8);
         if (newNode) { xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode); }
         return YES;
     }
@@ -374,30 +382,37 @@
         return [self _buildElement:tsNode];
 
     if (isTextNode(type)) {
-        NSString *text = [self _textSliceFrom:ts_node_start_byte(tsNode)
-                                           to:ts_node_end_byte(tsNode)];
-        return xmlNewText(BAD_CAST text.UTF8String);
+        NSData *textData = [self _utf8SliceFrom:ts_node_start_byte(tsNode)
+                                             to:ts_node_end_byte(tsNode)];
+        return xmlNewText((const xmlChar *)textData.bytes);
     }
 
     if (isComment(type)) {
-        NSString *text = [self _commentText:tsNode];
-        return xmlNewComment(BAD_CAST text.UTF8String);
+        NSData *rawData = [self _utf8SliceFrom:ts_node_start_byte(tsNode)
+                                            to:ts_node_end_byte(tsNode)];
+        NSString *raw = [[NSString alloc] initWithBytes:rawData.bytes length:rawData.length - 1
+                                               encoding:NSUTF8StringEncoding] ?: @"";
+        if ([raw hasPrefix:@"<!--"]) raw = [raw substringFromIndex:4];
+        if ([raw hasSuffix:@"-->"]) raw = [raw substringToIndex:raw.length - 3];
+        return xmlNewComment((const xmlChar *)raw.UTF8String);
     }
 
     if (isCDATA(type)) {
-        NSString *raw = [self _textSliceFrom:ts_node_start_byte(tsNode)
-                                          to:ts_node_end_byte(tsNode)];
-        NSString *content = raw;
+        NSData *rawData = [self _utf8SliceFrom:ts_node_start_byte(tsNode)
+                                            to:ts_node_end_byte(tsNode)];
+        NSString *content = [[NSString alloc] initWithBytes:rawData.bytes length:rawData.length - 1
+                                                   encoding:NSUTF8StringEncoding] ?: @"";
         if ([content hasPrefix:@"<![CDATA["]) content = [content substringFromIndex:9];
         if ([content hasSuffix:@"]]>"])        content = [content substringToIndex:content.length - 3];
-        return xmlNewCDataBlock(_xmlDoc,
-                                BAD_CAST content.UTF8String,
-                                (int)strlen(content.UTF8String));
+        const char *utf8 = content.UTF8String ?: "";
+        return xmlNewCDataBlock(_xmlDoc, BAD_CAST utf8, (int)strlen(utf8));
     }
 
     if (isProcessingInstruction(type)) {
-        NSString *raw = [self _textSliceFrom:ts_node_start_byte(tsNode)
-                                          to:ts_node_end_byte(tsNode)];
+        NSData *rawData = [self _utf8SliceFrom:ts_node_start_byte(tsNode)
+                                            to:ts_node_end_byte(tsNode)];
+        NSString *raw = [[NSString alloc] initWithBytes:rawData.bytes length:rawData.length - 1
+                                               encoding:NSUTF8StringEncoding] ?: @"";
         if ([raw hasPrefix:@"<?"]) raw = [raw substringFromIndex:2];
         if ([raw hasSuffix:@"?>"]) raw = [raw substringToIndex:raw.length - 2];
         NSRange ws = [raw rangeOfCharacterFromSet:
@@ -458,8 +473,11 @@
     uint32_t count = ts_node_child_count(tagNode);
     for (uint32_t i = 0; i < count; i++) {
         TSNode child = ts_node_child(tagNode, i);
-        if (isTagName(ts_node_type(child)))
-            return [self _textSliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
+        if (isTagName(ts_node_type(child))) {
+            NSData *d = [self _utf8SliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
+            return [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                         encoding:NSUTF8StringEncoding];
+        }
     }
     return nil;
 }
@@ -487,10 +505,14 @@
         for (uint32_t j = 0; j < ac; j++) {
             TSNode gc = ts_node_child(child, j);
             const char *gt = ts_node_type(gc);
-            if (isAttributeName(gt) && !attrName)
-                attrName = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
-            else if (isAttributeValue(gt)) {
-                NSString *raw = [self _textSliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+            if (isAttributeName(gt) && !attrName) {
+                NSData *d = [self _utf8SliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+                attrName = [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                                  encoding:NSUTF8StringEncoding] ?: @"";
+            } else if (isAttributeValue(gt)) {
+                NSData *d = [self _utf8SliceFrom:ts_node_start_byte(gc) to:ts_node_end_byte(gc)];
+                NSString *raw = [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                                       encoding:NSUTF8StringEncoding] ?: @"";
                 attrValue = stripQuotes(raw);
             }
         }
@@ -510,36 +532,32 @@
             xmlNodePtr childElem = [self _buildElement:child];
             if (childElem) xmlAddChild(parent, childElem);
         } else if (isTextNode(ct)) {
-            NSString *text = [self _textSliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
-            xmlNodePtr textNode = xmlNewText(BAD_CAST text.UTF8String);
+            NSData *textData = [self _utf8SliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
+            xmlNodePtr textNode = xmlNewText((const xmlChar *)textData.bytes);
             if (textNode) xmlAddChild(parent, textNode);
         } else if (isComment(ct)) {
-            NSString *text = [self _commentText:child];
-            xmlNodePtr commentNode = xmlNewComment(BAD_CAST text.UTF8String);
+            NSData *rawData = [self _utf8SliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
+            NSString *raw = [[NSString alloc] initWithBytes:rawData.bytes length:rawData.length - 1
+                                                   encoding:NSUTF8StringEncoding] ?: @"";
+            if ([raw hasPrefix:@"<!--"]) raw = [raw substringFromIndex:4];
+            if ([raw hasSuffix:@"-->"]) raw = [raw substringToIndex:raw.length - 3];
+            xmlNodePtr commentNode = xmlNewComment((const xmlChar *)raw.UTF8String);
             if (commentNode) xmlAddChild(parent, commentNode);
         } else if (isCDATA(ct)) {
-            NSString *raw = [self _textSliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
-            NSString *cdataContent = raw;
+            NSData *rawData = [self _utf8SliceFrom:ts_node_start_byte(child) to:ts_node_end_byte(child)];
+            NSString *cdataContent = [[NSString alloc] initWithBytes:rawData.bytes
+                                                              length:rawData.length - 1
+                                                            encoding:NSUTF8StringEncoding] ?: @"";
             if ([cdataContent hasPrefix:@"<![CDATA["]) cdataContent = [cdataContent substringFromIndex:9];
             if ([cdataContent hasSuffix:@"]]>"])        cdataContent = [cdataContent substringToIndex:cdataContent.length - 3];
-            xmlNodePtr cdataNode = xmlNewCDataBlock(_xmlDoc,
-                BAD_CAST cdataContent.UTF8String,
-                (int)strlen(cdataContent.UTF8String));
+            const char *cdataUTF8 = cdataContent.UTF8String ?: "";
+            xmlNodePtr cdataNode = xmlNewCDataBlock(_xmlDoc, BAD_CAST cdataUTF8, (int)strlen(cdataUTF8));
             if (cdataNode) xmlAddChild(parent, cdataNode);
         } else if (isProcessingInstruction(ct)) {
             [self _addProcessingInstruction:child toParent:parent];
         }
         // Other nodes (errors, whitespace tokens, etc.) are skipped silently.
     }
-}
-
-/// Extract comment text (strips <!-- and --> delimiters).
-- (NSString *)_commentText:(TSNode)commentNode {
-    NSString *raw = [self _textSliceFrom:ts_node_start_byte(commentNode)
-                                      to:ts_node_end_byte(commentNode)];
-    if ([raw hasPrefix:@"<!--"]) raw = [raw substringFromIndex:4];
-    if ([raw hasSuffix:@"-->"]) raw = [raw substringToIndex:raw.length - 3];
-    return raw;
 }
 
 /// Add a processing instruction node as a child of xmlParent (or the document root).

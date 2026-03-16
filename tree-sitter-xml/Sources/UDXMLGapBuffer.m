@@ -132,6 +132,80 @@ static const NSUInteger kGrowMinGapSize = 256;
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - UTF-8 slice
+// ---------------------------------------------------------------------------
+
+- (NSData *)utf8DataFromByte:(uint32_t)startByte toByte:(uint32_t)endByte {
+    static const char kNul = '\0';
+
+    // Convert tree-sitter byte offsets to char indices.
+    // The redundant `startByte >= endByte` guard is intentional: it makes the
+    // empty-range check explicit at the byte-offset level before the division.
+    NSUInteger start = (NSUInteger)(startByte / 2);
+    NSUInteger end   = (NSUInteger)(endByte   / 2);
+    NSUInteger totalLen = self.length;
+
+    if (start >= totalLen || end <= start) {
+        return [NSData dataWithBytes:&kNul length:1];
+    }
+    if (end > totalLen) end = totalLen;
+    NSUInteger sliceLen = end - start;
+
+    // Allocate a temporary buffer for just the slice's unichar values.
+    unichar *tmp = (unichar *)malloc(sliceLen * sizeof(unichar));
+    if (!tmp) return [NSData dataWithBytes:&kNul length:1];
+
+    // Fill from the two segments of the gap buffer, skipping the gap itself.
+    //
+    // Logical char index i maps to:
+    //   i < _gapStart  →  _buf[i]
+    //   i >= _gapStart →  _buf[_gapEnd + (i - _gapStart)]
+    //
+    NSUInteger written = 0;
+
+    if (start < _gapStart) {
+        // Pre-gap segment: chars [start, min(end, _gapStart))
+        NSUInteger segEnd = (end < _gapStart) ? end : _gapStart;
+        NSUInteger segLen = segEnd - start;
+        memcpy(tmp, _buf + start, segLen * sizeof(unichar));
+        written += segLen;
+    }
+
+    if (end > _gapStart) {
+        // Post-gap segment: logical chars [max(start, _gapStart), end)
+        //                   → _buf[_gapEnd + offset] where offset = i - _gapStart
+        NSUInteger logicalStart = (start > _gapStart) ? start : _gapStart;
+        NSUInteger offset       = logicalStart - _gapStart;
+        NSUInteger segLen       = end - logicalStart;
+        memcpy(tmp + written, _buf + _gapEnd + offset, segLen * sizeof(unichar));
+        written += segLen;
+    }
+
+    NSAssert(written == sliceLen,
+             @"[UDXMLGapBuffer] utf8DataFromByte:toByte: slice length mismatch: "
+              "expected %lu, wrote %lu", (unsigned long)sliceLen, (unsigned long)written);
+
+    // Wrap the unichar array in an NSString without copying (transfers ownership).
+    // Foundation handles surrogate pairs and other encoding subtleties.
+    NSString *sliceStr = [[NSString alloc] initWithCharactersNoCopy:tmp
+                                                             length:sliceLen
+                                                       freeWhenDone:YES];
+    if (!sliceStr) {
+        free(tmp);
+        return [NSData dataWithBytes:&kNul length:1];
+    }
+
+    // Encode as UTF-8 and append a NUL terminator for libxml2 / C-string use.
+    NSData *utf8 = [sliceStr dataUsingEncoding:NSUTF8StringEncoding];
+    if (!utf8) return [NSData dataWithBytes:&kNul length:1];
+
+    NSMutableData *result = [NSMutableData dataWithCapacity:utf8.length + 1];
+    [result appendData:utf8];
+    [result appendBytes:&kNul length:1];
+    return result;
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Snapshot
 // ---------------------------------------------------------------------------
 

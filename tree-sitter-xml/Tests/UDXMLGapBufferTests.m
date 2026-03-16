@@ -207,4 +207,106 @@
     XCTAssertEqual(buf.length, (NSUInteger)0);
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - UTF-8 slice (utf8DataFromByte:toByte:)
+// ---------------------------------------------------------------------------
+
+// Convenience: call utf8DataFromByte:toByte: and return the UTF-8 string.
+// byte offsets = char offset × 2  (tree-sitter convention).
+static NSString *sliceString(UDXMLGapBuffer *buf, NSUInteger start, NSUInteger end) {
+    NSData *d = [buf utf8DataFromByte:(uint32_t)(start * 2) toByte:(uint32_t)(end * 2)];
+    if (!d || d.length == 0) return @"";
+    // Length - 1 to exclude the null terminator.
+    return [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                  encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+- (void)testUTF8SliceFullRange {
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"Hello"];
+    XCTAssertEqualObjects(sliceString(buf, 0, 5), @"Hello");
+}
+
+- (void)testUTF8SlicePrefix {
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"Hello, World!"];
+    XCTAssertEqualObjects(sliceString(buf, 0, 5), @"Hello");
+}
+
+- (void)testUTF8SliceSuffix {
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"Hello, World!"];
+    // "World!" starts at char index 7
+    XCTAssertEqualObjects(sliceString(buf, 7, 13), @"World!");
+}
+
+- (void)testUTF8SliceMiddle {
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"<root/>"];
+    // Slice char[1..5) = "root"
+    XCTAssertEqualObjects(sliceString(buf, 1, 5), @"root");
+}
+
+- (void)testUTF8SliceEmptyRangeReturnsNul {
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"Hello"];
+    NSData *d = [buf utf8DataFromByte:4 toByte:4]; // startByte == endByte
+    XCTAssertEqual(d.length, (NSUInteger)1, @"empty range should return single NUL byte");
+    XCTAssertEqual(((const char *)d.bytes)[0], '\0');
+}
+
+- (void)testUTF8SliceSpansGap {
+    // After insertions the gap is somewhere inside the buffer.
+    // Slicing across the gap boundary must still yield correct text.
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"abcde"];
+    // Insert "XY" at position 2 → "abXYcde", gap is now somewhere in the middle
+    [buf replaceCharactersInRange:NSMakeRange(2, 0) withString:@"XY"];
+    // Slice the whole text
+    XCTAssertEqualObjects(sliceString(buf, 0, 7), @"abXYcde");
+    // Slice crossing the original gap position
+    XCTAssertEqualObjects(sliceString(buf, 1, 5), @"bXYc");
+}
+
+- (void)testUTF8SliceAfterDeletion {
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"Hello, World!"];
+    [buf replaceCharactersInRange:NSMakeRange(5, 7) withString:@""]; // → "Hello!"
+    XCTAssertEqualObjects(sliceString(buf, 0, 6), @"Hello!");
+}
+
+- (void)testUTF8SliceNullTerminated {
+    // The NSData must include a null terminator so callers can pass .bytes to libxml2.
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"root"];
+    NSData *d = [buf utf8DataFromByte:0 toByte:(uint32_t)(4 * 2)];
+    XCTAssertGreaterThan(d.length, (NSUInteger)4, @"data must include NUL");
+    XCTAssertEqual(((const char *)d.bytes)[d.length - 1], '\0', @"last byte must be NUL");
+}
+
+- (void)testUTF8SliceUnicodeAscii {
+    // ASCII text: UTF-8 == UTF-16 (byte-for-byte same for 0x00-0x7F)
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"<tag attr=\"val\"/>"];
+    // Slice out the attribute name "attr"
+    XCTAssertEqualObjects(sliceString(buf, 5, 9), @"attr");
+}
+
+- (void)testUTF8SliceMultibyteUnicode {
+    // U+00E9 é is 2 bytes in UTF-8 (0xC3 0xA9) but 1 UTF-16 code unit.
+    NSString *content = @"caf\u00E9";  // "café", 4 UTF-16 code units
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:content];
+    // Slice char[3..4) = "é"
+    NSData *d = [buf utf8DataFromByte:6 toByte:8]; // char 3 → byte 6, char 4 → byte 8
+    XCTAssertGreaterThanOrEqual(d.length, (NSUInteger)3, @"é is 2 UTF-8 bytes + NUL");
+    NSString *sliced = [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                              encoding:NSUTF8StringEncoding];
+    XCTAssertEqualObjects(sliced, @"\u00E9");
+}
+
+- (void)testUTF8SliceSurrogatePair {
+    // U+1F600 GRINNING FACE: 2 UTF-16 code units (surrogate pair), 4 UTF-8 bytes.
+    NSString *emoji = @"\U0001F600";
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:[@"A" stringByAppendingString:emoji]];
+    // char[0..1) = "A"; char[1..3) = emoji (2 UTF-16 units)
+    XCTAssertEqualObjects(sliceString(buf, 0, 1), @"A");
+    NSData *emojiData = [buf utf8DataFromByte:2 toByte:6]; // char 1→byte 2, char 3→byte 6
+    XCTAssertGreaterThanOrEqual(emojiData.length, (NSUInteger)5, @"emoji is 4 UTF-8 bytes + NUL");
+    NSString *slicedEmoji = [[NSString alloc] initWithBytes:emojiData.bytes
+                                                     length:emojiData.length - 1
+                                                   encoding:NSUTF8StringEncoding];
+    XCTAssertEqualObjects(slicedEmoji, emoji);
+}
+
 @end

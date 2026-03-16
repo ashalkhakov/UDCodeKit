@@ -162,6 +162,11 @@ static NSInteger maxLineInSubtree(xmlNodePtr node) {
     xmlNodePtr *stack = (xmlNodePtr *)malloc((size_t)kInitialCap * sizeof(xmlNodePtr));
     if (!stack) {
         // Malloc failed: fall back to the node's own line only.
+        // Callers use the returned max as the end of the dirty line range; a
+        // too-small range is safe (only causes slightly more stale diagnostics
+        // to survive the merge), while an incorrect splice would corrupt the
+        // cache.  Log and return a conservative result.
+        NSLog(@"[UDRNGValidator] maxLineInSubtree: malloc failed, returning node->line only");
         return max;
     }
     int capacity = kInitialCap;
@@ -173,7 +178,10 @@ static NSInteger maxLineInSubtree(xmlNodePtr node) {
             int newCap = capacity * 2;
             xmlNodePtr *bigger = (xmlNodePtr *)realloc(stack,
                                      (size_t)newCap * sizeof(xmlNodePtr));
-            if (!bigger) { free(stack); return max; }
+            if (!bigger) {
+                NSLog(@"[UDRNGValidator] maxLineInSubtree: realloc failed, returning partial max");
+                free(stack); return max;
+            }
             stack = bigger;
             capacity = newCap;
         }
@@ -189,7 +197,10 @@ static NSInteger maxLineInSubtree(xmlNodePtr node) {
                 int newCap = capacity * 2;
                 xmlNodePtr *bigger = (xmlNodePtr *)realloc(stack,
                                          (size_t)newCap * sizeof(xmlNodePtr));
-                if (!bigger) { free(stack); return max; }
+                if (!bigger) {
+                    NSLog(@"[UDRNGValidator] maxLineInSubtree: realloc failed, returning partial max");
+                    free(stack); return max;
+                }
                 stack = bigger;
                 capacity = newCap;
             }

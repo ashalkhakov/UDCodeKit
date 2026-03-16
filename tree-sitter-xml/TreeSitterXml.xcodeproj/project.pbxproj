@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		ABCD00050000000000000005 /* UDXMLTagMirrorTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */; };
 		ABCD00130000000000000013 /* UDXMLGapBufferTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00120000000000000012 /* UDXMLGapBufferTests.m */; };
+		CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */; };
+		CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA02 /* UDXMLMirrorDoc.m */; };
+		CE000001000000000000BB08 /* UDRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA04 /* UDRNGValidator.m */; };
 		ABCD00060000000000000006 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		ABCD00070000000000000007 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
 		ABCD00080000000000000008 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
@@ -59,6 +62,7 @@
 /* Begin PBXFileReference section */
 		ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirrorTests.m; sourceTree = "<group>"; };
 		ABCD00120000000000000012 /* UDXMLGapBufferTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLGapBufferTests.m; sourceTree = "<group>"; };
+		CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLRNGHighlighterTests.m; sourceTree = "<group>"; };
 		ABCD00030000000000000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXmlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
@@ -160,6 +164,7 @@
 			children = (
 				ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */,
 				ABCD00120000000000000012 /* UDXMLGapBufferTests.m */,
+				CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -314,6 +319,9 @@
 				ABCD00090000000000000009 /* scanner.c in Sources */,
 				CE000001000000000000BB05 /* UDXMLGapBuffer.m in Sources */,
 				ABCD00130000000000000013 /* UDXMLGapBufferTests.m in Sources */,
+				CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */,
+				CE000001000000000000BB08 /* UDRNGValidator.m in Sources */,
+				CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

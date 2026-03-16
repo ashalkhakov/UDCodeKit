@@ -194,6 +194,36 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Sorted-array binary-search helpers
+// ---------------------------------------------------------------------------
+
+/// Returns the smallest index i such that arr[i].line >= targetLine,
+/// or arr.count if no such element exists.  arr must be sorted by (line, column).
+static NSUInteger lowerBound(NSMutableArray<UDDiagnosticItem *> *arr,
+                              NSInteger targetLine) {
+    NSUInteger lo = 0, hi = arr.count;
+    while (lo < hi) {
+        NSUInteger mid = lo + (hi - lo) / 2;
+        if (arr[mid].line < targetLine) lo = mid + 1;
+        else                             hi = mid;
+    }
+    return lo;
+}
+
+/// Returns the smallest index i such that arr[i].line > targetLine,
+/// or arr.count if no such element exists.  arr must be sorted by (line, column).
+static NSUInteger upperBound(NSMutableArray<UDDiagnosticItem *> *arr,
+                              NSInteger targetLine) {
+    NSUInteger lo = 0, hi = arr.count;
+    while (lo < hi) {
+        NSUInteger mid = lo + (hi - lo) / 2;
+        if (arr[mid].line <= targetLine) lo = mid + 1;
+        else                              hi = mid;
+    }
+    return lo;
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Validation (runs on _validationQueue)
 // ---------------------------------------------------------------------------
 
@@ -253,25 +283,28 @@ static const NSTimeInterval kDebounceInterval = 0.15;
             lastLine   = ll;
         }];
 
-        // Remove existing diagnostics that fall inside the dirty subtree's line
-        // range, then append the freshly validated ones.
-        NSMutableArray<UDDiagnosticItem *> *mergedMutable =
-            [NSMutableArray arrayWithCapacity:_currentDiagnostics.count + newItems.count];
-        for (UDDiagnosticItem *item in _currentDiagnostics) {
-            if (item.line < firstLine || item.line > lastLine)
-                [mergedMutable addObject:item];
+        // Sorted in-place splice: the existing diagnostics cache is always
+        // sorted by (line, column).  We locate the stale range with two binary
+        // searches, remove it, and insert the new items (which come from
+        // validateSubtree: in document order, i.e. already sorted) at the
+        // same position.  The result stays sorted — no O(n log n) sort needed.
+        //
+        // Complexity: O(log n) to find the range + O(k) remove + O(m) insert,
+        // where k = stale items removed and m = new items added.
+        NSUInteger lo = lowerBound(_currentDiagnostics, firstLine);
+        NSUInteger hi = upperBound(_currentDiagnostics, lastLine);
+
+        // Remove stale items that fall inside [firstLine, lastLine].
+        if (hi > lo)
+            [_currentDiagnostics removeObjectsInRange:NSMakeRange(lo, hi - lo)];
+
+        // Insert the new (already-sorted) items at the gap we just created.
+        if (newItems.count) {
+            NSIndexSet *idxs = [NSIndexSet indexSetWithIndexesInRange:
+                                NSMakeRange(lo, newItems.count)];
+            [_currentDiagnostics insertObjects:newItems atIndexes:idxs];
         }
-        [mergedMutable addObjectsFromArray:newItems];
-        // Re-sort by (line, column) so the UI always gets an ordered list.
-        [mergedMutable sortUsingComparator:^NSComparisonResult(UDDiagnosticItem *a,
-                                                               UDDiagnosticItem *b) {
-            if (a.line != b.line)
-                return a.line < b.line ? NSOrderedAscending : NSOrderedDescending;
-            if (a.column != b.column)
-                return a.column < b.column ? NSOrderedAscending : NSOrderedDescending;
-            return NSOrderedSame;
-        }];
-        merged = [mergedMutable copy];
+        merged = [_currentDiagnostics copy];
     }
 
     // Update the cache so future partial merges see the current full result.

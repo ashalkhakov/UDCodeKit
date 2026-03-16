@@ -5,56 +5,57 @@
 #import "UDSchematronValidator.h"
 #import <libxml/schematron.h>
 #import <libxml/xmlerror.h>
+#import <libxml/globals.h>
+#import <stdarg.h>
 
 UDDiagnosticSource const UDDiagnosticSourceSchematron = @"schematron";
 
 // ---------------------------------------------------------------------------
-// MARK: - Error accumulation context
+// MARK: - Thread-local message capture
 // ---------------------------------------------------------------------------
+//
+// In libxml2 ≤ 2.9.x, xmlSchematronReportOutput() is an unimplemented stub
+// that always routes assertion-failure messages through xmlGenericError(),
+// ignoring every output flag including XML_SCHEMATRON_OUT_ERROR.  The
+// xmlSchematronSetValidStructuredErrors() callback is therefore NEVER invoked
+// for assertion failures.
+//
+// On LIBXML_THREAD_ENABLED builds (the default on Linux/macOS), xmlGenericError
+// is a per-thread function pointer accessed via __xmlGenericError().
+// xmlSetGenericErrorFunc() installs a per-thread override, so replacing it on
+// our serial validation thread is safe — other threads are unaffected.
+//
+// We accumulate each message line into a fixed-size thread-local text buffer.
+// After validation the buffer is split into lines and converted to
+// UDDiagnosticItem objects.
 
-/// Passed as the userData pointer to libxml2's structured error callback.
-@interface _UDSchematronValidationCtx : NSObject
-@property (nonatomic, strong) NSMutableArray<UDDiagnosticItem *> *items;
-@property (nonatomic, assign) const NSUInteger *lineIndex;
-@property (nonatomic, assign) NSUInteger lineCount;
-@end
+#define _UD_SCH_BUF_CAP 65536
 
-@implementation _UDSchematronValidationCtx
-- (instancetype)init {
-    self = [super init];
-    if (!self) return nil;
-    _items = [NSMutableArray array];
-    return self;
-}
-@end
+/// Thread-local pointer to an active capture buffer (NULL when not validating).
+static __thread char *_tlBuf         = NULL;
+/// Thread-local write position within the buffer.
+static __thread size_t _tlBufUsed    = 0;
 
-// ---------------------------------------------------------------------------
-// MARK: - libxml2 callback
-// ---------------------------------------------------------------------------
+/// Generic-error capture function installed around each xmlSchematronValidateDoc
+/// call.  Must have C linkage for the xmlGenericErrorFunc typedef.
+static void XMLCDECL _schematronCaptureError(void *ctx, const char *msg, ...) {
+    char *buf = _tlBuf;
+    if (!buf || !msg) return;
 
-/// Structured-error callback for Schematron validation failures.
-/// Converts each xmlError into a UDDiagnosticItem and appends it to the context.
-static void schematronValidError(void *userData, xmlErrorPtr error) {
-    _UDSchematronValidationCtx *ctx = (__bridge _UDSchematronValidationCtx *)userData;
-    if (!ctx || !error) return;
+    char chunk[2048];
+    va_list ap;
+    va_start(ap, msg);
+    vsnprintf(chunk, sizeof(chunk), msg, ap);
+    va_end(ap);
 
-    // Map libxml2's 1-based line number to a 0-based editor character offset.
-    NSInteger line1 = (NSInteger)error->line;   // 1-based (may be 0 when not set)
-    NSInteger col1  = (NSInteger)error->int2;   // 1-based column (may be 0)
+    size_t len = strlen(chunk);
+    size_t remaining = _UD_SCH_BUF_CAP - _tlBufUsed - 1;
+    if (len > remaining) len = remaining;
+    if (len == 0) return;
 
-    if (line1 < 1) line1 = 1;
-
-    NSString *msg = error->message
-        ? [NSString stringWithUTF8String:error->message] : @"Schematron assertion failed";
-    msg = [msg stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]];
-
-    UDDiagnosticItem *item = [[UDDiagnosticItem alloc]
-        initWithLine:   line1
-              column:   MAX(0, col1 - 1)   // store as 0-based column
-             message:  msg
-            severity:  UDDiagnosticSeverityError
-              source:  UDDiagnosticSourceSchematron];
-    [ctx.items addObject:item];
+    memcpy(buf + _tlBufUsed, chunk, len);
+    _tlBufUsed += len;
+    buf[_tlBufUsed] = '\0';
 }
 
 // ---------------------------------------------------------------------------
@@ -138,24 +139,85 @@ static void schematronValidError(void *userData, xmlErrorPtr error) {
         return;
     }
 
-    _UDSchematronValidationCtx *ctx = [[_UDSchematronValidationCtx alloc] init];
-    ctx.lineIndex = lineIndex;
-    ctx.lineCount = lineCount;
-
+    // xmlSchematronNewValidCtxt with XML_SCHEMATRON_OUT_QUIET suppresses any
+    // additional output channel that libxml2 ≥ 2.10 may open.  The messages we
+    // care about still arrive via xmlGenericError (the per-thread hook we set
+    // below).
     xmlSchematronValidCtxtPtr validCtxt =
-        xmlSchematronNewValidCtxt(_schema, XML_SCHEMATRON_OUT_ERROR);
+        xmlSchematronNewValidCtxt(_schema, XML_SCHEMATRON_OUT_QUIET);
     if (!validCtxt) {
         completion(@[]);
         return;
     }
 
-    xmlSchematronSetValidStructuredErrors(validCtxt, schematronValidError,
-                                          (__bridge void *)ctx);
+    // -----------------------------------------------------------------------
+    // Install a per-thread generic-error capture function.
+    // xmlGenericError / xmlGenericErrorContext are per-thread on
+    // LIBXML_THREAD_ENABLED builds, so this does NOT affect other threads.
+    // -----------------------------------------------------------------------
+    char localBuf[_UD_SCH_BUF_CAP];
+    localBuf[0]   = '\0';
+    _tlBuf        = localBuf;
+    _tlBufUsed    = 0;
 
-    xmlSchematronValidateDoc(validCtxt, doc);
+    xmlGenericErrorFunc prevErrorFn  = xmlGenericError;
+    void               *prevErrorCtx = xmlGenericErrorContext;
+    xmlSetGenericErrorFunc(NULL, _schematronCaptureError);
+
+    int failedAssertions = xmlSchematronValidateDoc(validCtxt, doc);
+
+    // Restore previous generic-error handler.
+    xmlSetGenericErrorFunc(prevErrorCtx, prevErrorFn);
+    _tlBuf = NULL;
+
     xmlSchematronFreeValidCtxt(validCtxt);
 
-    completion([ctx.items copy]);
+    // -----------------------------------------------------------------------
+    // Build diagnostic items from the captured text.
+    //
+    // Each assertion failure produces one or more lines of the form:
+    //   "Element <name>, …  failed assertion …\n"
+    //   "<path> line <n>: failed assert '<expr>'\n"
+    // We split on newlines and create one diagnostic per non-empty line.
+    // -----------------------------------------------------------------------
+    NSMutableArray<UDDiagnosticItem *> *items = [NSMutableArray array];
+
+    if (_tlBufUsed > 0) {
+        NSString *raw = [NSString stringWithUTF8String:localBuf];
+        if (!raw) raw = [[NSString alloc] initWithBytes:localBuf
+                                                 length:_tlBufUsed
+                                               encoding:NSISOLatin1StringEncoding];
+        NSArray<NSString *> *lines =
+            [raw componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+        for (NSString *line in lines) {
+            NSString *trimmed = [line stringByTrimmingCharactersInSet:
+                                 [NSCharacterSet whitespaceCharacterSet]];
+            if (trimmed.length == 0) continue;
+
+            UDDiagnosticItem *item = [[UDDiagnosticItem alloc]
+                initWithLine:1
+                      column:0
+                     message:trimmed
+                    severity:UDDiagnosticSeverityError
+                      source:UDDiagnosticSourceSchematron];
+            [items addObject:item];
+        }
+    }
+
+    // Fallback: if libxml2 reported failures but produced no parseable text
+    // (e.g. a future version silences xmlGenericError), still emit one
+    // diagnostic so the user knows validation failed.
+    if (failedAssertions > 0 && items.count == 0) {
+        UDDiagnosticItem *fallback = [[UDDiagnosticItem alloc]
+            initWithLine:1
+                  column:0
+                 message:@"Schematron assertion failed"
+                severity:UDDiagnosticSeverityError
+                  source:UDDiagnosticSourceSchematron];
+        [items addObject:fallback];
+    }
+
+    completion([items copy]);
 }
 
 @end

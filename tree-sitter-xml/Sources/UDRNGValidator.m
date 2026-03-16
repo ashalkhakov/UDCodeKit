@@ -241,10 +241,27 @@ static NSInteger maxLineInSubtree(xmlNodePtr node) {
     xmlRelaxNGSetValidStructuredErrors(validCtxt, rngValidError,
                                        (__bridge void *)ctx);
 
-    xmlRelaxNGValidateDoc(validCtxt, doc);
+    int validationResult = xmlRelaxNGValidateDoc(validCtxt, doc);
     xmlRelaxNGFreeValidCtxt(validCtxt);
 
-    completion([ctx.items copy]);
+    NSArray<UDDiagnosticItem *> *items = [ctx.items copy];
+    // On some libxml2 builds (e.g. the macOS system library) the structured-
+    // error callback is not invoked for certain error classes — in particular
+    // the "extra content" error that fires when a zeroOrMore pattern matches
+    // zero iterations but the element still has unmatched children.  If the
+    // C-level return value signals invalidity but the callback was never called,
+    // synthesise a generic diagnostic so callers are not left with a false pass.
+    if (validationResult != 0 && items.count == 0) {
+        UDDiagnosticItem *fallback = [[UDDiagnosticItem alloc]
+            initWithLine:1
+                  column:0
+                 message:@"RELAX NG validation failed"
+                severity:UDDiagnosticSeverityError
+                  source:UDDiagnosticSourceRNG];
+        items = @[fallback];
+    }
+
+    completion(items);
 }
 
 - (void)validateSubtree:(xmlNodePtr)node
@@ -277,10 +294,24 @@ static NSInteger maxLineInSubtree(xmlNodePtr node) {
 
     xmlRelaxNGSetValidStructuredErrors(validCtxt, rngValidError,
                                        (__bridge void *)ctx);
-    xmlRelaxNGValidateFullElement(validCtxt, doc, node);
+    int validationResult = xmlRelaxNGValidateFullElement(validCtxt, doc, node);
     xmlRelaxNGFreeValidCtxt(validCtxt);
 
-    completion([ctx.items copy], firstLine, lastLine);
+    NSArray<UDDiagnosticItem *> *items = [ctx.items copy];
+    // Same fallback as -validateDoc:… above: synthesise a generic diagnostic
+    // when the C API signals failure but the structured-error callback was
+    // never fired.
+    if (validationResult != 0 && items.count == 0) {
+        UDDiagnosticItem *fallback = [[UDDiagnosticItem alloc]
+            initWithLine:MAX(1, firstLine)
+                  column:0
+                 message:@"RELAX NG validation failed"
+                severity:UDDiagnosticSeverityError
+                  source:UDDiagnosticSourceRNG];
+        items = @[fallback];
+    }
+
+    completion(items, firstLine, lastLine);
 }
 
 @end

@@ -13,22 +13,22 @@
  *
  *  Schema used in the validation tests
  *  ------------------------------------
- *  A tiny RNG grammar that allows only a <root> element containing zero or
+ *  A tiny RNG grammar that requires a <root> element containing one or
  *  more <item> elements each containing text:
  *
  *    <grammar xmlns="http://relaxng.org/ns/structure/1.0">
  *      <start>
  *        <element name="root">
- *          <zeroOrMore>
+ *          <oneOrMore>
  *            <element name="item"><text/></element>
- *          </zeroOrMore>
+ *          </oneOrMore>
  *        </element>
  *      </start>
  *    </grammar>
  *
  *  Valid:   <root><item>hello</item></root>
  *  Invalid: <wrong/>  (wrong root element name)
- *  Invalid child: <root><bad/></root>  (<bad> is not allowed inside <root>)
+ *  Invalid child: <root><bad/></root>  (no <item> children — oneOrMore not satisfied)
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
@@ -293,15 +293,20 @@ static NSArray<NSNumber *> *mergeLines(NSMutableArray<UDDiagnosticItem *> *exist
 @implementation UDXMLRNGValidatorTests
 
 // Minimal RELAX NG grammar:
-//   <root> ::= (<item> text </item>)*
+//   <root> ::= (<item> text </item>)+
+//
+// Using oneOrMore (not zeroOrMore) so that libxml2 reports a mandatory-element-
+// missing error when <root> has no valid <item> children.  The zeroOrMore
+// variant hits a "extra content after zero matches" code path that relies on
+// libxml2's best-error queue, which is silently discarded on some platforms.
 static NSString * const kSchemaXML =
     @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
     @"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">"
     @"  <start>"
     @"    <element name=\"root\">"
-    @"      <zeroOrMore>"
+    @"      <oneOrMore>"
     @"        <element name=\"item\"><text/></element>"
-    @"      </zeroOrMore>"
+    @"      </oneOrMore>"
     @"    </element>"
     @"  </start>"
     @"</grammar>";
@@ -386,7 +391,7 @@ static NSString * const kSchemaXML =
 }
 
 - (void)testFullValidation_invalidChild_producesError {
-    // <bad/> is not a valid child of <root>.
+    // <bad/> is not a valid child of <root> — the schema requires <item> (oneOrMore).
     UDXMLMirrorDoc *doc = [self _mirrorDocForXML:@"<root><bad/></root>"];
     XCTAssertNotNil(doc.xmlDoc);
 

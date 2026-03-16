@@ -1,0 +1,5 @@
+# This is fine and expected
+repeated-path-segment html usr/share/doc/libxml2/html/html/
+
+# https://bugs.debian.org/970275
+package-contains-documentation-outside-usr-share-doc usr/share/gtk-doc/html/libxml2/*

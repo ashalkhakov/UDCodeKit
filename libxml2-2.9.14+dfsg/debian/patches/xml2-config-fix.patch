@@ -1,0 +1,39 @@
+Description: display dynamic linking information with --libs, not static
+ Don't bother about keeping support for the static variant, it's not needed
+ in debian directly.
+Author: Mattia Rizzolo <mattia@debian.org>
+Last-Update: 2020-02-23
+Bug-Debian: https://bugs.debian.org/952115
+
+--- a/xml2-config.in
++++ b/xml2-config.in
+@@ -16,8 +16,7 @@
+ 
+   --prefix=DIR		change libxml prefix [default $prefix]
+   --exec-prefix=DIR	change libxml exec prefix [default $exec_prefix]
+-  --libs		print library linking information
+-                        add --dynamic to print only shared libraries
++  --libs		print library dynamic linking information
+   --cflags		print pre-processor and compiler flags
+   --modules		module support enabled
+   --help		display this help and exit
+@@ -82,18 +81,7 @@
+        	;;
+ 
+     --libs)
+-        if [ "$2" = "--dynamic" ]; then
+-            shift
+-            libs="@XML_LIBS@"
+-        else
+-            libs="@XML_LIBS@ @XML_PRIVATE_LIBS@ @MODULE_PLATFORM_LIBS@"
+-        fi
+-
+-        if [ "@XML_LIBDIR@" != "-L/usr/lib" -a "@XML_LIBDIR@" != "-L/usr/lib64" ]; then
+-            libs="@XML_LIBDIR@ $libs"
+-        fi
+-
+-        libs="$libs @WIN32_EXTRA_LIBADD@"
++        libs="@XML_LIBS@"
+         ;;
+ 
+     *)

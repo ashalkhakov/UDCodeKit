@@ -1,0 +1,95 @@
+#!/usr/bin/make -f
+export DH_VERBOSE=1
+
+DOPACKAGES = $(shell dh_listpackages)
+
+ifneq (,$(filter python3-libxml2,$(DOPACKAGES)))
+# The versions of python3 currently supported
+PY3VERS=$(shell py3versions -s)
+else
+PY3VERS=
+endif
+
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+export DEB_CFLAGS_MAINT_APPEND = -Wall -O3
+
+include /usr/share/dpkg/architecture.mk
+
+TARGETS := main $(PY3VERS)
+
+CONFIGURE_FLAGS := --with-history --cache-file="$(CURDIR)/builddir/config.cache"
+
+override_dh_auto_configure-arch: $(TARGETS:%=doconfigure-%)
+
+override_dh_auto_configure-indep:
+	dh_auto_configure -- --docdir \$${prefix}/share/doc/libxml2 --enable-rebuild-docs --without-python
+
+doconfigure-%:
+	dh_auto_configure --builddirectory=builddir/$(*) -- $(CONFIGURE_FLAGS)
+	touch $@
+
+doconfigure-main: CONFIGURE_FLAGS += --without-python --with-icu
+doconfigure-python%: CONFIGURE_FLAGS += --with-python=/usr/bin/$(*) --with-python-install-dir=/usr/lib/$(*)/dist-packages
+
+dobuild-%: BUILD_DIR=builddir/$(*)
+dobuild-%: doconfigure-%
+	$(if $(filter $(BUILD_DIR),builddir/$(*)),,[ -d $(BUILD_DIR) ] || mv builddir/$(*)/python $(BUILD_DIR))
+	dh_auto_build --builddirectory=$(BUILD_DIR) -- $(BUILD_FLAGS)
+
+dobuild-python%: BUILD_DIR=builddir/main/$(*)
+dobuild-python%: BUILD_FLAGS=libxml2mod_la_LIBADD='$$(mylibs)' \
+    PYTHON_INCLUDES='$(shell $(DEB_HOST_GNU_TYPE)-$(*)-config --includes)' \
+    PYTHON_LIBS='$(shell $(DEB_HOST_GNU_TYPE)-$(*)-config --ldflags)'
+
+override_dh_auto_build-arch: $(TARGETS:%=dobuild-%)
+
+override_dh_auto_build-indep:
+	dh_auto_build -i
+
+override_dh_auto_test-indep:
+	: Skipping tests during indep build
+
+execute_after_dh_auto_clean:
+	rm -rf builddir
+	rm -f doconfigure-*
+
+doinstall-main:
+	dh_auto_install --builddirectory=builddir/main
+	mv debian/tmp/usr/share/aclocal/libxml.m4 debian/tmp/usr/share/aclocal/libxml2.m4
+
+override_dh_auto_install-arch: $(TARGETS:%=doinstall-%)
+	find debian/tmp -name *.la -delete
+
+override_dh_auto_install-indep:
+	dh_auto_install -i
+	rm -v debian/tmp/usr/share/doc/libxml2/Copyright
+
+doinstall-python%:
+	dh_auto_install --builddirectory=builddir/main/python$(*)
+
+override_dh_compress:
+	dh_compress -Xexamples/ -Xtutorial/ -Xhtml/ -X.html
+
+override_dh_installchangelogs:
+	dh_installchangelogs -k NEWS
+
+override_dh_install-arch:
+	dh_install -a
+	sed -i -e 's,/lib/$(DEB_HOST_MULTIARCH),/lib,' debian/libxml2-dev/usr/bin/xml2-config
+
+override_dh_makeshlibs:
+	dh_makeshlibs -plibxml2 -V 'libxml2 (>= 2.9.11)' -- -c4
+	dh_makeshlibs --remaining-packages
+
+
+#  I need to specify all the targets (build, binary, clean, etc) as
+#  otherwise dh may invoke them in a order that is not appropriate for the
+#  build system (the -indep part is done in-tree because rebuilding the
+#  docs out of tree is not supported.  And once an in-tree build is done no
+#  out-of-tree builds can be done, so we wouldn't be able to do the -arch
+#  builds after the -indep one).
+clean build-arch binary-arch build-indep binary-indep:
+	dh $@
+
+build: build-arch build-indep
+binary: binary-arch binary-indep

@@ -1,0 +1,108 @@
+Source: libxml2
+Priority: optional
+Section: libs
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Debian XML/SGML Group <debian-xml-sgml-pkgs@lists.alioth.debian.org>
+Uploaders:
+ Aron Xu <aron@debian.org>,
+ YunQiang Su <wzssyqa@gmail.com>,
+Build-Depends:
+ debhelper-compat (= 13),
+Build-Depends-Indep:
+ pkg-config,
+Build-Depends-Arch:
+ dh-sequence-python3 <!nopython>,
+ libicu-dev,
+ liblzma-dev,
+ libpython3-all-dev <!nopython>,
+ pkg-config,
+ python3-all-dev:any (>= 3.5) <!nopython>,
+ rename,
+ zlib1g-dev | libz-dev,
+Standards-Version: 4.6.0
+Rules-Requires-Root: no
+Homepage: http://xmlsoft.org
+Vcs-Git: https://salsa.debian.org/xml-sgml-team/libxml2.git
+Vcs-Browser: https://salsa.debian.org/xml-sgml-team/libxml2
+Description: GNOME XML library
+ XML is a metalanguage to let you design your own markup language.
+ A regular markup language defines a way to describe information in
+ a certain class of documents (eg HTML). XML lets you define your
+ own customized markup languages for many classes of document. It
+ can do this because it's written in SGML, the international standard
+ metalanguage for markup languages.
+
+Package: libxml2
+Architecture: any
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Conflicts:
+ w3c-dtd-xhtml,
+Multi-Arch: same
+Description: ${source:Synopsis}
+ ${source:Extended-Description}
+ .
+ This package provides a library providing an extensive API to handle
+ such XML data files.
+
+Package: libxml2-utils
+Architecture: any
+Section: text
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Multi-Arch: foreign
+Description: ${source:Synopsis} - utilities
+ ${source:Extended-Description}
+ .
+ This package provides xmllint, a tool for validating and reformatting
+ XML documents, and xmlcatalog, a tool to parse and manipulate XML or
+ SGML catalog files.
+
+Package: libxml2-dev
+Architecture: any
+Section: libdevel
+Depends:
+ libicu-dev,
+ libxml2 (= ${binary:Version}),
+ ${misc:Depends},
+Suggests:
+ pkg-config,
+Multi-Arch: same
+Description: ${source:Synopsis} - development files
+ ${source:Extended-Description}
+ .
+ Install this package if you wish to develop your own programs using
+ the GNOME XML library.
+
+Package: libxml2-doc
+Architecture: all
+Section: doc
+Depends:
+ ${misc:Depends},
+Suggests:
+ devhelp,
+Multi-Arch: foreign
+Description: ${source:Synopsis} - documentation
+ ${source:Extended-Description}
+ .
+ This package contains general information about the GNOME XML library
+ and more specific API references.
+
+Package: python3-libxml2
+Architecture: any
+Build-Profiles: <!nopython>
+Section: python
+Multi-Arch: same
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ ${shlibs:Depends},
+Description: ${source:Synopsis} - Python3 bindings
+ ${source:Extended-Description}
+ .
+ This package contains the files needed to use the GNOME XML library
+ in Python3 programs.

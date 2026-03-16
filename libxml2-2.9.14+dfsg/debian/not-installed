@@ -1,0 +1,4 @@
+usr/lib/*/libxml2.la
+usr/lib/*/cmake/libxml2/libxml2-config.cmake
+usr/lib/python*/dist-packages/libxml2mod.a
+usr/share/doc/libxml2-python-*/*

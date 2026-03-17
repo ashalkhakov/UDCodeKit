@@ -64,6 +64,18 @@
 @property (nonatomic, weak) IBOutlet NSOutlineView            *outlineView;
 @end
 
+// Helper: find the UDErrorsEntry that owns a given UDDiagnosticItem.
+// Returns nil if the item is not found in any entry.
+static UDErrorsEntry * _Nullable entryForDiagnostic(NSArray<UDErrorsEntry *> *entries,
+                                                      UDDiagnosticItem *diagnostic) {
+    for (UDErrorsEntry *entry in entries) {
+        for (UDDiagnosticItem *item in entry.diagnostics) {
+            if (item == diagnostic) return entry;
+        }
+    }
+    return nil;
+}
+
 @implementation UDErrorsViewController
 
 // ---------------------------------------------------------------------------
@@ -229,6 +241,26 @@
 - (BOOL)outlineView:(NSOutlineView *)outlineView shouldSelectItem:(id)item {
     // Allow selection of individual error items; disallow file-group rows.
     return [item isKindOfClass:[UDDiagnosticItem class]];
+}
+
+- (void)outlineViewSelectionDidChange:(NSNotification *)notification {
+    NSInteger row = [_outlineView selectedRow];
+    if (row < 0) return;
+
+    id item = [_outlineView itemAtRow:row];
+    if (![item isKindOfClass:[UDDiagnosticItem class]]) return;
+
+    UDDiagnosticItem *diagnostic = (UDDiagnosticItem *)item;
+    UDErrorsEntry *entry = entryForDiagnostic(_entries, diagnostic);
+    if (!entry) return;
+
+    id<UDErrorsViewControllerDelegate> delegate = _delegate;
+    if ([delegate respondsToSelector:
+            @selector(errorsViewController:didSelectDiagnostic:inStore:)]) {
+        [delegate errorsViewController:self
+                   didSelectDiagnostic:diagnostic
+                               inStore:entry.store];
+    }
 }
 
 @end

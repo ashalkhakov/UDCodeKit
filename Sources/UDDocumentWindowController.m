@@ -180,7 +180,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // MARK: - UDDocumentWindowController  (private extension)
 // ---------------------------------------------------------------------------
 
-@interface UDDocumentWindowController () <NSTextViewDelegate, NSToolbarDelegate>
+@interface UDDocumentWindowController () <NSTextViewDelegate, NSToolbarDelegate,
+                                          UDErrorsViewControllerDelegate>
 
 /// Parallel to _editorTabViewController.tabViewItems: _tabContexts[i] is the
 /// context for tab i.  The SAME context may appear at multiple indices (when
@@ -244,6 +245,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 
     // Errors panel — no store yet; populated by _refreshErrorsPanel after tabs open.
     _errorsViewController = [[UDErrorsViewController alloc] init];
+    _errorsViewController.delegate = self;
 
     NSSplitViewController *splitVC = [[NSSplitViewController alloc] init];
     NSSplitViewItem *errorsItem =
@@ -532,6 +534,14 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     if (!svc) return;
     [ctx addDocumentService:svc];
 
+    // Notify the service that the document is now open (seeds any internal
+    // text buffers the service maintains, e.g. the XML gap buffer in the RNG
+    // highlighter).
+    if ([svc respondsToSelector:@selector(documentDidOpenWithContent:)]) {
+        NSString *content = [ctx.textStorage.textModel getValue];
+        [svc documentDidOpenWithContent:content];
+    }
+
     // Kick off the initial validation pass with the current parse tree.
     if ([svc respondsToSelector:
             @selector(treeDidUpdateWithNewTree:changedRanges:textModel:)]) {
@@ -686,6 +696,62 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         // (via getCharacters:range: → piece-tree traversal) on every
         // diagnostics update.
     }
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - UDErrorsViewControllerDelegate — click to navigate
+// ---------------------------------------------------------------------------
+
+- (void)errorsViewController:(UDErrorsViewController *)vc
+         didSelectDiagnostic:(UDDiagnosticItem *)diagnostic
+                     inStore:(UDDiagnosticStore *)store {
+    NSArray<NSTabViewItem *> *items = _editorTabViewController.tabViewItems;
+    NSUInteger count = MIN(_tabContexts.count, items.count);
+
+    for (NSUInteger i = 0; i < count; i++) {
+        if (_tabContexts[i].diagnosticStore != store) continue;
+
+        // Switch to the tab that owns this store (if not already selected).
+        if (_editorTabViewController.selectedTabViewItemIndex != (NSInteger)i) {
+            [_editorTabViewController.tabView
+                selectTabViewItemAtIndex:(NSInteger)i];
+        }
+
+        // Scroll the editor to the diagnostic's line.
+        UDTextEditorViewController *editorVC =
+            (UDTextEditorViewController *)items[i].viewController;
+        [self _navigateEditorVC:editorVC
+                         toLine:diagnostic.line
+                         column:diagnostic.column
+                        context:_tabContexts[i]];
+        break;
+    }
+}
+
+/// Scrolls @a editorVC to @a line (1-based) / @a column (0-based) and places
+/// the insertion point there.  Uses the text model to map the position to a
+/// character offset, then asks the text view to scroll into view.
+- (void)_navigateEditorVC:(UDTextEditorViewController *)editorVC
+                   toLine:(NSInteger)line
+                   column:(NSInteger)column
+                  context:(UDEditorTabContext *)ctx {
+    UDTextModel *textModel = ctx.textStorage.textModel;
+
+    // column from UDDiagnosticItem is 0-based; getOffsetAt:column: takes 1-based column.
+    NSInteger col1 = (column > 0) ? column + 1 : 1;
+    NSInteger charOffset = [textModel getOffsetAt:line column:col1];
+    if (charOffset < 0) {
+        // Fall back to the start of the line.
+        charOffset = [textModel getOffsetAt:line column:1];
+    }
+    if (charOffset < 0) return;
+
+    NSRange charRange = NSMakeRange((NSUInteger)charOffset, 0);
+    NSTextView *tv = editorVC.textView;
+    [tv scrollRangeToVisible:charRange];
+    [tv setSelectedRange:charRange];
+    // Give the text view keyboard focus so the user can start editing immediately.
+    [tv.window makeFirstResponder:tv];
 }
 
 // ---------------------------------------------------------------------------

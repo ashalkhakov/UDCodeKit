@@ -148,13 +148,6 @@ static const NSTimeInterval kDebounceInterval = 0.15;
              @"-treeDidUpdateWithNewTree:changedRanges:textModel: must be called on the main thread");
     if (atomic_load(&_invalidated)) return;
 
-    // Skip RNG/Schematron validation if the tree has parse errors or missing
-    // nodes — the document is not well-formed and validation would produce
-    // spurious results.  Keep the current diagnostics as-is until the user
-    // fixes the parse errors.
-    TSNode root = ts_tree_root_node((const TSTree *)newTree);
-    if (ts_node_has_error(root)) return;
-
     // Lazy-initialise the gap buffer on the first call.
     // This fallback only fires if the service was registered AFTER
     // -documentDidOpenWithContent: was dispatched (e.g. a grammar bundle loaded
@@ -277,6 +270,15 @@ static NSUInteger upperBound(NSMutableArray<UDDiagnosticItem *> *arr,
     [_mirrorDoc applyTree:tree changedRanges:changedRanges gapBuffer:gapBuffer];
     xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
     if (!xmlDoc) return;
+
+    // Skip RNG/Schematron validation if the tree has parse errors or missing
+    // nodes — the document is not well-formed and validation would produce
+    // spurious results.  Keep the current diagnostics as-is until the user
+    // fixes the parse errors.
+    TSNode root = ts_tree_root_node((const TSTree *)tree);
+    if (ts_node_has_error(root)) {
+        return;
+    }
 
     xmlNodePtr dirtyRoot = _mirrorDoc.dirtyRoot;
 

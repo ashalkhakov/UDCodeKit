@@ -5,7 +5,7 @@
 #import "UDXMLRNGHighlighter.h"
 #import "UDXMLMirrorDoc.h"
 #import "UDXMLGapBuffer.h"
-#import "UDRNGValidator.h"
+#import "UDTSRNGValidator.h"
 #import "UDSchematronValidator.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <tree_sitter/api.h>
@@ -26,30 +26,31 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 @implementation UDXMLRNGHighlighter {
     UDDiagnosticStore * __weak _store;
 
-    dispatch_queue_t   _validationQueue;
-    UDXMLMirrorDoc    *_mirrorDoc;
-    UDRNGValidator    *_validator;
+    dispatch_queue_t    _validationQueue;
+
+    /// Clark's derivative-based RELAX NG validator.
+    /// Walks the Tree-sitter parse tree directly — no libxml2 mirror needed.
+    UDTSRNGValidator   *_tsValidator;
+
+    /// Persistent derivative cache passed to every -validateTree: call.
+    /// Keys are (tsNodeId, entryPatternPtr) formatted strings; values are
+    /// exit patterns.  Unchanged element subtrees (ts_node_has_changes == NO)
+    /// reuse the cached result, giving O(edit_depth) revalidation cost.
+    NSMutableDictionary *_derivCache;
+
+    /// libxml2 mirror document — only built and maintained when at least one
+    /// Schematron validator is active (Schematron needs xmlDocPtr for XPath).
+    /// NULL when there are no Schematron validators.
+    UDXMLMirrorDoc     *_mirrorDoc;
 
     /// Zero or more Schematron validators, validated in order after RNG.
     NSArray<UDSchematronValidator *> *_schematronValidators;
 
     /// Gap buffer containing the current document text as UTF-16 code units.
-    /// Seeded lazily on the first treeDidUpdateWithNewTree: call (from
-    /// [textModel getValue]) and updated incrementally on each
-    /// textWillChangeInRange:replacementString: callback thereafter.
-    UDXMLGapBuffer    *_gapBuffer;
+    UDXMLGapBuffer     *_gapBuffer;
 
-    /// Monotonically increasing sequence number.  Each treeDidUpdate call
-    /// increments this atomically before dispatching the debounced block.
-    /// The block checks whether the sequence still matches before running.
-    _Atomic NSUInteger _sequence;
-
-    _Atomic BOOL _invalidated;
-
-    /// Cached copy of the last full diagnostic set posted to UDDiagnosticStore.
-    /// Maintained on _validationQueue; used to merge incremental subtree results
-    /// without re-validating the unchanged portions of the document.
-    NSMutableArray<UDDiagnosticItem *> *_currentDiagnostics;
+    _Atomic NSUInteger  _sequence;
+    _Atomic BOOL        _invalidated;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,24 +71,26 @@ static const NSTimeInterval kDebounceInterval = 0.15;
         "org.underivable.rng-validation",
         DISPATCH_QUEUE_SERIAL);
 
-    _mirrorDoc = [[UDXMLMirrorDoc alloc] init];
-    _validator = [[UDRNGValidator alloc] init];
+    _tsValidator = [[UDTSRNGValidator alloc] init];
+    _derivCache  = [NSMutableDictionary dictionary];
 
-    // Build Schematron validator instances.
+    // Build Schematron validator instances.  The mirror doc is only allocated
+    // when at least one Schematron schema is present.
     NSMutableArray<UDSchematronValidator *> *svs =
         [NSMutableArray arrayWithCapacity:schematronURLs.count];
-    for (NSURL *url in schematronURLs) {
+    for (NSURL * __unused url in schematronURLs)
         [svs addObject:[[UDSchematronValidator alloc] init]];
-        (void)url; // URLs loaded async below.
-    }
     _schematronValidators = [svs copy];
+
+    if (_schematronValidators.count > 0)
+        _mirrorDoc = [[UDXMLMirrorDoc alloc] init];
 
     // Load all schemas on the validation queue so the main thread is never blocked.
     NSArray<NSURL *> *capturedSchematronURLs = [schematronURLs copy];
     dispatch_async(_validationQueue, ^{
         if (rngSchemaURL) {
             NSError *err = nil;
-            if (![self->_validator setSchemaURL:rngSchemaURL error:&err]) {
+            if (![self->_tsValidator setSchemaURL:rngSchemaURL error:&err]) {
                 NSLog(@"[UDXMLRNGHighlighter] RNG schema load failed: %@",
                       err.localizedDescription);
             }
@@ -116,23 +119,16 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 // MARK: - UDDocumentService — text lifecycle
 // ---------------------------------------------------------------------------
 
-/// Called once when the document tab opens, before the first tree parse.
-/// Seeds the gap buffer with the initial document content.
 - (void)documentDidOpenWithContent:(NSString *)content {
     NSAssert([NSThread isMainThread],
              @"-documentDidOpenWithContent: must be called on the main thread");
     _gapBuffer = [[UDXMLGapBuffer alloc] initWithString:content];
 }
 
-/// Called just before each text edit, before the tree-sitter re-parse.
-/// Applies the edit to the gap buffer in O(edit size + gap-move).
 - (void)textWillChangeInRange:(NSRange)range
             replacementString:(NSString *)replacement {
     NSAssert([NSThread isMainThread],
              @"-textWillChangeInRange:replacementString: must be called on the main thread");
-    // _gapBuffer is nil until the first treeDidUpdateWithNewTree: call (which lazily
-    // initialises it from [textModel getValue]).  In that window no edits can have
-    // fired yet, so skipping the update here is safe.
     if (!_gapBuffer) return;
     [_gapBuffer replaceCharactersInRange:range withString:replacement];
 }
@@ -148,46 +144,31 @@ static const NSTimeInterval kDebounceInterval = 0.15;
              @"-treeDidUpdateWithNewTree:changedRanges:textModel: must be called on the main thread");
     if (atomic_load(&_invalidated)) return;
 
-    // Lazy-initialise the gap buffer on the first call.
-    // This fallback only fires if the service was registered AFTER
-    // -documentDidOpenWithContent: was dispatched (e.g. a grammar bundle loaded
-    // mid-session), or if the host does not implement documentDidOpenWithContent:.
-    // In the normal lifecycle the host seeds the buffer once via that method and
-    // this path is never reached.  getValue() materialises the full piece-tree
-    // once; all subsequent edits are O(edit-size) via textWillChangeInRange:.
-    if (!_gapBuffer) {
+    // Lazy-init the gap buffer on the first call.
+    if (!_gapBuffer)
         _gapBuffer = [[UDXMLGapBuffer alloc] initWithString:[textModel getValue]];
+
+    // Build the line-start index only when Schematron validators are active
+    // (the new Tree-sitter-based RNG validator uses TSPoint directly and does
+    // not need a line index at all).
+    NSData *lineIndexData = nil;
+    if (_schematronValidators.count > 0) {
+        NSInteger lineCountSigned = [textModel getLineCount];
+        NSUInteger lineCount = (lineCountSigned > 0) ? (NSUInteger)lineCountSigned : 1;
+        NSMutableData *lid = [NSMutableData dataWithLength:lineCount * sizeof(NSUInteger)];
+        NSUInteger *ptr = (NSUInteger *)lid.mutableBytes;
+        for (NSUInteger i = 0; i < lineCount; i++) {
+            NSInteger off = [textModel getOffsetAt:(NSInteger)(i + 1) column:1];
+            ptr[i] = (off >= 0) ? (NSUInteger)off : 0;
+        }
+        lineIndexData = lid;
     }
 
-    // Build the line-start index from the TextModel's piece-tree index.
-    // lineIndex[i] = 0-based UTF-16 char offset of the start of 0-indexed line i.
-    // This is O(lineCount) piece-tree lookups — no character-by-character scan.
-    // The index is used ONLY by the RELAX NG validator to map libxml2 error line
-    // numbers back to document character offsets; it is NOT used by UDXMLMirrorDoc.
-    NSInteger lineCountSigned = [textModel getLineCount];
-    NSUInteger lineCount = (lineCountSigned > 0) ? (NSUInteger)lineCountSigned : 1;
-    NSMutableData *lineIndexData =
-        [NSMutableData dataWithLength:lineCount * sizeof(NSUInteger)];
-    NSUInteger *lineIndexPtr = (NSUInteger *)lineIndexData.mutableBytes;
-    for (NSUInteger i = 0; i < lineCount; i++) {
-        NSInteger off = [textModel getOffsetAt:(NSInteger)(i + 1) column:1];
-        lineIndexPtr[i] = (off >= 0) ? (NSUInteger)off : 0;
-    }
-
-    // Copy the parse tree so it remains valid on the background queue after the
-    // main thread may have advanced to a newer parse.
     TSTree *treeCopy = ts_tree_copy((const TSTree *)newTree);
-
     NSUInteger seq = atomic_fetch_add(&_sequence, (NSUInteger)1) + 1;
 
-    // Capture changedRanges and the gap buffer for the block.
-    // The gap buffer is captured by strong reference and read on the validation
-    // queue.  It is mutated on the main thread via textWillChangeInRange:.
-    // The 150 ms debounce means there is typically no concurrent mutation during
-    // validation; if there is, the sequence check ensures stale results are
-    // discarded and a fresh validation cycle follows.
     NSArray<NSValue *> *capturedRanges = changedRanges;
-    UDXMLGapBuffer *capturedGapBuffer  = _gapBuffer;
+    UDXMLGapBuffer     *capturedBuf    = _gapBuffer;
 
     dispatch_after(
         dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDebounceInterval * NSEC_PER_SEC)),
@@ -198,10 +179,9 @@ static const NSTimeInterval kDebounceInterval = 0.15;
                 ts_tree_delete(treeCopy);
                 return;
             }
-
             [self _validateWithTree:treeCopy
                       changedRanges:capturedRanges
-                          gapBuffer:capturedGapBuffer
+                          gapBuffer:capturedBuf
                       lineIndexData:lineIndexData];
             ts_tree_delete(treeCopy);
         });
@@ -209,14 +189,13 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
 - (void)closeDocument {
     atomic_store(&_invalidated, YES);
-    atomic_fetch_add(&_sequence, (NSUInteger)1); // Cancel any pending debounce block.
+    atomic_fetch_add(&_sequence, (NSUInteger)1);
 
-    _gapBuffer = nil; // Release the text buffer; the document is closed.
+    _gapBuffer = nil;
 
-    // Reset the diagnostics cache on the validation queue so that if this
-    // instance were ever reused, partial merges would start from a clean slate.
     dispatch_async(_validationQueue, ^{
-        self->_currentDiagnostics = nil;
+        // Clear the derivative cache; a new document would start fresh.
+        [self->_derivCache removeAllObjects];
     });
 
     UDDiagnosticStore *store = _store;
@@ -229,143 +208,50 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Sorted-array binary-search helpers
-// ---------------------------------------------------------------------------
-
-/// Returns the smallest index i such that arr[i].line >= targetLine,
-/// or arr.count if no such element exists.  arr must be sorted by (line, column).
-static NSUInteger lowerBound(NSMutableArray<UDDiagnosticItem *> *arr,
-                              NSInteger targetLine) {
-    NSUInteger lo = 0, hi = arr.count;
-    while (lo < hi) {
-        NSUInteger mid = lo + (hi - lo) / 2;
-        if (arr[mid].line < targetLine) lo = mid + 1;
-        else                             hi = mid;
-    }
-    return lo;
-}
-
-/// Returns the smallest index i such that arr[i].line > targetLine,
-/// or arr.count if no such element exists.  arr must be sorted by (line, column).
-static NSUInteger upperBound(NSMutableArray<UDDiagnosticItem *> *arr,
-                              NSInteger targetLine) {
-    NSUInteger lo = 0, hi = arr.count;
-    while (lo < hi) {
-        NSUInteger mid = lo + (hi - lo) / 2;
-        if (arr[mid].line <= targetLine) lo = mid + 1;
-        else                              hi = mid;
-    }
-    return lo;
-}
-
-// ---------------------------------------------------------------------------
 // MARK: - Validation (runs on _validationQueue)
 // ---------------------------------------------------------------------------
 
 - (void)_validateWithTree:(TSTree *)tree
             changedRanges:(nullable NSArray<NSValue *> *)changedRanges
                gapBuffer:(UDXMLGapBuffer *)gapBuffer
-            lineIndexData:(NSData *)lineIndexData {
-    // Sync the mirror doc.
+            lineIndexData:(nullable NSData *)lineIndexData {
+
+    // Skip validation when the tree itself contains parse errors — the document
+    // is syntactically ill-formed and schema validation would produce noise.
+    TSNode root = ts_tree_root_node((const TSTree *)tree);
+    if (ts_node_has_error(root)) return;
+
+    // ── RELAX NG validation via Clark's derivative algorithm ──────────────
+    // The _derivCache persists across calls; ts_node_has_changes() on each
+    // element node drives the incremental skip logic inside UDTSRNGValidator.
+    __block NSArray<UDDiagnosticItem *> *rngResults = nil;
+    [_tsValidator validateTree:tree
+                     gapBuffer:gapBuffer
+                         cache:_derivCache
+                    completion:^(NSArray<UDDiagnosticItem *> *items) {
+        rngResults = items;
+    }];
+    NSArray<UDDiagnosticItem *> *rngSnapshot = rngResults ?: @[];
+
+    UDDiagnosticStore *store = _store;
+    if (store) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [store setDiagnostics:rngSnapshot forSource:UDDiagnosticSourceRNG];
+        });
+    }
+
+    // ── Schematron validation (requires libxml2 mirror doc + line index) ───
+    if (_schematronValidators.count == 0) return;
+
     [_mirrorDoc applyTree:tree changedRanges:changedRanges gapBuffer:gapBuffer];
     xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
     if (!xmlDoc) return;
 
-    // Skip RNG/Schematron validation if the tree has parse errors or missing
-    // nodes — the document is not well-formed and validation would produce
-    // spurious results.  Keep the current diagnostics as-is until the user
-    // fixes the parse errors.
-    TSNode root = ts_tree_root_node((const TSTree *)tree);
-    if (ts_node_has_error(root)) {
-        return;
-    }
-
-    xmlNodePtr dirtyRoot = _mirrorDoc.dirtyRoot;
-
-    // Nothing changed since the last validation — no need to re-run.
-    if (!dirtyRoot) return;
+    // Only re-run Schematron when the mirror doc detected a structural change.
+    if (!_mirrorDoc.dirtyRoot) return;
 
     NSUInteger lineCount = lineIndexData.length / sizeof(NSUInteger);
     const NSUInteger *lineIndex = (const NSUInteger *)lineIndexData.bytes;
-
-    // Lazy-init the diagnostics cache.
-    if (!_currentDiagnostics) _currentDiagnostics = [NSMutableArray array];
-
-    NSArray<UDDiagnosticItem *> *merged = nil;
-    xmlNodePtr docRoot = xmlDocGetRootElement(xmlDoc);
-
-    if (dirtyRoot == docRoot) {
-        // Full rebuild (first parse or root element replaced): validate the whole
-        // document and replace the diagnostics cache entirely.
-        // NOTE: the completion block is always called synchronously (see UDRNGValidator
-        // header); `merged` is assigned before the __block capture is released.
-        __block NSArray<UDDiagnosticItem *> *results = nil;
-        [_validator validateDoc:xmlDoc
-                      lineIndex:lineIndex
-                      lineCount:lineCount
-                     completion:^(NSArray<UDDiagnosticItem *> *items) {
-            results = items;
-        }];
-        merged = results ?: @[];
-    } else {
-        // Incremental update: only the subtree rooted at dirtyRoot changed.
-        // 1. Run a partial validation of the dirty subtree.
-        // 2. Merge: drop stale diagnostics in [firstLine, lastLine] from the
-        //    cache, then add the new ones.
-        // NOTE: the completion block is always called synchronously (see UDRNGValidator
-        // header); all __block vars are populated before the merge logic below runs.
-        __block NSArray<UDDiagnosticItem *> *newItems = nil;
-        __block NSInteger firstLine = 0, lastLine = 0;
-        [_validator validateSubtree:dirtyRoot
-                                doc:xmlDoc
-                          lineIndex:lineIndex
-                          lineCount:lineCount
-                         completion:^(NSArray<UDDiagnosticItem *> *items,
-                                      NSInteger fl, NSInteger ll) {
-            newItems   = items;
-            firstLine  = fl;
-            lastLine   = ll;
-        }];
-
-        // Sorted in-place splice: the existing diagnostics cache is always
-        // sorted by (line, column).  We locate the stale range with two binary
-        // searches, remove it, and insert the new items (which come from
-        // validateSubtree: in document order, i.e. already sorted) at the
-        // same position.  The result stays sorted — no O(n log n) sort needed.
-        //
-        // Complexity: O(log n) to find the range + O(k) remove + O(m) insert,
-        // where k = stale items removed and m = new items added.
-        NSUInteger lo = lowerBound(_currentDiagnostics, firstLine);
-        NSUInteger hi = upperBound(_currentDiagnostics, lastLine);
-
-        // Remove stale items that fall inside [firstLine, lastLine].
-        if (hi > lo)
-            [_currentDiagnostics removeObjectsInRange:NSMakeRange(lo, hi - lo)];
-
-        // Insert the new (already-sorted) items at the gap we just created.
-        if (newItems.count) {
-            NSIndexSet *idxs = [NSIndexSet indexSetWithIndexesInRange:
-                                NSMakeRange(lo, newItems.count)];
-            [_currentDiagnostics insertObjects:newItems atIndexes:idxs];
-        }
-        merged = [_currentDiagnostics copy];
-    }
-
-    // Update the cache so future partial merges see the current full result.
-    [_currentDiagnostics setArray:merged];
-
-    UDDiagnosticStore *store = _store;
-    if (store) {
-        NSArray<UDDiagnosticItem *> *snapshot = merged;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [store setDiagnostics:snapshot forSource:UDDiagnosticSourceRNG];
-        });
-    }
-
-    // Run Schematron validators (always full-document) after RNG.
-    // Schematron validation doesn't need to be incremental: run it every cycle
-    // that produces a structural change (dirtyRoot != NULL).
-    if (_schematronValidators.count == 0) return;
 
     NSMutableArray<UDDiagnosticItem *> *schematronItems = [NSMutableArray array];
     for (UDSchematronValidator *sv in _schematronValidators) {
@@ -376,12 +262,11 @@ static NSUInteger upperBound(NSMutableArray<UDDiagnosticItem *> *arr,
             [schematronItems addObjectsFromArray:items];
         }];
     }
-    // Sort by (line, column) so the store's merge stays ordered.
     [schematronItems sortUsingComparator:^NSComparisonResult(UDDiagnosticItem *a,
                                                               UDDiagnosticItem *b) {
-        if (a.line != b.line) return a.line < b.line ? NSOrderedAscending : NSOrderedDescending;
-        if (a.column != b.column) return a.column < b.column ? NSOrderedAscending : NSOrderedDescending;
-        return NSOrderedSame;
+        if (a.line != b.line)
+            return a.line < b.line ? NSOrderedAscending : NSOrderedDescending;
+        return a.column < b.column ? NSOrderedAscending : NSOrderedDescending;
     }];
 
     if (store) {

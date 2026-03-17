@@ -72,6 +72,13 @@ NSNotificationName const UDWorkspaceModelDidChangeNotification =
     return nil;
 }
 
+- (nullable UDCodeDocument *)documentForDiagnosticStore:(UDDiagnosticStore *)store {
+    for (UDCodeDocument *doc in _documents) {
+        if (doc.diagnosticStore == store) return doc;
+    }
+    return nil;
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - Serialisation
 // ---------------------------------------------------------------------------

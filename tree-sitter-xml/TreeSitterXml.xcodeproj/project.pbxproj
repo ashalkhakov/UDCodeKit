@@ -412,7 +412,6 @@
 				CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */,
 				CE000001000000000000BB08 /* UDRNGValidator.m in Sources */,
 				CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */,
-				CE000001000000000000BB09 /* UDDiagnosticItem.m in Sources */,
 				CE000001000000000000BB0B /* UDSchematronValidator.m in Sources */,
 				CE000001000000000000BB0C /* UDXMLSchematronTests.m in Sources */,
 				CE000001000000000000BB0E /* UDTSRNGValidator.m in Sources */,

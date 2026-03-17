@@ -993,7 +993,7 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
 - (RNGPat *)_loadPattern:(xmlNodePtr)n
                defaultNS:(NSString *)defNS
                   defLib:(NSString *)defLib
-              rawDefines:(NSDictionary<NSString*,NSValue*> *)rawDefines
+              rawDefines:(NSDictionary<NSString*,NSArray<NSValue*>*> *)rawDefines
                  defines:(NSMutableDictionary<NSString*,RNGPat*> *)defines {
     if (!n || n->type != XML_ELEMENT_NODE) return _notAllowed;
 
@@ -1137,12 +1137,13 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
         // Collect local defines, resolve with parent defines as fallback
         NSMutableDictionary<NSString*,RNGPat*> *localDefs =
             [NSMutableDictionary dictionaryWithDictionary:defines];
-        NSMutableDictionary<NSString*,NSValue*> *localRaw =
+        NSMutableDictionary<NSString*,NSMutableArray<NSValue*>*> *localRaw =
             [NSMutableDictionary dictionaryWithDictionary:rawDefines];
         for (xmlNodePtr c = n->children; c; c = c->next) {
             if (isRNGNode(c, "define")) {
                 NSString *dname = xmlAttrStr(c, "name");
-                if (dname) localRaw[dname] = [NSValue valueWithPointer:c];
+                if (dname) localRaw[dname] = [NSMutableArray arrayWithObject:
+                                              [NSValue valueWithPointer:c]];
             }
         }
         xmlNodePtr startNode = NULL;
@@ -1203,7 +1204,7 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
 - (RNGPat *)_loadChildPatterns:(xmlNodePtr)n
                      defaultNS:(NSString *)defNS
                         defLib:(NSString *)defLib
-                    rawDefines:(NSDictionary<NSString*,NSValue*> *)rawDefines
+                    rawDefines:(NSDictionary<NSString*,NSArray<NSValue*>*> *)rawDefines
                        defines:(NSMutableDictionary<NSString*,RNGPat*> *)defines
                 skipNameClass:(BOOL)skipNC {
     RNGPat *result = _empty;
@@ -1225,7 +1226,7 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
 - (RNGPat *)_loadChildPatternsInterleave:(xmlNodePtr)n
                                defaultNS:(NSString *)defNS
                                   defLib:(NSString *)defLib
-                              rawDefines:(NSDictionary<NSString*,NSValue*> *)rawDefines
+                              rawDefines:(NSDictionary<NSString*,NSArray<NSValue*>*> *)rawDefines
                                  defines:(NSMutableDictionary<NSString*,RNGPat*> *)defines {
     RNGPat *result = _empty;
     for (xmlNodePtr c = n->children; c; c = c->next) {
@@ -1241,7 +1242,7 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
 - (RNGPat *)_loadChildPatternsChoice:(xmlNodePtr)n
                            defaultNS:(NSString *)defNS
                               defLib:(NSString *)defLib
-                          rawDefines:(NSDictionary<NSString*,NSValue*> *)rawDefines
+                          rawDefines:(NSDictionary<NSString*,NSArray<NSValue*>*> *)rawDefines
                              defines:(NSMutableDictionary<NSString*,RNGPat*> *)defines {
     RNGPat *result = _notAllowed;
     for (xmlNodePtr c = n->children; c; c = c->next) {
@@ -1262,7 +1263,7 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
 /// those from the referenced file) and recurses into nested \<include\> elements.
 /// visitedURLs prevents infinite cycles from circular includes.
 - (void)_mergeInclude:(xmlNodePtr)includeNode
-          intoDefines:(NSMutableDictionary<NSString*,NSValue*> *)rawDefines
+          intoDefines:(NSMutableDictionary<NSString*,NSMutableArray<NSValue*>*> *)rawDefines
             startNode:(xmlNodePtr *)startNodePtr
          visitedURLs:(NSMutableSet<NSString*> *)visitedURLs {
     NSString *href = xmlAttrStr(includeNode, "href");
@@ -1272,7 +1273,8 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
     NSString *basePath = nil;
     if (includeNode->doc && includeNode->doc->URL)
         basePath = [NSString stringWithUTF8String:(const char *)includeNode->doc->URL];
-    NSURL *base = basePath ? [NSURL URLWithString:basePath] : nil;
+    // Use fileURLWithPath: so that paths with spaces are handled correctly.
+    NSURL *base = basePath ? [NSURL fileURLWithPath:basePath] : nil;
     NSURL *incURL = base ? [[NSURL URLWithString:href relativeToURL:base] absoluteURL] : nil;
     if (!incURL) return;
 
@@ -1304,16 +1306,19 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
     }
 
     // Step 2: apply the overrides from the <include> body first
+    // Overrides REPLACE any existing definition (last-write-wins).
     for (xmlNodePtr ov = includeNode->children; ov; ov = ov->next) {
         if (isRNGNode(ov, "define")) {
             NSString *dname = xmlAttrStr(ov, "name");
-            if (dname) rawDefines[dname] = [NSValue valueWithPointer:ov];
+            if (dname) rawDefines[dname] = [NSMutableArray arrayWithObject:
+                                            [NSValue valueWithPointer:ov]];
         }
         if (isRNGNode(ov, "start") && !*startNodePtr)
             *startNodePtr = ov;
     }
 
-    // Step 3: import non-overridden content from the included grammar
+    // Step 3: import non-overridden content from the included grammar.
+    // Append to existing arrays to preserve combine semantics.
     for (xmlNodePtr dc = incRoot->children; dc; dc = dc->next) {
         if (dc->type != XML_ELEMENT_NODE) continue;
 
@@ -1324,16 +1329,20 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
         }
         if (isRNGNode(dc, "define")) {
             NSString *dname = xmlAttrStr(dc, "name");
-            if (dname && ![overriddenDefines containsObject:dname] && !rawDefines[dname])
-                rawDefines[dname] = [NSValue valueWithPointer:dc];
+            if (dname && ![overriddenDefines containsObject:dname]) {
+                if (!rawDefines[dname]) rawDefines[dname] = [NSMutableArray array];
+                [rawDefines[dname] addObject:[NSValue valueWithPointer:dc]];
+            }
             continue;
         }
         if (isRNGNode(dc, "div")) {
             for (xmlNodePtr ec = dc->children; ec; ec = ec->next) {
                 if (!isRNGNode(ec, "define")) continue;
                 NSString *dname = xmlAttrStr(ec, "name");
-                if (dname && ![overriddenDefines containsObject:dname] && !rawDefines[dname])
-                    rawDefines[dname] = [NSValue valueWithPointer:ec];
+                if (dname && ![overriddenDefines containsObject:dname]) {
+                    if (!rawDefines[dname]) rawDefines[dname] = [NSMutableArray array];
+                    [rawDefines[dname] addObject:[NSValue valueWithPointer:ec]];
+                }
             }
             continue;
         }
@@ -1354,8 +1363,10 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
     NSString *defNS  = xmlAttrStr(grammarNode, "ns")              ?: @"";
     NSString *defLib = xmlAttrStr(grammarNode, "datatypeLibrary") ?: @"";
 
-    // First pass: collect all define names and raw xmlNodePtr values
-    NSMutableDictionary<NSString*,NSValue*> *rawDefines =
+    // First pass: collect all define names and raw xmlNodePtr values.
+    // Each key maps to an NSMutableArray of NSValue-wrapped xmlNodePtr values to
+    // support multiple definitions with combine="choice"/"interleave".
+    NSMutableDictionary<NSString*,NSMutableArray<NSValue*>*> *rawDefines =
         [NSMutableDictionary dictionary];
     xmlNodePtr startNode = NULL;
     NSMutableSet<NSString*> *visitedURLs = [NSMutableSet set];
@@ -1375,12 +1386,18 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
                 for (xmlNodePtr dc = c->children; dc; dc = dc->next) {
                     if (!isRNGNode(dc, "define")) continue;
                     NSString *dname = xmlAttrStr(dc, "name");
-                    if (dname) rawDefines[dname] = [NSValue valueWithPointer:dc];
+                    if (dname) {
+                        if (!rawDefines[dname]) rawDefines[dname] = [NSMutableArray array];
+                        [rawDefines[dname] addObject:[NSValue valueWithPointer:dc]];
+                    }
                 }
                 continue;
             }
             NSString *dname = xmlAttrStr(c, "name");
-            if (dname) rawDefines[dname] = [NSValue valueWithPointer:c];
+            if (dname) {
+                if (!rawDefines[dname]) rawDefines[dname] = [NSMutableArray array];
+                [rawDefines[dname] addObject:[NSValue valueWithPointer:c]];
+            }
         }
         if (isRNGNode(c, "include")) {
             [self _mergeInclude:c intoDefines:rawDefines
@@ -1396,26 +1413,35 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
         return NO;
     }
 
-    // Second pass: load all defines (kPRef lets us skip cycles safely)
+    // Second pass: compile all defines, applying combine semantics when multiple
+    // nodes share the same name.
     NSMutableDictionary<NSString*,RNGPat*> *defines =
         [NSMutableDictionary dictionaryWithCapacity:rawDefines.count];
 
     for (NSString *dname in rawDefines) {
-        xmlNodePtr defNode = (xmlNodePtr)[(NSValue *)rawDefines[dname] pointerValue];
-        // A <define> can use "combine" to merge multiple definitions;
-        // for simplicity combine = choice (most common case)
-        NSString *combine = xmlAttrStr(defNode, "combine");
-        RNGPat *existing = defines[dname];
+        NSArray<NSValue*> *nodes = rawDefines[dname];
+        RNGPat *combined = nil;
+        for (NSValue *nodeVal in nodes) {
+            xmlNodePtr defNode = (xmlNodePtr)[nodeVal pointerValue];
+            NSString *combine = xmlAttrStr(defNode, "combine");
 
-        xmlNodePtr patNode = firstPatternChild(defNode);
-        if (!patNode) continue;
-        RNGPat *pat = [self _loadPattern:patNode defaultNS:defNS defLib:defLib
-                              rawDefines:rawDefines defines:defines];
-        if (existing && [combine isEqualToString:@"choice"])
-            pat = [self _choice:existing :pat];
-        else if (existing && [combine isEqualToString:@"interleave"])
-            pat = [self _interleave:existing :pat];
-        if (pat) defines[dname] = pat;
+            xmlNodePtr patNode = firstPatternChild(defNode);
+            if (!patNode) continue;
+            RNGPat *pat = [self _loadPattern:patNode defaultNS:defNS defLib:defLib
+                                  rawDefines:rawDefines defines:defines];
+            if (!pat) continue;
+
+            if (!combined) {
+                combined = pat;
+            } else if ([combine isEqualToString:@"choice"]) {
+                combined = [self _choice:combined :pat];
+            } else if ([combine isEqualToString:@"interleave"]) {
+                combined = [self _interleave:combined :pat];
+            } else {
+                combined = pat; // last-write-wins (shouldn't happen in well-formed schemas)
+            }
+        }
+        if (combined) defines[dname] = combined;
     }
 
     // Load start pattern

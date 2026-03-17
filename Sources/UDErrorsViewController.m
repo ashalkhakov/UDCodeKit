@@ -64,18 +64,6 @@
 @property (nonatomic, weak) IBOutlet NSOutlineView            *outlineView;
 @end
 
-// Helper: find the UDErrorsEntry that owns a given UDDiagnosticItem.
-// Returns nil if the item is not found in any entry.
-static UDErrorsEntry * _Nullable entryForDiagnostic(NSArray<UDErrorsEntry *> *entries,
-                                                      UDDiagnosticItem *diagnostic) {
-    for (UDErrorsEntry *entry in entries) {
-        for (UDDiagnosticItem *item in entry.diagnostics) {
-            if (item == diagnostic) return entry;
-        }
-    }
-    return nil;
-}
-
 @implementation UDErrorsViewController
 
 // ---------------------------------------------------------------------------
@@ -251,7 +239,8 @@ static UDErrorsEntry * _Nullable entryForDiagnostic(NSArray<UDErrorsEntry *> *en
     if (![item isKindOfClass:[UDDiagnosticItem class]]) return;
 
     UDDiagnosticItem *diagnostic = (UDDiagnosticItem *)item;
-    UDErrorsEntry *entry = entryForDiagnostic(_entries, diagnostic);
+    // The outline view already tracks parent–child relationships; this is O(1).
+    UDErrorsEntry *entry = [_outlineView parentForItem:diagnostic];
     if (!entry) return;
 
     id<UDErrorsViewControllerDelegate> delegate = _delegate;

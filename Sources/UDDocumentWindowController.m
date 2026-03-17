@@ -202,6 +202,11 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 /// Cached theme (used when adding new tabs after initial load).
 @property (nonatomic, strong) TreeSitterTheme *currentTheme;
 
+/// Maps each diagnostic store → the context that owns it.
+/// Populated when a new document context is first opened; never updated per-tab
+/// since _addViewTabForContext: shares the same context/store.  Cleared on close.
+@property (nonatomic, strong) NSMapTable<UDDiagnosticStore *, UDEditorTabContext *> *storeToContext;
+
 @end
 
 // ---------------------------------------------------------------------------
@@ -227,6 +232,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 
     _tabContexts    = [NSMutableArray array];
     _observedStores = [NSMutableSet set];
+    _storeToContext = [NSMapTable mapTableWithKeyOptions:NSMapTableObjectPointerPersonality
+                                           valueOptions:NSMapTableStrongMemory];
     _workspaceModel = [[UDWorkspaceModel alloc] init];
 
     // 1. Resolve the effective colour theme.
@@ -436,6 +443,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
                selector:@selector(_diagnosticsDidChange:)
                    name:UDDiagnosticsDidChangeNotification
                  object:ctx.diagnosticStore];
+        // Record the store→context mapping for O(1) lookup in the delegate.
+        [_storeToContext setObject:ctx forKey:ctx.diagnosticStore];
     }
 
     // f. Track and display.
@@ -645,6 +654,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         }
     }
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_storeToContext removeAllObjects];
     [super close];
 }
 
@@ -705,27 +715,29 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 - (void)errorsViewController:(UDErrorsViewController *)vc
          didSelectDiagnostic:(UDDiagnosticItem *)diagnostic
                      inStore:(UDDiagnosticStore *)store {
+    // O(1): the store→context map was built when the document was first opened.
+    UDEditorTabContext *ctx = [_storeToContext objectForKey:store];
+    if (!ctx) return;
+
+    // Find the first tab slot for this context (several slots may share it).
+    NSUInteger tabIdx = [_tabContexts indexOfObjectIdenticalTo:ctx];
+    if (tabIdx == NSNotFound) return;
+
     NSArray<NSTabViewItem *> *items = _editorTabViewController.tabViewItems;
-    NSUInteger count = MIN(_tabContexts.count, items.count);
+    if (tabIdx >= items.count) return;
 
-    for (NSUInteger i = 0; i < count; i++) {
-        if (_tabContexts[i].diagnosticStore != store) continue;
-
-        // Switch to the tab that owns this store (if not already selected).
-        if (_editorTabViewController.selectedTabViewItemIndex != (NSInteger)i) {
-            [_editorTabViewController.tabView
-                selectTabViewItemAtIndex:(NSInteger)i];
-        }
-
-        // Scroll the editor to the diagnostic's line.
-        UDTextEditorViewController *editorVC =
-            (UDTextEditorViewController *)items[i].viewController;
-        [self _navigateEditorVC:editorVC
-                         toLine:diagnostic.line
-                         column:diagnostic.column
-                        context:_tabContexts[i]];
-        break;
+    // Switch to the tab if it is not already selected.
+    if (_editorTabViewController.selectedTabViewItemIndex != (NSInteger)tabIdx) {
+        [_editorTabViewController.tabView
+            selectTabViewItemAtIndex:(NSInteger)tabIdx];
     }
+
+    UDTextEditorViewController *editorVC =
+        (UDTextEditorViewController *)items[tabIdx].viewController;
+    [self _navigateEditorVC:editorVC
+                     toLine:diagnostic.line
+                     column:diagnostic.column
+                    context:ctx];
 }
 
 /// Scrolls @a editorVC to @a line (1-based) / @a column (0-based) and places

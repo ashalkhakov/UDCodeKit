@@ -248,14 +248,30 @@ static NSInteger maxLineInSubtree(xmlNodePtr node) {
     // On some libxml2 builds (e.g. the macOS system library) the structured-
     // error callback is not invoked for certain error classes — in particular
     // the "extra content" error that fires when a zeroOrMore pattern matches
-    // zero iterations but the element still has unmatched children.  If the
-    // C-level return value signals invalidity but the callback was never called,
+    // zero iterations but the element still has unmatched children, or when
+    // libxml2 encounters an internal error (return code -1).  If the C-level
+    // return value signals invalidity but the callback was never called,
     // synthesise a generic diagnostic so callers are not left with a false pass.
     if (validationResult != 0 && items.count == 0) {
+        NSString *msg;
+        if (validationResult == -1) {
+            // Internal libxml2 error: try to retrieve any pending error details.
+            xmlErrorPtr lastErr = xmlGetLastError();
+            if (lastErr && lastErr->message && lastErr->message[0] != '\0') {
+                NSString *detail = [[NSString stringWithUTF8String:lastErr->message]
+                    stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+                msg = [NSString stringWithFormat:@"RELAX NG internal error: %@", detail];
+            } else {
+                msg = @"RELAX NG internal error";
+            }
+            xmlResetLastError();
+        } else {
+            msg = @"RELAX NG validation failed";
+        }
         UDDiagnosticItem *fallback = [[UDDiagnosticItem alloc]
             initWithLine:1
                   column:0
-                 message:@"RELAX NG validation failed"
+                 message:msg
                 severity:UDDiagnosticSeverityError
                   source:UDDiagnosticSourceRNG];
         items = @[fallback];
@@ -300,12 +316,27 @@ static NSInteger maxLineInSubtree(xmlNodePtr node) {
     NSArray<UDDiagnosticItem *> *items = [ctx.items copy];
     // Same fallback as -validateDoc:… above: synthesise a generic diagnostic
     // when the C API signals failure but the structured-error callback was
-    // never fired.
+    // never fired.  Distinguish internal errors (return -1) from validation
+    // failures (return 1) and surface any pending libxml2 error detail.
     if (validationResult != 0 && items.count == 0) {
+        NSString *msg;
+        if (validationResult == -1) {
+            xmlErrorPtr lastErr = xmlGetLastError();
+            if (lastErr && lastErr->message && lastErr->message[0] != '\0') {
+                NSString *detail = [[NSString stringWithUTF8String:lastErr->message]
+                    stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+                msg = [NSString stringWithFormat:@"RELAX NG internal error: %@", detail];
+            } else {
+                msg = @"RELAX NG internal error";
+            }
+            xmlResetLastError();
+        } else {
+            msg = @"RELAX NG validation failed";
+        }
         UDDiagnosticItem *fallback = [[UDDiagnosticItem alloc]
             initWithLine:MAX(1, firstLine)
                   column:0
-                 message:@"RELAX NG validation failed"
+                 message:msg
                 severity:UDDiagnosticSeverityError
                   source:UDDiagnosticSourceRNG];
         items = @[fallback];

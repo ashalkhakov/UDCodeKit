@@ -1,7 +1,9 @@
 #import "UDDiagnosticItem.h"
 
-UDDiagnosticSource const UDDiagnosticSourceParser = @"parser";
-UDDiagnosticSource const UDDiagnosticSourceLSP    = @"lsp";
+UDDiagnosticSource const UDDiagnosticSourceParser     = @"parser";
+UDDiagnosticSource const UDDiagnosticSourceLSP        = @"lsp";
+UDDiagnosticSource const UDDiagnosticSourceRNG        = @"rng";
+UDDiagnosticSource const UDDiagnosticSourceSchematron = @"schematron";
 
 @implementation UDDiagnosticItem
 

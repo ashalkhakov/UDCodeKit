@@ -5,6 +5,7 @@
 #import "UDErrorsViewController.h"
 #import "UDLSPCoordinator.h"
 #import "UDLSPDiagnosticHighlighter.h"
+#import "UDRNGDiagnosticHighlighter.h"
 #import "TreeSitterTheme.h"
 #import "UDMissingNodeHighlighter.h"
 #import "UDParseErrorHighlighter.h"
@@ -533,6 +534,16 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
                                                       store:ctx.diagnosticStore];
     if (!svc) return;
     [ctx addDocumentService:svc];
+
+    // Add a decoration highlighter that mirrors RNG/Schematron diagnostic items
+    // from the store as inline editor decorations (pill labels + background tints).
+    // It observes UDDiagnosticsDidChangeNotification, so no tree-parse wiring is needed.
+    UDTextModelTextStorage *ts = ctx.textStorage;
+    UDRNGDiagnosticHighlighter *rngHL =
+        [[UDRNGDiagnosticHighlighter alloc] initWithTextStorage:ts
+                                                     highlighter:ts.highlighter
+                                                           store:ctx.diagnosticStore];
+    [ctx addDocumentService:rngHL];
 
     // Notify the service that the document is now open (seeds any internal
     // text buffers the service maintains, e.g. the XML gap buffer in the RNG

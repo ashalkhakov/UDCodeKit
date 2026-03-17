@@ -1254,6 +1254,98 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
 }
 
 // ------------------------------------------------------------
+// MARK: Schema loading — include helper
+// ------------------------------------------------------------
+
+/// Merges an RNG \<include\> node into rawDefines/startNode.
+/// Handles the override semantics (defines inside the \<include\> body override
+/// those from the referenced file) and recurses into nested \<include\> elements.
+/// visitedURLs prevents infinite cycles from circular includes.
+- (void)_mergeInclude:(xmlNodePtr)includeNode
+          intoDefines:(NSMutableDictionary<NSString*,NSValue*> *)rawDefines
+            startNode:(xmlNodePtr *)startNodePtr
+         visitedURLs:(NSMutableSet<NSString*> *)visitedURLs {
+    NSString *href = xmlAttrStr(includeNode, "href");
+    if (!href) return;
+
+    // Resolve the URL relative to the document that contains this <include>
+    NSString *basePath = nil;
+    if (includeNode->doc && includeNode->doc->URL)
+        basePath = [NSString stringWithUTF8String:(const char *)includeNode->doc->URL];
+    NSURL *base = basePath ? [NSURL URLWithString:basePath] : nil;
+    NSURL *incURL = base ? [[NSURL URLWithString:href relativeToURL:base] absoluteURL] : nil;
+    if (!incURL) return;
+
+    // Guard against circular includes
+    NSString *absStr = incURL.absoluteString;
+    if ([visitedURLs containsObject:absStr]) return;
+    [visitedURLs addObject:absStr];
+
+    xmlDocPtr incDoc = xmlReadFile(incURL.path.UTF8String, NULL,
+                                   XML_PARSE_NONET | XML_PARSE_NOENT);
+    if (!incDoc) return;
+    // Note: incDoc is intentionally not freed here — the xmlNodePtr values stored
+    // in rawDefines point into it.  It will be cleaned up when the validator is
+    // deallocated or clearSchema is called.  This matches the pre-existing pattern.
+
+    xmlNodePtr incRoot = xmlDocGetRootElement(incDoc);
+    if (!incRoot) return;
+
+    // Step 1: collect which names the <include> body overrides
+    NSMutableSet<NSString*> *overriddenDefines = [NSMutableSet set];
+    BOOL overridesStart = NO;
+    for (xmlNodePtr ov = includeNode->children; ov; ov = ov->next) {
+        if (!isRNGNode(ov, "define") && !isRNGNode(ov, "start")) continue;
+        if (isRNGNode(ov, "define")) {
+            NSString *dname = xmlAttrStr(ov, "name");
+            if (dname) [overriddenDefines addObject:dname];
+        }
+        if (isRNGNode(ov, "start")) overridesStart = YES;
+    }
+
+    // Step 2: apply the overrides from the <include> body first
+    for (xmlNodePtr ov = includeNode->children; ov; ov = ov->next) {
+        if (isRNGNode(ov, "define")) {
+            NSString *dname = xmlAttrStr(ov, "name");
+            if (dname) rawDefines[dname] = [NSValue valueWithPointer:ov];
+        }
+        if (isRNGNode(ov, "start") && !*startNodePtr)
+            *startNodePtr = ov;
+    }
+
+    // Step 3: import non-overridden content from the included grammar
+    for (xmlNodePtr dc = incRoot->children; dc; dc = dc->next) {
+        if (dc->type != XML_ELEMENT_NODE) continue;
+
+        if (isRNGNode(dc, "start")) {
+            if (!*startNodePtr && !overridesStart)
+                *startNodePtr = dc;
+            continue;
+        }
+        if (isRNGNode(dc, "define")) {
+            NSString *dname = xmlAttrStr(dc, "name");
+            if (dname && ![overriddenDefines containsObject:dname] && !rawDefines[dname])
+                rawDefines[dname] = [NSValue valueWithPointer:dc];
+            continue;
+        }
+        if (isRNGNode(dc, "div")) {
+            for (xmlNodePtr ec = dc->children; ec; ec = ec->next) {
+                if (!isRNGNode(ec, "define")) continue;
+                NSString *dname = xmlAttrStr(ec, "name");
+                if (dname && ![overriddenDefines containsObject:dname] && !rawDefines[dname])
+                    rawDefines[dname] = [NSValue valueWithPointer:ec];
+            }
+            continue;
+        }
+        if (isRNGNode(dc, "include")) {
+            // Recurse into nested includes found within the included file
+            [self _mergeInclude:dc intoDefines:rawDefines
+                       startNode:startNodePtr visitedURLs:visitedURLs];
+        }
+    }
+}
+
+// ------------------------------------------------------------
 // MARK: Schema loading — grammar root
 // ------------------------------------------------------------
 
@@ -1266,6 +1358,13 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
     NSMutableDictionary<NSString*,NSValue*> *rawDefines =
         [NSMutableDictionary dictionary];
     xmlNodePtr startNode = NULL;
+    NSMutableSet<NSString*> *visitedURLs = [NSMutableSet set];
+    // Seed with the root grammar's own URL so nested includes can detect cycles
+    if (grammarNode->doc && grammarNode->doc->URL) {
+        NSString *rootURL = [NSString stringWithUTF8String:
+                             (const char *)grammarNode->doc->URL];
+        if (rootURL) [visitedURLs addObject:rootURL];
+    }
 
     for (xmlNodePtr c = grammarNode->children; c; c = c->next) {
         if (c->type != XML_ELEMENT_NODE) continue;
@@ -1284,38 +1383,8 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
             if (dname) rawDefines[dname] = [NSValue valueWithPointer:c];
         }
         if (isRNGNode(c, "include")) {
-            // include: load the referenced file and merge its defines
-            NSString *href = xmlAttrStr(c, "href");
-            if (href) {
-                NSString *basePath = nil;
-                if (grammarNode->doc && grammarNode->doc->URL)
-                    basePath = [NSString stringWithUTF8String:
-                                (const char *)grammarNode->doc->URL];
-                NSURL *base = basePath ? [NSURL URLWithString:basePath] : nil;
-                NSURL *incURL = base ? [NSURL URLWithString:href relativeToURL:base] : nil;
-                if (incURL) {
-                    // Recursively load included schema; merge defines
-                    xmlDocPtr incDoc = xmlReadFile(incURL.path.UTF8String, NULL,
-                                                   XML_PARSE_NONET | XML_PARSE_NOENT);
-                    if (incDoc) {
-                        xmlNodePtr incRoot = xmlDocGetRootElement(incDoc);
-                        if (incRoot) {
-                            for (xmlNodePtr dc = incRoot->children; dc; dc = dc->next) {
-                                if (isRNGNode(dc, "define")) {
-                                    NSString *dname = xmlAttrStr(dc, "name");
-                                    if (dname && !rawDefines[dname])
-                                        rawDefines[dname] = [NSValue valueWithPointer:dc];
-                                }
-                            }
-                        }
-                        // Note: we deliberately do NOT free incDoc here — the xmlNodePtr
-                        // values stored in rawDefines point into it.  incDoc will be
-                        // freed when UDTSRNGValidator is deallocated or the schema is
-                        // reloaded.  For simplicity we accept this minor leak per schema
-                        // load (schemas are loaded once per document type).
-                    }
-                }
-            }
+            [self _mergeInclude:c intoDefines:rawDefines
+                       startNode:&startNode visitedURLs:visitedURLs];
         }
     }
 

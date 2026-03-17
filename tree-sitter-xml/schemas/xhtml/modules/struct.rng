@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!-- Structure Module -->
+<!-- Defines html, head, body, title and the grammar start element. -->
+<grammar xmlns="http://relaxng.org/ns/structure/1.0">
+
+<start>
+  <ref name="html"/>
+</start>
+
+<define name="html">
+  <element name="html">
+    <ref name="html.attlist"/>
+    <ref name="head"/>
+    <ref name="body"/>
+  </element>
+</define>
+
+<define name="html.attlist">
+  <ref name="I18n.attrib"/>
+  <optional>
+    <attribute name="version">
+      <ref name="FPI.datatype"/>
+    </attribute>
+  </optional>
+  <optional>
+    <attribute name="xml:space">
+      <value>preserve</value>
+    </attribute>
+  </optional>
+</define>
+
+<define name="head">
+  <element name="head">
+    <ref name="head.attlist"/>
+    <ref name="head.model"/>
+  </element>
+</define>
+
+<define name="head.attlist">
+  <ref name="I18n.attrib"/>
+  <optional>
+    <attribute name="profile">
+      <ref name="URIs.datatype"/>
+    </attribute>
+  </optional>
+</define>
+
+<!-- head.model: title is required; head.content is accumulated by includes -->
+<define name="head.model">
+  <interleave>
+    <ref name="title"/>
+    <ref name="head.content"/>
+  </interleave>
+</define>
+
+<!-- head.content is extended by link, meta, script, style, base, etc. -->
+<define name="head.content">
+  <empty/>
+</define>
+
+<define name="title">
+  <element name="title">
+    <ref name="title.attlist"/>
+    <text/>
+  </element>
+</define>
+
+<define name="title.attlist">
+  <ref name="I18n.attrib"/>
+</define>
+
+<define name="body">
+  <element name="body">
+    <ref name="body.attlist"/>
+    <ref name="body.content"/>
+  </element>
+</define>
+
+<define name="body.attlist">
+  <ref name="Common.attrib"/>
+</define>
+
+<define name="body.content">
+  <ref name="Flow.model"/>
+</define>
+
+</grammar>

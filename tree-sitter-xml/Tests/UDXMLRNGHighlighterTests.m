@@ -914,3 +914,225 @@ static NSString * const kTSSchemaWithRef =
 }
 
 @end
+
+// ---------------------------------------------------------------------------
+// MARK: - Test class 4: UDTSRNGValidator — <include> mechanism
+// ---------------------------------------------------------------------------
+///
+/// Tests that the recursive <include> loading works correctly:
+///
+///  1. A grammar whose <start> element lives in an included file (not in the
+///     root grammar) must load and validate correctly.
+///
+///  2. A grammar that uses the RNG override mechanism — defines inside the
+///     <include> body replace the same-named defines in the included file —
+///     must validate against the *overridden* schema, not the original.
+///
+///  3. Nested includes (grammar A includes grammar B which includes grammar C)
+///     must be resolved fully.
+///
+/// Schema topology used in these tests
+/// ------------------------------------
+///
+///  base.rng  (provides <start> and defines "root", "items"):
+///    <grammar>
+///      <start><ref name="root"/></start>
+///      <define name="root">
+///        <element name="root"><ref name="items"/></element>
+///      </define>
+///      <define name="items">
+///        <oneOrMore><element name="item"><text/></element></oneOrMore>
+///      </define>
+///    </grammar>
+///
+///  override.rng  (includes base.rng but replaces "items" with "entry" elements):
+///    <grammar>
+///      <include href="base.rng">
+///        <define name="items">
+///          <oneOrMore><element name="entry"><text/></element></oneOrMore>
+///        </define>
+///      </include>
+///    </grammar>
+///
+///  chain.rng  (includes override.rng, proving nested-include resolution):
+///    <grammar>
+///      <include href="override.rng"/>
+///    </grammar>
+
+@interface UDTSRNGValidatorIncludeTests : XCTestCase
+@end
+
+@implementation UDTSRNGValidatorIncludeTests {
+    NSURL   *_tmpDir;
+    NSURL   *_baseURL;
+    NSURL   *_overrideURL;
+    NSURL   *_chainURL;
+}
+
+// -----------------------------------------------------------------------
+// MARK: - Set-up / tear-down
+// -----------------------------------------------------------------------
+
+- (void)setUp {
+    [super setUp];
+    NSString *uniq = [[NSUUID UUID] UUIDString];
+    _tmpDir = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+               URLByAppendingPathComponent:
+               [NSString stringWithFormat:@"UDTSRNGIncludeTests_%@", uniq]];
+    [[NSFileManager defaultManager] createDirectoryAtURL:_tmpDir
+                             withIntermediateDirectories:YES
+                                              attributes:nil
+                                                   error:nil];
+
+    // base.rng — defines start + root + items (<item> elements)
+    NSString *baseSchema =
+        @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        @"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">"
+        @"  <start><ref name=\"root\"/></start>"
+        @"  <define name=\"root\">"
+        @"    <element name=\"root\"><ref name=\"items\"/></element>"
+        @"  </define>"
+        @"  <define name=\"items\">"
+        @"    <oneOrMore>"
+        @"      <element name=\"item\"><text/></element>"
+        @"    </oneOrMore>"
+        @"  </define>"
+        @"</grammar>";
+    _baseURL = [_tmpDir URLByAppendingPathComponent:@"base.rng"];
+    [baseSchema writeToURL:_baseURL atomically:YES
+                  encoding:NSUTF8StringEncoding error:nil];
+
+    // override.rng — includes base.rng, overrides "items" to require <entry>
+    NSString *overrideSchema =
+        @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        @"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">"
+        @"  <include href=\"base.rng\">"
+        @"    <define name=\"items\">"
+        @"      <oneOrMore>"
+        @"        <element name=\"entry\"><text/></element>"
+        @"      </oneOrMore>"
+        @"    </define>"
+        @"  </include>"
+        @"</grammar>";
+    _overrideURL = [_tmpDir URLByAppendingPathComponent:@"override.rng"];
+    [overrideSchema writeToURL:_overrideURL atomically:YES
+                      encoding:NSUTF8StringEncoding error:nil];
+
+    // chain.rng — includes override.rng (tests nested-include resolution)
+    NSString *chainSchema =
+        @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        @"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">"
+        @"  <include href=\"override.rng\"/>"
+        @"</grammar>";
+    _chainURL = [_tmpDir URLByAppendingPathComponent:@"chain.rng"];
+    [chainSchema writeToURL:_chainURL atomically:YES
+                   encoding:NSUTF8StringEncoding error:nil];
+}
+
+- (void)tearDown {
+    [[NSFileManager defaultManager] removeItemAtURL:_tmpDir error:nil];
+    [super tearDown];
+}
+
+// -----------------------------------------------------------------------
+// MARK: - Helpers
+// -----------------------------------------------------------------------
+
+/// Returns a fresh UDTSRNGValidator loaded with the schema at @p url.
+- (UDTSRNGValidator *)_validatorForURL:(NSURL *)url {
+    UDTSRNGValidator *v = [[UDTSRNGValidator alloc] init];
+    NSError *err;
+    XCTAssertTrue([v setSchemaURL:url error:&err],
+                  @"Schema load failed (%@): %@", url.lastPathComponent, err);
+    return v;
+}
+
+/// Validate @p xmlString with @p v and return diagnostics synchronously.
+- (NSArray<UDDiagnosticItem *> *)_validate:(NSString *)xmlString
+                             withValidator:(UDTSRNGValidator *)v {
+    TSTree *tree = ParseXML(xmlString);
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:xmlString];
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    __block NSArray<UDDiagnosticItem *> *result = nil;
+    [v validateTree:(const void *)tree gapBuffer:buf cache:cache
+         completion:^(NSArray<UDDiagnosticItem *> *d) { result = d; }];
+    ts_tree_delete(tree);
+    return result;
+}
+
+// -----------------------------------------------------------------------
+// MARK: - Test 1: start element lives only in included file
+// -----------------------------------------------------------------------
+
+- (void)testInclude_startFromIncludedFile_schemaLoads {
+    // override.rng has no <start> of its own; it must import <start> from base.rng.
+    UDTSRNGValidator *v = [self _validatorForURL:_overrideURL];
+    XCTAssertNotNil(v, @"Validator must be non-nil after loading a schema with include");
+}
+
+- (void)testInclude_startFromIncludedFile_validDocument_noErrors {
+    UDTSRNGValidator *v = [self _validatorForURL:_overrideURL];
+    // override.rng expects <entry> elements (not <item>).
+    NSArray *diags = [self _validate:@"<root><entry>hello</entry></root>"
+                       withValidator:v];
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Document matching the overridden schema must be valid");
+}
+
+- (void)testInclude_startFromIncludedFile_originalDefine_isInvalid {
+    UDTSRNGValidator *v = [self _validatorForURL:_overrideURL];
+    // <item> is no longer valid — it was replaced by <entry> in the override.
+    NSArray *diags = [self _validate:@"<root><item>hello</item></root>"
+                       withValidator:v];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"<item> replaced by <entry> in override — must produce errors");
+}
+
+// -----------------------------------------------------------------------
+// MARK: - Test 2: base schema loaded directly still works
+// -----------------------------------------------------------------------
+
+- (void)testInclude_baseSchemaDirectly_validDocument_noErrors {
+    UDTSRNGValidator *v = [self _validatorForURL:_baseURL];
+    NSArray *diags = [self _validate:@"<root><item>hello</item></root>"
+                       withValidator:v];
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Base schema loaded directly: <item> must still be valid");
+}
+
+- (void)testInclude_baseSchemaDirectly_wrongChild_producesError {
+    UDTSRNGValidator *v = [self _validatorForURL:_baseURL];
+    NSArray *diags = [self _validate:@"<root><entry>hello</entry></root>"
+                       withValidator:v];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"Base schema: <entry> is not valid — must produce errors");
+}
+
+// -----------------------------------------------------------------------
+// MARK: - Test 3: nested include (chain.rng → override.rng → base.rng)
+// -----------------------------------------------------------------------
+
+- (void)testInclude_nestedInclude_schemaLoads {
+    // chain.rng includes override.rng which includes base.rng.
+    // All three levels must be processed correctly.
+    UDTSRNGValidator *v = [self _validatorForURL:_chainURL];
+    XCTAssertNotNil(v, @"Nested-include schema must load without error");
+}
+
+- (void)testInclude_nestedInclude_validDocument_noErrors {
+    UDTSRNGValidator *v = [self _validatorForURL:_chainURL];
+    // chain.rng inherits override.rng's schema: <entry> elements are required.
+    NSArray *diags = [self _validate:@"<root><entry>hello</entry></root>"
+                       withValidator:v];
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Nested-include chain: <entry> document must be valid");
+}
+
+- (void)testInclude_nestedInclude_invalidDocument_producesErrors {
+    UDTSRNGValidator *v = [self _validatorForURL:_chainURL];
+    NSArray *diags = [self _validate:@"<wrong/>" withValidator:v];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"Nested-include chain: wrong root must produce errors");
+}
+
+@end

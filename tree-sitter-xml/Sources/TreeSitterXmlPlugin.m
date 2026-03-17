@@ -65,7 +65,9 @@ const TSLanguage *tree_sitter_xml(void);
 // ---------------------------------------------------------------------------
 
 /// Scans the document header for all @c <?xml-model?> processing instructions
-/// and separates them by type (RNG vs Schematron).
+/// and separates them by type (RNG vs Schematron).  If no @c <?xml-model?>
+/// PI is found, falls back to a built-in bundled schema selected by file
+/// extension or well-known namespace URI (@see @c _builtInRNGForDocumentURL:headerText:).
 ///
 /// Returns a dictionary with keys:
 ///   @c "rng"         → @c NSURL  (the first RNG schema found, or absent)
@@ -111,6 +113,12 @@ const TSLanguage *tree_sitter_xml(void);
         // Unsupported schema types (e.g. .rnc) are silently skipped.
     }
 
+    // If no explicit <?xml-model?> PI was found, fall back to the built-in
+    // schemas bundled with the plugin (XSLT 1.0, XHTML, SVG 1.1).
+    if (!rngURL && schematronURLs.count == 0) {
+        rngURL = [self _builtInRNGForDocumentURL:documentURL headerText:text];
+    }
+
     NSMutableDictionary<NSString *, id> *result = [NSMutableDictionary dictionary];
     if (rngURL)               result[@"rng"]         = rngURL;
     if (schematronURLs.count) result[@"schematron"]  = [schematronURLs copy];
@@ -137,6 +145,51 @@ const TSLanguage *tree_sitter_xml(void);
     NSString *href = [tail substringWithRange:NSMakeRange(valueStart,
                                                           closeRange.location - valueStart)];
     return href.length ? href : nil;
+}
+
+/// Returns the URL of a built-in bundled RNG schema for @a documentURL when the
+/// XML dialect can be inferred from the file extension or from a well-known
+/// namespace URI found in the document header, or @c nil when no match is found.
+///
+/// Supported dialects (in priority order):
+///   - XSLT 1.0  — extension @c .xsl / @c .xslt, or namespace
+///                 @c http://www.w3.org/1999/XSL/Transform  → @c schemas/xslt.rng
+///   - SVG 1.1   — extension @c .svg, or namespace
+///                 @c http://www.w3.org/2000/svg             → @c schemas/svg.rng
+///   - XHTML     — extension @c .xhtml, or namespace
+///                 @c http://www.w3.org/1999/xhtml           → @c schemas/xhtml/xhtml.rng
+- (nullable NSURL *)_builtInRNGForDocumentURL:(NSURL *)documentURL
+                                   headerText:(NSString *)headerText {
+    if (!_bundle) return nil;
+
+    NSString *ext = documentURL.pathExtension.lowercaseString;
+
+    // XSLT 1.0
+    if ([ext isEqualToString:@"xsl"] ||
+        [ext isEqualToString:@"xslt"] ||
+        [headerText containsString:@"http://www.w3.org/1999/XSL/Transform"]) {
+        return [_bundle URLForResource:@"xslt"
+                         withExtension:@"rng"
+                          subdirectory:@"schemas"];
+    }
+
+    // SVG 1.1
+    if ([ext isEqualToString:@"svg"] ||
+        [headerText containsString:@"http://www.w3.org/2000/svg"]) {
+        return [_bundle URLForResource:@"svg"
+                         withExtension:@"rng"
+                          subdirectory:@"schemas"];
+    }
+
+    // XHTML  (extension .xhtml is reliable; plain .html is usually HTML5, not XHTML)
+    if ([ext isEqualToString:@"xhtml"] ||
+        [headerText containsString:@"http://www.w3.org/1999/xhtml"]) {
+        return [_bundle URLForResource:@"xhtml"
+                         withExtension:@"rng"
+                          subdirectory:@"schemas/xhtml"];
+    }
+
+    return nil;
 }
 
 + (void)load {

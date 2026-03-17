@@ -15,7 +15,13 @@ tree-sitter-xml/
 │   ├── Info.plist           # bundle metadata (NSPrincipalClass etc.)
 │   ├── LanguageInfo.plist   # language metadata read by UDLanguageModeRegistry
 │   ├── highlights.scm       # tree-sitter highlights query (if present)
-│   └── indents.scm          # tree-sitter indents query (if present)
+│   ├── indents.scm          # tree-sitter indents query (if present)
+│   └── schemas/             # built-in RELAX NG schemas  ← in git
+│       ├── xslt.rng         # XSLT 1.0 (James Clark, relaxng.org)
+│       ├── svg.rng          # SVG 1.1 structural schema
+│       └── xhtml/
+│           ├── xhtml.rng    # XHTML (from jing-trang, relaxng.org)
+│           └── modules/     # XHTML module schemas (28 files)
 ├── tree-sitter/             # tree-sitter runtime for this bundle  ← fetched by fetch-deps.sh
 │   ├── include/             # public API headers
 │   └── src/                 # runtime C sources (compiled via lib.c)
@@ -87,3 +93,31 @@ loads the bundle it calls `-pluginDidLoad:`.  If the bundle is ever unloaded
 Language metadata (identifier, display name, file extensions, LSP language ID,
 and query file names) is stored in `Resources/LanguageInfo.plist` and is read
 by the host app *before* the bundle code runs, so no code executes prematurely.
+
+## Built-in RELAX NG schemas
+
+The bundle ships three well-known RELAX NG schemas under `Resources/schemas/`.
+They are selected automatically — no `<?xml-model?>` processing instruction
+is needed in the document.
+
+### Schema selection
+
+`TreeSitterXmlPlugin` inspects the first 2 KB of each opened document and
+picks a schema according to the following rules (checked in priority order):
+
+| Dialect  | Trigger (file extension **or** namespace URI in header) | Schema resource |
+|----------|---------------------------------------------------------|-----------------|
+| XSLT 1.0 | `.xsl`, `.xslt`, or `http://www.w3.org/1999/XSL/Transform` | `schemas/xslt.rng` |
+| SVG 1.1  | `.svg`, or `http://www.w3.org/2000/svg` | `schemas/svg.rng` |
+| XHTML    | `.xhtml`, or `http://www.w3.org/1999/xhtml` | `schemas/xhtml/xhtml.rng` |
+
+An explicit `<?xml-model href="...">` processing instruction in the document
+always takes precedence over the built-in selection.
+
+### Schema sources
+
+| Schema | Source |
+|--------|--------|
+| `schemas/xslt.rng` | James Clark's XSLT 1.0 RELAX NG grammar — originally published at `https://relaxng.org/jclark/xslt.rng` |
+| `schemas/svg.rng` | Structural SVG 1.1 schema based on the W3C SVG 1.1 Second Edition Recommendation (`https://www.w3.org/TR/SVG11/`). Validates the root element, namespace, and common elements; uses an open content model for filter primitives and animation details. |
+| `schemas/xhtml/xhtml.rng` | XHTML schema from the [jing-trang](https://github.com/relaxng/jing-trang) project, covering the union of XHTML Transitional and Frameset. Requires the 28 module files in `schemas/xhtml/modules/`. |

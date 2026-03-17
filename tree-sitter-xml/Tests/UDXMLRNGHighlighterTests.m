@@ -34,6 +34,7 @@
 #import <XCTest/XCTest.h>
 #import <tree_sitter/api.h>
 #import "UDRNGValidator.h"
+#import "UDTSRNGValidator.h"
 #import "UDXMLMirrorDoc.h"
 #import "UDXMLGapBuffer.h"
 #import "UDDiagnosticItem.h"
@@ -604,6 +605,312 @@ static NSString * const kSchemaXML =
                    @"firstLine must equal the dirty node's start line");
     XCTAssertGreaterThanOrEqual(lastLine, firstLine,
                                 @"lastLine must be >= firstLine");
+}
+
+@end
+
+// ---------------------------------------------------------------------------
+// MARK: - Test class 3: UDTSRNGValidator (Clark's derivative-based validator)
+// ---------------------------------------------------------------------------
+
+/// Tests for the RELAX NG derivative validator that operates directly on
+/// TSNode trees without going through libxml2's xmlDoc.
+///
+/// Schema used in most tests:
+///   <grammar>
+///     <start>
+///       <element name="root">
+///         <oneOrMore>
+///           <element name="item"><text/></element>
+///         </oneOrMore>
+///       </element>
+///     </start>
+///   </grammar>
+///
+/// Valid:   <root><item>hello</item></root>
+/// Invalid: <wrong/>                     — wrong root name
+/// Invalid: <root/>                      — oneOrMore not satisfied
+/// Invalid: <root><bad/></root>          — wrong child element name
+@interface UDTSRNGValidatorTests : XCTestCase
+@property (nonatomic, strong) NSURL             *schemaURL;
+@property (nonatomic, strong) UDTSRNGValidator  *validator;
+@end
+
+@implementation UDTSRNGValidatorTests
+
+static NSString * const kTSSchemaXML =
+    @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    @"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">"
+    @"  <start>"
+    @"    <element name=\"root\">"
+    @"      <oneOrMore>"
+    @"        <element name=\"item\"><text/></element>"
+    @"      </oneOrMore>"
+    @"    </element>"
+    @"  </start>"
+    @"</grammar>";
+
+// Schema with an optional attribute on <item>.
+static NSString * const kTSSchemaWithAttr =
+    @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    @"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">"
+    @"  <start>"
+    @"    <element name=\"root\">"
+    @"      <oneOrMore>"
+    @"        <element name=\"item\">"
+    @"          <optional>"
+    @"            <attribute name=\"id\"><text/></attribute>"
+    @"          </optional>"
+    @"          <text/>"
+    @"        </element>"
+    @"      </oneOrMore>"
+    @"    </element>"
+    @"  </start>"
+    @"</grammar>";
+
+// Schema with named define/ref (tests <ref> resolution and recursive grammars).
+static NSString * const kTSSchemaWithRef =
+    @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    @"<grammar xmlns=\"http://relaxng.org/ns/structure/1.0\">"
+    @"  <start><ref name=\"root\"/></start>"
+    @"  <define name=\"root\">"
+    @"    <element name=\"root\"><ref name=\"items\"/></element>"
+    @"  </define>"
+    @"  <define name=\"items\">"
+    @"    <oneOrMore>"
+    @"      <element name=\"item\"><text/></element>"
+    @"    </oneOrMore>"
+    @"  </define>"
+    @"</grammar>";
+
+- (void)setUp {
+    [super setUp];
+    NSURL *tmpDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+    _schemaURL = [tmpDir URLByAppendingPathComponent:
+                  [NSString stringWithFormat:@"test_ts_rng_%@.rng",
+                   [[NSUUID UUID] UUIDString]]];
+    NSError *writeError;
+    BOOL ok = [kTSSchemaXML writeToURL:_schemaURL
+                            atomically:YES
+                              encoding:NSUTF8StringEncoding
+                                 error:&writeError];
+    XCTAssertTrue(ok, @"Failed to write schema: %@", writeError);
+
+    _validator = [[UDTSRNGValidator alloc] init];
+    NSError *schemaError;
+    XCTAssertTrue([_validator setSchemaURL:_schemaURL error:&schemaError],
+                  @"Schema load failed: %@", schemaError);
+}
+
+- (void)tearDown {
+    [_validator clearSchema];
+    _validator = nil;
+    [[NSFileManager defaultManager] removeItemAtURL:_schemaURL error:nil];
+    _schemaURL = nil;
+    [super tearDown];
+}
+
+/// Validate @p xmlString and return diagnostics synchronously.
+- (NSArray<UDDiagnosticItem *> *)_validateXML:(NSString *)xmlString
+                                        cache:(NSMutableDictionary *)cache {
+    TSTree *tree = ParseXML(xmlString);
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:xmlString];
+    __block NSArray<UDDiagnosticItem *> *result = nil;
+    [_validator validateTree:(const void *)tree
+                   gapBuffer:buf
+                       cache:cache
+                  completion:^(NSArray<UDDiagnosticItem *> *diags) {
+        result = diags;
+    }];
+    ts_tree_delete(tree);
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Basic valid / invalid documents
+// ---------------------------------------------------------------------------
+
+- (void)testTSRNG_validDocument_noErrors {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><item>hello</item></root>"
+                                  cache:cache];
+    XCTAssertNotNil(diags);
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Valid document must produce no errors");
+}
+
+- (void)testTSRNG_multipleValidItems_noErrors {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><item>a</item><item>b</item></root>"
+                                  cache:cache];
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Multiple valid items must produce no errors");
+}
+
+- (void)testTSRNG_wrongRootElement_producesError {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<wrong/>" cache:cache];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"Wrong root element name must produce at least one error");
+    for (UDDiagnosticItem *item in diags) {
+        XCTAssertEqualObjects(item.source, UDDiagnosticSourceRNG);
+        XCTAssertEqual(item.severity, UDDiagnosticSeverityError);
+    }
+}
+
+- (void)testTSRNG_emptyRoot_producesError {
+    // <root/> has no <item> children; oneOrMore constraint is violated.
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root/>" cache:cache];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"Empty <root/> violates oneOrMore — must produce errors");
+}
+
+- (void)testTSRNG_wrongChildElement_producesError {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><bad/></root>" cache:cache];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"Invalid child element must produce errors");
+}
+
+- (void)testTSRNG_validItemFollowedByInvalidChild_producesError {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><item>ok</item><bad/></root>"
+                                  cache:cache];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"Invalid child after a valid item must produce errors");
+}
+
+- (void)testTSRNG_noSchemaLoaded_producesNoErrors {
+    UDTSRNGValidator *v = [[UDTSRNGValidator alloc] init];
+    TSTree *tree = ParseXML(@"<anything/>");
+    UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:@"<anything/>"];
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    __block NSArray<UDDiagnosticItem *> *diags = nil;
+    [v validateTree:(const void *)tree gapBuffer:buf cache:cache
+         completion:^(NSArray<UDDiagnosticItem *> *d) { diags = d; }];
+    ts_tree_delete(tree);
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"No schema loaded must produce empty diagnostics");
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Diagnostic metadata
+// ---------------------------------------------------------------------------
+
+- (void)testTSRNG_diagnosticSource_isRNG {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<wrong/>" cache:cache];
+    for (UDDiagnosticItem *item in diags)
+        XCTAssertEqualObjects(item.source, UDDiagnosticSourceRNG,
+                              @"Source must be UDDiagnosticSourceRNG");
+}
+
+- (void)testTSRNG_diagnosticSeverity_isError {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<wrong/>" cache:cache];
+    for (UDDiagnosticItem *item in diags)
+        XCTAssertEqual(item.severity, UDDiagnosticSeverityError);
+}
+
+- (void)testTSRNG_diagnosticLine_isPositive {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<wrong/>" cache:cache];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0);
+    for (UDDiagnosticItem *item in diags)
+        XCTAssertGreaterThan(item.line, (NSInteger)0,
+                             @"Diagnostic line must be >= 1 (1-based)");
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Incremental cache
+// ---------------------------------------------------------------------------
+
+- (void)testTSRNG_cachePopulatedAfterValidation {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    [self _validateXML:@"<root><item>hello</item></root>" cache:cache];
+    XCTAssertGreaterThan(cache.count, (NSUInteger)0,
+                         @"Cache must be non-empty after validating a valid document");
+}
+
+- (void)testTSRNG_secondCallWithSameXml_cacheDoesNotShrink {
+    // Validate the same text twice: the cache must not shrink.
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSString *xml = @"<root><item>hello</item></root>";
+    [self _validateXML:xml cache:cache];
+    NSUInteger sizeAfterFirst = cache.count;
+    [self _validateXML:xml cache:cache];
+    XCTAssertGreaterThanOrEqual(cache.count, sizeAfterFirst,
+                                @"Cache must not shrink between identical calls");
+}
+
+- (void)testTSRNG_secondCallWithSameXml_stillNoErrors {
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSString *xml = @"<root><item>hello</item></root>";
+    NSArray *d1 = [self _validateXML:xml cache:cache];
+    NSArray *d2 = [self _validateXML:xml cache:cache];
+    XCTAssertEqual(d1.count, (NSUInteger)0);
+    XCTAssertEqual(d2.count, (NSUInteger)0,
+                   @"Second pass on unchanged document must also produce no errors");
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Optional attribute schema
+// ---------------------------------------------------------------------------
+
+/// Load a one-off schema string into @p v; writes a temp file and returns it.
+- (NSURL *)_loadSchemaString:(NSString *)schemaStr into:(UDTSRNGValidator *)v {
+    NSURL *u = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                URLByAppendingPathComponent:
+                [NSString stringWithFormat:@"test_ts_%@.rng",
+                 [[NSUUID UUID] UUIDString]]];
+    [schemaStr writeToURL:u atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    NSError *e;
+    XCTAssertTrue([v setSchemaURL:u error:&e], @"Schema load failed: %@", e);
+    return u;
+}
+
+- (void)testTSRNG_optionalAttribute_present_noErrors {
+    NSURL *u = [self _loadSchemaString:kTSSchemaWithAttr into:_validator];
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><item id=\"1\">hello</item></root>"
+                                  cache:cache];
+    [[NSFileManager defaultManager] removeItemAtURL:u error:nil];
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Optional attribute present must produce no errors");
+}
+
+- (void)testTSRNG_optionalAttribute_absent_noErrors {
+    NSURL *u = [self _loadSchemaString:kTSSchemaWithAttr into:_validator];
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><item>hello</item></root>"
+                                  cache:cache];
+    [[NSFileManager defaultManager] removeItemAtURL:u error:nil];
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Absent optional attribute must also produce no errors");
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Named define / ref patterns
+// ---------------------------------------------------------------------------
+
+- (void)testTSRNG_namedRef_validDocument_noErrors {
+    NSURL *u = [self _loadSchemaString:kTSSchemaWithRef into:_validator];
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><item>hello</item></root>"
+                                  cache:cache];
+    [[NSFileManager defaultManager] removeItemAtURL:u error:nil];
+    XCTAssertEqual(diags.count, (NSUInteger)0,
+                   @"Document valid against ref-schema must produce no errors");
+}
+
+- (void)testTSRNG_namedRef_invalidDocument_producesErrors {
+    NSURL *u = [self _loadSchemaString:kTSSchemaWithRef into:_validator];
+    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
+    NSArray *diags = [self _validateXML:@"<root><wrong/></root>" cache:cache];
+    [[NSFileManager defaultManager] removeItemAtURL:u error:nil];
+    XCTAssertGreaterThan(diags.count, (NSUInteger)0,
+                         @"Invalid child against ref-schema must produce errors");
 }
 
 @end

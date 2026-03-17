@@ -340,7 +340,8 @@ typedef NS_ENUM(uint8_t, RNGNCKind) {
             RNGPat *q1 = p.p1;
             UDTSRNGValidator * __weak ws = self;
             return [self _applyAfter:^RNGPat *(RNGPat *r){
-                return [ws _group:r :[ws _choice:[ws _oneOrMore:q1] :ws->_empty]];
+                UDTSRNGValidator *strongSelf = ws;
+                return [strongSelf _group:r :[strongSelf _choice:[strongSelf _oneOrMore:q1] :strongSelf->_empty]];
             } to:[self _startTagOpenDeriv:q1 uri:uri local:local]];
         }
         default: return _notAllowed;
@@ -686,7 +687,7 @@ static NSString *nodeText(TSNode n, UDXMLGapBuffer *buf, NSMutableData *tmp) {
                          tmp:(NSMutableData *)tmp {
     // ── Incremental cache check ────────────────────────────────────────────
     BOOL hasChanges = ts_node_has_changes(elem);
-    const void *nodeId = ts_node_id(elem);
+    const void *nodeId = elem.id;
     NSString *cacheKey = nil;
     if (!hasChanges) {
         cacheKey = [NSString stringWithFormat:@"%p:%p",

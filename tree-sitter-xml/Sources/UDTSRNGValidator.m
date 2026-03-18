@@ -14,6 +14,74 @@
 #import <libxml/tree.h>
 #import <tree_sitter/api.h>
 
+#import <libxslt/xslt.h>
+#import <libxslt/transform.h>
+#import <libxslt/xsltutils.h>
+#import <libexslt/exslt.h>
+
+// Minimal two-pass XSLT that implements RELAX NG simplification steps 7.8
+// (include flattening) and 7.12 (div expansion).  Embedded so it is always
+// available regardless of bundle/resource path.
+static const char kRNGSimplifyXSL[] =
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+"<xsl:stylesheet version=\"1.0\""
+"  xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\""
+"  xmlns:rng=\"http://relaxng.org/ns/structure/1.0\""
+"  xmlns:exsl=\"http://exslt.org/common\""
+"  exclude-result-prefixes=\"exsl\">"
+"<xsl:output method=\"xml\" indent=\"no\"/>"
+// Root: run pass-1 (include→div), then optionally pass-2 (div expansion).
+// When called recursively from inside an include, stop-after=\"s78\" skips pass-2
+// so we return the raw grammar with any nested includes already replaced by divs.
+"<xsl:template match=\"/\">"
+"  <xsl:param name=\"stop-after\" select=\"''\"/>"
+"  <xsl:variable name=\"step78\">"
+"    <xsl:apply-templates mode=\"s78\"/>"
+"  </xsl:variable>"
+"  <xsl:choose>"
+"    <xsl:when test=\"$stop-after = 's78'\">"
+"      <xsl:copy-of select=\"$step78\"/>"
+"    </xsl:when>"
+"    <xsl:otherwise>"
+"      <xsl:apply-templates select=\"exsl:node-set($step78)\" mode=\"s12\"/>"
+"    </xsl:otherwise>"
+"  </xsl:choose>"
+"</xsl:template>"
+// Pass 1 – identity copy
+"<xsl:template match=\"*|text()|@*\" mode=\"s78\">"
+"  <xsl:copy>"
+"    <xsl:apply-templates select=\"@*\" mode=\"s78\"/>"
+"    <xsl:apply-templates mode=\"s78\"/>"
+"  </xsl:copy>"
+"</xsl:template>"
+// Pass 1 – include flattening (step 7.8)
+"<xsl:template match=\"rng:include\" mode=\"s78\">"
+"  <xsl:variable name=\"ref-rtf\">"
+"    <xsl:apply-templates select=\"document(@href)\">"
+"      <xsl:with-param name=\"stop-after\" select=\"'s78'\"/>"
+"    </xsl:apply-templates>"
+"  </xsl:variable>"
+"  <xsl:variable name=\"ref\" select=\"exsl:node-set($ref-rtf)\"/>"
+"  <rng:div>"
+"    <xsl:copy-of select=\"@*[name()!='href']\"/>"
+"    <xsl:copy-of select=\"*\"/>"
+"    <xsl:copy-of select=\"$ref/rng:grammar/rng:start[not(current()/rng:start)]\"/>"
+"    <xsl:copy-of select=\"$ref/rng:grammar/rng:define[not(@name=current()/rng:define/@name)]\"/>"
+"  </rng:div>"
+"</xsl:template>"
+// Pass 2 – identity copy
+"<xsl:template match=\"*|text()|@*\" mode=\"s12\">"
+"  <xsl:copy>"
+"    <xsl:apply-templates select=\"@*\" mode=\"s12\"/>"
+"    <xsl:apply-templates mode=\"s12\"/>"
+"  </xsl:copy>"
+"</xsl:template>"
+// Pass 2 – div expansion (step 7.12)
+"<xsl:template match=\"rng:div\" mode=\"s12\">"
+"  <xsl:apply-templates mode=\"s12\"/>"
+"</xsl:template>"
+"</xsl:stylesheet>";
+
 // ============================================================
 // MARK: - Pattern kind enums
 // ============================================================
@@ -1471,17 +1539,43 @@ static xmlNodePtr firstPatternChild(xmlNodePtr n) {
         return NO;
     }
 
-    // Parse the schema file with libxml2 (the schema is static; only the
-    // validated document needs Tree-sitter).
+    // Parse the schema file with libxml2.
     xmlDocPtr doc = xmlReadFile(url.path.UTF8String, NULL,
-                                XML_PARSE_NONET | XML_PARSE_NOENT |
-                                XML_PARSE_XINCLUDE);
+                                XML_PARSE_NONET | XML_PARSE_NOENT);
     if (!doc) {
         if (outError)
             *outError = [NSError errorWithDomain:@"UDTSRNGValidator" code:2
                          userInfo:@{NSLocalizedDescriptionKey:
                                     [NSString stringWithFormat:
                                      @"Failed to parse RNG schema: %@",
+                                     url.lastPathComponent]}];
+        return NO;
+    }
+
+    // Apply the embedded XSLT to flatten <include> elements (steps 7.8 + 7.12).
+    // exsl:node-set() requires EXSLT; register it once.
+    exsltRegisterAll();
+
+    xmlDocPtr xslDoc = xmlReadMemory(kRNGSimplifyXSL, (int)(sizeof(kRNGSimplifyXSL) - 1),
+                                     "simplify.xsl", NULL, 0);
+    if (xslDoc) {
+        xsltStylesheetPtr style = xsltParseStylesheetDoc(xslDoc);
+        // xsltParseStylesheetDoc takes ownership of xslDoc.
+        if (style) {
+            const char *params[] = {NULL};
+            xmlDocPtr simplified = xsltApplyStylesheet(style, doc, params);
+            xsltFreeStylesheet(style);
+            xmlFreeDoc(doc);
+            doc = simplified;
+        }
+    }
+
+    if (!doc) {
+        if (outError)
+            *outError = [NSError errorWithDomain:@"UDTSRNGValidator" code:2
+                         userInfo:@{NSLocalizedDescriptionKey:
+                                    [NSString stringWithFormat:
+                                     @"Failed to simplify RNG schema: %@",
                                      url.lastPathComponent]}];
         return NO;
     }

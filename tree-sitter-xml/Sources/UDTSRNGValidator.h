@@ -41,6 +41,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+extern UDDiagnosticSource const UDDiagnosticSourceRNG; // RNG rules
+
 @interface UDTSRNGValidator : NSObject
 
 /// Load and compile a RELAX NG schema from a .rng (XML syntax) file.

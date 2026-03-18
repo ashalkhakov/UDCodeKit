@@ -16,6 +16,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+extern UDDiagnosticSource const UDDiagnosticSourceRNG;        // RELAX NG schema
+
 /// Wraps libxml2's RELAX NG validation API.
 ///
 /// Usage:

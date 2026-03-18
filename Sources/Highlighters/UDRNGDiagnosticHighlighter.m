@@ -9,6 +9,12 @@
 
 NSString * const UDRNGDiagnosticDecorationOwner = @"rng.diagnostic";
 
+// NOTE: these are also defined in the extension.
+// TODO: make it possible for extensions to provide their own highlighting, or just colors for the highlights
+// so that we can then use that uniformly
+UDDiagnosticSource const UDDiagnosticSourceRNG        = @"rng";
+UDDiagnosticSource const UDDiagnosticSourceSchematron = @"schematron";
+
 @implementation UDRNGDiagnosticHighlighter {
     UDDiagnosticStore * __weak _store;
 }

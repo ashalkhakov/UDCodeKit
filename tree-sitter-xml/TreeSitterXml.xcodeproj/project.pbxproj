@@ -35,7 +35,6 @@
 		CE0C2E632F5F1EF800566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */; };
 		CE0C2E642F5F1EF800566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E602F5F1EF800566368 /* highlights.scm */; };
 		CE0C2E652F5F1EF800566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E612F5F1EF800566368 /* Info.plist */; };
-		CE3C736D2F6A7962007BC955 /* UDDiagnosticItem.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0A /* UDDiagnosticItem.m */; };
 		CE3C736E2F6A7A5D007BC955 /* UDDiagnosticItem.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0A /* UDDiagnosticItem.m */; };
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
@@ -398,7 +397,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CE3C736D2F6A7962007BC955 /* UDDiagnosticItem.m in Sources */,
 				CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */,
 				CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */,
 				CE0C2E582F5F1ED500566368 /* lib.c in Sources */,

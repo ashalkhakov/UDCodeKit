@@ -385,10 +385,11 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/schemas",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "SOURCE_DIR=\"${SRCROOT}/schemas\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/schemas\"\n\ncp -R \"${SOURCE_DIR}\" \"${DEST_DIR}\"\n";
+			shellScript = "SOURCE_DIR=\"${SRCROOT}/schemas\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/schemas\"\n\nmkdir -p \"${DEST_DIR}\"\nrsync -a --delete \"${SOURCE_DIR}/\" \"${DEST_DIR}/\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

@@ -5,13 +5,13 @@
 #import "UDXMLRNGHighlighter.h"
 #import "UDXMLMirrorDoc.h"
 #import "UDXMLGapBuffer.h"
-#import "UDTSRNGValidator.h"
+#import "UDRNGValidator.h"
 #import "UDSchematronValidator.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <tree_sitter/api.h>
 #import <stdatomic.h>
 
-// UDDiagnosticSourceRNG is defined in UDRNGValidator.m in the host app.
+// UDDiagnosticSourceRNG is defined in UDRNGValidator.m (compiled into this bundle).
 extern NSString * const UDDiagnosticSourceRNG;
 // UDDiagnosticSourceSchematron is defined in UDSchematronValidator.m.
 extern NSString * const UDDiagnosticSourceSchematron;
@@ -28,19 +28,12 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 
     dispatch_queue_t    _validationQueue;
 
-    /// Clark's derivative-based RELAX NG validator.
-    /// Walks the Tree-sitter parse tree directly — no libxml2 mirror needed.
-    UDTSRNGValidator   *_tsValidator;
+    /// libxml2-based RELAX NG validator.  Validates the xmlDoc produced by
+    /// _mirrorDoc against the compiled schema.
+    UDRNGValidator     *_rngValidator;
 
-    /// Persistent derivative cache passed to every -validateTree: call.
-    /// Keys are (tsNodeId, entryPatternPtr) formatted strings; values are
-    /// exit patterns.  Unchanged element subtrees (ts_node_has_changes == NO)
-    /// reuse the cached result, giving O(edit_depth) revalidation cost.
-    NSMutableDictionary *_derivCache;
-
-    /// libxml2 mirror document — only built and maintained when at least one
-    /// Schematron validator is active (Schematron needs xmlDocPtr for XPath).
-    /// NULL when there are no Schematron validators.
+    /// libxml2 mirror document — built and maintained for every document that
+    /// has an RNG schema (needed by UDRNGValidator) as well as for Schematron.
     UDXMLMirrorDoc     *_mirrorDoc;
 
     /// Zero or more Schematron validators, validated in order after RNG.
@@ -71,26 +64,25 @@ static const NSTimeInterval kDebounceInterval = 0.15;
         "org.underivable.rng-validation",
         DISPATCH_QUEUE_SERIAL);
 
-    _tsValidator = [[UDTSRNGValidator alloc] init];
-    _derivCache  = [NSMutableDictionary dictionary];
+    _rngValidator = [[UDRNGValidator alloc] init];
 
-    // Build Schematron validator instances.  The mirror doc is only allocated
-    // when at least one Schematron schema is present.
+    // The mirror doc is always needed for RNG (UDRNGValidator requires an
+    // xmlDocPtr) as well as for Schematron.
+    _mirrorDoc = [[UDXMLMirrorDoc alloc] init];
+
+    // Build Schematron validator instances.
     NSMutableArray<UDSchematronValidator *> *svs =
         [NSMutableArray arrayWithCapacity:schematronURLs.count];
     for (NSURL * __unused url in schematronURLs)
         [svs addObject:[[UDSchematronValidator alloc] init]];
     _schematronValidators = [svs copy];
 
-    if (_schematronValidators.count > 0)
-        _mirrorDoc = [[UDXMLMirrorDoc alloc] init];
-
     // Load all schemas on the validation queue so the main thread is never blocked.
     NSArray<NSURL *> *capturedSchematronURLs = [schematronURLs copy];
     dispatch_async(_validationQueue, ^{
         if (rngSchemaURL) {
             NSError *err = nil;
-            if (![self->_tsValidator setSchemaURL:rngSchemaURL error:&err]) {
+            if (![self->_rngValidator setSchemaURL:rngSchemaURL error:&err]) {
                 NSLog(@"[UDXMLRNGHighlighter] RNG schema load failed: %@",
                       err.localizedDescription);
             }
@@ -148,21 +140,17 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     if (!_gapBuffer)
         _gapBuffer = [[UDXMLGapBuffer alloc] initWithString:[textModel getValue]];
 
-    // Build the line-start index only when Schematron validators are active
-    // (the new Tree-sitter-based RNG validator uses TSPoint directly and does
-    // not need a line index at all).
-    NSData *lineIndexData = nil;
-    if (_schematronValidators.count > 0) {
-        NSInteger lineCountSigned = [textModel getLineCount];
-        NSUInteger lineCount = (lineCountSigned > 0) ? (NSUInteger)lineCountSigned : 1;
-        NSMutableData *lid = [NSMutableData dataWithLength:lineCount * sizeof(NSUInteger)];
-        NSUInteger *ptr = (NSUInteger *)lid.mutableBytes;
-        for (NSUInteger i = 0; i < lineCount; i++) {
-            NSInteger off = [textModel getOffsetAt:(NSInteger)(i + 1) column:1];
-            ptr[i] = (off >= 0) ? (NSUInteger)off : 0;
-        }
-        lineIndexData = lid;
+    // Build the line-start index — needed by UDRNGValidator to map libxml2
+    // error line numbers back to document character offsets.
+    NSInteger lineCountSigned = [textModel getLineCount];
+    NSUInteger lineCount = (lineCountSigned > 0) ? (NSUInteger)lineCountSigned : 1;
+    NSMutableData *lid = [NSMutableData dataWithLength:lineCount * sizeof(NSUInteger)];
+    NSUInteger *ptr = (NSUInteger *)lid.mutableBytes;
+    for (NSUInteger i = 0; i < lineCount; i++) {
+        NSInteger off = [textModel getOffsetAt:(NSInteger)(i + 1) column:1];
+        ptr[i] = (off >= 0) ? (NSUInteger)off : 0;
     }
+    NSData *lineIndexData = lid;
 
     TSTree *treeCopy = ts_tree_copy((const TSTree *)newTree);
     NSUInteger seq = atomic_fetch_add(&_sequence, (NSUInteger)1) + 1;
@@ -194,8 +182,7 @@ static const NSTimeInterval kDebounceInterval = 0.15;
     _gapBuffer = nil;
 
     dispatch_async(_validationQueue, ^{
-        // Clear the derivative cache; a new document would start fresh.
-        [self->_derivCache removeAllObjects];
+        // Nothing extra to clean up for the libxml2 validator.
     });
 
     UDDiagnosticStore *store = _store;
@@ -214,23 +201,30 @@ static const NSTimeInterval kDebounceInterval = 0.15;
 - (void)_validateWithTree:(TSTree *)tree
             changedRanges:(nullable NSArray<NSValue *> *)changedRanges
                gapBuffer:(UDXMLGapBuffer *)gapBuffer
-            lineIndexData:(nullable NSData *)lineIndexData {
+            lineIndexData:(NSData *)lineIndexData {
 
     // Skip validation when the tree itself contains parse errors — the document
     // is syntactically ill-formed and schema validation would produce noise.
     TSNode root = ts_tree_root_node((const TSTree *)tree);
     if (ts_node_has_error(root)) return;
 
-    // ── RELAX NG validation via Clark's derivative algorithm ──────────────
-    // The _derivCache persists across calls; ts_node_has_changes() on each
-    // element node drives the incremental skip logic inside UDTSRNGValidator.
+    NSUInteger lineCount = lineIndexData.length / sizeof(NSUInteger);
+    const NSUInteger *lineIndex = (const NSUInteger *)lineIndexData.bytes;
+
+    // ── Build / update the libxml2 mirror document ────────────────────────
+    [_mirrorDoc applyTree:tree changedRanges:changedRanges gapBuffer:gapBuffer];
+    xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
+
+    // ── RELAX NG validation via libxml2 ───────────────────────────────────
     __block NSArray<UDDiagnosticItem *> *rngResults = nil;
-    [_tsValidator validateTree:tree
-                     gapBuffer:gapBuffer
-                         cache:_derivCache
-                    completion:^(NSArray<UDDiagnosticItem *> *items) {
-        rngResults = items;
-    }];
+    if (xmlDoc) {
+        [_rngValidator validateDoc:xmlDoc
+                         lineIndex:lineIndex
+                         lineCount:lineCount
+                        completion:^(NSArray<UDDiagnosticItem *> *items) {
+            rngResults = items;
+        }];
+    }
     NSArray<UDDiagnosticItem *> *rngSnapshot = rngResults ?: @[];
 
     UDDiagnosticStore *store = _store;
@@ -240,18 +234,12 @@ static const NSTimeInterval kDebounceInterval = 0.15;
         });
     }
 
-    // ── Schematron validation (requires libxml2 mirror doc + line index) ───
+    // ── Schematron validation (uses the same mirror doc) ──────────────────
     if (_schematronValidators.count == 0) return;
-
-    [_mirrorDoc applyTree:tree changedRanges:changedRanges gapBuffer:gapBuffer];
-    xmlDocPtr xmlDoc = _mirrorDoc.xmlDoc;
     if (!xmlDoc) return;
 
     // Only re-run Schematron when the mirror doc detected a structural change.
     if (!_mirrorDoc.dirtyRoot) return;
-
-    NSUInteger lineCount = lineIndexData.length / sizeof(NSUInteger);
-    const NSUInteger *lineIndex = (const NSUInteger *)lineIndexData.bytes;
 
     NSMutableArray<UDDiagnosticItem *> *schematronItems = [NSMutableArray array];
     for (UDSchematronValidator *sv in _schematronValidators) {

@@ -916,10 +916,12 @@ static NSString * const kTSSchemaWithRef =
 @end
 
 // ---------------------------------------------------------------------------
-// MARK: - Test class 4: UDTSRNGValidator — <include> mechanism
+// MARK: - Test class 4: UDRNGValidator — <include> mechanism
 // ---------------------------------------------------------------------------
 ///
-/// Tests that the recursive <include> loading works correctly:
+/// Tests that libxml2's native <include> processing works correctly when
+/// using UDRNGValidator (which calls xmlRelaxNGParse, which processes
+/// includes automatically):
 ///
 ///  1. A grammar whose <start> element lives in an included file (not in the
 ///     root grammar) must load and validate correctly.
@@ -959,10 +961,10 @@ static NSString * const kTSSchemaWithRef =
 ///      <include href="override.rng"/>
 ///    </grammar>
 
-@interface UDTSRNGValidatorIncludeTests : XCTestCase
+@interface UDRNGValidatorIncludeTests : XCTestCase
 @end
 
-@implementation UDTSRNGValidatorIncludeTests {
+@implementation UDRNGValidatorIncludeTests {
     NSURL   *_tmpDir;
     NSURL   *_baseURL;
     NSURL   *_overrideURL;
@@ -1038,25 +1040,29 @@ static NSString * const kTSSchemaWithRef =
 // MARK: - Helpers
 // -----------------------------------------------------------------------
 
-/// Returns a fresh UDTSRNGValidator loaded with the schema at @p url.
-- (UDTSRNGValidator *)_validatorForURL:(NSURL *)url {
-    UDTSRNGValidator *v = [[UDTSRNGValidator alloc] init];
+/// Returns a fresh UDRNGValidator loaded with the schema at @p url.
+/// libxml2's xmlRelaxNGParse processes <include> directives automatically.
+- (UDRNGValidator *)_validatorForURL:(NSURL *)url {
+    UDRNGValidator *v = [[UDRNGValidator alloc] init];
     NSError *err;
     XCTAssertTrue([v setSchemaURL:url error:&err],
                   @"Schema load failed (%@): %@", url.lastPathComponent, err);
     return v;
 }
 
-/// Validate @p xmlString with @p v and return diagnostics synchronously.
+/// Validate @p xmlString with @p v (via UDXMLMirrorDoc) and return diagnostics.
 - (NSArray<UDDiagnosticItem *> *)_validate:(NSString *)xmlString
-                             withValidator:(UDTSRNGValidator *)v {
-    TSTree *tree = ParseXML(xmlString);
+                             withValidator:(UDRNGValidator *)v {
     UDXMLGapBuffer *buf = [[UDXMLGapBuffer alloc] initWithString:xmlString];
-    NSMutableDictionary *cache = [NSMutableDictionary dictionary];
-    __block NSArray<UDDiagnosticItem *> *result = nil;
-    [v validateTree:(const void *)tree gapBuffer:buf cache:cache
-         completion:^(NSArray<UDDiagnosticItem *> *d) { result = d; }];
+    TSTree *tree = ParseXML(xmlString);
+    UDXMLMirrorDoc *doc = [[UDXMLMirrorDoc alloc] init];
+    [doc applyTree:tree changedRanges:nil gapBuffer:buf];
     ts_tree_delete(tree);
+    __block NSArray<UDDiagnosticItem *> *result = nil;
+    [v validateDoc:doc.xmlDoc
+         lineIndex:NULL
+         lineCount:0
+        completion:^(NSArray<UDDiagnosticItem *> *d) { result = d; }];
     return result;
 }
 
@@ -1066,12 +1072,12 @@ static NSString * const kTSSchemaWithRef =
 
 - (void)testInclude_startFromIncludedFile_schemaLoads {
     // override.rng has no <start> of its own; it must import <start> from base.rng.
-    UDTSRNGValidator *v = [self _validatorForURL:_overrideURL];
+    UDRNGValidator *v = [self _validatorForURL:_overrideURL];
     XCTAssertNotNil(v, @"Validator must be non-nil after loading a schema with include");
 }
 
 - (void)testInclude_startFromIncludedFile_validDocument_noErrors {
-    UDTSRNGValidator *v = [self _validatorForURL:_overrideURL];
+    UDRNGValidator *v = [self _validatorForURL:_overrideURL];
     // override.rng expects <entry> elements (not <item>).
     NSArray *diags = [self _validate:@"<root><entry>hello</entry></root>"
                        withValidator:v];
@@ -1080,7 +1086,7 @@ static NSString * const kTSSchemaWithRef =
 }
 
 - (void)testInclude_startFromIncludedFile_originalDefine_isInvalid {
-    UDTSRNGValidator *v = [self _validatorForURL:_overrideURL];
+    UDRNGValidator *v = [self _validatorForURL:_overrideURL];
     // <item> is no longer valid — it was replaced by <entry> in the override.
     NSArray *diags = [self _validate:@"<root><item>hello</item></root>"
                        withValidator:v];
@@ -1093,7 +1099,7 @@ static NSString * const kTSSchemaWithRef =
 // -----------------------------------------------------------------------
 
 - (void)testInclude_baseSchemaDirectly_validDocument_noErrors {
-    UDTSRNGValidator *v = [self _validatorForURL:_baseURL];
+    UDRNGValidator *v = [self _validatorForURL:_baseURL];
     NSArray *diags = [self _validate:@"<root><item>hello</item></root>"
                        withValidator:v];
     XCTAssertEqual(diags.count, (NSUInteger)0,
@@ -1101,7 +1107,7 @@ static NSString * const kTSSchemaWithRef =
 }
 
 - (void)testInclude_baseSchemaDirectly_wrongChild_producesError {
-    UDTSRNGValidator *v = [self _validatorForURL:_baseURL];
+    UDRNGValidator *v = [self _validatorForURL:_baseURL];
     NSArray *diags = [self _validate:@"<root><entry>hello</entry></root>"
                        withValidator:v];
     XCTAssertGreaterThan(diags.count, (NSUInteger)0,
@@ -1115,12 +1121,12 @@ static NSString * const kTSSchemaWithRef =
 - (void)testInclude_nestedInclude_schemaLoads {
     // chain.rng includes override.rng which includes base.rng.
     // All three levels must be processed correctly.
-    UDTSRNGValidator *v = [self _validatorForURL:_chainURL];
+    UDRNGValidator *v = [self _validatorForURL:_chainURL];
     XCTAssertNotNil(v, @"Nested-include schema must load without error");
 }
 
 - (void)testInclude_nestedInclude_validDocument_noErrors {
-    UDTSRNGValidator *v = [self _validatorForURL:_chainURL];
+    UDRNGValidator *v = [self _validatorForURL:_chainURL];
     // chain.rng inherits override.rng's schema: <entry> elements are required.
     NSArray *diags = [self _validate:@"<root><entry>hello</entry></root>"
                        withValidator:v];
@@ -1129,7 +1135,7 @@ static NSString * const kTSSchemaWithRef =
 }
 
 - (void)testInclude_nestedInclude_invalidDocument_producesErrors {
-    UDTSRNGValidator *v = [self _validatorForURL:_chainURL];
+    UDRNGValidator *v = [self _validatorForURL:_chainURL];
     NSArray *diags = [self _validate:@"<wrong/>" withValidator:v];
     XCTAssertGreaterThan(diags.count, (NSUInteger)0,
                          @"Nested-include chain: wrong root must produce errors");

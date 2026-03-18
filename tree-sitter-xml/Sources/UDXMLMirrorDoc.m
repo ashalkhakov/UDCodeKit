@@ -94,7 +94,12 @@
         const char *type = ts_node_type(child);
         if (strcmp(type, "element") == 0) {
             xmlNodePtr elem = [self _buildElement:child];
-            if (elem) xmlDocSetRootElement(_xmlDoc, elem);
+            if (elem) {
+                // Propagate inherited default namespaces to elements that
+                // have no explicit xmlns declaration of their own.
+                [self _applyDefaultNamespaces:elem parentDefaultNs:NULL];
+                xmlDocSetRootElement(_xmlDoc, elem);
+            }
         } else if (isProcessingInstruction(type)) {
             [self _addProcessingInstruction:child toParent:NULL];
         } else if (isComment(type)) {
@@ -145,6 +150,7 @@
         // Root element was added.
         xmlNodePtr newNode = [self _buildElement:tsRootElem];
         if (newNode) {
+            [self _applyDefaultNamespaces:newNode parentDefaultNs:NULL];
             xmlDocSetRootElement(_xmlDoc, newNode);
             _dirtyRoot = newNode;
         }
@@ -159,13 +165,28 @@
 /// Updates the xmlNode in-place when the tag name matches, or replaces it when
 /// the name has changed.  Returns YES if anything was changed.
 - (BOOL)_syncTSElement:(TSNode)tsElem withXmlElement:(xmlNodePtr)xmlElem {
-    NSString *newName = [self _tagNameFromElement:tsElem] ?: @"";
-    NSString *oldName = xmlElem->name ? @((const char *)xmlElem->name) : @"";
+    NSString *newQName  = [self _tagNameFromElement:tsElem] ?: @"";
+    NSString *oldName   = xmlElem->name ? @((const char *)xmlElem->name) : @"";
 
-    if (![newName isEqualToString:oldName]) {
-        // Tag name changed: full replacement of this subtree.
+    // Extract the local name from the new qualified name for comparison with
+    // the stored name (we store only the local name, see _buildElement:).
+    NSString *newLocalName = newQName;
+    {
+        NSRange colon = [newQName rangeOfString:@":"];
+        if (colon.location != NSNotFound)
+            newLocalName = [newQName substringFromIndex:colon.location + 1];
+    }
+
+    // A tag-name change OR a namespace-declaration change requires a full
+    // subtree rebuild because namespace pointers on child nodes could become
+    // stale if we tried to patch nsDef in-place.
+    BOOL nsChanged = [self _xmlnsChangedForNode:xmlElem inTSElem:tsElem];
+    if (![newLocalName isEqualToString:oldName] || nsChanged) {
+        // Full replacement of this subtree.
         xmlNodePtr newNode = [self _buildElement:tsElem];
         if (newNode) {
+            xmlNsPtr parentNs = [self _effectiveDefaultNsFor:xmlElem->parent];
+            [self _applyDefaultNamespaces:newNode parentDefaultNs:parentNs];
             xmlReplaceNode(xmlElem, newNode);
             xmlFreeNode(xmlElem);
             if (!_dirtyRoot) _dirtyRoot = newNode;
@@ -209,6 +230,10 @@
     }
 
     // Collect new attributes as ordered name/value arrays.
+    // xmlns="…" and xmlns:prefix="…" declarations are stored as xmlNs objects
+    // (set up during element build / full rebuild) and are intentionally excluded
+    // from this plain-attribute comparison.  xmlns changes are handled separately
+    // in _syncTSElement:withXmlElement: which triggers a full subtree rebuild.
     NSMutableArray<NSString *> *newNames  = [NSMutableArray array];
     NSMutableArray<NSString *> *newValues = [NSMutableArray array];
     if (!ts_node_is_null(startTag)) {
@@ -232,7 +257,11 @@
                     value = stripQuotes(raw);
                 }
             }
-            if (name.length) { [newNames addObject:name]; [newValues addObject:value]; }
+            if (name.length) {
+                // Skip xmlns declarations — handled as xmlNs, not plain props.
+                if ([name isEqualToString:@"xmlns"] || [name hasPrefix:@"xmlns:"]) continue;
+                [newNames addObject:name]; [newValues addObject:value];
+            }
         }
     }
 
@@ -317,7 +346,15 @@
             uint32_t idx = (uint32_t)[[tsIndices objectAtIndex:i] unsignedIntegerValue];
             TSNode tsChild = ts_node_child(contentNode, idx);
             xmlNodePtr newXML = [self _buildTSChildNode:tsChild];
-            if (newXML) { xmlAddChild(xmlParent, newXML); dirty = YES; }
+            if (newXML) {
+                xmlAddChild(xmlParent, newXML);
+                // Fix inherited namespace pointers for the newly inserted subtree.
+                if (newXML->type == XML_ELEMENT_NODE) {
+                    xmlNsPtr parentNs = [self _effectiveDefaultNsFor:xmlParent];
+                    [self _applyDefaultNamespaces:newXML parentDefaultNs:parentNs];
+                }
+                dirty = YES;
+            }
         } else {
             // Both present: sync by type and content.
             uint32_t idx = (uint32_t)[[tsIndices objectAtIndex:i] unsignedIntegerValue];
@@ -341,15 +378,18 @@
 /// Replaces the XML node when types differ; updates in-place when they match.
 - (BOOL)_syncTSChild:(TSNode)tsNode withXmlNode:(xmlNodePtr)xmlNode
               parent:(xmlNodePtr)parent {
-    (void)parent;
     const char *tsType = ts_node_type(tsNode);
 
     // --- element ---
     if (strcmp(tsType, "element") == 0) {
         if (xmlNode->type != XML_ELEMENT_NODE) {
             xmlNodePtr newNode = [self _buildElement:tsNode];
-            if (newNode) { xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode);
-                           if (!_dirtyRoot) _dirtyRoot = newNode; }
+            if (newNode) {
+                xmlNsPtr parentNs = [self _effectiveDefaultNsFor:parent];
+                [self _applyDefaultNamespaces:newNode parentDefaultNs:parentNs];
+                xmlReplaceNode(xmlNode, newNode); xmlFreeNode(xmlNode);
+                if (!_dirtyRoot) _dirtyRoot = newNode;
+            }
             return YES;
         }
         return [self _syncTSElement:tsNode withXmlElement:xmlNode];
@@ -456,6 +496,104 @@
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Namespace helpers
+// ---------------------------------------------------------------------------
+
+/// Recursively set each element's namespace pointer if it is unset, using the
+/// nearest ancestor default-namespace declaration (@p parentNs) as the fallback.
+/// Must be called after the entire element subtree has been built.
+- (void)_applyDefaultNamespaces:(xmlNodePtr)node parentDefaultNs:(xmlNsPtr)parentNs {
+    if (!node || node->type != XML_ELEMENT_NODE) return;
+
+    // Find any default-namespace declaration owned by THIS node.
+    xmlNsPtr ownNs = NULL;
+    for (xmlNsPtr ns = node->nsDef; ns; ns = ns->next) {
+        if (ns->prefix == NULL) { ownNs = ns; break; }
+    }
+    xmlNsPtr effectiveNs = ownNs ?: parentNs;
+
+    // Assign the effective namespace to this element if it has none yet.
+    if (node->ns == NULL && effectiveNs != NULL &&
+        effectiveNs->href != NULL && effectiveNs->href[0] != '\0') {
+        node->ns = effectiveNs;
+    }
+
+    // Recurse into element children.
+    for (xmlNodePtr c = node->children; c; c = c->next) {
+        if (c->type == XML_ELEMENT_NODE)
+            [self _applyDefaultNamespaces:c parentDefaultNs:effectiveNs];
+    }
+}
+
+/// Walk @p node and its ancestors to find the nearest declared default namespace
+/// (xmlns="…").  Returns NULL if none is found.
+- (xmlNsPtr)_effectiveDefaultNsFor:(xmlNodePtr)node {
+    for (xmlNodePtr n = node; n; n = n->parent) {
+        if (n->type != XML_ELEMENT_NODE) continue;
+        for (xmlNsPtr ns = n->nsDef; ns; ns = ns->next) {
+            if (ns->prefix == NULL) return ns;
+        }
+    }
+    return NULL;
+}
+
+/// Returns YES when the xmlns declarations on @p tsElem differ from those
+/// already stored on @p xmlElem->nsDef.  Used to decide whether to do a
+/// full subtree rebuild during incremental sync.
+- (BOOL)_xmlnsChangedForNode:(xmlNodePtr)xmlElem inTSElem:(TSNode)tsElem {
+    // Collect current ns declarations from the xml node.
+    NSMutableDictionary<NSString*,NSString*> *old = [NSMutableDictionary dictionary];
+    for (xmlNsPtr ns = xmlElem->nsDef; ns; ns = ns->next) {
+        NSString *k = ns->prefix ? @((const char *)ns->prefix) : @"";
+        old[k] = ns->href ? @((const char *)ns->href) : @"";
+    }
+
+    // Collect new xmlns declarations from the TS start tag.
+    NSMutableDictionary<NSString*,NSString*> *newDecls = [NSMutableDictionary dictionary];
+    TSNode startTag = {0};
+    uint32_t count = ts_node_child_count(tsElem);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode child = ts_node_child(tsElem, i);
+        const char *ct = ts_node_type(child);
+        if (isStartTag(ct) || isSelfClosingTag(ct)) { startTag = child; break; }
+    }
+    if (!ts_node_is_null(startTag)) {
+        uint32_t stCount = ts_node_child_count(startTag);
+        for (uint32_t i = 0; i < stCount; i++) {
+            TSNode child = ts_node_child(startTag, i);
+            if (!isAttributeNode(ts_node_type(child))) continue;
+            NSString *name = nil, *value = @"";
+            uint32_t ac = ts_node_child_count(child);
+            for (uint32_t j = 0; j < ac; j++) {
+                TSNode gc = ts_node_child(child, j);
+                const char *gt = ts_node_type(gc);
+                if (isAttributeName(gt) && !name) {
+                    NSData *d = [self _utf8SliceFrom:ts_node_start_byte(gc)
+                                                 to:ts_node_end_byte(gc)];
+                    name = [[NSString alloc] initWithBytes:d.bytes length:d.length - 1
+                                                 encoding:NSUTF8StringEncoding] ?: @"";
+                } else if (isAttributeValue(gt)) {
+                    NSData *d = [self _utf8SliceFrom:ts_node_start_byte(gc)
+                                                 to:ts_node_end_byte(gc)];
+                    NSString *raw = [[NSString alloc] initWithBytes:d.bytes
+                                                             length:d.length - 1
+                                                           encoding:NSUTF8StringEncoding] ?: @"";
+                    value = stripQuotes(raw);
+                }
+            }
+            if (!name.length) continue;
+            if ([name isEqualToString:@"xmlns"]) {
+                newDecls[@""] = value;
+            } else if ([name hasPrefix:@"xmlns:"]) {
+                NSString *pfx = [name substringFromIndex:6];
+                if (pfx.length) newDecls[pfx] = value;
+            }
+        }
+    }
+    return ![old isEqualToDictionary:newDecls];
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Full element builder (used for the first call and for new subtrees)
 // ---------------------------------------------------------------------------
 
@@ -473,10 +611,21 @@
     }
     if (ts_node_is_null(startTagNode)) return NULL;
 
-    NSString *elemName = [self _tagNameFrom:startTagNode];
-    if (!elemName.length) return NULL;
+    NSString *elemQName = [self _tagNameFrom:startTagNode];
+    if (!elemQName.length) return NULL;
 
-    xmlNodePtr node = xmlNewNode(NULL, BAD_CAST elemName.UTF8String);
+    // Split the qualified name into prefix and local name.
+    NSString *elemPrefix = @"";
+    NSString *localName  = elemQName;
+    {
+        NSRange colon = [elemQName rangeOfString:@":"];
+        if (colon.location != NSNotFound) {
+            elemPrefix = [elemQName substringToIndex:colon.location];
+            localName  = [elemQName substringFromIndex:colon.location + 1];
+        }
+    }
+
+    xmlNodePtr node = xmlNewNode(NULL, BAD_CAST localName.UTF8String);
     if (!node) return NULL;
 
     // Record the 1-based line number for diagnostic position mapping.
@@ -486,7 +635,24 @@
     if (lineNo < 1) lineNo = 1;
     node->line = lineNo;
 
+    // Attach attributes, creating xmlns namespace declarations on the node.
     [self _attachAttributes:startTagNode toNode:node];
+
+    // Set this element's namespace pointer using the declarations just created.
+    if (node->ns == NULL) {
+        const xmlChar *prefix = elemPrefix.length > 0
+            ? (const xmlChar *)elemPrefix.UTF8String : NULL;
+        for (xmlNsPtr ns = node->nsDef; ns; ns = ns->next) {
+            BOOL match = (prefix == NULL && ns->prefix == NULL) ||
+                         (prefix != NULL && ns->prefix != NULL &&
+                          xmlStrcmp(ns->prefix, prefix) == 0);
+            if (match && ns->href && ns->href[0] != '\0') {
+                xmlSetNs(node, ns);
+                break;
+            }
+        }
+    }
+
     if (!selfClosing) [self _buildChildren:elemNode intoParent:node];
 
     return node;
@@ -519,6 +685,9 @@
 }
 
 /// Attach XML attributes from a start_tag node to an xmlNodePtr.
+/// xmlns="…" and xmlns:prefix="…" declarations are stored as xmlNs objects
+/// on the node rather than as plain XML attributes so that libxml2's namespace-
+/// aware APIs (and its RELAX NG validator) can find them correctly.
 - (void)_attachAttributes:(TSNode)startTagNode toNode:(xmlNodePtr)node {
     uint32_t count = ts_node_child_count(startTagNode);
     for (uint32_t i = 0; i < count; i++) {
@@ -540,8 +709,19 @@
                 attrValue = stripQuotes(raw);
             }
         }
-        if (attrName.length)
+        if (!attrName.length) continue;
+
+        if ([attrName isEqualToString:@"xmlns"]) {
+            // Default-namespace declaration: store as xmlNs, not as a plain attribute.
+            xmlNewNs(node, BAD_CAST attrValue.UTF8String, NULL);
+        } else if ([attrName hasPrefix:@"xmlns:"]) {
+            // Prefixed-namespace declaration.
+            NSString *pfx = [attrName substringFromIndex:6];
+            if (pfx.length)
+                xmlNewNs(node, BAD_CAST attrValue.UTF8String, BAD_CAST pfx.UTF8String);
+        } else {
             xmlNewProp(node, BAD_CAST attrName.UTF8String, BAD_CAST attrValue.UTF8String);
+        }
     }
 }
 

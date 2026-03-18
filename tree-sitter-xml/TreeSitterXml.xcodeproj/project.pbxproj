@@ -40,6 +40,10 @@
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
 		CE7CFB852F65B53600F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CEE0C2AE2F6AAE86005A58BF /* libexslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AD2F6AAE86005A58BF /* libexslt.tbd */; };
+		CEE0C2B02F6AAE8C005A58BF /* libxslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AF2F6AAE8C005A58BF /* libxslt.tbd */; };
+		CEE0C2B12F6AAEB8005A58BF /* libexslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AD2F6AAE86005A58BF /* libexslt.tbd */; };
+		CEE0C2B22F6AAEBD005A58BF /* libxslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AF2F6AAE8C005A58BF /* libxslt.tbd */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,6 +101,8 @@
 		CE7CFB7A2F65A5F300F294D4 /* UDXMLTagMirror.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLTagMirror.h; sourceTree = "<group>"; };
 		CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirror.m; sourceTree = "<group>"; };
 		CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		CEE0C2AD2F6AAE86005A58BF /* libexslt.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libexslt.tbd; path = usr/lib/libexslt.tbd; sourceTree = SDKROOT; };
+		CEE0C2AF2F6AAE8C005A58BF /* libxslt.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxslt.tbd; path = usr/lib/libxslt.tbd; sourceTree = SDKROOT; };
 		E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXml.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -149,6 +155,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CEE0C2B02F6AAE8C005A58BF /* libxslt.tbd in Frameworks */,
+				CEE0C2AE2F6AAE86005A58BF /* libexslt.tbd in Frameworks */,
 				CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -157,6 +165,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CEE0C2B22F6AAEBD005A58BF /* libxslt.tbd in Frameworks */,
+				CEE0C2B12F6AAEB8005A58BF /* libexslt.tbd in Frameworks */,
 				ABCD000A000000000000000A /* XCTest.framework in Frameworks */,
 				ABCD000B000000000000000B /* UDPieceTable.framework in Frameworks */,
 			);
@@ -236,6 +246,8 @@
 		CE7CFB822F65B53600F294D4 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				CEE0C2AF2F6AAE8C005A58BF /* libxslt.tbd */,
+				CEE0C2AD2F6AAE86005A58BF /* libexslt.tbd */,
 				CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */,
 			);
 			name = Frameworks;

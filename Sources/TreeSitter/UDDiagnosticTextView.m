@@ -79,6 +79,8 @@ static const unsigned short kKeyCodeRightArrow = 124;
 
 @implementation UDDiagnosticTextView
 
+@dynamic delegate; // tells the compiler to use NSTextView's existing delegate ivar
+
 // ---------------------------------------------------------------------------
 // MARK: - Init / dealloc
 // ---------------------------------------------------------------------------
@@ -158,7 +160,12 @@ static const unsigned short kKeyCodeRightArrow = 124;
         }
     }
 
-    [super keyDown:event];
+    unichar ch = [event.characters length] ? [event.characters characterAtIndex:0] : 0;
+    if (ch == 27) { // 27 == ESC in ASCII, no Carbon dependency
+        [NSApp sendAction:@selector(complete:) to:nil from:self];
+    } else {
+        [super keyDown:event];
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -502,7 +509,13 @@ static const unsigned short kKeyCodeRightArrow = 124;
                                      inTextContainer:tc
             fractionOfDistanceBetweenInsertionPoints:NULL];
 
+    // TODO: use a different key?
+    if ([self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)]) {
+        [(id)self.delegate textView:self requestTooltipAtIndex:charIdx point:pt];
+    }
+
     UDPosition pos = [self.textModel getPositionAt:(NSInteger)charIdx];
+
     [_cursorsController addCursorAtLine:pos.line column:pos.column];
     [self _syncSelectionsFromController];
 }
@@ -625,6 +638,23 @@ static const unsigned short kKeyCodeRightArrow = 124;
         [[NSColor labelColor] setFill];
         NSRectFill(cursorRect);
     }
+}
+
+#pragma mark - LSP
+
+- (void)complete:(id)sender {
+    // Route through the window controller (which has LSP access)
+    id<NSTextViewDelegate> delegate = [self delegate];
+    // Signal the delegate to do an LSP completion first, then show the list
+    if ([delegate respondsToSelector:@selector(textViewRequestCompletion:)]) {
+        [(id)delegate textViewRequestCompletion:self];
+    } else {
+        [super complete:sender];
+    }
+}
+
+- (void)showCompleteList:(id)sender {
+    [super complete:sender];   // shows NSTextView's built-in completion popup
 }
 
 @end

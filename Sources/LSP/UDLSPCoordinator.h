@@ -23,6 +23,14 @@ NS_ASSUME_NONNULL_BEGIN
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
+/// LSP textDocument/completion at the given character index.
+- (void)completionAtIndex:(NSUInteger)characterIndex
+        completionHandler:(void (^)(NSArray<LSPCompletionItem *> *items, NSError *error))handler;
+
+/// LSP textDocument/hover at the given character index.
+- (void)hoverAtIndex:(NSUInteger)characterIndex
+   completionHandler:(void (^)(NSDictionary *result, NSError *error))handler;
+
 @end
 
 NS_ASSUME_NONNULL_END

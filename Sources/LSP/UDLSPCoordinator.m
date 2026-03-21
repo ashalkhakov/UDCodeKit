@@ -80,6 +80,24 @@
     [_diagnosticHighlighter applyDiagnostics:@[]];
 }
 
+- (void)completionAtIndex:(NSUInteger)characterIndex
+        completionHandler:(void (^)(NSArray<LSPCompletionItem *> *, NSError *))handler {
+    [_client documentCompletion:_documentURL
+                         inText:[_textStorage.textModel getValue]
+            forCharacterAtIndex:characterIndex
+              completionHandler:^(NSArray<LSPCompletionItem *> *list, BOOL isIncomplete, NSError *err) {
+        handler(list, err);
+    }];
+}
+
+- (void)hoverAtIndex:(NSUInteger)characterIndex
+   completionHandler:(void (^)(NSDictionary *, NSError *))handler {
+    [_client documentHoverWithContentsOfURL:_documentURL
+                                     inText:[_textStorage.textModel getValue]
+                        forCharacterAtIndex:characterIndex
+                          completionHandler:handler];
+}
+
 // ---------------------------------------------------------------------------
 #pragma mark - LSPClientObserver
 // ---------------------------------------------------------------------------

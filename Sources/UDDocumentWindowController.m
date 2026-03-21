@@ -63,6 +63,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 @property (nonatomic, readonly, nullable) NSURL     *fileURL;
 @property (nonatomic, readonly) NSString            *tabTitle;
 
+@property (nonatomic, strong, nullable) NSArray<LSPCompletionItem *> *completionList;
+
 /// All active per-document services (LSP coordinators, RNG validators, etc.).
 /// The host fans out lifecycle events to every service in this list.
 @property (nonatomic, readonly) NSArray<id<UDDocumentService>> *documentServices;
@@ -181,7 +183,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // MARK: - UDDocumentWindowController  (private extension)
 // ---------------------------------------------------------------------------
 
-@interface UDDocumentWindowController () <NSTextViewDelegate, NSToolbarDelegate,
+@interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, NSToolbarDelegate,
                                           UDErrorsViewControllerDelegate>
 
 /// Parallel to _editorTabViewController.tabViewItems: _tabContexts[i] is the
@@ -614,6 +616,93 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
                                 diagnosticHighlighter:lspHL];
     [ctx addDocumentService:lsp];
     [lsp documentDidOpenWithContent:[ts.textModel getValue]];
+}
+
+// MARK: - Autocomplete
+
+- (void)textViewRequestCompletion:(UDDiagnosticTextView *)textView {
+    UDEditorTabContext *ctx = [self _activeContext];
+    
+    id<UDDocumentService> documentService = ctx.documentServices.firstObject;
+    if ([documentService isKindOfClass:[UDLSPCoordinator class]]) {
+        UDLSPCoordinator *coordinator = (UDLSPCoordinator *)documentService;
+
+        [coordinator completionAtIndex:textView.selectedRange.location
+                         completionHandler:^(NSArray<LSPCompletionItem *> *items, NSError *err) {
+            if (err || !items.count) return;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                ctx.completionList = items;
+                [textView showCompleteList:nil];
+            });
+        }];
+    }
+}
+
+// NSTextView calls this to get the list of completions to show
+- (NSArray<NSString *> *)textView:(NSTextView *)textView
+                       completions:(NSArray<NSString *> *)words
+               forPartialWordRange:(NSRange)charRange
+               indexOfSelectedItem:(NSInteger *)index {
+    UDEditorTabContext *ctx = [self _activeContext];
+    if (!ctx.completionList.count) return @[];
+    return [ctx.completionList valueForKeyPath:@"label"];
+}
+
+// MARK: - Hover tooltip
+
+- (void)textView:(UDDiagnosticTextView *)textView
+  requestTooltipAtIndex:(NSUInteger)characterIndex
+                  point:(NSPoint)point {
+    UDEditorTabContext *ctx = [self _activeContext];
+
+    id<UDDocumentService> documentService = ctx.documentServices.firstObject;
+    if ([documentService isKindOfClass:[UDLSPCoordinator class]]) {
+        UDLSPCoordinator *coordinator = (UDLSPCoordinator *)documentService;
+        
+        [coordinator hoverAtIndex:characterIndex
+                completionHandler:^(NSDictionary *result, NSError *err) {
+            if (!result) return;
+            NSDictionary *contents = result[@"contents"];
+            NSString *tooltip = contents[@"value"] ?: [contents description];
+            if (!tooltip.length) return;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self _showTooltip:tooltip
+                      fromTextView:textView
+                       atCharIndex:characterIndex];
+            });
+        }];
+    }
+}
+
+- (void)_showTooltip:(NSString *)tooltip
+         fromTextView:(UDDiagnosticTextView *)textView
+         atCharIndex:(NSUInteger)characterIndex {
+    // Reuse _tooltipViewController or create a simple popover
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorSemitransient;
+
+    NSViewController *vc = [[NSViewController alloc] init];
+    NSTextView *tv = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, 300, 80)];
+    tv.string = tooltip;
+    tv.editable = NO;
+    tv.drawsBackground = YES;
+    vc.view = tv;
+    popover.contentViewController = vc;
+    popover.contentSize = NSMakeSize(300, 80);
+
+    // Get the rect of the character in the text view
+    NSLayoutManager *lm = textView.layoutManager;
+    NSRange glyphRange = [lm glyphRangeForCharacterRange:NSMakeRange(characterIndex, 1)
+                                    actualCharacterRange:NULL];
+    NSRect charRect = [lm boundingRectForGlyphRange:glyphRange
+                                    inTextContainer:textView.textContainer];
+    NSPoint origin = textView.textContainerOrigin;
+    charRect.origin.x += origin.x;
+    charRect.origin.y += origin.y;
+
+    [popover showRelativeToRect:charRect
+                         ofView:textView
+                  preferredEdge:NSRectEdgeMaxY];
 }
 
 // ---------------------------------------------------------------------------

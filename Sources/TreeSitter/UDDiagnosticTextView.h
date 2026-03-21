@@ -25,10 +25,24 @@
 #import "UDStructuredNavigator.h"
 
 @class UDCursorsController;
+@class UDDiagnosticTextView;
 
 NS_ASSUME_NONNULL_BEGIN
 
+@protocol UDDiagnosticTextViewDelegate <NSTextViewDelegate>
+@optional
+/// Called when the user triggers autocomplete (Escape key).
+- (void)textViewRequestCompletion:(UDDiagnosticTextView *)textView;
+
+/// Called when the user Option+clicks for a hover tooltip.
+- (void)textView:(UDDiagnosticTextView *)textView
+    requestTooltipAtIndex:(NSUInteger)characterIndex
+                    point:(NSPoint)point;
+@end
+
 @interface UDDiagnosticTextView : NSTextView
+
+@property (atomic, weak) id<UDDiagnosticTextViewDelegate> delegate;
 
 /// Set by UDTextEditorViewController after viewDidLoad.
 /// The text view uses this to route multi-cursor editing operations.
@@ -50,6 +64,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// current selectedRange. Call once after the view has loaded and the
 /// cursors controller has been assigned.
 - (void)syncCursorControllerFromSelection;
+
+- (void)showCompleteList:(id)sender;
 
 @end
 

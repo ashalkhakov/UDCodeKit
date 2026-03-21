@@ -156,8 +156,8 @@
             filePath = "Sources/UDDocumentWindowController.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "92"
-            endingLineNumber = "92"
+            startingLineNumber = "94"
+            endingLineNumber = "94"
             landmarkName = "UDEditorTabContext"
             landmarkType = "3">
          </BreakpointContent>
@@ -268,8 +268,8 @@
             filePath = "Sources/UDDocumentWindowController.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "256"
-            endingLineNumber = "256"
+            startingLineNumber = "258"
+            endingLineNumber = "258"
             landmarkName = "-windowDidLoad"
             landmarkType = "7">
          </BreakpointContent>
@@ -300,8 +300,8 @@
             filePath = "Sources/UDDocumentWindowController.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "126"
-            endingLineNumber = "126"
+            startingLineNumber = "128"
+            endingLineNumber = "128"
             landmarkName = "-activateWithTheme:languageMode:"
             landmarkType = "7">
          </BreakpointContent>
@@ -396,8 +396,8 @@
             filePath = "Sources/UDDocumentWindowController.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "507"
-            endingLineNumber = "507"
+            startingLineNumber = "509"
+            endingLineNumber = "509"
             landmarkName = "-_configureEditorVC:languageMode:"
             landmarkType = "7">
          </BreakpointContent>
@@ -476,9 +476,9 @@
             filePath = "Sources/TreeSitter/UDDiagnosticTextView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "405"
-            endingLineNumber = "405"
-            landmarkName = "-insertText:replacementRange:"
+            startingLineNumber = "412"
+            endingLineNumber = "412"
+            landmarkName = "-_truncatedMessage:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -492,9 +492,9 @@
             filePath = "Sources/TreeSitter/UDDiagnosticTextView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "457"
-            endingLineNumber = "457"
-            landmarkName = "-undo:"
+            startingLineNumber = "464"
+            endingLineNumber = "464"
+            landmarkName = "-insertTab:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -508,9 +508,9 @@
             filePath = "Sources/TreeSitter/UDDiagnosticTextView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "537"
-            endingLineNumber = "537"
-            landmarkName = "-_syncSelectionsFromController"
+            startingLineNumber = "550"
+            endingLineNumber = "550"
+            landmarkName = "-setSelectedRanges:affinity:stillSelecting:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -524,9 +524,9 @@
             filePath = "Sources/TreeSitter/UDDiagnosticTextView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "562"
-            endingLineNumber = "562"
-            landmarkName = "-_syncSelectionsToController"
+            startingLineNumber = "575"
+            endingLineNumber = "575"
+            landmarkName = "-_syncSelectionsFromController"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -540,8 +540,8 @@
             filePath = "Sources/TreeSitter/UDDiagnosticTextView.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "527"
-            endingLineNumber = "527"
+            startingLineNumber = "540"
+            endingLineNumber = "540"
             landmarkName = "-setSelectedRanges:affinity:stillSelecting:"
             landmarkType = "7">
          </BreakpointContent>
@@ -1604,8 +1604,8 @@
             filePath = "Sources/UDDocumentWindowController.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "594"
-            endingLineNumber = "594"
+            startingLineNumber = "596"
+            endingLineNumber = "596"
             landmarkName = "-_setupLSPCoordinatorForContext:"
             landmarkType = "7">
          </BreakpointContent>

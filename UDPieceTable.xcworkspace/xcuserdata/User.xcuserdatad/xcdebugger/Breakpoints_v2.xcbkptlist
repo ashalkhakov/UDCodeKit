@@ -988,8 +988,8 @@
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "390"
-            endingLineNumber = "390"
+            startingLineNumber = "389"
+            endingLineNumber = "389"
             landmarkName = "-testFullValidation_wrongRootElement_producesError"
             landmarkType = "7">
          </BreakpointContent>
@@ -1004,8 +1004,8 @@
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "352"
-            endingLineNumber = "352"
+            startingLineNumber = "351"
+            endingLineNumber = "351"
             landmarkName = "UDXMLRNGValidatorTests"
             landmarkType = "3">
          </BreakpointContent>
@@ -1052,8 +1052,8 @@
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "505"
-            endingLineNumber = "505"
+            startingLineNumber = "504"
+            endingLineNumber = "504"
             landmarkName = "-testIncrementalValidation_subtreeChange_dirtyRootIsNotDocRoot"
             landmarkType = "7">
          </BreakpointContent>
@@ -1068,8 +1068,8 @@
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "508"
-            endingLineNumber = "508"
+            startingLineNumber = "507"
+            endingLineNumber = "507"
             landmarkName = "-testIncrementalValidation_subtreeChange_dirtyRootIsNotDocRoot"
             landmarkType = "7">
          </BreakpointContent>
@@ -1084,8 +1084,8 @@
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "450"
-            endingLineNumber = "450"
+            startingLineNumber = "449"
+            endingLineNumber = "449"
             landmarkName = "-_incrementalMirrorDocFrom:to:"
             landmarkType = "7">
          </BreakpointContent>
@@ -1102,7 +1102,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "268"
             endingLineNumber = "268"
-            landmarkName = "-_syncChildrenFromTS:toXmlParent:"
+            landmarkName = "-_syncAttributesFromTS:toXmlNode:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1173,38 +1173,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "0646960E-ADB7-4600-8F31-29769F9AFF58"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "185"
-            endingLineNumber = "185"
-            landmarkName = "-_builtInRNGForDocumentURL:headerText:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "64D4423B-0EDF-4C49-A719-4ED906558582"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "118"
-            endingLineNumber = "118"
-            landmarkName = "-_schemasForDocumentURL:"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "E404D9D3-D8E3-4DB5-B521-B6DA7C3106F3"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -1229,9 +1197,7 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "273"
-            endingLineNumber = "273"
-            landmarkName = "-_validateWithTree:changedRanges:gapBuffer:lineIndexData:"
-            landmarkType = "7">
+            endingLineNumber = "273">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -1321,24 +1287,22 @@
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "280"
-            endingLineNumber = "280"
-            landmarkName = "UDXMLRNGHighlighter"
-            landmarkType = "3">
+            endingLineNumber = "280">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "78FA4202-041E-455A-A98A-28B0AE02E6BA"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1076"
-            endingLineNumber = "1076"
-            landmarkName = "-testInclude_startFromIncludedFile_validDocument_noErrors"
+            startingLineNumber = "769"
+            endingLineNumber = "769"
+            landmarkName = "-testInclude_startFromIncludedFile_schemaLoads"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1346,15 +1310,15 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "D9927DC3-94C2-4EA4-BE0C-902EC264AC53"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1074"
-            endingLineNumber = "1074"
-            landmarkName = "-testInclude_startFromIncludedFile_validDocument_noErrors"
+            startingLineNumber = "767"
+            endingLineNumber = "767"
+            landmarkName = "-testInclude_startFromIncludedFile_schemaLoads"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -1362,95 +1326,23 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "A978DAAB-B530-4CF4-9B57-9CFEF15D943D"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1127"
-            endingLineNumber = "1127"
+            startingLineNumber = "820"
+            endingLineNumber = "820"
             landmarkName = "-testInclude_nestedInclude_validDocument_noErrors"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "A978DAAB-B530-4CF4-9B57-9CFEF15D943D - d018d3c12a3cb763"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "-[UDTSRNGValidatorIncludeTests testInclude_nestedInclude_validDocument_noErrors]"
-                  moduleName = "TreeSitterXmlTests"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1127"
-                  endingLineNumber = "1127">
-               </Location>
-               <Location
-                  uuid = "A978DAAB-B530-4CF4-9B57-9CFEF15D943D - d018d3c12a3cb763"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "-[UDTSRNGValidatorIncludeTests testInclude_nestedInclude_validDocument_noErrors]"
-                  moduleName = "TreeSitterXmlTests"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1127"
-                  endingLineNumber = "1127">
-               </Location>
-               <Location
-                  uuid = "A978DAAB-B530-4CF4-9B57-9CFEF15D943D - d018d3c12a3cb763"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "-[UDTSRNGValidatorIncludeTests testInclude_nestedInclude_validDocument_noErrors]"
-                  moduleName = "TreeSitterXmlTests"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1127"
-                  endingLineNumber = "1127">
-               </Location>
-               <Location
-                  uuid = "A978DAAB-B530-4CF4-9B57-9CFEF15D943D - d018d3c12a3cb763"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "-[UDTSRNGValidatorIncludeTests testInclude_nestedInclude_validDocument_noErrors]"
-                  moduleName = "TreeSitterXmlTests"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1127"
-                  endingLineNumber = "1127">
-               </Location>
-               <Location
-                  uuid = "A978DAAB-B530-4CF4-9B57-9CFEF15D943D - d018d3c12a3cb763"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "-[UDTSRNGValidatorIncludeTests testInclude_nestedInclude_validDocument_noErrors]"
-                  moduleName = "TreeSitterXmlTests"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Volumes/ExtraSSD/Projects/UDPieceTable/tree-sitter-xml/Tests/UDXMLRNGHighlighterTests.m"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "1127"
-                  endingLineNumber = "1127">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "516F0B41-B0B7-44D3-9116-D8B7DDDDAD2A"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "tree-sitter-xml/Sources/UDTSRNGValidator.m"
@@ -1466,7 +1358,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "C9D1E678-C556-4E1C-8260-4DB15F36180F"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "tree-sitter-xml/Sources/UDTSRNGValidator.m"
@@ -1482,7 +1374,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "A6708FAB-FACF-4FD1-8B5B-DB145A6BE41D"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "tree-sitter-xml/Sources/UDTSRNGValidator.m"
@@ -1498,7 +1390,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "A2A81F1D-48C2-46D9-9E64-484D8EE5AF27"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "tree-sitter-xml/Sources/UDTSRNGValidator.m"
@@ -1507,6 +1399,214 @@
             startingLineNumber = "1412"
             endingLineNumber = "1412"
             landmarkName = "-_loadGrammarNode:error:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "A9712649-927E-4555-A733-7B33EE5AB948"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/UDXMLLSPInstaller.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "31"
+            endingLineNumber = "31"
+            landmarkName = "-beginIfNeeded"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "5763563C-FB3F-4A9F-9B45-E358AA633E0F"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "25"
+            endingLineNumber = "25"
+            landmarkName = "-extensionDidLoad:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "08CB19F0-08C6-4660-A69F-28F2110AF9BB"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "84"
+            endingLineNumber = "84"
+            landmarkName = "-installerNeedsConsent:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "B38A3491-9CA4-41FA-A75B-CB9EDAD8F56D"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "103"
+            endingLineNumber = "103"
+            landmarkName = "-installer:downloadProgress:label:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "203D6C46-8102-4123-A543-FB1880A77F51"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "113"
+            endingLineNumber = "113"
+            landmarkName = "-installerDidFinish:javaURL:jarURL:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "603BA69E-9FF2-4833-84DC-AD9F2E5858CA"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "121"
+            endingLineNumber = "121"
+            landmarkName = "-installer:didFailWithError:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "11FD1702-6BC0-4BE0-8FD6-DA0CECF6CA24"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/UDXMLLSPInstaller.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "245"
+            endingLineNumber = "245"
+            landmarkName = "-downloadJREWithProgress:completion:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "6C3C8044-457B-47A9-B249-CCB6432035AA"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/UDXMLLSPInstaller.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "250"
+            endingLineNumber = "250"
+            landmarkName = "-downloadJREWithProgress:completion:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "90A95F2C-C185-4AB8-A9CB-84FC38035889"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/UDXMLLSPInstaller.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "279"
+            endingLineNumber = "279"
+            landmarkName = "-downloadJARWithProgress:completion:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "20DD5DC7-331F-47F3-9998-3C81CA7B5F9A"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/UDXMLLSPInstaller.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "134"
+            endingLineNumber = "134"
+            landmarkName = "-installedJavaURL"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "9581689A-4E1B-423E-8D9F-A41EAA2E50A3"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "tree-sitter-xml/Sources/TreeSitterXmlPlugin.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "49"
+            endingLineNumber = "49"
+            landmarkName = "-languageServerCommandForIdentifier:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "C1E30739-1A11-4C4F-92E7-A8997DE2AF2A"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Sources/Model/UDLanguageModeRegistry.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "270"
+            endingLineNumber = "270"
+            landmarkName = "-_loadBundleAtPath:"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "560CD1D3-DFC4-4CCB-81B6-E7A2F7EF32DC"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "Sources/UDDocumentWindowController.m"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "594"
+            endingLineNumber = "594"
+            landmarkName = "-_setupLSPCoordinatorForContext:"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

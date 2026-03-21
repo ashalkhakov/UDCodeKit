@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -14,20 +14,6 @@
 		ABCD00090000000000000009 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
 		ABCD000A000000000000000A /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABCD00030000000000000003 /* XCTest.framework */; };
 		ABCD000B000000000000000B /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
-		ABCD00130000000000000013 /* UDXMLGapBufferTests.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00120000000000000012 /* UDXMLGapBufferTests.m */; };
-		CE000001000000000000BB01 /* UDXMLMirrorDoc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA02 /* UDXMLMirrorDoc.m */; };
-		CE000001000000000000BB02 /* UDRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA04 /* UDRNGValidator.m */; };
-		CE000001000000000000BB03 /* UDXMLRNGHighlighter.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA06 /* UDXMLRNGHighlighter.m */; };
-		CE000001000000000000BB04 /* UDXMLGapBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA08 /* UDXMLGapBuffer.m */; };
-		CE000001000000000000BB05 /* UDXMLGapBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA08 /* UDXMLGapBuffer.m */; };
-		CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */; };
-		CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA02 /* UDXMLMirrorDoc.m */; };
-		CE000001000000000000BB08 /* UDRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA04 /* UDRNGValidator.m */; };
-		CE000001000000000000BB0A /* UDSchematronValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0C /* UDSchematronValidator.m */; };
-		CE000001000000000000BB0B /* UDSchematronValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0C /* UDSchematronValidator.m */; };
-		CE000001000000000000BB0C /* UDXMLSchematronTests.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0D /* UDXMLSchematronTests.m */; };
-		CE000001000000000000BB0D /* UDTSRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0F /* UDTSRNGValidator.m */; };
-		CE000001000000000000BB0E /* UDTSRNGValidator.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0F /* UDTSRNGValidator.m */; };
 		CE0C2E582F5F1ED500566368 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E572F5F1ED500566368 /* lib.c */; };
 		CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E5A2F5F1EDF00566368 /* scanner.c */; };
 		CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E592F5F1EDF00566368 /* parser.c */; };
@@ -36,13 +22,11 @@
 		CE0C2E642F5F1EF800566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E602F5F1EF800566368 /* highlights.scm */; };
 		CE0C2E652F5F1EF800566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E612F5F1EF800566368 /* Info.plist */; };
 		CE3C736E2F6A7A5D007BC955 /* UDDiagnosticItem.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0A /* UDDiagnosticItem.m */; };
+		CE43044C2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */ = {isa = PBXBuildFile; fileRef = CE43044B2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m */; };
+		CE43044D2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */ = {isa = PBXBuildFile; fileRef = CE43044B2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m */; };
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
 		CE7CFB852F65B53600F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		CEE0C2AE2F6AAE86005A58BF /* libexslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AD2F6AAE86005A58BF /* libexslt.tbd */; };
-		CEE0C2B02F6AAE8C005A58BF /* libxslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AF2F6AAE8C005A58BF /* libxslt.tbd */; };
-		CEE0C2B12F6AAEB8005A58BF /* libexslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AD2F6AAE86005A58BF /* libexslt.tbd */; };
-		CEE0C2B22F6AAEBD005A58BF /* libxslt.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CEE0C2AF2F6AAE8C005A58BF /* libxslt.tbd */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,22 +57,7 @@
 		ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirrorTests.m; sourceTree = "<group>"; };
 		ABCD00030000000000000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXmlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		ABCD00120000000000000012 /* UDXMLGapBufferTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLGapBufferTests.m; sourceTree = "<group>"; };
-		CE000001000000000000AA01 /* UDXMLMirrorDoc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLMirrorDoc.h; sourceTree = "<group>"; };
-		CE000001000000000000AA02 /* UDXMLMirrorDoc.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLMirrorDoc.m; sourceTree = "<group>"; };
-		CE000001000000000000AA03 /* UDRNGValidator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDRNGValidator.h; sourceTree = "<group>"; };
-		CE000001000000000000AA04 /* UDRNGValidator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDRNGValidator.m; sourceTree = "<group>"; };
-		CE000001000000000000AA05 /* UDXMLRNGHighlighter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLRNGHighlighter.h; sourceTree = "<group>"; };
-		CE000001000000000000AA06 /* UDXMLRNGHighlighter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLRNGHighlighter.m; sourceTree = "<group>"; };
-		CE000001000000000000AA07 /* UDXMLGapBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLGapBuffer.h; sourceTree = "<group>"; };
-		CE000001000000000000AA08 /* UDXMLGapBuffer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLGapBuffer.m; sourceTree = "<group>"; };
-		CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLRNGHighlighterTests.m; sourceTree = "<group>"; };
 		CE000001000000000000AA0A /* UDDiagnosticItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = UDDiagnosticItem.m; path = ../Sources/Extensions/UDDiagnosticItem.m; sourceTree = SOURCE_ROOT; };
-		CE000001000000000000AA0B /* UDSchematronValidator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDSchematronValidator.h; sourceTree = "<group>"; };
-		CE000001000000000000AA0C /* UDSchematronValidator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDSchematronValidator.m; sourceTree = "<group>"; };
-		CE000001000000000000AA0D /* UDXMLSchematronTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLSchematronTests.m; sourceTree = "<group>"; };
-		CE000001000000000000AA0E /* UDTSRNGValidator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDTSRNGValidator.h; sourceTree = "<group>"; };
-		CE000001000000000000AA0F /* UDTSRNGValidator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDTSRNGValidator.m; sourceTree = "<group>"; };
 		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
 		CE0C2E592F5F1EDF00566368 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
 		CE0C2E5A2F5F1EDF00566368 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
@@ -97,6 +66,8 @@
 		CE0C2E602F5F1EF800566368 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
 		CE0C2E612F5F1EF800566368 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
+		CE43044A2F6EE0D200BF45A3 /* UDXMLLSPInstaller.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLLSPInstaller.h; sourceTree = "<group>"; };
+		CE43044B2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLLSPInstaller.m; sourceTree = "<group>"; };
 		CE7CFB7A2F65A5F300F294D4 /* UDXMLTagMirror.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDXMLTagMirror.h; sourceTree = "<group>"; };
 		CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirror.m; sourceTree = "<group>"; };
 		CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -105,57 +76,11 @@
 		E775C540C220D23DB6F4F085 /* TreeSitterXml.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXml.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		CE3C727F2F6984D0007BC955 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				svg.rng,
-				xhtml/modules/applet.rng,
-				xhtml/modules/attribs.rng,
-				xhtml/modules/base.rng,
-				xhtml/modules/bdo.rng,
-				xhtml/modules/csismap.rng,
-				xhtml/modules/datatypes.rng,
-				xhtml/modules/edit.rng,
-				xhtml/modules/events.rng,
-				xhtml/modules/form.rng,
-				xhtml/modules/frames.rng,
-				xhtml/modules/hypertext.rng,
-				xhtml/modules/iframe.rng,
-				xhtml/modules/image.rng,
-				xhtml/modules/inlstyle.rng,
-				xhtml/modules/legacy.rng,
-				xhtml/modules/link.rng,
-				xhtml/modules/list.rng,
-				xhtml/modules/meta.rng,
-				xhtml/modules/nameident.rng,
-				xhtml/modules/object.rng,
-				xhtml/modules/param.rng,
-				xhtml/modules/pres.rng,
-				xhtml/modules/script.rng,
-				xhtml/modules/ssismap.rng,
-				xhtml/modules/style.rng,
-				xhtml/modules/table.rng,
-				xhtml/modules/target.rng,
-				xhtml/modules/text.rng,
-				xhtml/xhtml.rng,
-				xslt.rng,
-			);
-			target = 7EBF16AB9443CCE643F3FC03 /* TreeSitterXml */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		CE3C725E2F698457007BC955 /* schemas */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CE3C727F2F6984D0007BC955 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = schemas; sourceTree = SOURCE_ROOT; };
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXFrameworksBuildPhase section */
 		785D8B4A6D7ED60D051E9BBB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CEE0C2B02F6AAE8C005A58BF /* libxslt.tbd in Frameworks */,
-				CEE0C2AE2F6AAE86005A58BF /* libexslt.tbd in Frameworks */,
 				CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -164,8 +89,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CEE0C2B22F6AAEBD005A58BF /* libxslt.tbd in Frameworks */,
-				CEE0C2B12F6AAEB8005A58BF /* libexslt.tbd in Frameworks */,
 				ABCD000A000000000000000A /* XCTest.framework in Frameworks */,
 				ABCD000B000000000000000B /* UDPieceTable.framework in Frameworks */,
 			);
@@ -186,7 +109,6 @@
 		1128315B5F9B3C1AADEF564B = {
 			isa = PBXGroup;
 			children = (
-				CE3C725E2F698457007BC955 /* schemas */,
 				5AFAB1887F965A65807EFF2C /* tree-sitter */,
 				08202D4F7AD131F7C2368987 /* src */,
 				74DC3222CB11D5A3F7F74709 /* Sources */,
@@ -210,23 +132,13 @@
 		74DC3222CB11D5A3F7F74709 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				CE43044B2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m */,
+				CE43044A2F6EE0D200BF45A3 /* UDXMLLSPInstaller.h */,
 				CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */,
 				CE7CFB7A2F65A5F300F294D4 /* UDXMLTagMirror.h */,
 				CE0C2E5D2F5F1EEC00566368 /* TreeSitterXmlPlugin.h */,
 				CE0C2E5E2F5F1EEC00566368 /* TreeSitterXmlPlugin.m */,
-				CE000001000000000000AA01 /* UDXMLMirrorDoc.h */,
-				CE000001000000000000AA02 /* UDXMLMirrorDoc.m */,
-				CE000001000000000000AA03 /* UDRNGValidator.h */,
-				CE000001000000000000AA04 /* UDRNGValidator.m */,
-				CE000001000000000000AA05 /* UDXMLRNGHighlighter.h */,
-				CE000001000000000000AA06 /* UDXMLRNGHighlighter.m */,
-				CE000001000000000000AA07 /* UDXMLGapBuffer.h */,
-				CE000001000000000000AA08 /* UDXMLGapBuffer.m */,
 				CE000001000000000000AA0A /* UDDiagnosticItem.m */,
-				CE000001000000000000AA0B /* UDSchematronValidator.h */,
-				CE000001000000000000AA0C /* UDSchematronValidator.m */,
-				CE000001000000000000AA0E /* UDTSRNGValidator.h */,
-				CE000001000000000000AA0F /* UDTSRNGValidator.m */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -235,9 +147,6 @@
 			isa = PBXGroup;
 			children = (
 				ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */,
-				ABCD00120000000000000012 /* UDXMLGapBufferTests.m */,
-				CE000001000000000000AA09 /* UDXMLRNGHighlighterTests.m */,
-				CE000001000000000000AA0D /* UDXMLSchematronTests.m */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -289,15 +198,11 @@
 				4A4406C3F29C8A13050DFC3D /* Sources */,
 				785D8B4A6D7ED60D051E9BBB /* Frameworks */,
 				A0F9F4E7A6755D3025785B65 /* Resources */,
-				CE3C727E2F698469007BC955 /* ShellScript */,
 				CE7CFB862F65B53600F294D4 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				CE3C725E2F698457007BC955 /* schemas */,
 			);
 			name = TreeSitterXml;
 			productName = TreeSitterXml;
@@ -370,44 +275,17 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		CE3C727E2F698469007BC955 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/schemas",
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/schemas",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "SOURCE_DIR=\"${SRCROOT}/schemas\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/schemas\"\n\nmkdir -p \"${DEST_DIR}\"\nrsync -a --delete \"${SOURCE_DIR}/\" \"${DEST_DIR}/\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		4A4406C3F29C8A13050DFC3D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				CE0C2E5B2F5F1EDF00566368 /* scanner.c in Sources */,
+				CE43044C2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */,
 				CE0C2E5C2F5F1EDF00566368 /* parser.c in Sources */,
 				CE0C2E582F5F1ED500566368 /* lib.c in Sources */,
 				CE0C2E5F2F5F1EEC00566368 /* TreeSitterXmlPlugin.m in Sources */,
 				CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */,
-				CE000001000000000000BB01 /* UDXMLMirrorDoc.m in Sources */,
-				CE000001000000000000BB02 /* UDRNGValidator.m in Sources */,
-				CE000001000000000000BB03 /* UDXMLRNGHighlighter.m in Sources */,
-				CE000001000000000000BB04 /* UDXMLGapBuffer.m in Sources */,
-				CE000001000000000000BB0A /* UDSchematronValidator.m in Sources */,
-				CE000001000000000000BB0D /* UDTSRNGValidator.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -420,15 +298,8 @@
 				ABCD00070000000000000007 /* lib.c in Sources */,
 				ABCD00080000000000000008 /* parser.c in Sources */,
 				ABCD00090000000000000009 /* scanner.c in Sources */,
-				CE000001000000000000BB05 /* UDXMLGapBuffer.m in Sources */,
-				ABCD00130000000000000013 /* UDXMLGapBufferTests.m in Sources */,
-				CE000001000000000000BB07 /* UDXMLMirrorDoc.m in Sources */,
-				CE000001000000000000BB08 /* UDRNGValidator.m in Sources */,
-				CE000001000000000000BB06 /* UDXMLRNGHighlighterTests.m in Sources */,
 				CE3C736E2F6A7A5D007BC955 /* UDDiagnosticItem.m in Sources */,
-				CE000001000000000000BB0B /* UDSchematronValidator.m in Sources */,
-				CE000001000000000000BB0C /* UDXMLSchematronTests.m in Sources */,
-				CE000001000000000000BB0E /* UDTSRNGValidator.m in Sources */,
+				CE43044D2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

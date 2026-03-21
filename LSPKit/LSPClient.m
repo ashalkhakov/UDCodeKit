@@ -318,7 +318,7 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     }
     NSNumber *rangeLength = [NSNumber numberWithUnsignedInteger:[replacementString length]];
     NSDictionary *changeEvent =  [NSDictionary dictionaryWithObjectsAndKeys:
-                                  range, @"range",
+                                  [range params], @"range",
                                   rangeLength, @"rangeLength",
                                   replacementString, @"text",
                                   nil];

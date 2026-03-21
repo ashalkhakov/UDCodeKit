@@ -112,6 +112,7 @@ typedef NS_ENUM(NSUInteger, LSPDocumentHighlightKind) {
 + (instancetype)range:(NSRange)range inText:(NSString *)string;
 + (instancetype)rangeFromDictionary:(NSDictionary *)dict;
 - (NSRange)convertToRangeInText:(NSString *)string;
+- (NSDictionary *)params;
 
 @end
 

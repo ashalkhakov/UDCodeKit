@@ -235,6 +235,7 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     NSError *error = nil;
     NSData *data = [NSJSONSerialization dataWithJSONObject:request options:0 error:&error];
     if (data) {
+        // NSLog(@"→ LSP: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
         [self sendMessage:data];
     }
     if (_log) {
@@ -261,7 +262,7 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 
 @interface LSPDocument : NSObject
 @property NSURL *uri;
-@property NSMutableString *text;
+@property id<LSPTextBuffer> textBuffer;
 @property NSString *languageID;
 @property NSUInteger version;
 @property NSMutableArray *contentChanges;
@@ -270,11 +271,11 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 @implementation LSPDocument
 
 // hmm, maybe it would be better to have a reference to NSTextStorage
-- (instancetype)initWithURL:(NSURL *)URL content:(NSString *)text languageID:(NSString *)languageID {
+- (instancetype)initWithURL:(NSURL *)URL content:(id<LSPTextBuffer>)textBuffer languageID:(NSString *)languageID {
     self = [super init];
     if (self) {
         _uri = [URL copy];
-        _text = (text != nil) ? [text mutableCopy] : [NSMutableString string];
+        _textBuffer = textBuffer;
         _languageID = [languageID copy];
         _version = 1;
         _contentChanges = [NSMutableArray array];
@@ -303,23 +304,13 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
             [_uri absoluteString], @"uri",
             _languageID, @"languageId",
             [NSNumber numberWithUnsignedInteger:_version], @"version",
-            _text, @"text",
+            [_textBuffer text], @"text",
             nil];
 }
 
-- (void)changeTextInRange:(NSRange)affectedCharRange replacementString:(NSString *)replacementString {
-    LSPRange *range = nil;
-    if ([replacementString length] == 0) {
-        range = [LSPRange range:affectedCharRange inText:_text];
-    }
-    [_text replaceCharactersInRange:affectedCharRange withString:replacementString];
-    if ([replacementString length] > 0) {
-        range = [LSPRange range:affectedCharRange inText:_text];
-    }
-    NSNumber *rangeLength = [NSNumber numberWithUnsignedInteger:[replacementString length]];
+- (void)changeTextInRange:(LSPRange *)range replacementString:(NSString *)replacementString {
     NSDictionary *changeEvent =  [NSDictionary dictionaryWithObjectsAndKeys:
                                   [range params], @"range",
-                                  rangeLength, @"rangeLength",
                                   replacementString, @"text",
                                   nil];
     [_contentChanges addObject:changeEvent];
@@ -332,7 +323,7 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     if (kind == LSPTextDocumentSyncKindIncremental) {
         contentChanges = _contentChanges;
     } else if (kind == LSPTextDocumentSyncKindFull) {
-        NSDictionary *changeEvent = [NSDictionary dictionaryWithObjectsAndKeys: _text, @"text", nil];
+        NSDictionary *changeEvent = [NSDictionary dictionaryWithObjectsAndKeys: [_textBuffer text], @"text", nil];
         contentChanges = [NSArray arrayWithObject:changeEvent];
     } 
     didChangeTextDocumentParams = [NSDictionary dictionaryWithObjectsAndKeys:
@@ -722,21 +713,22 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 
 #pragma mark Text Synchronization
 
-- (void)documentDidOpen:(NSURL *)url content:(NSString *)text {
+- (void)documentDidOpen:(NSURL *)url content:(id<LSPTextBuffer>)text {
     NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     NSAssert(([_documents objectForKey:url] == nil), @"An open notification must not be sent more than once without a corresponding close notification send before. This means open and close notification must be balanced and the max open count for a particular textDocument is one.");
-    
+
     LSPDocument *document = [[LSPDocument alloc] initWithURL:url content:text languageID:_languageID];
     [_documents setObject:document forKey:url];
     if (_textDocumentSync.openClose == NO) {
         return;
     }
     NSDictionary *documentParams = [document textDocumentItem];
+
     [_pipeline sendNotification:@"textDocument/didOpen" params:[NSDictionary dictionaryWithObjectsAndKeys:documentParams, @"textDocument", nil]];
 }
 
-- (void)document:(NSURL *)url changeTextInRange:(NSRange)affectedCharRange replacementString:(nullable NSString *)replacementString {
+- (void)document:(NSURL *)url changeTextInRange:(LSPRange *)affectedCharRange replacementString:(nullable NSString *)replacementString {
     NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
@@ -805,7 +797,7 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     
     NSMutableDictionary *documentParams = [NSMutableDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", nil];;
     if (_textDocumentSync.saveOptionIncludeText) {
-        [documentParams setObject:[document text] forKey:@"text"];
+        [documentParams setObject:[[document textBuffer] text] forKey:@"text"];
     }
     [_pipeline sendNotification:@"textDocument/didSave" params:documentParams];
 }

@@ -246,7 +246,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     }
     
 #if DEBUG
-    [self _debugPrintSubtreeAtOffset:cursorOffset tree:tree model:model];
+    //[self _debugPrintSubtreeAtOffset:cursorOffset tree:tree model:model];
 #endif
 
     // Tag name mirroring
@@ -446,7 +446,7 @@ static BOOL IsValidXMLNameText(NSString *text, BOOL isStartPosition) {
     TSNode node = ts_node_descendant_for_byte_range(root, byte, byte);
     
 #if DEBUG
-    [self _debugPrintSubtreeAtOffset:offset tree:tree model:model];
+    //[self _debugPrintSubtreeAtOffset:offset tree:tree model:model];
 #endif
 
     // Walk upward, keeping track of the last STag/start_tag we passed through.

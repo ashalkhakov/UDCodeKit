@@ -95,6 +95,10 @@ NSErrorDomain const LSPResponseError = @"LSPResponseError";
     return [[LSPRange alloc] initWithStart:start end:end];
 }
 
++ (instancetype)range:(LSPPosition *)start end:(LSPPosition *)end {
+    return [[LSPRange alloc] initWithStart:start end:end];
+}
+
 - (instancetype)initWithStart:(LSPPosition *)start end:(LSPPosition *)end {
     if (start == nil || end == nil) return nil;
     self = [super init];

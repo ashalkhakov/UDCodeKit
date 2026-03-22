@@ -12,6 +12,10 @@
 
 @class LSPClient;
 
+@protocol LSPTextBuffer <NSObject>
+- (NSString *)text;
+@end
+
 @protocol LSPClientObserver <NSObject>
 
 @optional
@@ -246,7 +250,7 @@ typedef struct _LSPTextDocumentSyncOptions {
  * Open in this sense means it is managed by the client. It doesn't necessarily
  * mean that its content is presented in an editor.
  */
-- (void)documentDidOpen:(NSURL *)url content:(NSString *)text;
+- (void)documentDidOpen:(NSURL *)url content:(id<LSPTextBuffer>)textBuffer;
 /**
  * Queues a notification, with coalescing turned on and a posting style
  * of NSPostWhenIdle.
@@ -254,7 +258,7 @@ typedef struct _LSPTextDocumentSyncOptions {
  * is posted when the run loop enters its wait state and the language server
  * "textDocument/didChange" notifcation is send.
  */
-- (void)document:(NSURL *)url changeTextInRange:(NSRange)affectedCharRange replacementString:(NSString *)replacementString;
+- (void)document:(NSURL *)url changeTextInRange:(LSPRange *)range replacementString:(NSString *)replacementString;
 /**
  * You don't need to send documentDidChange unless your run loop never enters its wait state.
  */

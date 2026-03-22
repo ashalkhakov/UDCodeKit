@@ -615,7 +615,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
                                           documentURL:docURL
                                 diagnosticHighlighter:lspHL];
     [ctx addDocumentService:lsp];
-    [lsp documentDidOpenWithContent:[ts.textModel getValue]];
+    [lsp documentDidOpenWithContent:ts.textModel];
 }
 
 // MARK: - Autocomplete
@@ -759,13 +759,15 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 - (BOOL)textView:(NSTextView *)textView
     shouldChangeTextInRange:(NSRange)affectedCharRange
           replacementString:(nullable NSString *)replacementString {
+    // TODO: remove this completely
+    /*
     for (id<UDDocumentService> svc in [self _activeContext].documentServices) {
         if ([svc respondsToSelector:
                 @selector(textWillChangeInRange:replacementString:)]) {
             [svc textWillChangeInRange:affectedCharRange
                      replacementString:replacementString ?: @""];
         }
-    }
+    }*/
     return YES;
 }
 

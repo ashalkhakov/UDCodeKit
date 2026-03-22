@@ -57,7 +57,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// LSP implementations: use this to send @c textDocument/didOpen.
 /// The content string is already materialised (it was needed to open the
 /// document), so passing it here costs nothing extra.
-- (void)documentDidOpenWithContent:(NSString *)content;
+- (void)documentDidOpenWithContent:(UDTextModel *)content;
 
 /// Called just before each text edit, before the tree-sitter re-parse.
 ///

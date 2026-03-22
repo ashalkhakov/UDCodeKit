@@ -1,4 +1,5 @@
 #import "UDLSPCoordinator.h"
+#import "UDTextModel+LSPTextBuffer.h"
 
 @interface UDLSPCoordinator ()
 @property (nonatomic, weak)   UDTextModelTextStorage     *textStorage;
@@ -25,18 +26,57 @@
     _documentURL            = [url copy];
     _diagnosticHighlighter  = diagnosticHighlighter;
     _clientInitialized      = NO;
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(_textModelDidChange:)
+               name:UDTextModelDidChangeNotification
+             object:_textStorage.textModel];
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)_textModelDidChange:(NSNotification *)note {
+    if (!_clientInitialized) return;
+
+    UDTextModel *textModel = note.object;
+    if (![textModel isKindOfClass:[UDTextModel class]]) return;
+
+    NSArray<UDTextModelEdit *> *edits = note.userInfo[@"edits"];  // already set by _modelDidChange:
+    if (!edits.count) return;
+
+    // Sort edits end-to-start so each LSP change's range is unaffected
+    // by the ones that follow it in the array.
+    NSArray<UDTextModelEdit *> *sorted = [edits sortedArrayUsingComparator:
+        ^NSComparisonResult(UDTextModelEdit *a, UDTextModelEdit *b) {
+            NSInteger aOff = [textModel getOffsetAt:a.range.startLineNumber
+                                             column:a.range.startColumn];
+            NSInteger bOff = [textModel getOffsetAt:b.range.startLineNumber
+                                             column:b.range.startColumn];
+            return bOff < aOff ? NSOrderedAscending : NSOrderedDescending;
+        }];
+
+    for (UDTextModelEdit *edit in sorted) {
+        LSPPosition *startPos = [LSPPosition positionWithLine:edit.range.startLineNumber - 1 character:edit.range.startColumn - 1];
+        LSPPosition *endPos = [LSPPosition positionWithLine:edit.range.endLineNumber - 1 character:edit.range.endColumn - 1];
+        LSPRange *lspRange = [LSPRange range:startPos end:endPos];
+
+        [_client document:_documentURL
+        changeTextInRange:lspRange
+        replacementString:edit.text];
+    }
 }
 
 // ---------------------------------------------------------------------------
 #pragma mark - Document lifecycle
 // ---------------------------------------------------------------------------
 
-- (void)documentDidOpenWithContent:(NSString *)content {
+- (void)documentDidOpenWithContent:(UDTextModel *)content {
     if (!_client) return;
     [_client addObserver:self];
 
-    NSString *snapshot = [content copy];
     __weak typeof(self) weakSelf = self;
     [_client initialWithCompletionHandler:^(NSError *error) {
         __strong typeof(self) strongSelf = weakSelf;
@@ -47,16 +87,20 @@
         }
         strongSelf->_clientInitialized = YES;
         [strongSelf->_client documentDidOpen:strongSelf->_documentURL
-                                      content:snapshot];
+                                      content:content];
     }];
 }
 
 - (void)textWillChangeInRange:(NSRange)range
             replacementString:(NSString *)replacement {
+    /*
+     // TODO: remove
     if (!_clientInitialized) return;
     [_client document:_documentURL
     changeTextInRange:range
     replacementString:replacement ?: @""];
+    NSLog(@"range: %@, replacement: %@", NSStringFromRange(range), replacement);
+     */
 }
 
 - (void)documentWillSave {

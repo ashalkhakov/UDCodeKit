@@ -5,7 +5,6 @@
  *  local cache.  Three decoration owners are rendered as pill-shaped inline labels:
  *    • UDLSPDiagnosticDecorationOwner  ("lsp.diagnostic") — from the LSP server
  *    • UDParseErrorDecorationOwner     ("ts.error")        — from Tree-sitter
- *    • UDRNGDiagnosticDecorationOwner  ("rng.diagnostic")  — from RELAX NG / Schematron
  *  All appear as pill-shaped inline labels at the end of the affected line,
  *  similar to how Xcode shows inline compiler / clang-tidy diagnostics.
  *--------------------------------------------------------------------------------------------*/
@@ -29,28 +28,22 @@ static const CGFloat    kLabelFontSize     = 10.5;
 // ---------------------------------------------------------------------------
 
 /// Returns YES if the decoration node represents any inline diagnostic that
-/// should be rendered as a pill label (LSP, TreeSitter, or RNG/Schematron).
+/// should be rendered as a pill label (LSP, TreeSitter).
 static inline BOOL IsDiagnosticNode(UDIntervalNode *node) {
-    return [node.owner isEqualToString:UDLSPDiagnosticDecorationOwner] ||
-           [node.owner isEqualToString:UDParseErrorDecorationOwner]    ||
-           [node.owner isEqualToString:UDRNGDiagnosticDecorationOwner];
+    return [node.owner isEqualToString:UDLSPDiagnosticDecorationOwner]
+        || [node.owner isEqualToString:UDParseErrorDecorationOwner];
 }
 
 /// Returns the pill background colour for a diagnostic node, keyed by className.
 static NSColor *PillColorForNode(UDIntervalNode *node) {
     NSString *cls = node.options.className;
     // LSP warnings and TreeSitter MISSING → amber
-    if ([cls isEqualToString:@"lsp.warning"] || [cls isEqualToString:@"ts.missing"] ||
-        [cls isEqualToString:@"rng.warning"]) {
+    if ([cls isEqualToString:@"lsp.warning"] || [cls isEqualToString:@"ts.missing"]) {
         return [NSColor colorWithRed:0.70 green:0.55 blue:0.00 alpha:0.85];
     }
     // TreeSitter ERROR → orange-red (distinct from LSP errors)
     if ([cls isEqualToString:@"ts.error"]) {
         return [NSColor colorWithRed:0.85 green:0.40 blue:0.00 alpha:0.85];
-    }
-    // RNG / Schematron errors → purple (distinct from LSP red and TS orange)
-    if ([cls isEqualToString:@"rng.error"]) {
-        return [NSColor colorWithRed:0.55 green:0.10 blue:0.80 alpha:0.85];
     }
     // LSP errors and any unknown → red
     return [NSColor colorWithRed:0.80 green:0.12 blue:0.12 alpha:0.85];

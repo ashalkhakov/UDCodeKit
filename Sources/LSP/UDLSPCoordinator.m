@@ -157,7 +157,7 @@
 - (void)languageServer:(LSPClient *)client
             logMessage:(NSString *)message
                   type:(LSPMessageType)type {
-    NSLog(@"[LSP log] %@", message);
+    // NSLog(@"[LSP log] %@", message);
 }
 
 @end

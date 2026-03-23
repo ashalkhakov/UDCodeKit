@@ -37,10 +37,6 @@ extern NSString * const UDLSPDiagnosticDecorationOwner;
 /// ERROR nodes use className "ts.error"; MISSING nodes use className "ts.missing".
 extern NSString * const UDParseErrorDecorationOwner;
 
-/// Owner string for RNG/Schematron schema-validation decorations (layer 4, below LSP).
-/// Errors use className "rng.error"; warnings use className "rng.warning".
-extern NSString * const UDRNGDiagnosticDecorationOwner;
-
 @interface UDTextModelTextStorage : NSTextStorage
 
 /// The underlying text model.  Use for searches, decorations, undo/redo.

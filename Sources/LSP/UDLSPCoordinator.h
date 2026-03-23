@@ -16,25 +16,39 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UDLSPCoordinator : NSObject <LSPClientObserver>
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
-                              client:(LSPClient *)client
-                         documentURL:(NSURL *)url
-                   diagnosticHighlighter:(UDLSPDiagnosticHighlighter *)diagnosticHighlighter
+                               client:(LSPClient *)client
+                          documentURL:(NSURL *)url
+                    diagnosticHighlighter:(UDLSPDiagnosticHighlighter *)diagnosticHighlighter
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
-/// Call once the document's initial content is ready. Sends didOpen.
-- (void)openDocument:(NSString *)content;
+/// Called when the document tab closes.  Always on the main thread.
+- (void)closeDocument;
 
-/// Call from textView:shouldChangeTextInRange:replacementString:.
-- (void)textWillChangeInRange:(NSRange)range
-            replacementString:(NSString *)replacement;
-
-/// Call before / after save.
+/// Called before and after each save operation.
 - (void)documentWillSave;
 - (void)documentDidSave;
 
-/// Call on window close. Sends didClose and clears decorations.
-- (void)closeDocument;
+/// Called once when the tab first activates, with the document's full text.
+///
+/// LSP implementations: use this to send @c textDocument/didOpen.
+/// The content string is already materialised (it was needed to open the
+/// document), so passing it here costs nothing extra.
+- (void)documentDidOpenWithContent:(UDTextModel *)content;
+
+/// Called just before each text edit, before the tree-sitter re-parse.
+///
+/// LSP implementations: use this to send @c textDocument/didChange.
+- (void)textWillChangeInRange:(NSRange)range
+            replacementString:(NSString *)replacement;
+
+/// LSP textDocument/completion at the given character index.
+- (void)completionAtIndex:(NSUInteger)characterIndex
+        completionHandler:(void (^)(NSArray<LSPCompletionItem *> *items, NSError *error))handler;
+
+/// LSP textDocument/hover at the given character index.
+- (void)hoverAtIndex:(NSUInteger)characterIndex
+   completionHandler:(void (^)(NSDictionary *result, NSError *error))handler;
 
 @end
 

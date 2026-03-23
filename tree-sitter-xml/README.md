@@ -15,7 +15,7 @@ tree-sitter-xml/
 │   ├── Info.plist           # bundle metadata (NSPrincipalClass etc.)
 │   ├── LanguageInfo.plist   # language metadata read by UDLanguageModeRegistry
 │   ├── highlights.scm       # tree-sitter highlights query (if present)
-│   └── indents.scm          # tree-sitter indents query (if present)
+│   ├── indents.scm          # tree-sitter indents query (if present)
 ├── tree-sitter/             # tree-sitter runtime for this bundle  ← fetched by fetch-deps.sh
 │   ├── include/             # public API headers
 │   └── src/                 # runtime C sources (compiled via lib.c)

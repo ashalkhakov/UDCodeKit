@@ -12,8 +12,8 @@ typedef NS_ENUM(NSInteger, UDDiagnosticSeverity) {
 /// Source tag — identifies which producer created the diagnostic.
 /// Matches the keys used with UDDiagnosticStore.
 typedef NSString *UDDiagnosticSource NS_TYPED_EXTENSIBLE_ENUM;
-extern UDDiagnosticSource const UDDiagnosticSourceParser;   // tree-sitter
-extern UDDiagnosticSource const UDDiagnosticSourceLSP;      // language server
+extern UDDiagnosticSource const UDDiagnosticSourceParser;     // tree-sitter
+extern UDDiagnosticSource const UDDiagnosticSourceLSP;        // language server
 
 /// Source-agnostic diagnostic item.  Both the tree-sitter parse-error
 /// collector and the LSP client produce these; the UI consumes them.

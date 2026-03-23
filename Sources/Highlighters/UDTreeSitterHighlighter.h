@@ -45,12 +45,13 @@ typedef const void *_Nullable(*LanguageFunc)(void);
     withHighlightsQuery:(nullable NSString *)queryText;
 
 /// Call after each NSTextStorage edit to perform an incremental re-parse.
+/// Reads the current document text directly from the text model; no string copy needed.
 - (void)performIncrementalParseAfterEdit:(NSRange)editedRange
-                           changeInLength:(NSInteger)delta
-                            currentString:(NSString *)s;
+                           changeInLength:(NSInteger)delta;
 
-/// Force a complete re-parse (e.g. after undo/redo).
-- (void)reparseFullString:(NSString *)s;
+/// Force a complete re-parse from the text model (e.g. after undo/redo).
+/// Reads the current document text directly from the text model; no string copy needed.
+- (void)reparseFromModel;
 
 @end
 

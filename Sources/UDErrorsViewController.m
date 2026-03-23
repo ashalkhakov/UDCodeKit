@@ -231,4 +231,25 @@
     return [item isKindOfClass:[UDDiagnosticItem class]];
 }
 
+- (void)outlineViewSelectionDidChange:(NSNotification *)notification {
+    NSInteger row = [_outlineView selectedRow];
+    if (row < 0) return;
+
+    id item = [_outlineView itemAtRow:row];
+    if (![item isKindOfClass:[UDDiagnosticItem class]]) return;
+
+    UDDiagnosticItem *diagnostic = (UDDiagnosticItem *)item;
+    // The outline view already tracks parent–child relationships; this is O(1).
+    UDErrorsEntry *entry = [_outlineView parentForItem:diagnostic];
+    if (!entry) return;
+
+    id<UDErrorsViewControllerDelegate> delegate = _delegate;
+    if ([delegate respondsToSelector:
+            @selector(errorsViewController:didSelectDiagnostic:inStore:)]) {
+        [delegate errorsViewController:self
+                   didSelectDiagnostic:diagnostic
+                               inStore:entry.store];
+    }
+}
+
 @end

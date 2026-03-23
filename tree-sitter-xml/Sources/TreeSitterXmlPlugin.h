@@ -7,10 +7,11 @@
 
 #import <Foundation/Foundation.h>
 #import "UDExtension.h"
+#import "UDXMLLSPInstaller.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface TreeSitterXmlPlugin : NSObject <UDExtension>
+@interface TreeSitterXmlPlugin : NSObject <UDExtension, XMLLSPInstallerDelegate>
 
 /// Returns the shared plugin instance (created when the bundle is first loaded).
 + (instancetype)sharedPlugin;

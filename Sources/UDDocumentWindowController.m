@@ -14,6 +14,7 @@
 #import "UDCodeDocument.h"
 #import "UDWorkspaceModel.h"
 #import "UDLanguageModeRegistry.h"
+#import "UDExtension.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 // ---------------------------------------------------------------------------
@@ -37,7 +38,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 /// UDEditorTabContext adds the AppKit-specific bridge layer on top:
 ///   • UDTextModelTextStorage (NSTextStorage backed by the document's textModel)
 ///   • tree-sitter parse highlighters and error collectors
-///   • an optional LSP coordinator
+///   • document services (LSP)
 ///
 /// Multiple UDTextEditorViewControllers may be wired to the same context: each
 /// adds its own NSLayoutManager to the shared UDTextModelTextStorage, so edits
@@ -48,7 +49,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 ///   2. -activateWithTheme:…           — call AFTER the first editor VC's
 ///      -viewDidLoad has run so its layout manager is attached to textStorage
 ///      before the first tree-sitter parse fires.
-///   3. Set lspCoordinator if available.
+///   3. Set LSP coordinator if available.
 @interface UDEditorTabContext : NSObject
 
 /// Pure model backing this editor tab.
@@ -62,7 +63,9 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 @property (nonatomic, readonly) NSString            *tabTitle;
 
 /// Optional LSP coordinator; set by the owner after -activateWithTheme:…
-@property (nonatomic, strong, nullable) UDLSPCoordinator *lspCoordinator;
+@property (nonatomic, readonly, strong) UDLSPCoordinator *lspCoordinator;
+
+@property (nonatomic, strong, nullable) NSArray<LSPCompletionItem *> *completionList;
 
 - (instancetype)initWithDocument:(UDCodeDocument *)document NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -77,9 +80,10 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // ---- Private extension ----
 
 @interface UDEditorTabContext ()
-@property (nonatomic, strong) UDMissingNodeHighlighter *missingNodeHighlighter;
-@property (nonatomic, strong) UDParseErrorHighlighter  *parseErrorHighlighter;
-@property (nonatomic, strong) UDParseErrorCollector    *parseErrorCollector;
+@property (nonatomic, strong) UDMissingNodeHighlighter        *missingNodeHighlighter;
+@property (nonatomic, strong) UDParseErrorHighlighter         *parseErrorHighlighter;
+@property (nonatomic, strong) UDParseErrorCollector           *parseErrorCollector;
+@property (nonatomic, strong) UDLSPCoordinator                *lspCoordinator;
 @end
 
 @implementation UDEditorTabContext
@@ -87,9 +91,9 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 - (instancetype)initWithDocument:(UDCodeDocument *)document {
     self = [super init];
     if (!self) return nil;
-    _document    = document;
+    _document                = document;
     // Wrap the document's textModel in the AppKit text-storage bridge.
-    _textStorage = [[UDTextModelTextStorage alloc] initWithTextModel:document.textModel];
+    _textStorage             = [[UDTextModelTextStorage alloc] initWithTextModel:document.textModel];
     return self;
 }
 
@@ -151,7 +155,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // MARK: - UDDocumentWindowController  (private extension)
 // ---------------------------------------------------------------------------
 
-@interface UDDocumentWindowController () <NSTextViewDelegate, NSToolbarDelegate>
+@interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, NSToolbarDelegate,
+                                          UDErrorsViewControllerDelegate>
 
 /// Parallel to _editorTabViewController.tabViewItems: _tabContexts[i] is the
 /// context for tab i.  The SAME context may appear at multiple indices (when
@@ -215,6 +220,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 
     // Errors panel — no store yet; populated by _refreshErrorsPanel after tabs open.
     _errorsViewController = [[UDErrorsViewController alloc] init];
+    _errorsViewController.delegate = self;
 
     NSSplitViewController *splitVC = [[NSSplitViewController alloc] init];
     NSSplitViewItem *errorsItem =
@@ -523,12 +529,96 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         [[UDLSPDiagnosticHighlighter alloc] initWithTextStorage:ts
                                                      highlighter:ts.highlighter
                                                            store:ctx.diagnosticStore];
-    ctx.lspCoordinator =
+    UDLSPCoordinator *lsp =
         [[UDLSPCoordinator alloc] initWithTextStorage:ts
                                                client:client
                                           documentURL:docURL
                                 diagnosticHighlighter:lspHL];
-    [ctx.lspCoordinator openDocument:[ts.textModel getValue]];
+    [ctx setLspCoordinator:lsp];
+    [lsp documentDidOpenWithContent:ts.textModel];
+}
+
+// MARK: - Autocomplete
+
+- (void)textViewRequestCompletion:(UDDiagnosticTextView *)textView {
+    UDEditorTabContext *ctx = [self _activeContext];
+    
+    UDLSPCoordinator *coordinator = ctx.lspCoordinator;
+    if (coordinator) {
+        [coordinator completionAtIndex:textView.selectedRange.location
+                         completionHandler:^(NSArray<LSPCompletionItem *> *items, NSError *err) {
+            if (err || !items.count) return;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                ctx.completionList = items;
+                [textView showCompleteList:nil];
+            });
+        }];
+    }
+}
+
+// NSTextView calls this to get the list of completions to show
+- (NSArray<NSString *> *)textView:(NSTextView *)textView
+                       completions:(NSArray<NSString *> *)words
+               forPartialWordRange:(NSRange)charRange
+               indexOfSelectedItem:(NSInteger *)index {
+    UDEditorTabContext *ctx = [self _activeContext];
+    if (!ctx.completionList.count) return @[];
+    return [ctx.completionList valueForKeyPath:@"label"];
+}
+
+// MARK: - Hover tooltip
+
+- (void)textView:(UDDiagnosticTextView *)textView
+  requestTooltipAtIndex:(NSUInteger)characterIndex
+                  point:(NSPoint)point {
+    UDEditorTabContext *ctx = [self _activeContext];
+
+    UDLSPCoordinator *coordinator = ctx.lspCoordinator;
+    if (coordinator) {
+        [coordinator hoverAtIndex:characterIndex
+                completionHandler:^(NSDictionary *result, NSError *err) {
+            if (!result) return;
+            NSDictionary *contents = result[@"contents"];
+            NSString *tooltip = contents[@"value"] ?: [contents description];
+            if (!tooltip.length) return;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self _showTooltip:tooltip
+                      fromTextView:textView
+                       atCharIndex:characterIndex];
+            });
+        }];
+    }
+}
+
+- (void)_showTooltip:(NSString *)tooltip
+         fromTextView:(UDDiagnosticTextView *)textView
+         atCharIndex:(NSUInteger)characterIndex {
+    // Reuse _tooltipViewController or create a simple popover
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorSemitransient;
+
+    NSViewController *vc = [[NSViewController alloc] init];
+    NSTextView *tv = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, 300, 80)];
+    tv.string = tooltip;
+    tv.editable = NO;
+    tv.drawsBackground = YES;
+    vc.view = tv;
+    popover.contentViewController = vc;
+    popover.contentSize = NSMakeSize(300, 80);
+
+    // Get the rect of the character in the text view
+    NSLayoutManager *lm = textView.layoutManager;
+    NSRange glyphRange = [lm glyphRangeForCharacterRange:NSMakeRange(characterIndex, 1)
+                                    actualCharacterRange:NULL];
+    NSRect charRect = [lm boundingRectForGlyphRange:glyphRange
+                                    inTextContainer:textView.textContainer];
+    NSPoint origin = textView.textContainerOrigin;
+    charRect.origin.x += origin.x;
+    charRect.origin.y += origin.y;
+
+    [popover showRelativeToRect:charRect
+                         ofView:textView
+                  preferredEdge:NSRectEdgeMaxY];
 }
 
 // ---------------------------------------------------------------------------
@@ -536,14 +626,21 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // ---------------------------------------------------------------------------
 
 - (void)documentWillSave {
-    [_tabContexts.firstObject.lspCoordinator documentWillSave];
+    UDLSPCoordinator *coordinator = _tabContexts.firstObject.lspCoordinator;
+
+    if (coordinator) {
+        [coordinator documentWillSave];
+    }
 }
 
 - (void)documentDidSave:(BOOL)success {
-    [_tabContexts.firstObject.lspCoordinator documentDidSave];
+    UDLSPCoordinator *coordinator = _tabContexts.firstObject.lspCoordinator;
+    if (coordinator) {
+        [coordinator documentDidSave];
+    }
     if (!success) {
         NSLog(@"[UDDocumentWindowController] File save failed; "
-              @"LSP server has been notified of the save attempt.");
+              @"all services have been notified of the save attempt.");
     }
 }
 
@@ -556,7 +653,10 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     NSMutableSet<UDEditorTabContext *> *seen = [NSMutableSet set];
     for (UDEditorTabContext *ctx in _tabContexts) {
         if (![seen containsObject:ctx]) {
-            [ctx.lspCoordinator closeDocument];
+            UDLSPCoordinator *coordinator = ctx.lspCoordinator;
+            if (coordinator) {
+                [coordinator closeDocument];
+            }
             [seen addObject:ctx];
         }
     }
@@ -575,9 +675,15 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 - (BOOL)textView:(NSTextView *)textView
     shouldChangeTextInRange:(NSRange)affectedCharRange
           replacementString:(nullable NSString *)replacementString {
-    [[self _activeContext].lspCoordinator
-        textWillChangeInRange:affectedCharRange
-            replacementString:replacementString ?: @""];
+
+    UDLSPCoordinator *coordinator = [self _activeContext].lspCoordinator;
+
+    if (coordinator)
+    {
+        [coordinator textWillChangeInRange:affectedCharRange
+                         replacementString:replacementString ?: @""];
+    }
+
     return YES;
 }
 
@@ -590,10 +696,15 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     NSArray<UDDiagnosticItem *> *all  = store.allDiagnostics;
     NSArray<NSTabViewItem *>    *items = _editorTabViewController.tabViewItems;
 
-    // Update every tab that uses this store (there may be more than one if the
-    // same document is open in multiple tabs).
+    // The model owns the store→document mapping; the window controller resolves
+    // document→tab for the AppKit gutter update.
+    UDCodeDocument *doc = [_workspaceModel documentForDiagnosticStore:store];
+    if (!doc) return;
+
+    // Update every tab that shows this document (there may be more than one if
+    // the same document is open in multiple tabs).
     for (NSUInteger i = 0; i < MIN(_tabContexts.count, items.count); i++) {
-        if (_tabContexts[i].diagnosticStore != store) continue;
+        if (_tabContexts[i].document != doc) continue;
 
         UDTextEditorViewController *editorVC =
             (UDTextEditorViewController *)items[i].viewController;
@@ -608,6 +719,62 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         // (via getCharacters:range: → piece-tree traversal) on every
         // diagnostics update.
     }
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - UDErrorsViewControllerDelegate — click to navigate
+// ---------------------------------------------------------------------------
+
+- (void)errorsViewController:(UDErrorsViewController *)vc
+         didSelectDiagnostic:(UDDiagnosticItem *)diagnostic
+                     inStore:(UDDiagnosticStore *)store {
+    // The model owns the authoritative store→document mapping.
+    UDCodeDocument *doc = [_workspaceModel documentForDiagnosticStore:store];
+    if (!doc) return;
+
+    // Find the first tab slot for this document and navigate to the diagnostic.
+    NSArray<NSTabViewItem *> *items = _editorTabViewController.tabViewItems;
+    NSUInteger count = MIN(_tabContexts.count, items.count);
+    for (NSUInteger i = 0; i < count; i++) {
+        if (_tabContexts[i].document != doc) continue;
+
+        if (_editorTabViewController.selectedTabViewItemIndex != (NSInteger)i) {
+            [_editorTabViewController.tabView selectTabViewItemAtIndex:(NSInteger)i];
+        }
+        UDTextEditorViewController *editorVC =
+            (UDTextEditorViewController *)items[i].viewController;
+        [self _navigateEditorVC:editorVC
+                         toLine:diagnostic.line
+                         column:diagnostic.column
+                        context:_tabContexts[i]];
+        break;
+    }
+}
+
+/// Scrolls @a editorVC to @a line (1-based) / @a column (0-based) and places
+/// the insertion point there.  Uses the text model to map the position to a
+/// character offset, then asks the text view to scroll into view.
+- (void)_navigateEditorVC:(UDTextEditorViewController *)editorVC
+                   toLine:(NSInteger)line
+                   column:(NSInteger)column
+                  context:(UDEditorTabContext *)ctx {
+    UDTextModel *textModel = ctx.textStorage.textModel;
+
+    // column from UDDiagnosticItem is 0-based; getOffsetAt:column: takes 1-based column.
+    NSInteger col1 = (column > 0) ? column + 1 : 1;
+    NSInteger charOffset = [textModel getOffsetAt:line column:col1];
+    if (charOffset < 0) {
+        // Fall back to the start of the line.
+        charOffset = [textModel getOffsetAt:line column:1];
+    }
+    if (charOffset < 0) return;
+
+    NSRange charRange = NSMakeRange((NSUInteger)charOffset, 0);
+    NSTextView *tv = editorVC.textView;
+    [tv scrollRangeToVisible:charRange];
+    [tv setSelectedRange:charRange];
+    // Give the text view keyboard focus so the user can start editing immediately.
+    [tv.window makeFirstResponder:tv];
 }
 
 // ---------------------------------------------------------------------------

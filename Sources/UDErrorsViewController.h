@@ -22,8 +22,32 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class UDErrorsViewController;
+
+/// Delegate protocol for UDErrorsViewController.
+/// Implement to respond when the user selects a diagnostic item in the panel.
+@protocol UDErrorsViewControllerDelegate <NSObject>
+@optional
+
+/// Called when the user selects an individual diagnostic item in the panel.
+///
+/// The delegate is responsible for navigating the editor to the location
+/// described by @a diagnostic (switching tabs if necessary, scrolling to line).
+///
+/// @param vc          The errors view controller that sent this message.
+/// @param diagnostic  The selected diagnostic item.
+/// @param store       The diagnostic store that owns the item (identifies the document).
+- (void)errorsViewController:(UDErrorsViewController *)vc
+         didSelectDiagnostic:(UDDiagnosticItem *)diagnostic
+                     inStore:(UDDiagnosticStore *)store;
+
+@end
+
 @interface UDErrorsViewController : NSViewController <NSOutlineViewDataSource,
                                                       NSOutlineViewDelegate>
+
+/// Delegate that receives navigation requests when the user clicks a diagnostic.
+@property (nonatomic, weak, nullable) id<UDErrorsViewControllerDelegate> delegate;
 
 /// Replace the full list of (store, displayName) pairs shown in the panel.
 ///

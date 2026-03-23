@@ -51,6 +51,19 @@
 #import <tree_sitter/api.h>
 #import "UDLanguageKeyHandler.h"
 
+// Forward declarations for types used in optional factory methods.
+@class UDDiagnosticStore;
+
+/// Posted by an extension when a language server that was previously unavailable
+/// becomes ready (e.g. after an async download/install). The object is the
+/// extension instance. The userInfo key UDExtensionLanguageServerReadyIdentifierKey
+/// contains the language mode identifier (NSString *).
+///
+/// The host should re-query -languageServerCommandForIdentifier: for the given
+/// identifier and start the language server for any open documents of that mode.
+FOUNDATION_EXPORT NSNotificationName const UDExtensionLanguageServerDidBecomeReadyNotification;
+FOUNDATION_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
+
 @protocol UDExtension <NSObject>
 
 /// Called by the host after the bundle has been loaded and the principal-class

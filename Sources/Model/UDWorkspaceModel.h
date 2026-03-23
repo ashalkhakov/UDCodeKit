@@ -49,6 +49,9 @@ extern NSNotificationName const UDWorkspaceModelDidChangeNotification;
 /// Return the document whose fileURL is equal to url, or nil.
 - (nullable UDCodeDocument *)documentForFileURL:(NSURL *)url;
 
+/// Return the document whose diagnosticStore is identical to store, or nil.
+- (nullable UDCodeDocument *)documentForDiagnosticStore:(UDDiagnosticStore *)store;
+
 // ---------------------------------------------------------------------------
 // MARK: - Serialisation  (.udworkspace JSON format)
 // ---------------------------------------------------------------------------

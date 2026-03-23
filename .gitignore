@@ -54,3 +54,9 @@ DerivedData/
 
 # Swift packages (if any are added in future)
 .build/
+# Ubuntu source packages and build artifacts
+*.dsc
+*.deb
+*.debian.tar.xz
+*.orig.tar.xz
+libxml2*/

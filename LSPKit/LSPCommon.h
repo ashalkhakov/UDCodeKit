@@ -110,8 +110,10 @@ typedef NS_ENUM(NSUInteger, LSPDocumentHighlightKind) {
 @property (readonly) LSPPosition *end;
 
 + (instancetype)range:(NSRange)range inText:(NSString *)string;
++ (instancetype)range:(LSPPosition *)start end:(LSPPosition *)end;
 + (instancetype)rangeFromDictionary:(NSDictionary *)dict;
 - (NSRange)convertToRangeInText:(NSString *)string;
+- (NSDictionary *)params;
 
 @end
 

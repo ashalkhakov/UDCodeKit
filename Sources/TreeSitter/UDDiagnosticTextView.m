@@ -2,7 +2,7 @@
  *  UDDiagnosticTextView.m
  *
  *  Diagnostic data is read from the UDTextModel decoration layers instead of a
- *  local cache.  Three decoration owners are rendered as pill-shaped inline labels:
+ *  local cache.  Two decoration owners are rendered as pill-shaped inline labels:
  *    • UDLSPDiagnosticDecorationOwner  ("lsp.diagnostic") — from the LSP server
  *    • UDParseErrorDecorationOwner     ("ts.error")        — from Tree-sitter
  *  All appear as pill-shaped inline labels at the end of the affected line,

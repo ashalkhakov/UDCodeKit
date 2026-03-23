@@ -49,7 +49,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 ///   2. -activateWithTheme:…           — call AFTER the first editor VC's
 ///      -viewDidLoad has run so its layout manager is attached to textStorage
 ///      before the first tree-sitter parse fires.
-///   3. Add document services via -addDocumentService:.
+///   3. Set LSP coordinator if available.
 @interface UDEditorTabContext : NSObject
 
 /// Pure model backing this editor tab.
@@ -62,9 +62,10 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 @property (nonatomic, readonly, nullable) NSURL     *fileURL;
 @property (nonatomic, readonly) NSString            *tabTitle;
 
-@property (nonatomic, strong, nullable) NSArray<LSPCompletionItem *> *completionList;
-
+/// Optional LSP coordinator; set by the owner after -activateWithTheme:…
 @property (nonatomic, readonly, strong) UDLSPCoordinator *lspCoordinator;
+
+@property (nonatomic, strong, nullable) NSArray<LSPCompletionItem *> *completionList;
 
 - (instancetype)initWithDocument:(UDCodeDocument *)document NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -422,7 +423,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 }
 
 /// Add a second (or further) view of an already-active context.  The new tab
-/// shares the context's textStorage, diagnosticStore, and document services;
+/// shares the context's textStorage, diagnosticStore, and lspCoordinator;
 /// edits in either tab appear immediately in both.
 - (void)_addViewTabForContext:(UDEditorTabContext *)ctx {
     UDTextEditorViewController *editorVC =

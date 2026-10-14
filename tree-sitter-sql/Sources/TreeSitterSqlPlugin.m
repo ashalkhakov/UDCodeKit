@@ -12,12 +12,6 @@ const TSLanguage *tree_sitter_sql(void);
     NSBundle *_bundle;
 }
 
-+ (instancetype)sharedPlugin {
-    static TreeSitterSqlPlugin *instance;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ instance = [[TreeSitterSqlPlugin alloc] init]; });
-    return instance;
-}
 
 - (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
@@ -34,11 +28,6 @@ const TSLanguage *tree_sitter_sql(void);
 - (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:@"sql"]) return tree_sitter_sql;
     return NULL;
-}
-
-+ (void)load {
-    // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -extensionDidLoad: is the preferred lifecycle hook.
 }
 
 @end

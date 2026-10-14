@@ -12,12 +12,6 @@ const TSLanguage *tree_sitter_c(void);
     NSBundle *_bundle;
 }
 
-+ (instancetype)sharedPlugin {
-    static TreeSitterCPlugin *instance;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ instance = [[TreeSitterCPlugin alloc] init]; });
-    return instance;
-}
 
 - (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
@@ -32,11 +26,6 @@ const TSLanguage *tree_sitter_c(void);
 - (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:@"c"]) return tree_sitter_c;
     return NULL;
-}
-
-+ (void)load {
-    // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -pluginDidLoad: is the preferred hook.
 }
 
 @end

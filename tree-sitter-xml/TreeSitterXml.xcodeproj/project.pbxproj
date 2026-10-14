@@ -21,7 +21,6 @@
 		CE0C2E632F5F1EF800566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E622F5F1EF800566368 /* LanguageInfo.plist */; };
 		CE0C2E642F5F1EF800566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E602F5F1EF800566368 /* highlights.scm */; };
 		CE0C2E652F5F1EF800566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E612F5F1EF800566368 /* Info.plist */; };
-		CE3C736E2F6A7A5D007BC955 /* UDDiagnosticItem.m in Sources */ = {isa = PBXBuildFile; fileRef = CE000001000000000000AA0A /* UDDiagnosticItem.m */; };
 		CE43044C2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */ = {isa = PBXBuildFile; fileRef = CE43044B2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m */; };
 		CE43044D2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */ = {isa = PBXBuildFile; fileRef = CE43044B2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m */; };
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
@@ -57,7 +56,6 @@
 		ABCD00020000000000000002 /* UDXMLTagMirrorTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = UDXMLTagMirrorTests.m; sourceTree = "<group>"; };
 		ABCD00030000000000000003 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		ABCD00040000000000000004 /* TreeSitterXmlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterXmlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		CE000001000000000000AA0A /* UDDiagnosticItem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = UDDiagnosticItem.m; path = ../Sources/Extensions/UDDiagnosticItem.m; sourceTree = SOURCE_ROOT; };
 		CE0C2E572F5F1ED500566368 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
 		CE0C2E592F5F1EDF00566368 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
 		CE0C2E5A2F5F1EDF00566368 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
@@ -138,7 +136,6 @@
 				CE7CFB7A2F65A5F300F294D4 /* UDXMLTagMirror.h */,
 				CE0C2E5D2F5F1EEC00566368 /* TreeSitterXmlPlugin.h */,
 				CE0C2E5E2F5F1EEC00566368 /* TreeSitterXmlPlugin.m */,
-				CE000001000000000000AA0A /* UDDiagnosticItem.m */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -298,7 +295,6 @@
 				ABCD00070000000000000007 /* lib.c in Sources */,
 				ABCD00080000000000000008 /* parser.c in Sources */,
 				ABCD00090000000000000009 /* scanner.c in Sources */,
-				CE3C736E2F6A7A5D007BC955 /* UDDiagnosticItem.m in Sources */,
 				CE43044D2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -336,7 +332,6 @@
 				OTHER_LDFLAGS = (
 					"-undefined",
 					dynamic_lookup,
-					"-lxml2",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml;
 				PRODUCT_NAME = TreeSitterXml;
@@ -366,7 +361,6 @@
 				OTHER_LDFLAGS = (
 					"-undefined",
 					dynamic_lookup,
-					"-lxml2",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml;
 				PRODUCT_NAME = TreeSitterXml;
@@ -432,7 +426,6 @@
 					/usr/include/libxml2,
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_LDFLAGS = "-lxml2";
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml.tests;
 				PRODUCT_NAME = TreeSitterXmlTests;
 				WRAPPER_EXTENSION = xctest;
@@ -462,7 +455,6 @@
 					/usr/include/libxml2,
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				OTHER_LDFLAGS = "-lxml2";
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.treesitter.xml.tests;
 				PRODUCT_NAME = TreeSitterXmlTests;
 				WRAPPER_EXTENSION = xctest;

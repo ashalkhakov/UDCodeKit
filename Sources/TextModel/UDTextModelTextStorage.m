@@ -289,13 +289,6 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 - (void)replaceCharactersInRange:(NSRange)range withString:(NSString *)str {
     if (!str) str = @"";
 
-    /*
-    NSLog(@"[replaceCharactersInRange] range=(%lu,%lu) str.length=%lu caller:\n%@",
-          (unsigned long)range.location, (unsigned long)range.length,
-          (unsigned long)str.length,
-          [NSThread callStackSymbols]);
-    */
-
     NSUInteger docLen   = _lastKnownLength;
     NSUInteger clampLoc = MIN(range.location, docLen);
     NSUInteger clampEnd = MIN(NSMaxRange(range), docLen);

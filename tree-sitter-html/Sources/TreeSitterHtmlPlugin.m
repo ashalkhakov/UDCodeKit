@@ -21,12 +21,6 @@ static NSString *_findExecutable(NSArray<NSString *> *candidates) {
     NSBundle *_bundle;
 }
 
-+ (instancetype)sharedPlugin {
-    static TreeSitterHtmlPlugin *instance;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ instance = [[TreeSitterHtmlPlugin alloc] init]; });
-    return instance;
-}
 
 - (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
@@ -54,11 +48,6 @@ static NSString *_findExecutable(NSArray<NSString *> *candidates) {
     ];
     NSString *path = _findExecutable(candidates);
     return path ? @[path, @"--stdio"] : nil;
-}
-
-+ (void)load {
-    // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -pluginDidLoad: is the preferred hook.
 }
 
 @end

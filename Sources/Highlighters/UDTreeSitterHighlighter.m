@@ -30,7 +30,6 @@ static const char *tsModelReadCallback(void *payload, uint32_t byteOffset,
     return (const char *)ctx->buffer;
 }
 
-static inline NSUInteger charIdxFromByte(uint32_t b) { return b / 2; }
 static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2); }
 
 // ---------------------------------------------------------------------------
@@ -152,8 +151,8 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
         NSMutableArray<NSValue *> *changedCharRanges =
             [NSMutableArray arrayWithCapacity:count];
         for (uint32_t i = 0; i < count; i++) {
-            NSUInteger cs = charIdxFromByte(ranges[i].start_byte);
-            NSUInteger ce = charIdxFromByte(ranges[i].end_byte);
+            NSUInteger cs = UDCharIndexFromByte(ranges[i].start_byte);
+            NSUInteger ce = UDCharIndexFromByte(ranges[i].end_byte);
             [changedCharRanges addObject:
                 [NSValue valueWithRange:NSMakeRange(cs, ce > cs ? ce - cs : 0)]];
         }

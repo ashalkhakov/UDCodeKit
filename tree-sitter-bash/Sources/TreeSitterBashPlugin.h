@@ -12,8 +12,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface TreeSitterBashPlugin : NSObject <UDExtension>
 
-/// Returns the shared plugin instance (created when the bundle is first loaded).
-+ (instancetype)sharedPlugin;
 
 @end
 

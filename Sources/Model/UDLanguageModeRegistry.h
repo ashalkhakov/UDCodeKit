@@ -1,8 +1,9 @@
 /*---------------------------------------------------------------------------------------------
  *  UDLanguageModeRegistry.h  —  Global registry of known language modes.
  *
- *  The registry ships several built-in language modes (JSON, HTML, YAML, Plain Text)
- *  and allows the application — or future plug-in bundles — to register additional ones.
+ *  The registry ships one built-in language mode (Plain Text) and loads the
+ *  others from the grammar bundles in the app's PlugIns directory; the
+ *  application can register more.
  *
  *  Built-in modes are registered automatically when the shared registry is first accessed.
  *  Custom modes can be added at any time via -registerMode:.  A custom mode whose
@@ -33,8 +34,8 @@ NS_ASSUME_NONNULL_BEGIN
 // MARK: - Shared instance
 // ---------------------------------------------------------------------------
 
-/// Returns the application-wide registry.  The built-in language modes (JSON,
-/// HTML, YAML, Plain Text) are pre-registered on the first call.
+/// Returns the application-wide registry. The built-in mode (Plain Text) and
+/// the grammar bundles' modes are registered on the first call.
 + (instancetype)sharedRegistry;
 
 // ---------------------------------------------------------------------------

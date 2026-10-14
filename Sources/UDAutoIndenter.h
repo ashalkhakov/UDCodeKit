@@ -35,13 +35,16 @@
  *  USAGE
  *  -----
  *    // In -viewDidLoad:
- *    _autoIndenter = [[UDAutoIndenter alloc] initWithHighlighter:_textStorage.highlighter];
+ *    _autoIndenter = [[UDAutoIndenter alloc] initWithHighlighter:_textStorage.highlighter
+ *                                                       textView:_textView
+ *                                                      textModel:_textModel
+ *                                              cursorsController:_cursorsController];
  *    [_autoIndenter configureWithLanguageFunc:(LanguageFunc)tree_sitter_json
  *                                indentsQuery:kJSONIndentsQuery];
  *    _autoIndenter.languageKeyHandler = mode.keyHandler;
  *
  *    // In UDDiagnosticTextView -keyDown: (called before [super keyDown:]):
- *    if ([_autoIndenter handleKeyEvent:event textView:self model:_textModel]) return;
+ *    if ([_autoIndenter handleKeyEvent:event]) return;
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>

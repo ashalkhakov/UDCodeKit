@@ -12,12 +12,6 @@ const TSLanguage *tree_sitter_bash(void);
     NSBundle *_bundle;
 }
 
-+ (instancetype)sharedPlugin {
-    static TreeSitterBashPlugin *instance;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ instance = [[TreeSitterBashPlugin alloc] init]; });
-    return instance;
-}
 
 - (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
@@ -34,11 +28,6 @@ const TSLanguage *tree_sitter_bash(void);
 - (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:@"bash"]) return tree_sitter_bash;
     return NULL;
-}
-
-+ (void)load {
-    // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -extensionDidLoad: is the preferred lifecycle hook.
 }
 
 @end

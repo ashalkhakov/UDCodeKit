@@ -5,15 +5,14 @@
  *  ----------
  *  The Sources/Extensions/ directory is the public API of the editor exposed to
  *  extension bundles.  All headers that extension code may import are here:
- *    • UDExtension.h       — this file; extension lifecycle + factory methods
+ *    • UDExtension.h          — this file; extension lifecycle + factory methods
  *    • UDLanguageKeyHandler.h — key-event handling protocol
- *    • UDTextEditing.h     — Foundation-only text-model access protocol (UDTextAccess)
+ *    • UDDiagnosticItem.h     — a diagnostic, for extensions that produce them
  *
  *  Extension bundle targets have $(SRCROOT)/../Sources/Extensions in their
  *  HEADER_SEARCH_PATHS, making these headers available as #import "...".
- *  The UDTextModel implementation lives in the app; it conforms to UDTextAccess
- *  via a category (Sources/TextModel/UDTextModel+TextAccess.{h,m}).  Symbols are
- *  resolved at runtime via -undefined dynamic_lookup.
+ *  Key handlers get the text model itself (UDTextModel, from the UDPieceTable
+ *  framework). Symbols are resolved at runtime via -undefined dynamic_lookup.
  *
  *  OVERVIEW
  *  --------

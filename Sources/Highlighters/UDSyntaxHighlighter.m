@@ -8,11 +8,11 @@
 
 #import "UDSyntaxHighlighter.h"
 #import <tree_sitter/api.h>
+#import "UDTreeSitterTypes.h"
 #import "UDDecorationLayerRegistry.h"
 
 NSString * const UDHighlightDecorationOwner = @"highlight";
 
-static inline NSUInteger charIdxFromByte(uint32_t b) { return b / 2; }
 
 @implementation UDSyntaxHighlighter
 
@@ -154,8 +154,8 @@ static inline NSUInteger charIdxFromByte(uint32_t b) { return b / 2; }
 - (nullable UDModelDeltaDecoration *)_makeDecorationFromByte:(uint32_t)startByte
                                                        toByte:(uint32_t)endByte
                                                          name:(NSString *)name {
-    NSUInteger sc     = charIdxFromByte(startByte);
-    NSUInteger ec     = charIdxFromByte(endByte);
+    NSUInteger sc     = UDCharIndexFromByte(startByte);
+    NSUInteger ec     = UDCharIndexFromByte(endByte);
     NSUInteger docLen = (NSUInteger)[self.textStorage.textModel getLength];
     if (sc >= ec || ec > docLen) return nil;
 
@@ -193,8 +193,8 @@ static inline NSUInteger charIdxFromByte(uint32_t b) { return b / 2; }
         if (changedRanges[i].end_byte   > uEnd)   uEnd   = changedRanges[i].end_byte;
     }
 
-    NSUInteger sc = charIdxFromByte(uStart);
-    NSUInteger ec = MIN(charIdxFromByte(uEnd), docLen);
+    NSUInteger sc = UDCharIndexFromByte(uStart);
+    NSUInteger ec = MIN(UDCharIndexFromByte(uEnd), docLen);
     if (sc > docLen) return;
 
     UDTextModel *model = self.textStorage.textModel;

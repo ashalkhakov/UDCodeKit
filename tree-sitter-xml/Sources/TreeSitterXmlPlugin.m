@@ -14,12 +14,6 @@ const TSLanguage *tree_sitter_xml(void);
     XMLLSPInstaller *_installer;
 }
 
-+ (instancetype)sharedPlugin {
-    static TreeSitterXmlPlugin *instance;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ instance = [[TreeSitterXmlPlugin alloc] init]; });
-    return instance;
-}
 
 - (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
@@ -66,11 +60,6 @@ const TSLanguage *tree_sitter_xml(void);
         ];
     }
     return nil;
-}
-
-+ (void)load {
-    // +load is called when the bundle image is mapped into the process.
-    // Nothing to do here; -extensionDidLoad: is the preferred lifecycle hook.
 }
 
 #pragma mark - XMLLSPInstallerDelegate

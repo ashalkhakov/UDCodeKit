@@ -13,7 +13,6 @@
 // ---------------------------------------------------------------------------
 
 static CGFloat const kEditorFindGutterWidth = 12.0;
-static CGFloat const kEditorLineGutterWidth = 48.0;
 
 // ---------------------------------------------------------------------------
 // MARK: - Private interface
@@ -94,7 +93,7 @@ static CGFloat const kEditorLineGutterWidth = 48.0;
     _findField.frame = ff;
 
     // 5. Shrink scroll view to leave room for both gutters.
-    CGFloat svX = kEditorLineGutterWidth;
+    CGFloat svX = UDLineNumberGutterWidth;
     CGFloat svW = W - svX - kEditorFindGutterWidth;
     _scrollView.frame        = NSMakeRect(svX, 0, svW, editorH);
     _scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
@@ -116,7 +115,7 @@ static CGFloat const kEditorLineGutterWidth = 48.0;
                        textView:_textView
                       textModel:_textStorage.textModel];
     _lineNumberGutterView.frame =
-        NSMakeRect(0, 0, kEditorLineGutterWidth, editorH);
+        NSMakeRect(0, 0, UDLineNumberGutterWidth, editorH);
     _lineNumberGutterView.autoresizingMask =
         NSViewMaxXMargin | NSViewHeightSizable | NSViewMaxYMargin;
     _lineNumberGutterView.delegate = self;

@@ -460,11 +460,6 @@ static const unsigned short kKeyCodeRightArrow = 124;
 // MARK: - Undo / Redo
 
 - (IBAction)undo:(id)sender {
-    /*
-    NSLog(@"textView undoManager: %@ | model undoManager: %@",
-          self.undoManager, self.textModel.undoManager);
-    NSLog(@"same? %d", self.undoManager == self.textModel.undoManager);
-    */
     [self.textModel.undoManager undo];
 }
 
@@ -520,16 +515,6 @@ static const unsigned short kKeyCodeRightArrow = 124;
 - (void)setSelectedRanges:(NSArray<NSValue *> *)ranges
                  affinity:(NSSelectionAffinity)affinity
            stillSelecting:(BOOL)stillSelecting {
-
-    /*
-    // TEMPORARY: log every caller that changes the selection.
-    NSRange first = [ranges.firstObject rangeValue];
-    NSLog(@"[UDDiagnosticTextView] setSelectedRanges: loc=%lu len=%lu still=%d\n%@",
-          (unsigned long)first.location,
-          (unsigned long)first.length,
-          stillSelecting,
-          [NSThread callStackSymbols]);
-    */
 
     [super setSelectedRanges:ranges affinity:affinity stillSelecting:stillSelecting];
 

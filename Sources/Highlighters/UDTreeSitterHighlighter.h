@@ -1,11 +1,11 @@
 #import <Foundation/Foundation.h>
 #import <UDPieceTable/UDPieceTable.h>
+#import "UDTreeSitterTypes.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 /// C function pointer type matching all generated tree-sitter language
 /// functions (e.g. tree_sitter_json).
-typedef const void *_Nullable(*LanguageFunc)(void);
 
 /// Encapsulates all tree-sitter parsing state.  Performs incremental
 /// re-parses and exposes the current parse tree and changed ranges so that

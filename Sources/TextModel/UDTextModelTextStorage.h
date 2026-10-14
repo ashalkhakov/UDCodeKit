@@ -2,9 +2,10 @@
  *  UDTextModelTextStorage.h — NSTextStorage backed by UDTextModel.
  *
  *  Edits flow through UDTextModel (enabling undo/redo and interval-tree
- *  decoration tracking).  Attributes are computed on-the-fly from decorations:
- *  - "highlight" owner  → syntax-highlight foreground colours (via tree-sitter)
- *  - "find" owner       → search-match yellow background
+ *  decoration tracking). Attributes are computed from the decorations: each
+ *  owner ("highlight" for syntax colours, "find", "fold", the diagnostics
+ *  owners, …) is a layer in UDDecorationLayerRegistry, which turns its
+ *  decorations into attributes.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>

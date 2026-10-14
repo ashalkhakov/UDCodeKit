@@ -27,20 +27,10 @@
 
 @protocol UDExtension;
 
+#import "UDTreeSitterTypes.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
-// ---------------------------------------------------------------------------
-// MARK: - LanguageFunc typedef
-// ---------------------------------------------------------------------------
-
-/// C function pointer type that returns a TSLanguage pointer — matches the
-/// signature of all generated tree-sitter language factories (e.g. tree_sitter_json).
-/// Defined here with an include guard so it is safe to import this header
-/// independently of TreeSitterTextStorage.h.
-#ifndef UD_LANGUAGE_FUNC_DEFINED
-#define UD_LANGUAGE_FUNC_DEFINED
-typedef const void *(*LanguageFunc)(void);
-#endif
 
 /// A language mode bundles all editor-level knowledge about one programming language.
 ///
@@ -119,10 +109,8 @@ typedef const void *(*LanguageFunc)(void);
 /// nil for modes that provide no special handling.
 @property (nonatomic, strong, readonly, nullable) id<UDLanguageKeyHandler> keyHandler;
 
-/// The grammar bundle extension that provided this mode.
-/// Used by the host to call optional per-document factory methods such as
-/// @c rngHighlighterForDocumentURL:highlighter:textModel:store:.
-/// nil for built-in (non-bundle) modes.
+/// The grammar bundle extension that provided this mode (for its optional
+/// methods, e.g. the language server command). nil for built-in modes.
 @property (nonatomic, strong, readonly, nullable) id<UDExtension> extension;
 
 // ---------------------------------------------------------------------------

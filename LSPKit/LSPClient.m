@@ -4,150 +4,161 @@
 //  Created by Christopher Atlan on 12.01.19.
 //  Copyright © 2019 Letter Opener GmbH. All rights reserved.
 //
+//  Portable since: the server's output is read with readInBackgroundAndNotify
+//  and its end seen with NSTaskDidTerminateNotification — both delivered on
+//  the main run loop — and the messages' Content-Length framing is parsed
+//  here (no CFHTTPMessage). Replies go to a target and an action.
+//
 
 #import "LSPClient.h"
 
 #import "LSPCommon.h"
 
-
+#include <sys/wait.h>
 
 NSNotificationName const LSPDocumentDidChangeNotification = @"LSPDocumentDidChange";
 NSString * const LSPDocumentUserInfoKey = @"Document";
 
-typedef void (^ReplyBlock)(NSDictionary *, NSError *);
+// ---------------------------------------------------------------------------
+// MARK: - Responses and pending requests
+// ---------------------------------------------------------------------------
+
+@interface LSPResponse ()
+@property (readwrite) NSInteger requestID;
+@property (readwrite, nullable) id result;
+@property (readwrite) BOOL isIncomplete;
+@property (readwrite, nullable) NSError *error;
+@end
+
+@implementation LSPResponse
+@end
+
+/// What a request's reply is turned into before the action gets it.
+typedef NS_ENUM(NSInteger, LSPReplyKind) {
+    LSPReplyRaw,
+    LSPReplyInitialize,
+    LSPReplyCompletion,
+    LSPReplyHighlights,
+    LSPReplyHover,
+};
+
+/// A request waiting for its reply: who to tell, and how to read the reply.
+@interface LSPPendingRequest : NSObject
+@property (weak) id target;
+@property SEL action;
+@property LSPReplyKind kind;
+@property (copy) NSString *text;     // highlights: the text the ranges are in
+@end
+
+@implementation LSPPendingRequest
+@end
+
+// ---------------------------------------------------------------------------
+// MARK: - The pipeline: the server's process and its messages
+// ---------------------------------------------------------------------------
+
+@class LSPPipeline;
+
+@protocol LSPPipelineDelegate <NSObject>
+- (void)pipeline:(LSPPipeline *)pipeline didReceiveMessage:(NSDictionary *)message;
+@end
 
 @interface LSPPipeline : NSObject {
     NSUInteger _messageID;
     NSMutableData *_buffer;
-    CFHTTPMessageRef _message;
-    NSMutableDictionary <NSNumber *, ReplyBlock> *_replyBlocks;
 }
 @property NSPipe *stdinPipe;
 @property NSPipe *stdoutPipe;
 @property NSPipe *stderrPipe;
-@property (copy) void (^readHandler)(NSData *);
-@property (copy) void (^dataHandler)(NSData *content, NSString *charset);
-@property (copy) void (^notificationMessageHandler)(NSDictionary *message);
+@property (weak) id<LSPPipelineDelegate> delegate;
 @property NSMutableString *log;
 @end
 
-@interface LSPPipeline (MessageTransport)
-- (void)didReceiveData:(NSData *)data;
-- (void)sendMessage:(NSData *)data;
-@end
-
-@interface LSPPipeline (ProtocolTransport)
-- (void)handlePipelineMessage:(NSData *)data;
-@end
-
-
 @implementation LSPPipeline
 
-- (instancetype)init
-{
+- (instancetype)init {
     self = [super init];
     if (self) {
         _buffer = [NSMutableData data];
-        _replyBlocks = [NSMutableDictionary dictionary];
         _stdinPipe = [NSPipe pipe];
         _stdoutPipe = [NSPipe pipe];
         _stderrPipe = [NSPipe pipe];
-        [[_stdoutPipe fileHandleForReading] setReadabilityHandler:^(NSFileHandle *fileHandle) {
-            NSData *data = [fileHandle availableData];
-            if ([data length] == 0) return;
-            if (self.readHandler == nil) return;
-            self.readHandler(data);
-        }];
-        [[_stderrPipe fileHandleForReading] setReadabilityHandler:^(NSFileHandle *fileHandle) {
-            NSData *data = [fileHandle availableData];
-            if ([data length] == 0) return;
-            NSLog(@"stderr: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-        }];
-        __weak __typeof(self) weakSelf = self;
-        [self setReadHandler:^(NSData *data) {
-            __strong __typeof(self) strongSelf = weakSelf;
-            if ([data length] == 0) return;
-            [strongSelf didReceiveData:data];
-        }];
-        [self setDataHandler:^(NSData *content, NSString *charset) {
-            __strong __typeof(self) strongSelf = weakSelf;
-            [strongSelf handlePipelineMessage:content];
-        }];
+        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+        [center addObserver:self selector:@selector(_stdoutRead:)
+                       name:NSFileHandleReadCompletionNotification object:[_stdoutPipe fileHandleForReading]];
+        [center addObserver:self selector:@selector(_stderrRead:)
+                       name:NSFileHandleReadCompletionNotification object:[_stderrPipe fileHandleForReading]];
+        [[_stdoutPipe fileHandleForReading] readInBackgroundAndNotify];
+        [[_stderrPipe fileHandleForReading] readInBackgroundAndNotify];
     }
     return self;
 }
 
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)_stdoutRead:(NSNotification *)note {
+    NSData *data = [[note userInfo] objectForKey:NSFileHandleNotificationDataItem];
+    if ([data length] == 0) return;                     // the end: no more reading
+    [self didReceiveData:data];
+    [[note object] readInBackgroundAndNotify];
+}
+
+- (void)_stderrRead:(NSNotification *)note {
+    NSData *data = [[note userInfo] objectForKey:NSFileHandleNotificationDataItem];
+    if ([data length] == 0) return;
+    NSLog(@"stderr: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
+    [[note object] readInBackgroundAndNotify];
+}
+
 - (void)writeData:(NSData *)data {
-    [[_stdinPipe fileHandleForWriting] writeData:data];
+    @try {
+        [[_stdinPipe fileHandleForWriting] writeData:data];
+    } @catch (NSException *e) {
+        NSLog(@"LSPKit: the server is not reading: %@", e.reason);
+    }
 }
 
 - (void)close {
-    [[_stdinPipe fileHandleForReading] closeFile];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     [[_stdinPipe fileHandleForWriting] closeFile];
     [[_stdoutPipe fileHandleForReading] closeFile];
-    [[_stdoutPipe fileHandleForWriting] closeFile];
     [[_stderrPipe fileHandleForReading] closeFile];
-    [[_stderrPipe fileHandleForWriting] closeFile];
-    [[_stdoutPipe fileHandleForReading] setReadabilityHandler:nil];
-    [[_stderrPipe fileHandleForReading] setReadabilityHandler:nil];
 }
 
-@end
-
-@implementation LSPPipeline (MessageTransport)
-
-NSString *ParsenContentType(NSString *str, NSDictionary **params) {
-    NSString *contentType = str;
-    NSArray *components = [str componentsSeparatedByString:@";"];
-    if ([components count] > 1) {
-        contentType = [components objectAtIndex:0];
-        if (*params) {
-            NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-            for (NSString *component in [components subarrayWithRange:NSMakeRange(1, [components count] - 1)]) {
-                NSArray *keyvalue = [component componentsSeparatedByString:@"="];
-                if ([keyvalue count] == 2) {
-                    NSString *key = [[keyvalue objectAtIndex:0] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-                    NSString *value = [[keyvalue objectAtIndex:1] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-                    if (key && value) {
-                        [dict setObject:value forKey:key];
-                    }
-                }
-            }
-            *params = [dict copy];
-        }
+/// The header fields of an LSP message ("Name: value" lines), by name.
+static NSDictionary *LSPParseHeaders(NSData *header) {
+    NSString *text = [[NSString alloc] initWithData:header encoding:NSASCIIStringEncoding];
+    NSMutableDictionary *fields = [NSMutableDictionary dictionary];
+    for (NSString *line in [text componentsSeparatedByString:@"\r\n"]) {
+        NSRange colon = [line rangeOfString:@":"];
+        if (colon.location == NSNotFound) continue;
+        NSString *name = [[line substringToIndex:colon.location]
+                          stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        NSString *value = [[line substringFromIndex:NSMaxRange(colon)]
+                           stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        [fields setObject:value forKey:[name lowercaseString]];
     }
-    return contentType;
+    return fields;
 }
 
+/// Messages as they arrive: a header ending in a blank line, then
+/// Content-Length bytes of JSON. Data may hold part of one, or several.
 - (void)didReceiveData:(NSData *)data {
     [_buffer appendData:data];
-    NSData *remainingData = data;
-    do {
-        if (_message == NULL) {
-            _message = CFHTTPMessageCreateEmpty(NULL, NO);
-            NSData *header = [@"HTTP/1.1 200 OK\r\n" dataUsingEncoding:NSUTF8StringEncoding];
-            CFHTTPMessageAppendBytes(_message, [header bytes], [header length]);
-        }
-        CFHTTPMessageAppendBytes(_message, [remainingData bytes], [remainingData length]);
-        if (CFHTTPMessageIsHeaderComplete(_message)) {
-            NSDictionary *headers = (__bridge_transfer id)CFHTTPMessageCopyAllHeaderFields(_message);
-            NSDictionary *contentTypeParams = nil;
-            ParsenContentType([headers objectForKey:@"Content-Type"], &contentTypeParams);
-            NSString *charset = [contentTypeParams objectForKey:@"charset"] ?: @"utf-8";
-            NSUInteger length = (NSUInteger)[[headers objectForKey:@"Content-Length"] integerValue];
-            NSData *body = (__bridge_transfer id)CFHTTPMessageCopyBody(_message);
-            if ([body length] >= length) {
-                NSData *content = [body subdataWithRange:NSMakeRange(0, length)];
-                remainingData = [body subdataWithRange:NSMakeRange(length, [body length] - length)];
-                [_buffer setData:remainingData];
-                CFRelease(_message);
-                _message = NULL;
-                if (_dataHandler) {
-                    _dataHandler(content, charset);
-                }
-            }
-        }
-    } while (_message == NULL && [remainingData length]);
+    NSData *separator = [@"\r\n\r\n" dataUsingEncoding:NSASCIIStringEncoding];
+    for (;;) {
+        NSRange end = [_buffer rangeOfData:separator options:0 range:NSMakeRange(0, [_buffer length])];
+        if (end.location == NSNotFound) return;
+        NSDictionary *headers = LSPParseHeaders([_buffer subdataWithRange:NSMakeRange(0, end.location)]);
+        NSUInteger length = (NSUInteger)[[headers objectForKey:@"content-length"] integerValue];
+        NSUInteger bodyStart = NSMaxRange(end);
+        if ([_buffer length] < bodyStart + length) return;   // the rest is still coming
+        NSData *body = [_buffer subdataWithRange:NSMakeRange(bodyStart, length)];
+        [_buffer replaceBytesInRange:NSMakeRange(0, bodyStart + length) withBytes:NULL length:0];
+        [self handlePipelineMessage:body];
+    }
 }
 
 - (void)sendMessage:(NSData *)data {
@@ -159,83 +170,47 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     [self writeData:messageData];
 }
 
-@end
-
-@implementation LSPPipeline (ProtocolTransport)
-
-- (NSError *)_errorForMessage:(NSDictionary *)json {
-    NSError *error = nil;
-    NSDictionary *jsonError = [json objectForKey:@"error"];
-    if (jsonError) {
-        NSDictionary *info = nil;
-        NSString *message = [jsonError objectForKey:@"message"];
-        if (message) {
-            info = [NSDictionary dictionaryWithObjectsAndKeys:
-                    message, NSLocalizedDescriptionKey, nil];
-        }
-        error = [NSError errorWithDomain:LSPResponseError code:[[jsonError objectForKey:@"code"] integerValue] userInfo:info];
-    }
-    return error;
-}
-
 - (void)handlePipelineMessage:(NSData *)data {
     NSError *error = nil;
     NSDictionary *message = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
-    if (message == nil) {
-        NSLog(@"%s error %@",__PRETTY_FUNCTION__, error);
+    if (![message isKindOfClass:[NSDictionary class]]) {
+        NSLog(@"%s error %@", __PRETTY_FUNCTION__, error);
         return;
     }
-    NSNumber *messageID = [message objectForKey:@"id"];
-    if (messageID != nil) {
-        void (^block)(NSDictionary *, NSError *) = [_replyBlocks objectForKey:messageID];
-        if (block) {
-            NSError *error = [self _errorForMessage:message];
-            NSDictionary *result = [message objectForKey:@"result"];
-            block(result, error);
-            [_replyBlocks removeObjectForKey:messageID];
-        }
-        if (_log) {
-            [self logMessage:message type:@"recv-request"];
-        }
-    } else {
-        if (_notificationMessageHandler) {
-            _notificationMessageHandler(message);
-        }
-        if (_log) {
-            [self logMessage:message type:@"recv-notification"];
-        }
+    if (_log) {
+        [self logMessage:message type:[message objectForKey:@"id"] ? @"recv-request" : @"recv-notification"];
     }
+    [_delegate pipeline:self didReceiveMessage:message];
 }
 
-- (void)sendRequest:(NSString *)method params:(NSDictionary *)params withReply:(void (^)(id obj, NSError *error))block {
+/// Sends a request; returns its identifier.
+- (NSInteger)sendRequest:(NSString *)method params:(nullable NSDictionary *)params {
     _messageID++;
     NSNumber *messageID = [NSNumber numberWithUnsignedInteger:_messageID];
     NSDictionary *request = [NSDictionary dictionaryWithObjectsAndKeys:
                              @"2.0", @"jsonrpc",
                              messageID, @"id",
                              method, @"method",
-                             params ?: [NSNull  null], @"params",
+                             params ?: [NSNull null], @"params",
                              nil];
     NSData *data = [NSJSONSerialization dataWithJSONObject:request options:0 error:NULL];
     if (data) {
-        [_replyBlocks setObject:[block copy] forKey:messageID];
         [self sendMessage:data];
     }
     if (_log) {
         [self logMessage:request type:@"send-request"];
     }
+    return (NSInteger)_messageID;
 }
 
-- (void)sendNotification:(NSString *)method params:(NSDictionary *)params {
+- (void)sendNotification:(NSString *)method params:(nullable NSDictionary *)params {
     NSDictionary *request = [NSDictionary dictionaryWithObjectsAndKeys:
                              @"2.0", @"jsonrpc",
                              method, @"method",
-                             params ?: [NSNull  null], @"params",
+                             params ?: [NSNull null], @"params",
                              nil];
-    NSError *error = nil;
-    NSData *data = [NSJSONSerialization dataWithJSONObject:request options:0 error:&error];
+    NSData *data = [NSJSONSerialization dataWithJSONObject:request options:0 error:NULL];
     if (data) {
-        // NSLog(@"→ LSP: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
         [self sendMessage:data];
     }
     if (_log) {
@@ -248,7 +223,7 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     NSDictionary *logItem = [NSDictionary dictionaryWithObjectsAndKeys:
                              type, @"type",
                              message, @"message",
-                             [NSNumber numberWithInteger:[[NSDate date] timeIntervalSince1970]], @"timestamp",
+                             [NSNumber numberWithInteger:(NSInteger)[[NSDate date] timeIntervalSince1970]], @"timestamp",
                              nil];
     NSData *logData = [NSJSONSerialization dataWithJSONObject:logItem options:0 error:NULL];
     NSString *logString = [[NSString alloc] initWithData:logData encoding:NSUTF8StringEncoding];
@@ -260,6 +235,10 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 
 @end
 
+// ---------------------------------------------------------------------------
+// MARK: - Documents
+// ---------------------------------------------------------------------------
+
 @interface LSPDocument : NSObject
 @property NSURL *uri;
 @property id<LSPTextBuffer> textBuffer;
@@ -270,7 +249,6 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 
 @implementation LSPDocument
 
-// hmm, maybe it would be better to have a reference to NSTextStorage
 - (instancetype)initWithURL:(NSURL *)URL content:(id<LSPTextBuffer>)textBuffer languageID:(NSString *)languageID {
     self = [super init];
     if (self) {
@@ -284,9 +262,7 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (NSDictionary *)textDocumentIdentifier {
-    return [NSDictionary dictionaryWithObjectsAndKeys:
-            [_uri absoluteString], @"uri",
-            nil];
+    return [NSDictionary dictionaryWithObjectsAndKeys:[_uri absoluteString], @"uri", nil];
 }
 
 - (NSDictionary *)versionedTextDocumentIdentifier {
@@ -309,28 +285,26 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (void)changeTextInRange:(LSPRange *)range replacementString:(NSString *)replacementString {
-    NSDictionary *changeEvent =  [NSDictionary dictionaryWithObjectsAndKeys:
-                                  [range params], @"range",
-                                  replacementString, @"text",
-                                  nil];
+    NSDictionary *changeEvent = [NSDictionary dictionaryWithObjectsAndKeys:
+                                 [range params], @"range",
+                                 replacementString ?: @"", @"text",
+                                 nil];
     [_contentChanges addObject:changeEvent];
 }
 
 - (NSDictionary *)syncTextDocumentParams:(LSPTextDocumentSyncKind)kind {
-    NSDictionary *didChangeTextDocumentParams = nil;
     NSDictionary *textDocument = [self versionedTextDocumentIdentifier];
     NSArray *contentChanges = nil;
     if (kind == LSPTextDocumentSyncKindIncremental) {
         contentChanges = _contentChanges;
     } else if (kind == LSPTextDocumentSyncKindFull) {
-        NSDictionary *changeEvent = [NSDictionary dictionaryWithObjectsAndKeys: [_textBuffer text], @"text", nil];
+        NSDictionary *changeEvent = [NSDictionary dictionaryWithObjectsAndKeys:[_textBuffer text], @"text", nil];
         contentChanges = [NSArray arrayWithObject:changeEvent];
-    } 
-    didChangeTextDocumentParams = [NSDictionary dictionaryWithObjectsAndKeys:
-                                   textDocument, @"textDocument",
-                                   contentChanges, @"contentChanges",
-                                   nil];
-    return didChangeTextDocumentParams;
+    }
+    return [NSDictionary dictionaryWithObjectsAndKeys:
+            textDocument, @"textDocument",
+            contentChanges, @"contentChanges",
+            nil];
 }
 
 - (void)clearContentChanges {
@@ -338,19 +312,27 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<%@ uri = %@ version = %lu>", [self className], _uri, (unsigned long)_version];
+    return [NSString stringWithFormat:@"<%@ uri = %@ version = %lu>", NSStringFromClass([self class]), _uri, (unsigned long)_version];
 }
 
 @end
 
-@interface LSPClient () {
+// ---------------------------------------------------------------------------
+// MARK: - The client
+// ---------------------------------------------------------------------------
+
+@interface LSPClient () <LSPPipelineDelegate> {
     BOOL _initialized;
-    NSMutableArray<void (^)(NSError *)> *_initializerCallbacks;
+    BOOL _initializing;
+    NSMutableArray<LSPPendingRequest *> *_initializeWaiters;
     BOOL _shouldTerminate;
-    NSMapTable *_terminateObervers;
     NSMutableArray<id<LSPClientObserver>> *_observers;
     NSMutableDictionary<NSURL *, LSPDocument *> *_documents;
     NSNotificationQueue *_documentChangesQueue;
+    NSMutableDictionary<NSNumber *, LSPPendingRequest *> *_pending;
+    NSString *_path;
+    NSArray<NSString *> *_arguments;
+    NSString *_currentDirectoryPath;
 }
 @property LSPPipeline *pipeline;
 @property NSTask *task;
@@ -360,11 +342,12 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 
 /** Used for Coalescing Notifications, where we want to post a notification if a given event occurs at least once, but we want to post no more than one notification even if the event occurs multiple times. */
 + (NSNotificationCenter *)defaultNotificationCenter {
-    static id notificationCenter = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        notificationCenter = [[NSNotificationCenter alloc] init];
-    });
+    static NSNotificationCenter *notificationCenter = nil;
+    @synchronized (self) {
+        if (notificationCenter == nil) {
+            notificationCenter = [[NSNotificationCenter alloc] init];
+        }
+    }
     return notificationCenter;
 }
 
@@ -382,72 +365,79 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     return path;
 }
 
++ (instancetype)_sharedServerInBundle:(NSString *)name arguments:(NSArray *)arguments languageID:(NSString *)languageID {
+    NSString *bundlePath = [[[self class] languageServersPath] stringByAppendingPathComponent:name];
+    NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
+    if (bundle == nil) {
+        NSLog(@"Could not find bundle %@", bundlePath);
+        return nil;
+    }
+    return [[[self class] alloc] initWithPath:[bundle executablePath] arguments:arguments currentDirectoryPath:nil languageID:languageID];
+}
+
 + (instancetype)sharedBashServer {
-    static id sharedServer = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        NSString *bundlePath = [[[self class] languageServersPath] stringByAppendingPathComponent:@"bash-language-server.bundle"];
-        NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
-        if (bundle) {
-            sharedServer =  [[[self class] alloc] initWithPath:[bundle executablePath] arguments:[NSArray arrayWithObjects:@"start", nil] currentDirectoryPath:nil languageID:@"shellscript"];
-        } else {
-            NSLog(@"Could not find bundle %@", bundlePath);
+    static LSPClient *sharedServer = nil;
+    @synchronized (self) {
+        if (sharedServer == nil) {
+            sharedServer = [self _sharedServerInBundle:@"bash-language-server.bundle"
+                                             arguments:[NSArray arrayWithObject:@"start"] languageID:@"shellscript"];
         }
-    });
+    }
     return sharedServer;
 }
 
 + (instancetype)sharedHTMLServer {
-    static id sharedServer = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        NSString *bundlePath = [[[self class] languageServersPath] stringByAppendingPathComponent:@"vscode-html-languageserver.bundle"];
-        NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
-        if (bundle) {
-            sharedServer = [[[self class] alloc] initWithPath:[bundle executablePath] arguments:[NSArray arrayWithObjects:@"--stdio", nil] currentDirectoryPath:nil languageID:@"html"];
-        } else {
-            NSLog(@"Could not find bundle %@", bundlePath);
+    static LSPClient *sharedServer = nil;
+    @synchronized (self) {
+        if (sharedServer == nil) {
+            sharedServer = [self _sharedServerInBundle:@"vscode-html-languageserver.bundle"
+                                             arguments:[NSArray arrayWithObject:@"--stdio"] languageID:@"html"];
         }
-    });
+    }
     return sharedServer;
 }
 
-- (instancetype)initWithPath:(NSString *)path arguments:(NSArray<NSString *> *)arguments currentDirectoryPath:(NSString *)currentDirectoryPath languageID:(NSString *)languageID
-{
+- (instancetype)initWithPath:(NSString *)path arguments:(NSArray<NSString *> *)arguments currentDirectoryPath:(NSString *)currentDirectoryPath languageID:(NSString *)languageID {
     self = [super init];
     if (self) {
-        __weak __typeof(self) weakSelf = self;
-        _terminateObervers = [NSMapTable weakToStrongObjectsMapTable];  // entries are not necessarily purged right away when the weak key is reclaimed
         _observers = [NSMutableArray array];
         _documents = [NSMutableDictionary dictionary];
+        _pending = [NSMutableDictionary dictionary];
         _documentChangesQueue = [[NSNotificationQueue alloc] initWithNotificationCenter:[[self class] defaultNotificationCenter]];
         [[[self class] defaultNotificationCenter] addObserver:self selector:@selector(_documentDidChange:) name:LSPDocumentDidChangeNotification object:self];
         _languageID = languageID;
-        _pipeline = [[LSPPipeline alloc] init];
-        [_pipeline setNotificationMessageHandler:^(NSDictionary *message) {
-            __strong __typeof(self) strongSelf = weakSelf;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [strongSelf handleNotificationMessage:message];
-            });
-        }];
-        _task = [[NSTask alloc] init];
-        [_task setStandardInput:[_pipeline stdinPipe]];
-        [_task setStandardOutput:[_pipeline stdoutPipe]];
-        [_task setStandardError:[_pipeline stderrPipe]];
-        if (currentDirectoryPath) {
-            [_task setCurrentDirectoryPath:currentDirectoryPath];
-        }
-        [_task setLaunchPath:path];
-        [_task setArguments:arguments];
-        [_task setTerminationHandler:^(NSTask *task) {
-            __strong __typeof(self) strongSelf = weakSelf;
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [strongSelf handleTermination];
-            });
-        }];
-        [_task launch];
+        _path = [path copy];
+        _arguments = [arguments copy];
+        _currentDirectoryPath = [currentDirectoryPath copy];
+        [self _launch];
     }
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [[[self class] defaultNotificationCenter] removeObserver:self];
+}
+
+- (void)_launch {
+    _pipeline = [[LSPPipeline alloc] init];
+    _pipeline.delegate = self;
+    _task = [[NSTask alloc] init];
+    [_task setStandardInput:[_pipeline stdinPipe]];
+    [_task setStandardOutput:[_pipeline stdoutPipe]];
+    [_task setStandardError:[_pipeline stderrPipe]];
+    if (_currentDirectoryPath) {
+        [_task setCurrentDirectoryPath:_currentDirectoryPath];
+    }
+    [_task setLaunchPath:_path];
+    [_task setArguments:_arguments];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_taskDidTerminate:)
+                                                 name:NSTaskDidTerminateNotification object:_task];
+    @try {
+        [_task launch];
+    } @catch (NSException *e) {
+        NSLog(@"LSPKit: could not start %@: %@", _path, e.reason);
+    }
 }
 
 #pragma mark Termination
@@ -459,40 +449,22 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     }
 }
 
-- (void)handleTermination {
-    [[self pipeline] close];
+- (void)_taskDidTerminate:(NSNotification *)note {
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:NSTaskDidTerminateNotification object:_task];
+    [_pipeline close];
     _initialized = NO;
-    _initializerCallbacks = nil;
+    _initializing = NO;
+    _initializeWaiters = nil;
+    [_pending removeAllObjects];
     [_documents removeAllObjects];
-    if (_shouldTerminate == NO) {
-        NSString *currentDirectoryPath = [_task currentDirectoryPath];
-        NSString *path = [_task launchPath];
-        NSArray *arguments = [_task arguments];
-        void (^terminationHandler)(NSTask *) = [_task terminationHandler];
-        _pipeline = [[LSPPipeline alloc] init];
-        _task = [[NSTask alloc] init];
-        [_task setStandardInput:[_pipeline stdinPipe]];
-        [_task setStandardOutput:[_pipeline stdoutPipe]];
-        [_task setStandardError:[_pipeline stderrPipe]];
-        if (currentDirectoryPath) {
-            [_task setCurrentDirectoryPath:currentDirectoryPath];
-        }
-        [_task setLaunchPath:path];
-        [_task setArguments:arguments];
-        [_task setTerminationHandler:terminationHandler];
-        [_task launch];
-        for (void (^block)(LSPClient *client) in [_terminateObervers objectEnumerator]) {
-            block(self);
+    if (_shouldTerminate) return;
+    // Ended without being asked: start it again, and say so.
+    [self _launch];
+    for (id<LSPClientObserver> observer in [_observers copy]) {
+        if ([observer respondsToSelector:@selector(languageServerDidRestart:)]) {
+            [observer languageServerDidRestart:self];
         }
     }
-}
-
-- (void)addTerminationObserver:(id)observer block:(void (^)(LSPClient *client))block {
-    [_terminateObervers setObject:[block copy] forKey:observer];
-}
-
-- (void)removeTerminationObserver:(id)observer {
-    [_terminateObervers removeObjectForKey:observer];
 }
 
 #pragma mark Observers
@@ -505,20 +477,105 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     [_observers removeObject:observer];
 }
 
-#pragma mark Notification Message
+#pragma mark Messages from the server
+
+- (void)pipeline:(LSPPipeline *)pipeline didReceiveMessage:(NSDictionary *)message {
+    NSNumber *messageID = [message objectForKey:@"id"];
+    if (messageID == nil) {
+        [self handleNotificationMessage:message];
+    } else if ([message objectForKey:@"method"]) {
+        [self handleRequestMessage:message];
+    } else {
+        [self _handleReply:message toRequest:messageID];
+    }
+}
+
+- (NSError *)_errorForMessage:(NSDictionary *)json {
+    NSDictionary *jsonError = [json objectForKey:@"error"];
+    if (![jsonError isKindOfClass:[NSDictionary class]]) return nil;
+    NSString *message = [jsonError objectForKey:@"message"];
+    NSDictionary *info = message ? [NSDictionary dictionaryWithObject:message forKey:NSLocalizedDescriptionKey] : nil;
+    return [NSError errorWithDomain:LSPResponseError code:[[jsonError objectForKey:@"code"] integerValue] userInfo:info];
+}
+
+- (void)_handleReply:(NSDictionary *)message toRequest:(NSNumber *)messageID {
+    LSPPendingRequest *request = [_pending objectForKey:messageID];
+    if (request == nil) return;
+    [_pending removeObjectForKey:messageID];
+
+    LSPResponse *response = [[LSPResponse alloc] init];
+    response.requestID = [messageID integerValue];
+    response.error = [self _errorForMessage:message];
+    id result = [message objectForKey:@"result"];
+    if (result == [NSNull null]) result = nil;
+
+    switch (request.kind) {
+        case LSPReplyInitialize:
+            [self _initializeResponseWithObject:result error:response.error];
+            return;
+        case LSPReplyCompletion: {
+            NSArray *items = nil;
+            if ([result isKindOfClass:[NSDictionary class]]) {
+                response.isIncomplete = [[result objectForKey:@"isIncomplete"] boolValue];
+                items = [result objectForKey:@"items"];
+            } else if ([result isKindOfClass:[NSArray class]]) {
+                items = result;
+            }
+            NSMutableArray *completionList = [NSMutableArray arrayWithCapacity:[items count]];
+            for (NSDictionary *item in items) {
+                LSPCompletionItem *completionItem = [[LSPCompletionItem alloc] initWithDictionary:item];
+                if (completionItem) [completionList addObject:completionItem];
+            }
+            response.result = [completionList copy];
+            break;
+        }
+        case LSPReplyHighlights:
+            response.result = [result isKindOfClass:[NSArray class]]
+                ? [[self class] documentHighlightFromArray:result inText:request.text] : nil;
+            break;
+        case LSPReplyHover:
+            response.result = [result isKindOfClass:[NSDictionary class]] ? result : nil;
+            break;
+        case LSPReplyRaw:
+            response.result = result;
+            break;
+    }
+    [self _send:request response:response];
+}
+
+- (void)_send:(LSPPendingRequest *)request response:(LSPResponse *)response {
+    id target = request.target;
+    if (target && request.action && [target respondsToSelector:request.action]) {
+        // One object argument: performSelector, as NSAlert's did-end selector.
+        IMP imp = [target methodForSelector:request.action];
+        ((void (*)(id, SEL, LSPResponse *))imp)(target, request.action, response);
+    }
+}
+
+- (NSInteger)_request:(NSString *)method params:(NSDictionary *)params kind:(LSPReplyKind)kind
+               target:(id)target action:(SEL)action text:(NSString *)text {
+    LSPPendingRequest *request = [[LSPPendingRequest alloc] init];
+    request.target = target;
+    request.action = action;
+    request.kind = kind;
+    request.text = text;
+    NSInteger requestID = [_pipeline sendRequest:method params:params];
+    [_pending setObject:request forKey:[NSNumber numberWithInteger:requestID]];
+    return requestID;
+}
 
 - (void)handleRequestMessage:(NSDictionary *)requestMessage {
-    NSNumber *method = [requestMessage objectForKey:@"method"];
+    NSString *method = [requestMessage objectForKey:@"method"];
     if ([method isEqual:@"window/showMessageRequest"]) {
         NSLog(@"window/showMessageRequest %@", requestMessage);
     }
 }
+
 - (void)handleNotificationMessage:(NSDictionary *)notificaton {
-    NSNumber *method = [notificaton objectForKey:@"method"];
+    NSString *method = [notificaton objectForKey:@"method"];
     NSDictionary *params = [notificaton objectForKey:@"params"];
     LSPMessageType messageType = 0;
     NSString *message = nil;
-    NSString *uri = nil;
     NSURL *url = nil;
     NSArray *diagnostics = nil;
     if ([params isKindOfClass:[NSDictionary class]]) {
@@ -526,11 +583,11 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
         messageType = [[params objectForKey:@"type"] integerValue];
         message = [params objectForKey:@"message"];
         // method: publishDiagnostics
-        uri = [params objectForKey:@"uri"];
-        url = [NSURL URLWithString:uri];
+        NSString *uri = [params objectForKey:@"uri"];
+        url = uri ? [NSURL URLWithString:uri] : nil;
         diagnostics = [LSPDiagnostic diagnosticsFromArray:[params objectForKey:@"diagnostics"]];
     }
-    for (id<LSPClientObserver> observer in _observers) {
+    for (id<LSPClientObserver> observer in [_observers copy]) {
         if ([method isEqual:@"window/logMessage"]) {
             if ([observer respondsToSelector:@selector(languageServer:logMessage:type:)]) {
                 [observer languageServer:self logMessage:message type:messageType];
@@ -553,26 +610,19 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 
 #pragma mark General
 
-- (void)initialWithCompletionHandler:(void (^)(NSError *error))completionHandler {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
-    @synchronized (self) {
-        if (_initialized) {
-            if (completionHandler) {
-                completionHandler(nil);
-            }
-        } else {
-            if (_initializerCallbacks == nil) {
-                // Only send one initialize request
-                [self _initialize];
-                _initializerCallbacks = [NSMutableArray array];
-            }
-            // All completionHandler will be answered in the initialize response
-            [_initializerCallbacks addObject:completionHandler];
-        }
+- (void)initializeWithTarget:(id)target action:(SEL)action {
+    LSPPendingRequest *waiter = [[LSPPendingRequest alloc] init];
+    waiter.target = target;
+    waiter.action = action;
+    if (_initialized) {
+        [self _send:waiter response:[[LSPResponse alloc] init]];
+        return;
     }
-}
+    if (_initializeWaiters == nil) _initializeWaiters = [NSMutableArray array];
+    [_initializeWaiters addObject:waiter];
+    if (_initializing) return;        // one initialize request answers them all
+    _initializing = YES;
 
-- (void)_initialize {
     NSMutableDictionary *params = [NSMutableDictionary dictionary];
     NSNumber *pid = [NSNumber numberWithInt:[[NSProcessInfo processInfo] processIdentifier]];
     NSDictionary *capabilities = [NSDictionary dictionaryWithObjectsAndKeys:
@@ -587,122 +637,99 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     [params setObject:capabilities forKey:@"capabilities"];
     [params setObject:@"verbose" forKey:@"trace"];
     [params setObject:[NSNull null] forKey:@"workspaceFolders"];
-    
-    [_pipeline sendRequest:@"initialize" params:params withReply:^(NSDictionary *obj, NSError *error) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self initializeResponseWithObject:obj error:error];
-        });
-    }];
+    [self _request:@"initialize" params:params kind:LSPReplyInitialize target:nil action:NULL text:nil];
 }
 
-- (void)initializeResponseWithObject:(id)obj error:(NSError *)error {
-    self->_initialized = (error == nil);
-    NSDictionary *capabilities = [obj objectForKey:@"capabilities"];
+- (void)_initializeResponseWithObject:(id)obj error:(NSError *)error {
+    _initializing = NO;
+    _initialized = (error == nil);
+    NSDictionary *capabilities = [obj isKindOfClass:[NSDictionary class]] ? [obj objectForKey:@"capabilities"] : nil;
     id textDocumentSyncValue = [capabilities objectForKey:@"textDocumentSync"];
     if ([textDocumentSyncValue isKindOfClass:[NSDictionary class]]) {
         NSDictionary *syncOptions = textDocumentSyncValue;
-        self->_textDocumentSync.openClose = [[syncOptions objectForKey:@"openClose"] boolValue];
-        self->_textDocumentSync.change = [[syncOptions objectForKey:@"change"] integerValue];
-        self->_textDocumentSync.willSave = [[syncOptions objectForKey:@"willSave"] boolValue];
-        self->_textDocumentSync.willSaveWaitUntil = [[syncOptions objectForKey:@"willSaveWaitUntil"] boolValue];
+        _textDocumentSync.openClose = [[syncOptions objectForKey:@"openClose"] boolValue];
+        _textDocumentSync.change = [[syncOptions objectForKey:@"change"] integerValue];
+        _textDocumentSync.willSave = [[syncOptions objectForKey:@"willSave"] boolValue];
+        _textDocumentSync.willSaveWaitUntil = [[syncOptions objectForKey:@"willSaveWaitUntil"] boolValue];
         NSDictionary *saveOptions = [syncOptions objectForKey:@"save"];
         if ([saveOptions isKindOfClass:[NSDictionary class]]) {
-            self->_textDocumentSync.saveOptionIncludeText =  [[saveOptions objectForKey:@"includeText"] boolValue];
+            _textDocumentSync.saveOptionIncludeText = [[saveOptions objectForKey:@"includeText"] boolValue];
         }
     } else if ([textDocumentSyncValue isKindOfClass:[NSNumber class]]) {
-        self->_textDocumentSync.change = [textDocumentSyncValue integerValue];
-        switch (self->_textDocumentSync.change) {
-            case LSPTextDocumentSyncKindNone:
-                break;
-            case LSPTextDocumentSyncKindFull:
-                self->_textDocumentSync.openClose = YES;
-                break;
-            case LSPTextDocumentSyncKindIncremental:
-                self->_textDocumentSync.openClose = YES;
-                break;
+        _textDocumentSync.change = [textDocumentSyncValue integerValue];
+        if (_textDocumentSync.change != LSPTextDocumentSyncKindNone) {
+            _textDocumentSync.openClose = YES;
         }
     }
-    self->_hoverProvider = [[capabilities objectForKey:@"hoverProvider"] boolValue];
+    _hoverProvider = [[capabilities objectForKey:@"hoverProvider"] boolValue];
     id completionProvider = [capabilities objectForKey:@"completionProvider"];
     if ([completionProvider isKindOfClass:[NSDictionary class]]) {
-        NSDictionary *completionDict = completionProvider;
-        self->_completionProvider = YES;
-        self->_completionResolveProvider = [[completionDict objectForKey:@"resolveProvider"] boolValue];
-        self->_completionTriggerCharacters = [completionDict objectForKey:@"triggerCharacters"];
+        _completionProvider = YES;
+        _completionResolveProvider = [[completionProvider objectForKey:@"resolveProvider"] boolValue];
+        _completionTriggerCharacters = [completionProvider objectForKey:@"triggerCharacters"];
     }
     NSDictionary *signatureHelpProvider = [capabilities objectForKey:@"signatureHelpProvider"];
     if ([signatureHelpProvider isKindOfClass:[NSDictionary class]]) {
-        self->_signatureHelpProvider = YES;
+        _signatureHelpProvider = YES;
         _signatureHelpProviderTriggerCharacters = [signatureHelpProvider objectForKey:@"triggerCharacters"];
     }
-    self->_definitionProvider = [[capabilities objectForKey:@"definitionProvider"] boolValue];
-    //self->_typeDefinitionProvider; unsure about TextDocumentRegistrationOptions
-    //self->_implementationProvider; unsure about TextDocumentRegistrationOptions
-    self->_referencesProvider = [[capabilities objectForKey:@"referencesProvider"] boolValue];
-    self->_documentHighlightProvider = [[capabilities objectForKey:@"documentHighlightProvider"] boolValue];
-    self->_documentSymbolProvider = [[capabilities objectForKey:@"documentSymbolProvider"] boolValue];
-    self->_workspaceSymbolProvider = [[capabilities objectForKey:@"workspaceSymbolProvider"] boolValue];
-    //self->_codeActionProvider; to many CodeActionOptions right now
+    _definitionProvider = [[capabilities objectForKey:@"definitionProvider"] boolValue];
+    _referencesProvider = [[capabilities objectForKey:@"referencesProvider"] boolValue];
+    _documentHighlightProvider = [[capabilities objectForKey:@"documentHighlightProvider"] boolValue];
+    _documentSymbolProvider = [[capabilities objectForKey:@"documentSymbolProvider"] boolValue];
+    _workspaceSymbolProvider = [[capabilities objectForKey:@"workspaceSymbolProvider"] boolValue];
     NSDictionary *codeLensProvider = [capabilities objectForKey:@"codeLensProvider"];
     if ([codeLensProvider isKindOfClass:[NSDictionary class]]) {
-        self->_codeLensProvider = YES;
-        self->_codeLensResolveProvider = [[codeLensProvider objectForKey:@"resolveProvider"] boolValue];
+        _codeLensProvider = YES;
+        _codeLensResolveProvider = [[codeLensProvider objectForKey:@"resolveProvider"] boolValue];
     }
-    self->_documentFormattingProvider = [[capabilities objectForKey:@"documentFormattingProvider"] boolValue];
-    self->_documentRangeFormattingProvider = [[capabilities objectForKey:@"documentRangeFormattingProvider"] boolValue];
+    _documentFormattingProvider = [[capabilities objectForKey:@"documentFormattingProvider"] boolValue];
+    _documentRangeFormattingProvider = [[capabilities objectForKey:@"documentRangeFormattingProvider"] boolValue];
     NSDictionary *documentOnTypeFormattingProvider = [capabilities objectForKey:@"documentOnTypeFormattingProvider"];
     if ([documentOnTypeFormattingProvider isKindOfClass:[NSDictionary class]]) {
-        self->_documentOnTypeFormattingProvider = YES;
-        self->_documentOnTypeFormattingFirstTriggerCharacter = [documentOnTypeFormattingProvider objectForKey:@"firstTriggerCharacter"];
-        self->_documentOnTypeFormattingMoreTriggerCharacter = [documentOnTypeFormattingProvider objectForKey:@"moreTriggerCharacter"];
+        _documentOnTypeFormattingProvider = YES;
+        _documentOnTypeFormattingFirstTriggerCharacter = [documentOnTypeFormattingProvider objectForKey:@"firstTriggerCharacter"];
+        _documentOnTypeFormattingMoreTriggerCharacter = [documentOnTypeFormattingProvider objectForKey:@"moreTriggerCharacter"];
     }
-    NSDictionary *renameProvider = [capabilities objectForKey:@"renameProvider"];
-    if (renameProvider) {
-        if ([renameProvider isKindOfClass:[NSDictionary class]]) {
-            self->_renameProvider = YES;
-            self->_renamePrepareProvider = [[capabilities objectForKey:@"prepareProvider"] boolValue];
-        } else if ([renameProvider isKindOfClass:[NSNumber class]]) {
-            self->_renameProvider = [[capabilities objectForKey:@"renameProvider"] boolValue];
-        }
+    id renameProvider = [capabilities objectForKey:@"renameProvider"];
+    if ([renameProvider isKindOfClass:[NSDictionary class]]) {
+        _renameProvider = YES;
+        _renamePrepareProvider = [[renameProvider objectForKey:@"prepareProvider"] boolValue];
+    } else if ([renameProvider isKindOfClass:[NSNumber class]]) {
+        _renameProvider = [renameProvider boolValue];
     }
     NSDictionary *documentLinkProvider = [capabilities objectForKey:@"documentLinkProvider"];
     if ([documentLinkProvider isKindOfClass:[NSDictionary class]]) {
-        self->_documentLinkProvider = YES;
+        _documentLinkProvider = YES;
         _documentLinkProviderResolveProvider = [[documentLinkProvider objectForKey:@"resolveProvider"] boolValue];
     }
     NSDictionary *colorProvider = [capabilities objectForKey:@"colorProvider"];
     if ([colorProvider isKindOfClass:[NSDictionary class]]) {
-        self->_colorProvider = YES;
+        _colorProvider = YES;
         _colorProviderDynamicRegistration = [[colorProvider objectForKey:@"dynamicRegistration"] boolValue];
     }
-    self->_foldingRangeProvider = [[capabilities objectForKey:@"foldingRangeProvider"] boolValue];
+    _foldingRangeProvider = [[capabilities objectForKey:@"foldingRangeProvider"] boolValue];
     NSDictionary *executeCommandProvider = [capabilities objectForKey:@"executeCommandProvider"];
     if ([executeCommandProvider isKindOfClass:[NSDictionary class]]) {
-        self->_executeCommandProvider = YES;
-        self->_executeCommandCommands = [executeCommandProvider objectForKey:@"commands"];
+        _executeCommandProvider = YES;
+        _executeCommandCommands = [executeCommandProvider objectForKey:@"commands"];
     }
-    
-    for (void (^completionHandler)(NSError *) in _initializerCallbacks) {
-        completionHandler(error);
+
+    LSPResponse *response = [[LSPResponse alloc] init];
+    response.error = error;
+    NSArray *waiters = _initializeWaiters;
+    _initializeWaiters = nil;
+    for (LSPPendingRequest *waiter in waiters) {
+        [self _send:waiter response:response];
     }
-    _initializerCallbacks = nil;
 }
 
-- (void)shutdownWithCompletionHandler:(void (^)(NSError *error))completionHandler  {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
+- (void)shutdownWithTarget:(id)target action:(SEL)action {
     if (_initialized == NO) return;
-    
-    [_pipeline sendRequest:@"shutdown" params:nil withReply:^(id obj, NSError *error) {
-        if (completionHandler) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completionHandler(error);
-            });
-        }
-    }];
+    [self _request:@"shutdown" params:nil kind:LSPReplyRaw target:target action:action text:nil];
 }
 
 - (void)exit {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     // The one notification where we don't check for if (_initialize == NO) return;
     // This will allow the exit of a server without an initialize request.
     _shouldTerminate = YES;
@@ -714,7 +741,6 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 #pragma mark Text Synchronization
 
 - (void)documentDidOpen:(NSURL *)url content:(id<LSPTextBuffer>)text {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     NSAssert(([_documents objectForKey:url] == nil), @"An open notification must not be sent more than once without a corresponding close notification send before. This means open and close notification must be balanced and the max open count for a particular textDocument is one.");
 
@@ -724,18 +750,16 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
         return;
     }
     NSDictionary *documentParams = [document textDocumentItem];
-
     [_pipeline sendNotification:@"textDocument/didOpen" params:[NSDictionary dictionaryWithObjectsAndKeys:documentParams, @"textDocument", nil]];
 }
 
-- (void)document:(NSURL *)url changeTextInRange:(LSPRange *)affectedCharRange replacementString:(nullable NSString *)replacementString {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
+- (void)document:(NSURL *)url changeTextInRange:(LSPRange *)affectedCharRange replacementString:(NSString *)replacementString {
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
     NSAssert((document != nil), @"An open notification must be send before.");
-    
+
     [document changeTextInRange:affectedCharRange replacementString:replacementString];
-    
+
     NSDictionary *userInfo = [NSDictionary dictionaryWithObjectsAndKeys:document, LSPDocumentUserInfoKey, nil];
     NSNotification *changeNotification = [NSNotification notificationWithName:LSPDocumentDidChangeNotification object:self userInfo:userInfo];
     // It would be very expensive (and not very useful) to update the document after
@@ -752,11 +776,10 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (void)documentDidChange:(NSURL *)url {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
     NSAssert((document != nil), @"An open notification must be send before.");
-    
+
     NSDictionary *userInfo = [NSDictionary dictionaryWithObjectsAndKeys:document, LSPDocumentUserInfoKey, nil];
     NSNotification *changeNotification = [NSNotification notificationWithName:LSPDocumentDidChangeNotification object:self userInfo:userInfo];
     [_documentChangesQueue enqueueNotification:changeNotification
@@ -766,9 +789,8 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (void)_documentDidChange:(NSNotification *)notification {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
-    
+
     LSPDocument *document = [[notification userInfo] objectForKey:LSPDocumentUserInfoKey];
     if (_textDocumentSync.change == LSPTextDocumentSyncKindNone) {
         [document clearContentChanges];
@@ -780,22 +802,20 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (void)documentWillSave:(NSURL *)url {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
     NSAssert((document != nil), @"An open notification must be send before.");
-    
+
     NSDictionary *documentParams = [NSDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", nil];
     [_pipeline sendNotification:@"textDocument/willSave" params:documentParams];
 }
 
 - (void)documentDidSave:(NSURL *)url {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
     NSAssert((document != nil), @"An open notification must be send before.");
-    
-    NSMutableDictionary *documentParams = [NSMutableDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", nil];;
+
+    NSMutableDictionary *documentParams = [NSMutableDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", nil];
     if (_textDocumentSync.saveOptionIncludeText) {
         [documentParams setObject:[[document textBuffer] text] forKey:@"text"];
     }
@@ -803,11 +823,10 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (void)documentDidClose:(NSURL *)url {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
     NSAssert((document != nil), @"An open notification must be send before.");
-    
+
     NSDictionary *documentParams = [NSDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", nil];
     [_pipeline sendNotification:@"textDocument/didClose" params:documentParams];
     [_documents removeObjectForKey:url];
@@ -815,58 +834,30 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 
 #pragma mark Language Features
 
-- (void)documentCompletion:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler {
-    [self documentCompletion:url
-                  atPosition:[LSPPosition positionForCharacterAtIndex:characterIndex inText:string]
-           completionHandler:completionHandler];
+- (NSDictionary *)_paramsForDocument:(NSURL *)url position:(LSPPosition *)position {
+    LSPDocument *document = [_documents objectForKey:url];
+    NSAssert((document != nil), @"An open notification must be send before.");
+    NSMutableDictionary *params = [NSMutableDictionary dictionary];
+    [params setObject:[document textDocumentIdentifier] forKey:@"textDocument"];
+    if (position) [params setObject:[position params] forKey:@"position"];
+    return params;
 }
 
-- (void)documentCompletion:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
-    if (_initialized == NO) return;
-    LSPDocument *document = [_documents objectForKey:url];
-    NSAssert((document != nil), @"An open notification must be send before.");
-    
-    NSDictionary *completionParams = [NSDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", [position params], @"position", nil];
-    [_pipeline sendRequest:@"textDocument/completion" params:completionParams withReply:^(id obj, NSError *error) {
-        BOOL isIncomplete = NO;
-        NSArray *items = nil;
-        if ([obj isKindOfClass:[NSDictionary class]]) {
-            NSDictionary *dict = obj;
-            isIncomplete = [[dict objectForKey:@"isIncomplete"] boolValue];
-            items = [dict objectForKey:@"items"];
-        } else if ([obj isKindOfClass:[NSArray class]]) {
-            items = obj;
-        }
-        NSMutableArray *completionList = [NSMutableArray arrayWithCapacity:[items count]];
-        for (NSDictionary *item in items) {
-            LSPCompletionItem *completionItem = [[LSPCompletionItem alloc] initWithDictionary:item];
-            if (completionItem) {
-                [completionList addObject:completionItem];
-            }
-        }
-        if (completionHandler) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completionHandler([completionList copy], isIncomplete, error);
-            });
-        }
-    }];
+- (NSInteger)documentCompletion:(NSURL *)url atPosition:(LSPPosition *)position target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
+    return [self _request:@"textDocument/completion" params:[self _paramsForDocument:url position:position]
+                     kind:LSPReplyCompletion target:target action:action text:nil];
 }
-    
-- (void)documentSymbol:(NSURL *)url completionHandler:(void (^)(NSArray *symbols, NSError *error))completionHandler  {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
-    if (_initialized == NO) return;
-    LSPDocument *document = [_documents objectForKey:url];
-    NSAssert((document != nil), @"An open notification must be send before.");
-    
-    NSDictionary *symbolParams = [NSDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", nil];
-    [_pipeline sendRequest:@"textDocument/documentSymbol" params:symbolParams withReply:^(NSDictionary *obj, NSError *error) {
-        if (completionHandler) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completionHandler((id)obj, error);
-            });
-        }
-    }];
+
+- (NSInteger)documentCompletion:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {
+    return [self documentCompletion:url atPosition:[LSPPosition positionForCharacterAtIndex:characterIndex inText:string]
+                             target:target action:action];
+}
+
+- (NSInteger)documentSymbol:(NSURL *)url target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
+    return [self _request:@"textDocument/documentSymbol" params:[self _paramsForDocument:url position:nil]
+                     kind:LSPReplyRaw target:target action:action text:nil];
 }
 
 + (NSArray<LSPDocumentHighlight *> *)documentHighlightFromArray:(NSArray *)array inText:(NSString *)string {
@@ -892,55 +883,22 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
     return [[LSPDocumentHighlight alloc] initWithRange:range kind:kind];
 }
 
-- (void)documentHighlight:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSArray<LSPDocumentHighlight *> *, NSError *error))completionHandler  {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
-    if (_initialized == NO) return;
-    LSPDocument *document = [_documents objectForKey:url];
-    NSAssert((document != nil), @"An open notification must be send before.");
-    
+- (NSInteger)documentHighlight:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
     LSPPosition *position = [LSPPosition positionForCharacterAtIndex:characterIndex inText:string];
-    NSMutableDictionary *params = [NSMutableDictionary dictionary];
-    [params setObject:[document textDocumentIdentifier] forKey:@"textDocument"];
-    [params setObject:[position params] forKey:@"position"];
-    [_pipeline sendRequest:@"textDocument/documentHighlight" params:params withReply:^(id obj, NSError *error) {
-        NSArray *documentHighlights = nil;
-        if ([obj isKindOfClass:[NSArray class]]) {
-            documentHighlights = [[self class] documentHighlightFromArray:obj inText:string];
-        }
-        if (completionHandler) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completionHandler(documentHighlights, error);
-            });
-        }
-    }];
+    return [self _request:@"textDocument/documentHighlight" params:[self _paramsForDocument:url position:position]
+                     kind:LSPReplyHighlights target:target action:action text:string];
 }
 
-- (void)documentHoverWithContentsOfURL:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler  {
-    [self documentHover:url
-             atPosition:[LSPPosition positionForCharacterAtIndex:characterIndex inText:string]
-      completionHandler:completionHandler];
+- (NSInteger)documentHover:(NSURL *)url atPosition:(LSPPosition *)position target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
+    return [self _request:@"textDocument/hover" params:[self _paramsForDocument:url position:position]
+                     kind:LSPReplyHover target:target action:action text:nil];
 }
 
-- (void)documentHover:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler {
-    NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
-    if (_initialized == NO) return;
-    LSPDocument *document = [_documents objectForKey:url];
-    NSAssert((document != nil), @"An open notification must be send before.");
-    
-    NSMutableDictionary *params = [NSMutableDictionary dictionary];
-    [params setObject:[document textDocumentIdentifier] forKey:@"textDocument"];
-    [params setObject:[position params] forKey:@"position"];
-    [_pipeline sendRequest:@"textDocument/hover" params:params withReply:^(id obj, NSError *error) {
-        NSDictionary *result = nil;
-        if ([obj isKindOfClass:[NSDictionary class]]) {
-            result = obj;
-        }
-        if (completionHandler) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                completionHandler(result, error);
-            });
-        }
-    }];
+- (NSInteger)documentHover:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {
+    return [self documentHover:url atPosition:[LSPPosition positionForCharacterAtIndex:characterIndex inText:string]
+                        target:target action:action];
 }
 
 @end

@@ -10,7 +10,22 @@
 
 #import <LSPKit/LSPCommon.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @class LSPClient;
+
+/**
+ * What a request to the server came back with, handed to the action the
+ * request named: the request's identifier, the result (its type depends on
+ * the request — see each request method), and the error, if any.
+ */
+@interface LSPResponse : NSObject
+@property (readonly) NSInteger requestID;
+@property (readonly, nullable) id result;
+/** Completion: whether the list is incomplete (typing on should ask again). */
+@property (readonly) BOOL isIncomplete;
+@property (readonly, nullable) NSError *error;
+@end
 
 @protocol LSPTextBuffer <NSObject>
 - (NSString *)text;
@@ -24,6 +39,9 @@
 - (void)languageServer:(LSPClient *)client showMessageRequest:(NSString *)message actions:(NSArray<NSString *> *)actions;
 - (void)languageServer:(LSPClient *)client telemetryEvent:(id)event;
 - (void)languageServer:(LSPClient *)client document:(NSURL *)url diagnostics:(NSArray<LSPDiagnostic *> *)diagnostics;
+/** The server ended without being asked to and was started again: open
+    documents must be opened again (after initializing). */
+- (void)languageServerDidRestart:(LSPClient *)client;
 
 @end
 
@@ -96,7 +114,7 @@ typedef struct _LSPTextDocumentSyncOptions {
 /**
  * The characters that trigger completion automatically.
  */
-@property (readonly) NSArray<NSString *> *completionTriggerCharacters;
+@property (readonly, nullable) NSArray<NSString *> *completionTriggerCharacters;
 /**
  * The server provides signature help support.
  */
@@ -105,7 +123,7 @@ typedef struct _LSPTextDocumentSyncOptions {
  * The characters that trigger signature help
  * automatically.
  */
-@property (readonly) NSArray<NSString *> *signatureHelpProviderTriggerCharacters;
+@property (readonly, nullable) NSArray<NSString *> *signatureHelpProviderTriggerCharacters;
 /**
  * The server provides goto definition support.
  */
@@ -164,8 +182,8 @@ typedef struct _LSPTextDocumentSyncOptions {
  * The server provides document formatting on typing.
  */
 @property (readonly, getter=hasDocumentOnTypeFormattingProvider) BOOL documentOnTypeFormattingProvider;
-@property (readonly) NSString *documentOnTypeFormattingFirstTriggerCharacter;
-@property (readonly) NSArray<NSString *> *documentOnTypeFormattingMoreTriggerCharacter;
+@property (readonly, nullable) NSString *documentOnTypeFormattingFirstTriggerCharacter;
+@property (readonly, nullable) NSArray<NSString *> *documentOnTypeFormattingMoreTriggerCharacter;
 /**
  * The server provides rename support. RenameOptions may only be
  * specified if the client states that it supports
@@ -210,7 +228,7 @@ typedef struct _LSPTextDocumentSyncOptions {
 /**
  * The commands to be executed on the server
  */
-@property (readonly) NSArray<NSString *> *executeCommandCommands;
+@property (readonly, nullable) NSArray<NSString *> *executeCommandCommands;
 /**
  * Workspace specific server capabilities
  */
@@ -218,12 +236,12 @@ typedef struct _LSPTextDocumentSyncOptions {
 
 #pragma mark Servers
 
-+ (instancetype)sharedBashServer;
-+ (instancetype)sharedHTMLServer;
++ (nullable instancetype)sharedBashServer;
++ (nullable instancetype)sharedHTMLServer;
 
-- (instancetype)initWithPath:(NSString *)path arguments:(NSArray<NSString *> *)arguments currentDirectoryPath:(NSString *)currentDirectoryPath languageID:(NSString *)languageID;
+- (instancetype)initWithPath:(NSString *)path arguments:(NSArray<NSString *> *)arguments currentDirectoryPath:(nullable NSString *)currentDirectoryPath languageID:(NSString *)languageID;
 
-@property (readonly) NSString *languageID;
+@property (readonly, nullable) NSString *languageID;
 
 #pragma mark Observers
 
@@ -232,13 +250,14 @@ typedef struct _LSPTextDocumentSyncOptions {
 
 #pragma mark General
 
-- (void)initialWithCompletionHandler:(void (^)(NSError *error))completionHandler;
+/**
+ * Sends "initialize" (once; later calls wait for the same reply) and sends
+ * @a action to @a target with an LSPResponse when it is answered — at once
+ * when it already was. The target is not retained.
+ */
+- (void)initializeWithTarget:(nullable id)target action:(nullable SEL)action;
 
-/** Allows to re-open documents in case of sudden server termination */
-- (void)addTerminationObserver:(id)object block:(void (^)(LSPClient *client))block;
-- (void)removeTerminationObserver:(id)object;
-
-- (void)shutdownWithCompletionHandler:(void (^)(NSError *error))completionHandler;
+- (void)shutdownWithTarget:(nullable id)target action:(nullable SEL)action;
 - (void)terminate;
 
 #pragma mark Text Synchronization
@@ -258,7 +277,7 @@ typedef struct _LSPTextDocumentSyncOptions {
  * is posted when the run loop enters its wait state and the language server
  * "textDocument/didChange" notifcation is send.
  */
-- (void)document:(NSURL *)url changeTextInRange:(LSPRange *)range replacementString:(NSString *)replacementString;
+- (void)document:(NSURL *)url changeTextInRange:(LSPRange *)range replacementString:(nullable NSString *)replacementString;
 /**
  * You don't need to send documentDidChange unless your run loop never enters its wait state.
  */
@@ -284,14 +303,22 @@ typedef struct _LSPTextDocumentSyncOptions {
 
 #pragma mark Language Features
 
-- (void)documentCompletion:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler;
-/// As above, at a position the caller already knows (no text to scan).
-- (void)documentCompletion:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler;
-- (void)documentSymbol:(NSURL *)url completionHandler:(void (^)(NSArray *symbols, NSError *error))completionHandler;
-- (void)documentHighlight:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSArray<LSPDocumentHighlight *> *, NSError *error))completionHandler;
-
-- (void)documentHoverWithContentsOfURL:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler;
-/// As above, at a position the caller already knows (no text to scan).
-- (void)documentHover:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler;
+/*
+ * Each request returns its identifier and sends @a action to @a target with
+ * an LSPResponse when the server answers (on the main thread; the target is
+ * not retained). The response's result is:
+ *   completion   NSArray<LSPCompletionItem *> (and isIncomplete)
+ *   symbols      the server's NSArray
+ *   highlights   NSArray<LSPDocumentHighlight *>
+ *   hover        the server's NSDictionary
+ */
+- (NSInteger)documentCompletion:(NSURL *)url atPosition:(LSPPosition *)position target:(nullable id)target action:(nullable SEL)action;
+- (NSInteger)documentCompletion:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(nullable id)target action:(nullable SEL)action;
+- (NSInteger)documentSymbol:(NSURL *)url target:(nullable id)target action:(nullable SEL)action;
+- (NSInteger)documentHighlight:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(nullable id)target action:(nullable SEL)action;
+- (NSInteger)documentHover:(NSURL *)url atPosition:(LSPPosition *)position target:(nullable id)target action:(nullable SEL)action;
+- (NSInteger)documentHover:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(nullable id)target action:(nullable SEL)action;
 
 @end
+
+NS_ASSUME_NONNULL_END

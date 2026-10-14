@@ -112,6 +112,36 @@
     [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
 }
 
+- (void)testUndoingBackToTheSavedTextIsNotAModification {
+    UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"data" fileURL:nil];
+    NSUndoManager *undo = doc.textModel.undoManager;
+    undo.groupsByEvent = NO;
+    void (^type)(NSString *) = ^(NSString *text) {
+        [undo beginUndoGrouping];
+        [doc.textModel applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 1, 1, 1) text:text]]];
+        [undo endUndoGrouping];
+    };
+
+    type(@"a");
+    XCTAssertTrue(doc.isModified);
+    [undo undo];
+    XCTAssertFalse(doc.isModified, @"undone back to the text it was opened with");
+    [undo redo];
+    XCTAssertTrue(doc.isModified, @"redone: differs again");
+
+    NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()] URLByAppendingPathComponent:@"ud_test_undo_saved.txt"];
+    XCTAssertTrue([doc saveToURL:url error:nil]);
+    XCTAssertFalse(doc.isModified);
+    type(@"b");
+    [undo undo];
+    XCTAssertFalse(doc.isModified, @"undone back to the saved text");
+    [undo undo];
+    XCTAssertTrue(doc.isModified, @"undone past the save: differs from what was saved");
+    [undo redo];
+    XCTAssertFalse(doc.isModified, @"redone up to the save again");
+    [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+}
+
 - (void)testSaveToURL_clearsModifiedFlag {
     UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"data" fileURL:nil];
 

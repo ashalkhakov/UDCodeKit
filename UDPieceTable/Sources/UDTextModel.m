@@ -234,7 +234,9 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
 // MARK: - UDTextModel implementation
 
 @implementation UDTextModel {
+    NSInteger _alternativeVersionId;
     NSUInteger _lastDecorationID;   // decoration ids are "1", "2", … per model
+    NSInteger _lastVersionId;       // the newest alternativeVersionId handed out
 }
 
 - (instancetype)initWithText:(NSString *)text {
@@ -323,7 +325,14 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
 // MARK: - Internal editing
 
 /// Core editing implementation shared by -applyEdits: and the undo/redo handler.
-- (void)_applyEditsCore:(NSArray<UDTextModelEdit *> *)edits {
+- (NSInteger)alternativeVersionId {
+    return _alternativeVersionId;
+}
+
+/// Applies edits; afterwards the text's alternativeVersionId is `version`
+/// (a new one for an edit, the remembered one for undo and redo).
+- (void)_applyEditsCore:(NSArray<UDTextModelEdit *> *)edits alternativeVersionId:(NSInteger)version {
+    NSInteger versionBefore = _alternativeVersionId;
     // Sort edits end-to-start so each edit's range indexes into the unmodified document.
     NSArray<UDTextModelEdit *> *sorted =
         [edits sortedArrayUsingComparator:^NSComparisonResult(UDTextModelEdit *a,
@@ -422,10 +431,12 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
 
     free(undoOffsets.nodes);
 
+    _alternativeVersionId = version;
+
     NSArray<UDTextModelEdit *> *undoArray = [undoEdits copy];
     [self.undoManager registerUndoWithTarget:self
                                      handler:^(UDTextModel *target) {
-        [target _applyEditsCore:undoArray];
+        [target _applyEditsCore:undoArray alternativeVersionId:versionBefore];
         [[NSNotificationCenter defaultCenter]
             postNotificationName:UDTextModelDidChangeNotification
                           object:target
@@ -434,7 +445,7 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
 }
 
 - (void)applyEdits:(NSArray<UDTextModelEdit *> *)edits {
-    [self _applyEditsCore:edits];
+    [self _applyEditsCore:edits alternativeVersionId:++_lastVersionId];
     [[NSNotificationCenter defaultCenter]
         postNotificationName:UDTextModelDidChangeNotification
                       object:self

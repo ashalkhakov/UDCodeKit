@@ -9,7 +9,7 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     @"UDCodeDocumentTextDidChangeNotification";
 
 @interface UDCodeDocument ()
-@property (nonatomic, assign, readwrite, getter=isModified) BOOL modified;
+@property (nonatomic) NSInteger savedAlternativeVersionId;   // the text model's, when last read or saved
 @end
 
 @implementation UDCodeDocument
@@ -27,7 +27,7 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     _fileURL         = [fileURL copy];
     _displayName     = fileURL.lastPathComponent ?: @"Untitled";
     _languageMode    = [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:fileURL];
-    _modified        = NO;
+    _savedAlternativeVersionId = _textModel.alternativeVersionId;
 
     // Track edits so we can raise the modified flag and forward the
     // higher-level notification to interested observers.
@@ -60,7 +60,7 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
 - (BOOL)saveToURL:(NSURL *)url error:(NSError *__autoreleasing *)outError {
     NSString *text = [_textModel getValue];
     BOOL ok = [text writeToURL:url atomically:YES encoding:NSUTF8StringEncoding error:outError];
-    if (ok) _modified = NO;
+    if (ok) _savedAlternativeVersionId = _textModel.alternativeVersionId;
     return ok;
 }
 
@@ -68,8 +68,11 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
 // MARK: - Private
 // ---------------------------------------------------------------------------
 
+- (BOOL)isModified {
+    return _textModel.alternativeVersionId != _savedAlternativeVersionId;
+}
+
 - (void)_textModelDidChange:(NSNotification *)note {
-    _modified = YES;
     [[NSNotificationCenter defaultCenter]
         postNotificationName:UDCodeDocumentTextDidChangeNotification
                       object:self];

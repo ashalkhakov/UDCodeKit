@@ -73,6 +73,12 @@ extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
 /// undo manager with the rest of the application (e.g., the document's NSUndoManager).
 @property (nonatomic, strong) NSUndoManager *undoManager;
 
+/// Names the text's current state, as VS Code's alternativeVersionId: every
+/// edit gives a new number, and undoing it brings back the number from
+/// before (redoing, the one after). Recorded at a save, it tells whether the
+/// text now differs from what was saved, however it got here.
+@property (nonatomic, readonly) NSInteger alternativeVersionId;
+
 - (instancetype)initWithText:(NSString *)text;
 
 // MARK: Buffer API

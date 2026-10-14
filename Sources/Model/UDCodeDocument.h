@@ -50,6 +50,8 @@ extern NSNotificationName const UDCodeDocumentTextDidChangeNotification;
 
 /// YES when the document has in-memory changes not yet written to fileURL.
 /// Automatically set to YES after any text edit; cleared by -saveToURL:error:.
+/// Whether the text differs from what was last read or saved: an edit
+/// undone back to the saved state is not a modification.
 @property (nonatomic, assign, readonly, getter=isModified) BOOL modified;
 
 // ---------------------------------------------------------------------------

@@ -14,8 +14,7 @@ NSNotificationName const UDDiagnosticsDidChangeNotification =
 static const NSUInteger kDefaultMaxItemsPerSource = 100;
 
 @implementation UDDiagnosticStore {
-    NSMutableDictionary<UDDiagnosticSource, NSArray<UDDiagnosticItem *> *> *_bySource;
-    dispatch_queue_t _queue; // serial, protects _bySource
+    NSMutableDictionary<UDDiagnosticSource, NSArray<UDDiagnosticItem *> *> *_bySource; // main thread only
 }
 
 - (instancetype)init {
@@ -23,7 +22,6 @@ static const NSUInteger kDefaultMaxItemsPerSource = 100;
     if (!self) return nil;
     _bySource          = [NSMutableDictionary dictionary];
     _maxItemsPerSource = kDefaultMaxItemsPerSource;
-    _queue = dispatch_queue_create("com.ud.diagnosticstore", DISPATCH_QUEUE_SERIAL);
     _allDiagnostics = @[];
     return self;
 }
@@ -70,19 +68,21 @@ static const NSUInteger kDefaultMaxItemsPerSource = 100;
 
 /// Runs block on the serial queue, rebuilds allDiagnostics, then posts the
 /// change notification on the main queue.
+/// The store is main-thread state: a change made there applies at once, so
+/// a reader right after it sees it; one made elsewhere (a language server's
+/// reply) is applied on the main thread.
 - (void)_mutate:(dispatch_block_t)block {
-    dispatch_async(_queue, ^{
-        block();
-        NSArray<UDDiagnosticItem *> *merged = [self _buildMerged];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self willChangeValueForKey:@"allDiagnostics"];
-            self->_allDiagnostics = merged;
-            [self didChangeValueForKey:@"allDiagnostics"];
-            [[NSNotificationCenter defaultCenter]
-                postNotificationName:UDDiagnosticsDidChangeNotification
-                              object:self];
-        });
-    });
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self _mutate:block]; });
+        return;
+    }
+    block();
+    [self willChangeValueForKey:@"allDiagnostics"];
+    _allDiagnostics = [self _buildMerged];
+    [self didChangeValueForKey:@"allDiagnostics"];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:UDDiagnosticsDidChangeNotification
+                      object:self];
 }
 
 - (NSArray<UDDiagnosticItem *> *)_buildMerged {

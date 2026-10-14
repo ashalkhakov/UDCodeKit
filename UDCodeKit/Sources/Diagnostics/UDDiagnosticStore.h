@@ -21,8 +21,10 @@ extern NSNotificationName const UDDiagnosticsDidChangeNotification;
 /// Each source owns its own partition; replacing one source's items never
 /// disturbs another's.  The merged list is sorted by (line, column).
 ///
-/// All mutation methods are thread-safe and always post
-/// UDDiagnosticsDidChangeNotification on the main queue after a change.
+/// The store lives on the main thread: a change made there applies at once
+/// (allDiagnostics reflects it on return) and posts
+/// UDDiagnosticsDidChangeNotification; a change made on another thread is
+/// applied on the main thread, later. Read it on the main thread.
 @interface UDDiagnosticStore : NSObject
 
 /// Maximum number of items kept per source.  Defaults to 100.

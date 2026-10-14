@@ -5,7 +5,6 @@
 //  Created by artyom on 3/8/26.
 //
 #import "UDDecorationHighlighter.h"
-#import "TSTreeVisitor.h"
 #import <tree_sitter/api.h>
 
 @class UDModelDeltaDecoration;
@@ -17,28 +16,23 @@ NS_ASSUME_NONNULL_BEGIN
 ///
 /// ## Incremental algorithm
 ///
-/// After every edit tree-sitter provides `ts_tree_get_changed_ranges`, a
-/// structural diff of the old vs new parse trees (stored in
-/// `UDTreeSitterHighlighter.lastChangedCharRanges`).  This diff is used to
-/// drive both removal of stale decorations and discovery of new ones:
+/// After an incremental parse, `UDTreeSitterHighlighter.lastChangedCharRanges`
+/// holds where the tree changed (ts_tree_get_changed_ranges) and where the
+/// edits put text. A decoration marks the start of an error node; outside
+/// those ranges the nodes, and so the decorations, are the same.
 ///
-///   1. **Stale removal** – remove existing decorations whose *start offset*
-///      falls within any changed range.  We check start position (not range
-///      overlap) because a decoration marks the *start* of the error node that
-///      produced it.  If a decoration starts outside every changed range its
-///      error node is guaranteed identical in both trees, so the decoration
-///      remains valid.
+///   1. **Stale removal** – a decoration goes if it starts in a changed range,
+///      or was squashed to nothing in one (an empty range is where the edits
+///      only deleted).
+///   2. **New discovery** – walk each changed range: only children that
+///      overlap it, and only subtrees that hold an error (ts_node_has_error),
+///      so a walk costs the paths to the errors, not the tree. A candidate
+///      is added unless a kept decoration already starts where it does (two
+///      ranges can reach one node).
 ///
-///   2. **New discovery** – DFS from the deepest named node covering each
-///      changed byte range (efficient: only revisits affected subtrees).
-///      Post-filter the candidates to only those whose start offset falls
-///      within a changed range, and deduplicate (two changed ranges can
-///      resolve to the same large ERROR-node subtree).
-///
-/// When `alwaysFullScan` is YES the incremental paths are bypassed and a
-/// complete tree walk is performed on every update.  Use this for subclasses
-/// that maintain external state (e.g. a diagnostic store) that cannot rely on
-/// interval-tree position tracking.
+/// When `alwaysFullScan` is YES the incremental paths are bypassed and the
+/// whole tree is walked on every update (still only the subtrees holding an
+/// error).
 ///
 /// Subclasses MUST override:
 ///   -decorationOwner
@@ -47,14 +41,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// Subclasses MAY override:
 ///   -defaultMaxDecorations
 ///   -didFinishUpdate
-@interface UDIncrementalHighlighterBase : UDDecorationHighlighter <TSNodeVisitor>
+@interface UDIncrementalHighlighterBase : UDDecorationHighlighter
 
 @property (nonatomic, assign) NSUInteger maxDecorations;
 
-/// When YES, bypass the incremental path and always do a full tree walk.
-/// Defaults to NO.  Set to YES in subclasses that cannot tolerate partial
-/// updates (e.g. UDParseErrorCollector, whose diagnostic items store static
-/// line/column positions that are not tracked by the interval tree).
+/// When YES, bypass the incremental path and always walk the whole tree.
+/// Defaults to NO.
 @property (nonatomic, assign) BOOL alwaysFullScan;
 
 // State valid only during a traversal run.
@@ -62,8 +54,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) NSUInteger remainingBudget;
 @property (nonatomic, assign, readonly) NSUInteger currentDocLen;
 
+/// Called for each node the walk reaches that holds an error (itself or
+/// below); return whether to walk its children.
 - (BOOL)willVisitNode:(TSNode)node depth:(NSUInteger)depth;
 - (NSUInteger)defaultMaxDecorations;
+
 - (void)didFinishUpdate;
 
 @end

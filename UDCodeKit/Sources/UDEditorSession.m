@@ -44,9 +44,8 @@
     [_parseErrorHighlighter update];
 
     _parseErrorCollector =
-        [[UDParseErrorCollector alloc] initWithTextStorage:_textStorage
-                                               highlighter:hl
-                                                     store:_document.diagnosticStore];
+        [[UDParseErrorCollector alloc] initWithTextModel:_textStorage.textModel
+                                                   store:_document.diagnosticStore];
     [_parseErrorCollector update];
 
     [[NSNotificationCenter defaultCenter]

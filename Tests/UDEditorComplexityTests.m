@@ -139,4 +139,35 @@ static NSString *UDJSONDocument(NSInteger entries) {
     XCTAssertLessThan(large / small, 3.0, @"8× the document made typing and layout %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
+/// Typing in a document with a syntax error near the top, through an editor
+/// session: the error highlighters walk what changed — and only subtrees
+/// holding an error — and the parse diagnostics come from their decorations,
+/// so the typing costs the edit, not the parse tree.
+- (double)typeWithAnErrorInDocumentOf:(NSInteger)entries {
+    NSMutableString *text = [UDJSONDocument(entries) mutableCopy];
+    NSRange comma = [text rangeOfString:@", true"];
+    [text deleteCharactersInRange:NSMakeRange(comma.location, 1)];   // the first entry's comma
+    UDCodeDocument *document = [[UDCodeDocument alloc] initWithText:text fileURL:[NSURL fileURLWithPath:@"/tmp/typing.json"]];
+    UDEditorSession *session = [[UDEditorSession alloc] initWithDocument:document];
+    [session activateWithTheme:[[TreeSitterTheme alloc] initWithMode:NO]];
+    UDDrainMainQueue();
+    XCTAssertGreaterThan(document.diagnosticStore.allDiagnostics.count, 0u, @"the document has an error");
+    UDTextModelTextStorage *storage = session.textStorage;
+    NSUInteger middle = [text rangeOfString:@"\"entry\"" options:0 range:NSMakeRange(text.length / 2, text.length / 2)].location + 2;
+    return UDTime(^{
+        for (NSInteger i = 0; i < 100; i++) {
+            [storage replaceCharactersInRange:NSMakeRange(middle, 0) withString:@"x"];
+            UDDrainMainQueue();
+        }
+    });
+}
+
+- (void)testTypingWithAnErrorCostsTheEdit {
+    if (![self haveJSON]) return;
+    [self typeWithAnErrorInDocumentOf:500];
+    double small = [self typeWithAnErrorInDocumentOf:2000];
+    double large = [self typeWithAnErrorInDocumentOf:16000];
+    XCTAssertLessThan(large / small, 3.0, @"8× the document made typing %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
+}
+
 @end

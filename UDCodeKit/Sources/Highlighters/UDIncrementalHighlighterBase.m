@@ -8,9 +8,7 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
 @property (nonatomic, assign) NSUInteger currentDocLen;
 @end
 
-@implementation UDIncrementalHighlighterBase {
-    TSTreeVisitor *_visitor;
-}
+@implementation UDIncrementalHighlighterBase
 
 // ---------------------------------------------------------------------------
 #pragma mark - Init
@@ -22,7 +20,6 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
     if (!self) return nil;
     _maxDecorations  = [self defaultMaxDecorations];
     _alwaysFullScan  = NO;
-    _visitor         = [[TSTreeVisitor alloc] initWithDelegate:self];
     return self;
 }
 
@@ -54,91 +51,61 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
     }
 
     if (!doFullScan) {
-        // ---- Correct incremental path -------------------------------------------
+        // ---- Incremental path ---------------------------------------------------
         //
-        // lastChangedCharRanges is derived from ts_tree_get_changed_ranges, which
-        // is the structural diff of the old vs new parse trees.  Non-local error-
-        // recovery effects are therefore captured: if an ERROR node disappeared or
-        // moved, its range appears in changedRanges.
-        //
-        // Rule: a decoration at start offset S belongs to an error node that
-        // *started* at S.  If S is outside every changed range the node is
-        // identical in both trees → decoration is still valid.  We only touch
-        // decorations (and emit new ones) for positions inside a changed range.
+        // A decoration marks the start of an error node. Where the tree
+        // changed, or the edits put text, the decorations go and the walk
+        // finds the error nodes there again; elsewhere the nodes are the
+        // same, and so are their decorations.
 
         NSString *owner = [self decorationOwner];
-
-        // 1. Find stale decoration IDs whose START offset falls within any changed
-        //    char range.  Range-overlap would incorrectly flag decorations that
-        //    merely span into the changed area but started before it.
+        // 1. Stale: what starts in a changed range, or was squashed to
+        //    nothing in one (an empty range is where edits only deleted).
         NSMutableSet<NSString *> *staleIDs = [NSMutableSet set];
         for (NSValue *rv in changedRanges) {
             NSRange cr = [rv rangeValue];
-            if (cr.length == 0) continue;
+            NSInteger s = (NSInteger)cr.location, e = (NSInteger)NSMaxRange(cr);
             NSArray<UDIntervalNode *> *nodes =
-                [model decorationNodesInOffsetRange:(NSInteger)cr.location
-                                                end:(NSInteger)NSMaxRange(cr)];
+                [model decorationNodesInOffsetRange:MAX(0, s - 1) end:e + 1];
             for (UDIntervalNode *n in nodes) {
-                if ([n.owner isEqualToString:owner] &&
-                    n.start >= (NSInteger)cr.location &&
-                    n.start <  (NSInteger)NSMaxRange(cr)) {
-                    [staleIDs addObject:n.identifier];
-                }
+                if (![n.owner isEqualToString:owner]) continue;
+                BOOL startsInside = n.start >= s && (n.start < e || (cr.length == 0 && n.start == s));
+                BOOL squashed     = n.start == n.end && n.start >= s && n.start <= e;
+                if (startsInside || squashed) [staleIDs addObject:n.identifier];
             }
         }
-
-        // 2. Partition current IDs into keep / remove.
         NSMutableArray<NSString *> *toKeep   = [NSMutableArray array];
         NSMutableArray<NSString *> *toRemove = [NSMutableArray array];
+        NSMutableSet<NSNumber *>   *keptStarts = [NSMutableSet set];
         for (NSString *did in [self _currentDecorationIDs]) {
-            BOOL isStale = [staleIDs containsObject:did];
-            [( isStale ? toRemove : toKeep) addObject:did];
+            if ([staleIDs containsObject:did]) {
+                [toRemove addObject:did];
+            } else {
+                UDRange r = [model rangeForDecoration:did];
+                [toKeep addObject:did];
+                [keptStarts addObject:@([model getOffsetAt:r.startLineNumber column:r.startColumn])];
+            }
         }
         if (toRemove.count > 0) {
             [model deltaDecorations:toRemove newDecorations:@[] owner:owner];
         }
 
-        // 3. Walk changed subtrees to find new error-node candidates.
+        // 2. New: what the walk of the changed ranges finds that no kept
+        //    decoration already marks (two ranges can reach one node).
         NSUInteger budget = (toKeep.count < _maxDecorations)
                                 ? _maxDecorations - toKeep.count : 0;
-
         if (budget > 0) {
             [self _runVisitorWithBudget:budget tree:tree];
-
-            // 4. Post-filter: only keep candidates whose start offset falls within
-            //    a changed range.  Also deduplicate — two changed ranges can resolve
-            //    to the same large ERROR-node subtree, yielding duplicate entries.
-            if (_pendingDecorations.count > 0) {
-                NSMutableArray<UDModelDeltaDecoration *> *filtered =
-                    [NSMutableArray arrayWithCapacity:_pendingDecorations.count];
-                NSMutableSet<NSNumber *> *seenOffsets = [NSMutableSet set];
-
-                for (UDModelDeltaDecoration *d in _pendingDecorations) {
-                    NSInteger startOff = [model getOffsetAt:d.range.startLineNumber
-                                                     column:d.range.startColumn];
-                    NSNumber *key = @(startOff);
-                    if ([seenOffsets containsObject:key]) {
-                        continue; // skip duplicate decoration at same start offset
-                    }
-
-                    for (NSValue *rv in changedRanges) {
-                        NSRange cr = [rv rangeValue];
-                        if (startOff >= (NSInteger)cr.location &&
-                            startOff <  (NSInteger)NSMaxRange(cr)) {
-                            [filtered addObject:d];
-                            [seenOffsets addObject:key];
-                            break;
-                        }
-                    }
-                }
-
-                if (filtered.count > 0) {
-                    NSArray<NSString *> *added =
-                        [model deltaDecorations:@[]
-                                 newDecorations:filtered
-                                          owner:owner];
-                    [toKeep addObjectsFromArray:added];
-                }
+            NSMutableArray<UDModelDeltaDecoration *> *fresh =
+                [NSMutableArray arrayWithCapacity:_pendingDecorations.count];
+            for (UDModelDeltaDecoration *d in _pendingDecorations) {
+                NSNumber *start = @([model getOffsetAt:d.range.startLineNumber column:d.range.startColumn]);
+                if ([keptStarts containsObject:start]) continue;
+                [keptStarts addObject:start];
+                [fresh addObject:d];
+            }
+            if (fresh.count > 0) {
+                [toKeep addObjectsFromArray:[model deltaDecorations:@[] newDecorations:fresh owner:owner]];
             }
         }
 
@@ -156,15 +123,6 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
 }
 
 // ---------------------------------------------------------------------------
-#pragma mark - TSNodeVisitor (bridge to subclass hook)
-// ---------------------------------------------------------------------------
-
-- (BOOL)visitor:(id)visitor willVisitNode:(TSNode)node depth:(NSUInteger)depth {
-    if (_remainingBudget == 0) return NO;
-    return [self willVisitNode:node depth:depth];
-}
-
-// ---------------------------------------------------------------------------
 #pragma mark - Subclass overrides — default implementations
 // ---------------------------------------------------------------------------
 
@@ -174,6 +132,7 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
 }
 
 - (NSUInteger)defaultMaxDecorations { return 100; }
+
 
 - (void)didFinishUpdate {}
 
@@ -185,23 +144,59 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
     _remainingBudget    = budget;
     _pendingDecorations = [NSMutableArray array];
 
+    TSNode root = ts_tree_root_node((TSTree *)tree);
     NSArray<NSValue *> *changedRanges = self.highlighter.lastChangedCharRanges;
     if (!_alwaysFullScan && changedRanges.count > 0) {
-        // Incremental: walk only the subtrees covering changed byte ranges.
-        NSMutableArray<NSValue *> *byteRanges =
-            [NSMutableArray arrayWithCapacity:changedRanges.count];
         for (NSValue *rv in changedRanges) {
             NSRange cr = [rv rangeValue];
-            NSRange br = NSMakeRange(
-                byteFromChar(cr.location),
-                byteFromChar(NSMaxRange(cr)) - byteFromChar(cr.location));
-            [byteRanges addObject:[NSValue valueWithRange:br]];
+            [self _walkErrorsUnder:root from:byteFromChar(cr.location) to:byteFromChar(NSMaxRange(cr))];
         }
-        [_visitor visitChangedByteRanges:byteRanges inTree:tree];
     } else {
-        // Full scan (initial load, undo/redo, or alwaysFullScan = YES).
-        [_visitor visitTree:ts_tree_root_node((TSTree *)tree)];
+        [self _walkErrorsUnder:root from:0 to:UINT32_MAX];
     }
+}
+
+- (void)_walkErrorsUnder:(TSNode)root from:(uint32_t)low to:(uint32_t)high {
+    [self _walkErrorsUnder:root from:low to:high visiting:^BOOL(TSNode node, NSUInteger depth) {
+        return self->_remainingBudget > 0 && [self willVisitNode:node depth:depth];
+    }];
+}
+
+/// Offers @a visit the nodes under @a root that hold an error and reach
+/// [low, high] (a node ending at @a low or starting at @a high counts: a
+/// MISSING node there is empty), depth first, in order; it returns whether
+/// to walk the node's children. Skips subtrees without errors and children
+/// outside the range, so it costs the paths to the errors in the range, not
+/// the tree.
+- (void)_walkErrorsUnder:(TSNode)root from:(uint32_t)low to:(uint32_t)high
+                visiting:(BOOL (^)(TSNode node, NSUInteger depth))visit {
+    TSTreeCursor cursor = ts_tree_cursor_new(root);
+    NSUInteger depth = 0;
+    for (;;) {
+        TSNode node = ts_tree_cursor_current_node(&cursor);
+        BOOL descend = ts_node_has_error(node) && visit(node, depth);
+        // First child ending at or after `low`.
+        if (descend && ts_tree_cursor_goto_first_child_for_byte(&cursor, low > 0 ? low - 1 : 0) >= 0) {
+            if (ts_node_start_byte(ts_tree_cursor_current_node(&cursor)) <= high) {
+                depth++;
+                continue;
+            }
+            ts_tree_cursor_goto_parent(&cursor);
+        }
+        // The next sibling still in the range, or up.
+        BOOL moved = NO;
+        while (depth > 0) {
+            if (ts_tree_cursor_goto_next_sibling(&cursor) &&
+                ts_node_start_byte(ts_tree_cursor_current_node(&cursor)) <= high) {
+                moved = YES;
+                break;
+            }
+            ts_tree_cursor_goto_parent(&cursor);
+            depth--;
+        }
+        if (!moved) break;
+    }
+    ts_tree_cursor_delete(&cursor);
 }
 
 @end

@@ -36,12 +36,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// document), so passing it here costs nothing extra.
 - (void)documentDidOpenWithContent:(UDTextModel *)content;
 
-/// Called just before each text edit, before the tree-sitter re-parse.
-///
-/// LSP implementations: use this to send @c textDocument/didChange.
-- (void)textWillChangeInRange:(NSRange)range
-            replacementString:(NSString *)replacement;
-
 /// LSP textDocument/completion at the given character index.
 - (void)completionAtIndex:(NSUInteger)characterIndex
         completionHandler:(void (^)(NSArray<LSPCompletionItem *> *items, NSError *error))handler;

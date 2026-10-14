@@ -47,15 +47,19 @@
     NSArray<UDTextModelEdit *> *edits = note.userInfo[@"edits"];  // already set by _modelDidChange:
     if (!edits.count) return;
 
-    // Sort edits end-to-start so each LSP change's range is unaffected
-    // by the ones that follow it in the array.
+    // End to start, so each change's range is unaffected by the ones sent
+    // after it. The ranges are in the text as it was before these edits, so
+    // they are compared as they are (the model has moved on).
     NSArray<UDTextModelEdit *> *sorted = [edits sortedArrayUsingComparator:
         ^NSComparisonResult(UDTextModelEdit *a, UDTextModelEdit *b) {
-            NSInteger aOff = [textModel getOffsetAt:a.range.startLineNumber
-                                             column:a.range.startColumn];
-            NSInteger bOff = [textModel getOffsetAt:b.range.startLineNumber
-                                             column:b.range.startColumn];
-            return bOff < aOff ? NSOrderedAscending : NSOrderedDescending;
+            UDRange ra = a.range, rb = b.range;
+            if (ra.startLineNumber != rb.startLineNumber) {
+                return ra.startLineNumber > rb.startLineNumber ? NSOrderedAscending : NSOrderedDescending;
+            }
+            if (ra.startColumn != rb.startColumn) {
+                return ra.startColumn > rb.startColumn ? NSOrderedAscending : NSOrderedDescending;
+            }
+            return NSOrderedSame;
         }];
 
     for (UDTextModelEdit *edit in sorted) {
@@ -91,18 +95,6 @@
     }];
 }
 
-- (void)textWillChangeInRange:(NSRange)range
-            replacementString:(NSString *)replacement {
-    /*
-     // TODO: remove
-    if (!_clientInitialized) return;
-    [_client document:_documentURL
-    changeTextInRange:range
-    replacementString:replacement ?: @""];
-    NSLog(@"range: %@, replacement: %@", NSStringFromRange(range), replacement);
-     */
-}
-
 - (void)documentWillSave {
     if (!_clientInitialized) return;
     [_client documentWillSave:_documentURL];
@@ -124,11 +116,17 @@
     [_diagnosticHighlighter applyDiagnostics:@[]];
 }
 
+/// The LSP position (0-based line, UTF-16 column) of a character index:
+/// O(log n) in the model, instead of scanning the whole text.
+- (LSPPosition *)_positionAtIndex:(NSUInteger)characterIndex {
+    UDPosition p = [_textStorage.textModel getPositionAt:(NSInteger)characterIndex];
+    return [LSPPosition positionWithLine:p.line - 1 character:p.column - 1];
+}
+
 - (void)completionAtIndex:(NSUInteger)characterIndex
         completionHandler:(void (^)(NSArray<LSPCompletionItem *> *, NSError *))handler {
     [_client documentCompletion:_documentURL
-                         inText:[_textStorage.textModel getValue]
-            forCharacterAtIndex:characterIndex
+                     atPosition:[self _positionAtIndex:characterIndex]
               completionHandler:^(NSArray<LSPCompletionItem *> *list, BOOL isIncomplete, NSError *err) {
         handler(list, err);
     }];
@@ -136,10 +134,9 @@
 
 - (void)hoverAtIndex:(NSUInteger)characterIndex
    completionHandler:(void (^)(NSDictionary *, NSError *))handler {
-    [_client documentHoverWithContentsOfURL:_documentURL
-                                     inText:[_textStorage.textModel getValue]
-                        forCharacterAtIndex:characterIndex
-                          completionHandler:handler];
+    [_client documentHover:_documentURL
+                atPosition:[self _positionAtIndex:characterIndex]
+         completionHandler:handler];
 }
 
 // ---------------------------------------------------------------------------

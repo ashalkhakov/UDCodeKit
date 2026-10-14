@@ -665,29 +665,6 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - NSTextViewDelegate  (LSP pre-change tracking)
-// ---------------------------------------------------------------------------
-
-// The window controller is the NSTextViewDelegate for ALL editor text views.
-// Only the focused (active) tab's view can have focus, so we forward to the
-// active context's coordinator.  All tabs share the same storage, so changes
-// from any tab are visible everywhere.
-- (BOOL)textView:(NSTextView *)textView
-    shouldChangeTextInRange:(NSRange)affectedCharRange
-          replacementString:(nullable NSString *)replacementString {
-
-    UDLSPCoordinator *coordinator = [self _activeContext].lspCoordinator;
-
-    if (coordinator)
-    {
-        [coordinator textWillChangeInRange:affectedCharRange
-                         replacementString:replacementString ?: @""];
-    }
-
-    return YES;
-}
-
-// ---------------------------------------------------------------------------
 // MARK: - UDDiagnosticsDidChangeNotification
 // ---------------------------------------------------------------------------
 

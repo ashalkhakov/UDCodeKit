@@ -285,9 +285,13 @@ typedef struct _LSPTextDocumentSyncOptions {
 #pragma mark Language Features
 
 - (void)documentCompletion:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler;
+/// As above, at a position the caller already knows (no text to scan).
+- (void)documentCompletion:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler;
 - (void)documentSymbol:(NSURL *)url completionHandler:(void (^)(NSArray *symbols, NSError *error))completionHandler;
 - (void)documentHighlight:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSArray<LSPDocumentHighlight *> *, NSError *error))completionHandler;
 
 - (void)documentHoverWithContentsOfURL:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler;
+/// As above, at a position the caller already knows (no text to scan).
+- (void)documentHover:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler;
 
 @end

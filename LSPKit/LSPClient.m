@@ -816,12 +816,17 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 #pragma mark Language Features
 
 - (void)documentCompletion:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler {
+    [self documentCompletion:url
+                  atPosition:[LSPPosition positionForCharacterAtIndex:characterIndex inText:string]
+           completionHandler:completionHandler];
+}
+
+- (void)documentCompletion:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSArray<LSPCompletionItem *> *completionList, BOOL isIncomplete, NSError *error))completionHandler {
     NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
     NSAssert((document != nil), @"An open notification must be send before.");
     
-    LSPPosition *position = [LSPPosition positionForCharacterAtIndex:characterIndex inText:string];
     NSDictionary *completionParams = [NSDictionary dictionaryWithObjectsAndKeys:[document textDocumentIdentifier], @"textDocument", [position params], @"position", nil];
     [_pipeline sendRequest:@"textDocument/completion" params:completionParams withReply:^(id obj, NSError *error) {
         BOOL isIncomplete = NO;
@@ -911,12 +916,17 @@ NSString *ParsenContentType(NSString *str, NSDictionary **params) {
 }
 
 - (void)documentHoverWithContentsOfURL:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler  {
+    [self documentHover:url
+             atPosition:[LSPPosition positionForCharacterAtIndex:characterIndex inText:string]
+      completionHandler:completionHandler];
+}
+
+- (void)documentHover:(NSURL *)url atPosition:(LSPPosition *)position completionHandler:(void (^)(NSDictionary *dict, NSError *error))completionHandler {
     NSAssert([NSThread isMainThread], @"This method must be invoked on main thread");
     if (_initialized == NO) return;
     LSPDocument *document = [_documents objectForKey:url];
     NSAssert((document != nil), @"An open notification must be send before.");
     
-    LSPPosition *position = [LSPPosition positionForCharacterAtIndex:characterIndex inText:string];
     NSMutableDictionary *params = [NSMutableDictionary dictionary];
     [params setObject:[document textDocumentIdentifier] forKey:@"textDocument"];
     [params setObject:[position params] forKey:@"position"];

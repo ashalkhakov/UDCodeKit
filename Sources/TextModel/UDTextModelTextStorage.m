@@ -303,6 +303,16 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     [_textModel applyEdits:@[edit]];
     _suppressModelNotification = NO;
 
+    if (_highlighter.isActive) {
+        NSUInteger newEnd = safe.location + str.length;
+        [_highlighter applyEditAtOffset:safe.location
+                                 oldEnd:NSMaxRange(safe)
+                                 newEnd:newEnd
+                          startPosition:sp
+                         oldEndPosition:ep
+                         newEndPosition:[_textModel getPositionAt:(NSInteger)newEnd]];
+    }
+
     NSInteger delta  = (NSInteger)str.length - (NSInteger)safe.length;
     _lastKnownLength = (NSUInteger)((NSInteger)docLen + delta);
     _attrCacheDirty  = YES;
@@ -320,15 +330,12 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 // ---------------------------------------------------------------------------
 
 - (void)processEditing {
-    NSRange   editedRange = self.editedRange;
-    NSInteger delta       = self.changeInLength;
     NSTextStorageEditActions mask = self.editedMask;
 
     [super processEditing];
 
     if ((mask & NSTextStorageEditedCharacters) && _highlighter.isActive) {
-        [_highlighter performIncrementalParseAfterEdit:editedRange
-                                         changeInLength:delta];
+        [_highlighter reparseAfterEdits];
         dispatch_async(dispatch_get_main_queue(), ^{
             [self->_syntaxHighlighter update];
             [self applyDecorationHighlights];

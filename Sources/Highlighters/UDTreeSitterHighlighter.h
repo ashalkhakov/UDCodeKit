@@ -4,9 +4,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// C function pointer type matching all generated tree-sitter language
-/// functions (e.g. tree_sitter_json).
-
 /// Encapsulates all tree-sitter parsing state.  Performs incremental
 /// re-parses and exposes the current parse tree and changed ranges so that
 /// separate highlighter objects can react to document changes.
@@ -44,10 +41,20 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setLanguageFunc:(nullable LanguageFunc)languageFunc
     withHighlightsQuery:(nullable NSString *)queryText;
 
-/// Call after each NSTextStorage edit to perform an incremental re-parse.
+/// Tells the current tree about one edit, right after the model applied it:
+/// characters [start, oldEnd) became [start, newEnd); the positions are the
+/// model's (1-based) at those offsets — oldEnd's taken before the edit.
+/// Several edits may be applied before one -reparseAfterEdits.
+- (void)applyEditAtOffset:(NSUInteger)start
+                   oldEnd:(NSUInteger)oldEnd
+                   newEnd:(NSUInteger)newEnd
+            startPosition:(UDPosition)startPosition
+           oldEndPosition:(UDPosition)oldEndPosition
+           newEndPosition:(UDPosition)newEndPosition;
+
+/// Incrementally re-parses after the edits applied since the last parse.
 /// Reads the current document text directly from the text model; no string copy needed.
-- (void)performIncrementalParseAfterEdit:(NSRange)editedRange
-                           changeInLength:(NSInteger)delta;
+- (void)reparseAfterEdits;
 
 /// Force a complete re-parse from the text model (e.g. after undo/redo).
 /// Reads the current document text directly from the text model; no string copy needed.

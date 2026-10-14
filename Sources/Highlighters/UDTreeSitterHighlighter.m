@@ -107,20 +107,31 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
     }
 }
 
-- (void)performIncrementalParseAfterEdit:(NSRange)editedRange
-                           changeInLength:(NSInteger)delta {
+/// A model position (1-based line and column) as tree-sitter's point: 0-based
+/// row, and the column in bytes of the UTF-16 input.
+static inline TSPoint pointFromPosition(UDPosition p) {
+    return (TSPoint){ (uint32_t)(p.line - 1), byteFromCharIdx((NSUInteger)(p.column - 1)) };
+}
+
+- (void)applyEditAtOffset:(NSUInteger)start
+                   oldEnd:(NSUInteger)oldEnd
+                   newEnd:(NSUInteger)newEnd
+            startPosition:(UDPosition)startPosition
+           oldEndPosition:(UDPosition)oldEndPosition
+           newEndPosition:(UDPosition)newEndPosition {
+    if (!_tsParser || !_tsCurrentTree) return;
+    // Rows and columns too, not only bytes: nodes the parse reuses keep the
+    // points the edit gives them (folding reads their rows).
+    TSInputEdit ie = {
+        byteFromCharIdx(start), byteFromCharIdx(oldEnd), byteFromCharIdx(newEnd),
+        pointFromPosition(startPosition), pointFromPosition(oldEndPosition), pointFromPosition(newEndPosition)
+    };
+    ts_tree_edit(_tsCurrentTree, &ie);
+}
+
+- (void)reparseAfterEdits {
     if (!_tsParser) return;
-    TSTree *oldTree = _tsCurrentTree;
-    if (oldTree && editedRange.location != NSNotFound) {
-        NSInteger signedOldLen = (NSInteger)editedRange.length - delta;
-        NSUInteger oldLen = (signedOldLen > 0) ? (NSUInteger)signedOldLen : 0;
-        uint32_t sb  = byteFromCharIdx(editedRange.location);
-        uint32_t oeb = byteFromCharIdx(editedRange.location + oldLen);
-        uint32_t neb = byteFromCharIdx(NSMaxRange(editedRange));
-        TSInputEdit ie = { sb, oeb, neb, {0,0}, {0,0}, {0,0} };
-        ts_tree_edit(oldTree, &ie);
-    }
-    [self _runParseOldTree:oldTree];
+    [self _runParseOldTree:_tsCurrentTree];
 }
 
 - (void)reparseFromModel {

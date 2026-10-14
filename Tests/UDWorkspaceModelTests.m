@@ -197,7 +197,10 @@
 - (void)testChangeNotificationPostedOnAdd {
     UDWorkspaceModel *model = [[UDWorkspaceModel alloc] init];
     XCTestExpectation *exp = [self expectationWithDescription:@"change notification"];
-    [[NSNotificationCenter defaultCenter]
+    // A block observer is removed by its token (removeObserver:self would
+    // leave it behind, and a later test's model at the same address would
+    // fulfil this expectation again).
+    id observer = [[NSNotificationCenter defaultCenter]
         addObserverForName:UDWorkspaceModelDidChangeNotification
                     object:model
                      queue:[NSOperationQueue mainQueue]
@@ -206,7 +209,7 @@
     [model addDocumentWithText:@"x" fileURL:nil];
 
     [self waitForExpectationsWithTimeout:1.0 handler:nil];
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [[NSNotificationCenter defaultCenter] removeObserver:observer];
 }
 
 - (void)testChangeNotificationPostedOnRemove {
@@ -214,7 +217,10 @@
     UDCodeDocument *doc = [model addDocumentWithText:@"y" fileURL:nil];
 
     XCTestExpectation *exp = [self expectationWithDescription:@"remove notification"];
-    [[NSNotificationCenter defaultCenter]
+    // A block observer is removed by its token (removeObserver:self would
+    // leave it behind, and a later test's model at the same address would
+    // fulfil this expectation again).
+    id observer = [[NSNotificationCenter defaultCenter]
         addObserverForName:UDWorkspaceModelDidChangeNotification
                     object:model
                      queue:[NSOperationQueue mainQueue]
@@ -223,7 +229,7 @@
     [model removeDocument:doc];
 
     [self waitForExpectationsWithTimeout:1.0 handler:nil];
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [[NSNotificationCenter defaultCenter] removeObserver:observer];
 }
 
 @end

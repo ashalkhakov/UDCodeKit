@@ -135,7 +135,8 @@
     UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:@"hi" fileURL:nil];
     XCTestExpectation *exp = [self expectationWithDescription:@"text-changed notification"];
 
-    [[NSNotificationCenter defaultCenter]
+    // Removed by its token: removeObserver:self would leave it behind.
+    id observer = [[NSNotificationCenter defaultCenter]
         addObserverForName:UDCodeDocumentTextDidChangeNotification
                     object:doc
                      queue:[NSOperationQueue mainQueue]
@@ -147,7 +148,7 @@
     [doc.textModel applyEdits:@[[[UDTextModelEdit alloc] initWithRange:r text:@"bye"]]];
 
     [self waitForExpectationsWithTimeout:1.0 handler:nil];
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [[NSNotificationCenter defaultCenter] removeObserver:observer];
 }
 
 @end

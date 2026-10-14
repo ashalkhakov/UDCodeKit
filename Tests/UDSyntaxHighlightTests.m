@@ -52,6 +52,36 @@ static NSArray<NSString *> *UDHighlights(UDTextModelTextStorage *storage) {
     XCTAssertEqualObjects(kept, fresh, @"%@: the highlights kept up to date should be a fresh highlight's", when);
 }
 
+/// idScript, through its bundle: the class each piece of a script gets.
+- (void)testAnIdScriptIsHighlighted {
+    UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"script"];
+    if (!mode.languageFunc) {
+        XCTFail(@"%@", @"the idScript grammar bundle did not load");
+        return;
+    }
+    NSString *text = @"void lamp::flicker( float times ) {\n"
+                     @"\twhile ( times > 0 ) { $lamp_1.setColor( '1 0.5 0' ); times--; }\n"
+                     @"}\n";
+    UDTextModelTextStorage *storage = [[UDTextModelTextStorage alloc] initWithText:text];
+    [storage setLanguageFunc:mode.languageFunc withHighlightsQuery:mode.highlightsQuery ?: @""];
+    UDDrainMainQueue();
+    NSMutableDictionary<NSString *, NSString *> *classOf = [NSMutableDictionary dictionary];
+    for (NSString *highlight in UDHighlights(storage)) {
+        NSArray<NSString *> *parts = [highlight componentsSeparatedByString:@" "];
+        NSArray<NSString *> *range = [parts[0] componentsSeparatedByString:@"-"];
+        NSInteger start = range[0].integerValue, end = range[1].integerValue;
+        classOf[[text substringWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)(end - start))]] = parts[1];
+    }
+    XCTAssertEqualObjects(classOf[@"void"], @"type.builtin");
+    XCTAssertEqualObjects(classOf[@"lamp"], @"type");
+    XCTAssertEqualObjects(classOf[@"flicker"], @"function");
+    XCTAssertEqualObjects(classOf[@"times"], @"variable.parameter");
+    XCTAssertEqualObjects(classOf[@"while"], @"keyword.control");
+    XCTAssertEqualObjects(classOf[@"lamp_1"], @"variable.builtin");
+    XCTAssertEqualObjects(classOf[@"setColor"], @"function.method");
+    XCTAssertEqualObjects(classOf[@"'1 0.5 0'"], @"constant");
+}
+
 - (void)testHighlightsFollowEditsUndoAndRedo {
     if (![[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"json"].languageFunc) {
         XCTFail(@"%@", @"the JSON grammar bundle did not load");

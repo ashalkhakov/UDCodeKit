@@ -18,6 +18,7 @@
 		BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; };
 		BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE7257692F5F30B200501E10 /* TreeSitterMake.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72572B2F5F2EB100501E10 /* TreeSitterMake.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		1D5D00000000000000000007 /* TreeSitterIdScript.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = 1D5D00000000000000000005 /* TreeSitterIdScript.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576A2F5F30BD00501E10 /* TreeSitterMarkdown.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257332F5F2EB600501E10 /* TreeSitterMarkdown.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576B2F5F30C700501E10 /* TreeSitterObjc.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72573B2F5F2EBA00501E10 /* TreeSitterObjc.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576C2F5F30D400501E10 /* TreeSitterXml.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257432F5F2EBF00501E10 /* TreeSitterXml.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -57,12 +58,26 @@
 			remoteGlobalIDString = 407AD10A06B319558528C45A;
 			remoteInfo = TreeSitterMake;
 		};
+		1D5D00000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D5D00000000000000000001 /* TreeSitterIdScript.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 1D5CCC5EF57CC9085024BEEF;
+			remoteInfo = TreeSitterIdScript;
+		};
 		CE72572A2F5F2EB100501E10 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */;
 			proxyType = 2;
 			remoteGlobalIDString = 8D33C905C6D1E7421929B462;
 			remoteInfo = TreeSitterMake;
+		};
+		1D5D00000000000000000004 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1D5D00000000000000000001 /* TreeSitterIdScript.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 1D5C76BB13881D15A3714902;
+			remoteInfo = TreeSitterIdScript;
 		};
 		CE72572F2F5F2EB500501E10 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -194,6 +209,7 @@
 				CE72576B2F5F30C700501E10 /* TreeSitterObjc.bundle in Embed PlugIns */,
 				CE72576A2F5F30BD00501E10 /* TreeSitterMarkdown.bundle in Embed PlugIns */,
 				CE7257692F5F30B200501E10 /* TreeSitterMake.bundle in Embed PlugIns */,
+				1D5D00000000000000000007 /* TreeSitterIdScript.bundle in Embed PlugIns */,
 			);
 			name = "Embed PlugIns";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -222,6 +238,7 @@
 		A46FAABC2F5441CB0079BB37 /* UDCodeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UDCodeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
 		CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMake.xcodeproj; path = "tree-sitter-make/TreeSitterMake.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		1D5D00000000000000000001 /* TreeSitterIdScript.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterIdScript.xcodeproj; path = "tree-sitter-idscript/TreeSitterIdScript.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMarkdown.xcodeproj; path = "tree-sitter-markdown/TreeSitterMarkdown.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterObjc.xcodeproj; path = "tree-sitter-objc/TreeSitterObjc.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterXml.xcodeproj; path = "tree-sitter-xml/TreeSitterXml.xcodeproj"; sourceTree = SOURCE_ROOT; };
@@ -289,6 +306,7 @@
 				BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */,
 				A46FAAAC2F5441C80079BB37 /* Products */,
 				CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */,
+				1D5D00000000000000000001 /* TreeSitterIdScript.xcodeproj */,
 				CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */,
 				CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */,
 				CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */,
@@ -339,6 +357,14 @@
 			isa = PBXGroup;
 			children = (
 				CE72572B2F5F2EB100501E10 /* TreeSitterMake.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1D5D00000000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1D5D00000000000000000005 /* TreeSitterIdScript.bundle */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -424,6 +450,7 @@
 				CE7257382F5F2EBA00501E10 /* PBXTargetDependency */,
 				CE7257302F5F2EB500501E10 /* PBXTargetDependency */,
 				CE7257282F5F2EB100501E10 /* PBXTargetDependency */,
+				1D5D00000000000000000006 /* PBXTargetDependency */,
 				BB22CAFE2F5492DC002200A6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
@@ -544,6 +571,10 @@
 					ProjectRef = CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */;
 				},
 				{
+					ProductGroup = 1D5D00000000000000000002 /* Products */;
+					ProjectRef = 1D5D00000000000000000001 /* TreeSitterIdScript.xcodeproj */;
+				},
+				{
 					ProductGroup = CE72572D2F5F2EB500501E10 /* Products */;
 					ProjectRef = CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */;
 				},
@@ -581,6 +612,13 @@
 			fileType = wrapper.cfbundle;
 			path = TreeSitterMake.bundle;
 			remoteRef = CE72572A2F5F2EB100501E10 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		1D5D00000000000000000005 /* TreeSitterIdScript.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = TreeSitterIdScript.bundle;
+			remoteRef = 1D5D00000000000000000004 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 		CE7257332F5F2EB600501E10 /* TreeSitterMarkdown.bundle */ = {
@@ -690,6 +728,11 @@
 			isa = PBXTargetDependency;
 			name = TreeSitterMake;
 			targetProxy = CE7257272F5F2EB100501E10 /* PBXContainerItemProxy */;
+		};
+		1D5D00000000000000000006 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TreeSitterIdScript;
+			targetProxy = 1D5D00000000000000000003 /* PBXContainerItemProxy */;
 		};
 		CE7257302F5F2EB500501E10 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;

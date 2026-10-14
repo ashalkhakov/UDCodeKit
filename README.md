@@ -20,8 +20,10 @@ on GNUstep (Linux).
 - `LSPKit/` — the Language Server Protocol client (`LSPKit.framework`), after
   Christopher Atlan's LSPKit.
 - `tree-sitter-<lang>/` — grammar bundles (bash, c, html, json, make,
-  markdown, objc, sql, xml, yaml), loaded by the application as plug-ins; see
-  [docs/grammar-bundles.md](docs/grammar-bundles.md).
+  markdown, objc, xml, yaml), loaded by the application as plug-ins; see
+  [docs/grammar-bundles.md](docs/grammar-bundles.md). `tree-sitter-sql/` is
+  unfinished and not built: no SQL grammar found yet is both complete enough
+  and small enough to embed.
 
 ## Building
 

@@ -52,9 +52,42 @@
 }
 @end
 
+// MARK: - UDTextModelContentChange
+
+@implementation UDTextModelContentChange
+- (instancetype)initWithRange:(UDRange)range
+                  rangeOffset:(NSInteger)rangeOffset
+                  rangeLength:(NSInteger)rangeLength
+                         text:(NSString *)text {
+    self = [super init];
+    if (self) {
+        _range       = range;
+        _rangeOffset = rangeOffset;
+        _rangeLength = rangeLength;
+        _text        = [text copy];
+    }
+    return self;
+}
+
+- (UDPosition)endPositionOfText {
+    // Line breaks as the piece tree counts them: \r\n, \r and \n.
+    NSUInteger length = _text.length, breaks = 0, lineStart = 0;
+    for (NSUInteger i = 0; i < length; i++) {
+        unichar c = [_text characterAtIndex:i];
+        if (c == '\r' && i + 1 < length && [_text characterAtIndex:i + 1] == '\n') i++;
+        if (c == '\r' || c == '\n') { breaks++; lineStart = i + 1; }
+    }
+    if (breaks == 0) {
+        return (UDPosition){ _range.startLineNumber, _range.startColumn + (NSInteger)length };
+    }
+    return (UDPosition){ _range.startLineNumber + (NSInteger)breaks, (NSInteger)(length - lineStart) + 1 };
+}
+@end
+
 // MARK: - Notification names
 
 NSNotificationName const UDTextModelDidChangeNotification = @"UDTextModelDidChangeNotification";
+NSString * const UDTextModelChangesKey = @"changes";
 NSNotificationName const UDTextModelDecorationsDidChangeNotification = @"UDTextModelDecorationsDidChangeNotification";
 
 // MARK: - Helpers
@@ -330,8 +363,10 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
 }
 
 /// Applies edits; afterwards the text's alternativeVersionId is `version`
-/// (a new one for an edit, the remembered one for undo and redo).
-- (void)_applyEditsCore:(NSArray<UDTextModelEdit *> *)edits alternativeVersionId:(NSInteger)version {
+/// (a new one for an edit, the remembered one for undo and redo). Returns the
+/// changes made, in the order made.
+- (NSArray<UDTextModelContentChange *> *)_applyEditsCore:(NSArray<UDTextModelEdit *> *)edits
+                                     alternativeVersionId:(NSInteger)version {
     NSInteger versionBefore = _alternativeVersionId;
     // Sort edits end-to-start so each edit's range indexes into the unmodified document.
     NSArray<UDTextModelEdit *> *sorted =
@@ -378,6 +413,8 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
         [NSMutableArray arrayWithCapacity:sorted.count];
     NSMutableArray<NSString *> *undoTexts =
         [NSMutableArray arrayWithCapacity:sorted.count];
+    NSMutableArray<UDTextModelContentChange *> *changes =
+        [NSMutableArray arrayWithCapacity:sorted.count];
 
     for (UDTextModelEdit *edit in sorted) {
         NSInteger startOffset =
@@ -390,6 +427,10 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
         NSInteger insertedLen = (NSInteger)edit.text.length;
 
         NSString *originalText = [self getValueInRange:edit.range];
+        [changes addObject:[[UDTextModelContentChange alloc] initWithRange:edit.range
+                                                               rangeOffset:startOffset
+                                                               rangeLength:deleteLen
+                                                                      text:edit.text]];
 
         if (deleteLen > 0) {
             [self.pieceTree deleteAtOffset:startOffset count:deleteLen];
@@ -436,20 +477,21 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
     NSArray<UDTextModelEdit *> *undoArray = [undoEdits copy];
     [self.undoManager registerUndoWithTarget:self
                                      handler:^(UDTextModel *target) {
-        [target _applyEditsCore:undoArray alternativeVersionId:versionBefore];
+        NSArray *undoChanges = [target _applyEditsCore:undoArray alternativeVersionId:versionBefore];
         [[NSNotificationCenter defaultCenter]
             postNotificationName:UDTextModelDidChangeNotification
                           object:target
-                        userInfo:@{@"edits": undoArray}];
+                        userInfo:@{@"edits": undoArray, UDTextModelChangesKey: undoChanges}];
     }];
+    return changes;
 }
 
 - (void)applyEdits:(NSArray<UDTextModelEdit *> *)edits {
-    [self _applyEditsCore:edits alternativeVersionId:++_lastVersionId];
+    NSArray *changes = [self _applyEditsCore:edits alternativeVersionId:++_lastVersionId];
     [[NSNotificationCenter defaultCenter]
         postNotificationName:UDTextModelDidChangeNotification
                       object:self
-                    userInfo:@{@"edits": edits}];
+                    userInfo:@{@"edits": edits, UDTextModelChangesKey: changes}];
 }
 
 // MARK: - Decorations

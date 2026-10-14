@@ -47,11 +47,35 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithRange:(UDRange)range options:(UDDecorationOptions *)options;
 @end
 
+// MARK: - UDTextModelContentChange
+
+/// One change an edit call made, as VS Code's IModelContentChange: the range
+/// it replaced, as offsets and as positions, and the text that replaced it.
+/// A call's changes run from the end of the document to the start, so each
+/// one's offsets and positions hold in the document as the ones before it
+/// left it, and the first in document order is the last.
+@interface UDTextModelContentChange : NSObject
+@property (nonatomic, readonly) UDRange range;
+@property (nonatomic, readonly) NSInteger rangeOffset;
+@property (nonatomic, readonly) NSInteger rangeLength;
+@property (nonatomic, readonly, copy) NSString *text;
+- (instancetype)initWithRange:(UDRange)range
+                  rangeOffset:(NSInteger)rangeOffset
+                  rangeLength:(NSInteger)rangeLength
+                         text:(NSString *)text NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+/// Where the inserted text ends: the position after it.
+- (UDPosition)endPositionOfText;
+@end
+
 // MARK: - UDTextModel
 
 /// Posted after each successful -applyEdits: call (including undo/redo).
-/// The userInfo dictionary contains @"edits": NSArray<UDTextModelEdit *>.
+/// The userInfo dictionary contains @"edits": NSArray<UDTextModelEdit *>, the
+/// edits as given (their ranges refer to the text before the call), and
+/// UDTextModelChangesKey: NSArray<UDTextModelContentChange *>.
 extern NSNotificationName const UDTextModelDidChangeNotification;
+extern NSString * const UDTextModelChangesKey;
 
 /// Posted after -deltaDecorations:newDecorations:owner: whenever any decoration
 /// is added or removed.  The userInfo contains:

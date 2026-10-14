@@ -179,6 +179,77 @@ static void UDReferenceAcceptEdit(NSInteger *start, NSInteger *end, UDTrackedRan
     }
 }
 
+/// The position of `offset` in `text`, as the piece tree counts lines
+/// (\r\n, \r and \n each end one).
+static UDPosition UDReferencePosition(NSString *text, NSInteger offset) {
+    NSInteger line = 1, lineStart = 0;
+    for (NSInteger i = 0; i < offset; i++) {
+        unichar c = [text characterAtIndex:(NSUInteger)i];
+        if (c == '\r' && i + 1 < offset && [text characterAtIndex:(NSUInteger)i + 1] == '\n') i++;
+        if (c == '\r' || c == '\n') { line++; lineStart = i + 1; }
+    }
+    return (UDPosition){ line, offset - lineStart + 1 };
+}
+
+/// The changes a call publishes, replayed in order on a plain copy of the
+/// text, give the model's text; each one's range, as positions, is where its
+/// offsets are in the text at that point, and -endPositionOfText where its
+/// text ends. For edits and for undoing them.
+- (void)testContentChangesReplayToTheModel {
+    for (uint64_t seed = 1; seed <= 30; seed++) {
+        UDRandom random = { seed };
+        NSMutableString *start = [NSMutableString string];
+        for (NSInteger i = 0; i < 30; i++) [start appendFormat:@"line %ld\r\nand more %llu\n", (long)i, seed];
+        UDTextModel *model = [[UDTextModel alloc] initWithText:start];
+        model.undoManager = [[NSUndoManager alloc] init];
+        model.undoManager.groupsByEvent = NO;
+        NSMutableString *replay = [start mutableCopy];
+        __block NSUInteger notes = 0;
+        id token = [[NSNotificationCenter defaultCenter] addObserverForName:UDTextModelDidChangeNotification object:model queue:nil usingBlock:^(NSNotification *note) {
+            notes++;
+            for (UDTextModelContentChange *change in note.userInfo[UDTextModelChangesKey]) {
+                UDPosition s = UDReferencePosition(replay, change.rangeOffset);
+                UDPosition e = UDReferencePosition(replay, change.rangeOffset + change.rangeLength);
+                XCTAssertTrue(s.line == change.range.startLineNumber && s.column == change.range.startColumn &&
+                              e.line == change.range.endLineNumber && e.column == change.range.endColumn,
+                              @"seed %llu: the change's positions are where its offsets are", seed);
+                [replay replaceCharactersInRange:NSMakeRange((NSUInteger)change.rangeOffset, (NSUInteger)change.rangeLength)
+                                      withString:change.text];
+                UDPosition end = UDReferencePosition(replay, change.rangeOffset + (NSInteger)change.text.length);
+                UDPosition endOfText = [change endPositionOfText];
+                XCTAssertTrue(end.line == endOfText.line && end.column == endOfText.column,
+                              @"seed %llu: the end of the inserted text", seed);
+            }
+        }];
+        for (NSInteger round = 0; round < 5; round++) {
+            NSInteger lines = [model getLineCount];
+            NSMutableIndexSet *chosen = [NSMutableIndexSet indexSet];
+            NSInteger count = 1 + UDRandomBelow(&random, 6);
+            while ((NSInteger)chosen.count < count) [chosen addIndex:(NSUInteger)(1 + UDRandomBelow(&random, lines))];
+            NSMutableArray<UDTextModelEdit *> *edits = [NSMutableArray array];
+            [chosen enumerateIndexesUsingBlock:^(NSUInteger line, BOOL *stop) {
+                NSInteger max = [model getLineMaxColumn:(NSInteger)line];
+                NSInteger c1 = 1 + UDRandomBelow(&random, max);
+                NSInteger c2 = MIN(max, c1 + UDRandomBelow(&random, 4));
+                NSArray *texts = @[@"", @"x", @"two\nlines", @"a\r\nb\rc"];
+                [edits addObject:[[UDTextModelEdit alloc] initWithRange:PTRangeMake((NSInteger)line, c1, (NSInteger)line, c2)
+                                                                   text:texts[(NSUInteger)UDRandomBelow(&random, 4)]]];
+            }];
+            [model.undoManager beginUndoGrouping];
+            [model applyEdits:edits];
+            [model.undoManager endUndoGrouping];
+            XCTAssertEqualObjects(replay, [model getValue], @"seed %llu round %ld: edit", seed, (long)round);
+        }
+        while (model.undoManager.canUndo) {
+            [model.undoManager undo];
+            XCTAssertEqualObjects(replay, [model getValue], @"seed %llu: undo", seed);
+        }
+        XCTAssertEqualObjects(replay, start);
+        XCTAssertEqual(notes, 10u);
+        [[NSNotificationCenter defaultCenter] removeObserver:token];
+    }
+}
+
 - (void)testOverlappingEditsAreRefused {
     UDTextModel *model = [[UDTextModel alloc] initWithText:@"hello world\n"];
     NSArray *overlapping = @[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 1, 1, 6) text:@"a"],

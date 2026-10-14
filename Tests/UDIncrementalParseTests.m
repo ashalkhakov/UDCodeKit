@@ -8,10 +8,11 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <tree_sitter/api.h>
 #import <UDCodeKit/UDCodeKit.h>
 
-@interface UDIncrementalParseTests : XCTestCase
+@interface UDIncrementalParseTests : UDCodeTestCase
 @end
 
 @implementation UDIncrementalParseTests

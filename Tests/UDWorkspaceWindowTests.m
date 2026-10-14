@@ -8,6 +8,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 #import "UDDocument.h"
 #import "UDDocumentWindowController.h"
@@ -30,7 +31,7 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
 - (IBAction)closeEditorTab:(id)sender;
 @end
 
-@interface UDWorkspaceWindowTests : XCTestCase
+@interface UDWorkspaceWindowTests : UDCodeTestCase
 @property (nonatomic, strong) UDWorkspace *workspace;
 @property (nonatomic, strong) UDDocumentWindowController *controller;
 @end
@@ -38,6 +39,7 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
 @implementation UDWorkspaceWindowTests
 
 - (void)setUp {
+    [super setUp];
     [[NSUserDefaults standardUserDefaults] removeObjectForKey:UDSavedPanes];
     [self openWorkspace];
 }
@@ -86,11 +88,11 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     // The navigator hidden: its room goes to the editors; shown again, at its width.
     editors = NSWidth([self pane:1].frame);
     [_controller toggleNavigator:nil];
-    XCTAssertTrue([self pane:0].hidden);
+    XCTAssertTrue([[self pane:0] isHidden]);
     XCTAssertGreaterThan(NSWidth([self pane:1].frame), editors + 200);
     XCTAssertEqualWithAccuracy(NSMinX([self pane:1].frame), 0, 1);
     [_controller toggleNavigator:nil];
-    XCTAssertFalse([self pane:0].hidden);
+    XCTAssertFalse([[self pane:0] isHidden]);
     XCTAssertEqualWithAccuracy(NSWidth([self pane:0].frame), 240, 1);
 
     // The panes never squeeze the editors below their minimum.
@@ -104,13 +106,13 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
 
 - (void)testPaneVisibilityIsRemembered {
     [_controller toggleInspector:nil];
-    XCTAssertTrue([self pane:2].hidden);
+    XCTAssertTrue([[self pane:2] isHidden]);
     [_controller close];
     [_workspace close];
 
     [self openWorkspace];
-    XCTAssertTrue([self pane:2].hidden, @"a new window remembers the hidden inspector");
-    XCTAssertFalse([self pane:0].hidden);
+    XCTAssertTrue([[self pane:2] isHidden], @"a new window remembers the hidden inspector");
+    XCTAssertFalse([[self pane:0] isHidden]);
     [_controller toggleInspector:nil];
     XCTAssertEqualWithAccuracy(NSWidth([self pane:2].frame), 260, 1);
 }
@@ -134,7 +136,8 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     // Typing marks the tab dirty.
     UDCodeEditorViewController *editor = (UDCodeEditorViewController *)[tabs viewControllerForItem:tabs.selectedItem];
     XCTAssertFalse(tabs.selectedItem.dirty);
-    [editor.textView insertText:@"x" replacementRange:NSMakeRange(0, 0)];
+    editor.textView.selectedRange = NSMakeRange(0, 0);
+    [editor.textView insertText:@"x"];
     XCTAssertTrue(tabs.selectedItem.dirty);
 
     // An untouched tab closes without asking; its file leaves the navigator.
@@ -156,7 +159,8 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     UDCodeEditorViewController *first = (UDCodeEditorViewController *)[tabs viewControllerForItem:tabs.items[1]];
     UDCodeEditorViewController *second = (UDCodeEditorViewController *)[tabs viewControllerForItem:tabs.items[2]];
     XCTAssertEqual(first.textView.textStorage, second.textView.textStorage);
-    [first.textView insertText:@" " replacementRange:NSMakeRange(0, 0)];
+    first.textView.selectedRange = NSMakeRange(0, 0);
+    [first.textView insertText:@" "];
     XCTAssertEqualObjects(second.textView.string, @" {\"a\": 1}\n");
     XCTAssertTrue(tabs.items[1].dirty && tabs.items[2].dirty);
 }
@@ -164,7 +168,7 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
 - (void)testTheIssuesNavigator {
     [_controller toggleNavigator:nil];
     [_controller showIssuesNavigator:nil];
-    XCTAssertFalse([self pane:0].hidden, @"showing a navigator shows the pane");
+    XCTAssertFalse([[self pane:0] isHidden], @"showing a navigator shows the pane");
     XCTAssertEqual(_controller.navigatorControl.selectedSegment, 1);
     XCTAssertEqualObjects(_controller.navigatorTabView.selectedTabViewItem.identifier, @"issues");
 }

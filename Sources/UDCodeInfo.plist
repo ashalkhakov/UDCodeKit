@@ -1,0 +1,23 @@
+{
+    ApplicationName = "UDCode";
+    ApplicationDescription = "A code editor on UDCodeKit.";
+    CFBundleIdentifier = "org.underivable.UDCode";
+    NSPrincipalClass = "NSApplication";
+    NSMainNibFile = "MainMenu";
+    NSTypes = (
+        {
+            NSName = "UDPieceTable Workspace";
+            NSHumanReadableName = "UDCode Workspace";
+            NSUnixExtensions = ( "udworkspace" );
+            NSRole = "Editor";
+            NSDocumentClass = "UDWorkspace";
+        },
+        {
+            NSName = "JSON Document";
+            NSHumanReadableName = "JSON Document";
+            NSUnixExtensions = ( "json" );
+            NSRole = "Editor";
+            NSDocumentClass = "UDWorkspace";
+        }
+    );
+}

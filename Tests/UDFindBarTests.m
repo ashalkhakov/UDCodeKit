@@ -7,9 +7,10 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 
-@interface UDFindBarTests : XCTestCase
+@interface UDFindBarTests : UDCodeTestCase
 @property (nonatomic, strong) NSWindow *window;
 @property (nonatomic, strong) UDCodeEditorViewController *editor;
 @property (nonatomic, strong) UDTextModelTextStorage *storage;
@@ -18,6 +19,7 @@
 @implementation UDFindBarTests
 
 - (void)setUp {
+    [super setUp];
     NSString *text = @"alpha beta\nBeta gamma beta\nalphabet\n";
     _storage = [[UDTextModelTextStorage alloc] initWithText:text];
     _storage.textModel.undoManager = [[NSUndoManager alloc] init];
@@ -28,7 +30,7 @@
                                             backing:NSBackingStoreBuffered
                                               defer:NO];
     _window.releasedWhenClosed = NO;
-    _window.contentViewController = _editor;
+    _window.contentView = _editor.view;
     [_window orderFront:nil];
 }
 
@@ -57,12 +59,12 @@
                                @"replaceButton", @"replaceAllButton"]) {
         XCTAssertNotNil([bar valueForKey:outlet], @"%@ is connected in UDFindBar.xib", outlet);
     }
-    XCTAssertTrue(bar.replaceRow.hidden, @"finding: one row");
+    XCTAssertTrue([bar.replaceRow isHidden], @"finding: one row");
     XCTAssertEqualWithAccuracy(NSHeight(bar.view.superview.frame), UDFindBarFindHeight, 0.5);
     XCTAssertEqual(_window.firstResponder, bar.findField.currentEditor, @"the cursor is in the search field");
 
     [_editor showFindBarReplacing:YES];
-    XCTAssertFalse(bar.replaceRow.hidden, @"replacing: two rows");
+    XCTAssertFalse([bar.replaceRow isHidden], @"replacing: two rows");
     XCTAssertEqualWithAccuracy(NSHeight(bar.view.superview.frame), UDFindBarReplaceHeight, 0.5);
     XCTAssertEqual(bar.modeControl.selectedSegment, 1);
 }
@@ -97,7 +99,7 @@
 
     [self type:@"zeta"];
     XCTAssertEqualObjects(bar.statusLabel.stringValue, @"No results");
-    XCTAssertFalse(bar.replaceButton.enabled);
+    XCTAssertFalse([bar.replaceButton isEnabled]);
 
     bar.regexButton.state = NSControlStateValueOn;
     [bar optionsChanged:bar.regexButton];

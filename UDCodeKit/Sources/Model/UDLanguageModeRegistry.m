@@ -329,9 +329,11 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
                   extension:nil];
     [self _registerModeUnsafe:_plaintextFallback];
 
-    // Load grammar bundles from the app's PlugIns directory.
+    // Load grammar bundles from the app's PlugIns directory, or from
+    // $UD_PLUGINS_PATH: a test runner (xctest on GNUstep) is no app.
     // LanguageInfo.plist in each bundle is read before any bundle code runs.
-    NSString *plugInsPath = [[NSBundle mainBundle] builtInPlugInsPath];
+    NSString *plugInsPath = [[NSProcessInfo processInfo] environment][@"UD_PLUGINS_PATH"]
+        ?: [[NSBundle mainBundle] builtInPlugInsPath];
     NSArray<NSString *> *bundleNames = @[
         @"TreeSitterJson.bundle",
         @"TreeSitterHtml.bundle",

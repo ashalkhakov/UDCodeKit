@@ -77,6 +77,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// instead of AppKit's find panel or find bar.
 @property (nonatomic, weak, nullable) id<UDFindActionHandler> findActionHandler;
 
+/// The Find menu's actions; GNUstep's NSTextView has no find bar of its own.
+- (IBAction)performTextFinderAction:(nullable id)sender;
+
 - (void)showCompleteList:(id)sender;
 
 @end

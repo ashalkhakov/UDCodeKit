@@ -35,7 +35,8 @@ NS_ASSUME_NONNULL_BEGIN
 // ---------------------------------------------------------------------------
 
 /// Returns the application-wide registry. The built-in mode (Plain Text) and
-/// the grammar bundles' modes are registered on the first call.
+/// the grammar bundles' modes are registered on the first call: the bundles
+/// in the main bundle's PlugIns folder, or in $UD_PLUGINS_PATH when it is set.
 + (instancetype)sharedRegistry;
 
 // ---------------------------------------------------------------------------

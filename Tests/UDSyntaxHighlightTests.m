@@ -7,6 +7,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 
 static void UDDrainMainQueue(void) {
@@ -15,7 +16,7 @@ static void UDDrainMainQueue(void) {
     for (int round = 0; round < 3; round++) {
         __block BOOL reached = NO;
         dispatch_async(dispatch_get_main_queue(), ^{ reached = YES; });
-        while (!reached) CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, true);
+        while (!reached) [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
     }
 }
 
@@ -30,7 +31,7 @@ static NSArray<NSString *> *UDHighlights(UDTextModelTextStorage *storage) {
     return [out sortedArrayUsingSelector:@selector(compare:)];
 }
 
-@interface UDSyntaxHighlightTests : XCTestCase
+@interface UDSyntaxHighlightTests : UDCodeTestCase
 @end
 
 @implementation UDSyntaxHighlightTests

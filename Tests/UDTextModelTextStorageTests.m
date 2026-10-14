@@ -9,6 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 // UDTextModel, UDRange, PTRangeMake etc. are available transitively via
 // UDTextModelTextStorage.h → <UDPieceTable/UDPieceTable.h>.
@@ -29,7 +30,7 @@ static UDModelDeltaDecoration *Deco(NSInteger sl, NSInteger sc,
 
 // ---------------------------------------------------------------------------
 
-@interface UDTextModelTextStorageTests : XCTestCase
+@interface UDTextModelTextStorageTests : UDCodeTestCase
 @end
 
 @implementation UDTextModelTextStorageTests

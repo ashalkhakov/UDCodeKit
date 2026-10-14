@@ -232,15 +232,24 @@
 		CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				GNUmakefile,
 				InfoPlist.plist,
+				UDCodeInfo.plist,
 			);
 			target = A46FAAAA2F5441C80079BB37 /* UDCode */;
+		};
+		CED024F42F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				GNUmakefile,
+			);
+			target = A46FAABB2F5441CB0079BB37 /* UDCodeTests */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A46FAAAD2F5441C80079BB37 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CED024F32F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Sources; sourceTree = "<group>"; };
-		A46FAABF2F5441CB0079BB37 /* Tests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Tests; sourceTree = "<group>"; };
+		A46FAABF2F5441CB0079BB37 /* Tests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (CED024F42F584A70004A560F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Tests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */

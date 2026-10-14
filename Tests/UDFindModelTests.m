@@ -7,6 +7,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 
 typedef struct { uint64_t state; } UDRandom;
@@ -39,7 +40,7 @@ static NSArray<NSString *> *UDFresh(UDFindModel *find) {
     return UDKept(fresh);
 }
 
-@interface UDFindModelTests : XCTestCase
+@interface UDFindModelTests : UDCodeTestCase
 @end
 
 @implementation UDFindModelTests

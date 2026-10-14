@@ -3,7 +3,9 @@
 #import "UDErrorsViewController.h"
 #import "UDWorkspaceModel.h"
 #import <UDCodeKit/UDCodeKit.h>
+#ifdef __APPLE__
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#endif
 
 // The panes of the window's split view (UDDocumentWindowController.xib).
 static const NSInteger UDNavigatorPane = 0;
@@ -68,9 +70,14 @@ static const NSInteger UDInspectorPane = 2;
     _sessions       = [NSMapTable strongToStrongObjectsMapTable];
     _workspaceModel = [[UDWorkspaceModel alloc] init];
 
+#ifdef __APPLE__
     NSAppearanceName best =
         [NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
-    _currentTheme = [[TreeSitterTheme alloc] initWithMode:[best isEqualToString:NSAppearanceNameDarkAqua]];
+    BOOL dark = [best isEqualToString:NSAppearanceNameDarkAqua];
+#else
+    BOOL dark = NO;          // GNUstep: no appearances; the light theme
+#endif
+    _currentTheme = [[TreeSitterTheme alloc] initWithMode:dark];
 
     // The panes: navigator and inspector keep their widths, the editors take
     // the rest; sizes and visibility are remembered.
@@ -176,18 +183,21 @@ static const NSInteger UDInspectorPane = 2;
     panel.canChooseFiles          = YES;
     panel.canChooseDirectories    = NO;
     panel.allowsMultipleSelection = YES;
-    NSMutableArray<UTType *> *types = [NSMutableArray array];
-    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    // The extensions the language modes know (GNUstep has no UTType).
+    NSMutableOrderedSet<NSString *> *extensions = [NSMutableOrderedSet orderedSet];
     for (UDLanguageMode *mode in [UDLanguageModeRegistry sharedRegistry].allModes) {
-        for (NSString *ext in mode.fileExtensions) {
-            UTType *type = [UTType typeWithFilenameExtension:ext];
-            if (type && ![seen containsObject:type.identifier]) {
-                [seen addObject:type.identifier];
-                [types addObject:type];
-            }
-        }
+        [extensions addObjectsFromArray:mode.fileExtensions];
+    }
+#ifdef __APPLE__
+    NSMutableArray<UTType *> *types = [NSMutableArray array];
+    for (NSString *ext in extensions) {
+        UTType *type = [UTType typeWithFilenameExtension:ext];
+        if (type && ![types containsObject:type]) [types addObject:type];
     }
     panel.allowedContentTypes = types.count ? types : @[UTTypeData];
+#else
+    panel.allowedFileTypes = extensions.count ? extensions.array : nil;
+#endif
     if ([panel runModal] != NSModalResponseOK) return;
     for (NSURL *url in panel.URLs) [self openURLInNewTab:url];
 }
@@ -470,10 +480,13 @@ static const NSInteger UDInspectorPane = 2;
 }
 
 - (void)close {
+    // Only what this class observes: NSWindowController (GNUstep's) learns
+    // that its window closes by a notification of its own.
     for (UDCodeDocument *doc in _workspaceModel.documents) {
         [[self _sessionForDocument:doc] close];
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:doc.diagnosticStore];
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:doc.textModel];
     }
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
     [super close];
 }
 

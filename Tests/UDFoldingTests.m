@@ -7,6 +7,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <tree_sitter/api.h>
 #import <UDCodeKit/UDCodeKit.h>
 
@@ -23,7 +24,7 @@ static void UDCollectFoldable(TSNode node, NSMutableIndexSet *out) {
     for (uint32_t i = 0; i < n; i++) UDCollectFoldable(ts_node_child(node, i), out);
 }
 
-@interface UDFoldingTests : XCTestCase
+@interface UDFoldingTests : UDCodeTestCase
 @end
 
 @implementation UDFoldingTests
@@ -61,7 +62,9 @@ static void UDCollectFoldable(TSNode node, NSMutableIndexSet *out) {
     XCTAssertEqualObjects([folding foldableLinesInRange:NSMakeRange(1, lines)], all);
     for (NSUInteger first = 1; first <= lines; first += 7) {
         for (NSUInteger count = 1; count <= 40; count += 13) {
-            NSIndexSet *expected = [all indexesInRange:NSMakeRange(first, count) options:0 passingTest:^BOOL(NSUInteger i, BOOL *stop) { return YES; }];
+            NSMutableIndexSet *expected = [all mutableCopy];
+            [expected removeIndexesInRange:NSMakeRange(0, first)];
+            [expected removeIndexesInRange:NSMakeRange(first + count, NSNotFound - first - count)];
             XCTAssertEqualObjects([folding foldableLinesInRange:NSMakeRange(first, count)], expected,
                                   @"lines %lu to %lu", (unsigned long)first, (unsigned long)(first + count - 1));
         }

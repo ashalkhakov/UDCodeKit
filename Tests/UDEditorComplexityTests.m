@@ -15,6 +15,7 @@
 //
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 
 static double UDTime(void (^block)(void)) {
@@ -30,7 +31,7 @@ static void UDDrainMainQueue(void) {
     for (int round = 0; round < 3; round++) {
         __block BOOL reached = NO;
         dispatch_async(dispatch_get_main_queue(), ^{ reached = YES; });
-        while (!reached) CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, true);
+        while (!reached) [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
     }
 }
 
@@ -63,7 +64,7 @@ static NSString *UDJSONDocument(NSInteger entries) {
     return text;
 }
 
-@interface UDEditorComplexityTests : XCTestCase
+@interface UDEditorComplexityTests : UDCodeTestCase
 @end
 
 @implementation UDEditorComplexityTests
@@ -215,6 +216,7 @@ static NSString *UDJSONDocument(NSInteger entries) {
     textView.textModel = storage.textModel;
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 600, 400)];
     scrollView.documentView = textView;
+#ifdef __APPLE__
     [textView scrollRangeToVisible:NSMakeRange(storage.length / 2, 0)];
     NSRect visible = textView.visibleRect;
     NSBitmapImageRep *bitmap = [textView bitmapImageRepForCachingDisplayInRect:visible];
@@ -224,6 +226,24 @@ static NSString *UDJSONDocument(NSInteger entries) {
             [textView cacheDisplayInRect:visible toBitmapImageRep:bitmap];
         }
     });
+#else
+    // GNUstep draws a view only in a window: its -cacheDisplayInRect:...
+    // reads the window back rather than drawing.
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 600, 400)
+                                                   styleMask:NSWindowStyleMaskBorderless
+                                                     backing:NSBackingStoreBuffered
+                                                       defer:NO];
+    window.releasedWhenClosed = NO;
+    window.contentView = scrollView;
+    [textView scrollRangeToVisible:NSMakeRange(storage.length / 2, 0)];
+    NSRect visible = textView.visibleRect;
+    [textView displayRect:visible];
+    return UDTime(^{
+        for (NSInteger i = 0; i < 50; i++) {
+            [textView displayRect:visible];
+        }
+    });
+#endif
 }
 
 - (void)testDrawingCostsTheLinesDrawn {

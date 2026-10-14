@@ -9,24 +9,36 @@
 typedef struct TSLanguage TSLanguage;
 const TSLanguage *tree_sitter_xml(void);
 
+// The language server installer downloads macOS's Java runtime; elsewhere
+// XML has no language server yet.
+#ifdef __APPLE__
+#define UD_XML_LANGUAGE_SERVER 1
+#endif
+
 @implementation TreeSitterXmlPlugin {
     NSBundle *_bundle;
+#if UD_XML_LANGUAGE_SERVER
     XMLLSPInstaller *_installer;
+#endif
 }
 
 
 - (void)extensionDidLoad:(NSBundle *)bundle {
     _bundle = bundle;
+#if UD_XML_LANGUAGE_SERVER
     _installer = [[XMLLSPInstaller alloc] init];
     _installer.delegate = self;
     [_installer checkInstalled];   // no prompt here: only when an XML document wants a server
+#endif
     NSLog(@"TreeSitterXmlPlugin: loaded from %@", bundle.bundlePath);
 }
 
 - (void)extensionWillUnload:(NSBundle *)bundle {
     NSLog(@"TreeSitterXmlPlugin: will unload %@", bundle.bundlePath);
     _bundle = nil;
+#if UD_XML_LANGUAGE_SERVER
     _installer.delegate = nil;
+#endif
 }
 
 - (nullable const void *)languageFuncForIdentifier:(NSString *)identifier {
@@ -41,6 +53,9 @@ const TSLanguage *tree_sitter_xml(void);
 
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier {
     if (![identifier isEqualToString:@"xml"]) return nil;
+#if !UD_XML_LANGUAGE_SERVER
+    return nil;
+#else
     
     // If already ready (e.g. second launch), return immediately.
     // If still downloading, return nil — we'll notify the host when done.
@@ -60,13 +75,17 @@ const TSLanguage *tree_sitter_xml(void);
         ];
     }
     return nil;
+#endif
 }
 
 - (void)languageServerWantedForIdentifier:(NSString *)identifier {
+#if UD_XML_LANGUAGE_SERVER
     if (![identifier isEqualToString:@"xml"]) return;
     [_installer beginIfNeeded];    // asks once; downloads with consent
+#endif
 }
 
+#if UD_XML_LANGUAGE_SERVER
 #pragma mark - XMLLSPInstallerDelegate
 
 - (void)installerNeedsConsent:(XMLLSPInstaller *)installer {
@@ -115,5 +134,7 @@ const TSLanguage *tree_sitter_xml(void);
     NSLog(@"[XMLExtension] LSP install failed: %@", error.localizedDescription);
     // Optionally post a notification for the host to show a subtle error banner
 }
+
+#endif
 
 @end

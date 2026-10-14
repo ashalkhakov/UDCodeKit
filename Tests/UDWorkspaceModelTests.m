@@ -6,9 +6,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import "UDWorkspaceModel.h"
 
-@interface UDWorkspaceModelTests : XCTestCase
+@interface UDWorkspaceModelTests : UDCodeTestCase
 @end
 
 @implementation UDWorkspaceModelTests

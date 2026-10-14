@@ -5,9 +5,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 
-@interface UDLanguageModeTests : XCTestCase
+@interface UDLanguageModeTests : UDCodeTestCase
 @end
 
 @implementation UDLanguageModeTests

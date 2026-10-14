@@ -15,6 +15,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 #import <UDPieceTable/UDPieceTable.h>
 
@@ -37,7 +38,7 @@ static UDLanguageConfiguration *UDConfigWithPairsAndBefore(NSArray *pairs,
 
 // ---------------------------------------------------------------------------
 
-@interface UDAutoIndenterTests : XCTestCase
+@interface UDAutoIndenterTests : UDCodeTestCase
 @end
 
 @implementation UDAutoIndenterTests

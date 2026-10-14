@@ -80,7 +80,7 @@ static NSColor *UDSeparatorColor(void) {
 // ---------------------------------------------------------------------------
 
 - (instancetype)init {
-    self = [super initWithNibName:@"UDErrorsView" bundle:nil];
+    self = [super initWithNibName:@"UDErrorsView" bundle:[NSBundle bundleForClass:[UDErrorsViewController class]]];
     if (self) {
         _entries = [NSMutableArray array];
     }
@@ -188,22 +188,8 @@ static NSColor *UDSeparatorColor(void) {
 - (nullable NSView *)outlineView:(NSOutlineView *)outlineView
               viewForTableColumn:(nullable NSTableColumn *)tableColumn
                             item:(id)item {
-    static NSString * const kCellID = @"UDErrorCell";
-    NSTableCellView *cell = [outlineView makeViewWithIdentifier:kCellID owner:self];
-    if (!cell) {
-        cell = [[NSTableCellView alloc] initWithFrame:NSZeroRect];
-        NSTextField *tf = [NSTextField labelWithString:@""];
-        tf.translatesAutoresizingMaskIntoConstraints = NO;
-        tf.lineBreakMode = NSLineBreakByTruncatingTail;
-        [cell addSubview:tf];
-        [NSLayoutConstraint activateConstraints:@[
-            [tf.leadingAnchor  constraintEqualToAnchor:cell.leadingAnchor  constant:2.0],
-            [tf.trailingAnchor constraintEqualToAnchor:cell.trailingAnchor constant:-2.0],
-            [tf.centerYAnchor  constraintEqualToAnchor:cell.centerYAnchor],
-        ]];
-        cell.textField  = tf;
-        cell.identifier = kCellID;
-    }
+    // The prototype in UDErrorsView.xib, named after its column.
+    NSTableCellView *cell = [outlineView makeViewWithIdentifier:[tableColumn identifier] owner:self];
 
     if ([item isKindOfClass:[UDErrorsEntry class]]) {
         // File-group row: "<filename> (N error(s))" — bold, red when errors present.

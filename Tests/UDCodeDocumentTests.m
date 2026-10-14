@@ -6,9 +6,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
+#import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 
-@interface UDCodeDocumentTests : XCTestCase
+@interface UDCodeDocumentTests : UDCodeTestCase
 @end
 
 @implementation UDCodeDocumentTests
@@ -80,6 +81,28 @@
     XCTAssertEqualObjects(doc.fileURL, url);
     XCTAssertEqualObjects(doc.displayName, @"ud_test_doc.json");
 
+    [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+}
+
+- (void)testDocumentFromURL_readsAnEmptyFile {
+    NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                     URLByAppendingPathComponent:@"ud_test_empty.json"];
+    XCTAssertTrue([[NSData data] writeToURL:url atomically:YES]);
+    NSError *err = nil;
+    UDCodeDocument *doc = [UDCodeDocument documentFromURL:url error:&err];
+    XCTAssertNotNil(doc, @"%@", err);
+    XCTAssertEqualObjects([doc.textModel getValue], @"");
+    [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+}
+
+- (void)testDocumentFromURL_failsForTextThatIsNotUTF8 {
+    NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                     URLByAppendingPathComponent:@"ud_test_latin1.txt"];
+    const unsigned char bytes[] = { 'c', 'a', 'f', 0xE9 };
+    XCTAssertTrue([[NSData dataWithBytes:bytes length:sizeof bytes] writeToURL:url atomically:YES]);
+    NSError *err = nil;
+    XCTAssertNil([UDCodeDocument documentFromURL:url error:&err]);
+    XCTAssertEqual(err.code, NSFileReadInapplicableStringEncodingError);
     [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
 }
 

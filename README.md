@@ -48,6 +48,13 @@ Then open `UDPieceTable.xcworkspace`: the `UDCodeKit` scheme builds the
 framework, and the `UDCode` scheme builds the application with the
 frameworks and grammar bundles embedded.
 
+On GNUstep, with `GNUstep.sh` sourced, `make` at the root builds the same out
+of the tree, under `build/gnustep/`: the three frameworks, the grammar
+bundles and `UDCode.app` with the bundles in its `PlugIns` folder. It wants
+the patched stack from
+[gnustep-patches](https://github.com/ashalkhakov/gnustep-patches) (view-based
+tables load their prototype cells from a XIB there).
+
 ## Tests
 
 - `UDPieceTable` scheme — the text model (`UDPieceTable/Tests`), including
@@ -64,7 +71,13 @@ frameworks and grammar bundles embedded.
 ```bash
 xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDPieceTable -destination 'platform=macOS' test
 xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDCode -destination 'platform=macOS' test
+make check      # GNUstep: both suites, under Xvfb when there is no display
 ```
+
+On GNUstep the editor's tests run without a host application: the
+`UDCodeTests` bundle compiles in UDCode's sources (all but `main.m`) and its
+XIBs, and finds the grammars through `$UD_PLUGINS_PATH`, which `make check`
+points at the `UDCode.app` it built.
 
 ## License
 

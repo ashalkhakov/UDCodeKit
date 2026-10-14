@@ -250,6 +250,57 @@ static UDPosition UDReferencePosition(NSString *text, NSInteger offset) {
     }
 }
 
+/// The offset of a position in `text`, as the piece tree counts lines.
+static NSInteger UDReferenceOffset(NSString *text, NSInteger line, NSInteger column) {
+    NSInteger l = 1, i = 0, n = (NSInteger)text.length;
+    while (l < line && i < n) {
+        unichar c = [text characterAtIndex:(NSUInteger)i++];
+        if (c == '\r' && i < n && [text characterAtIndex:(NSUInteger)i] == '\n') i++;
+        if (c == '\r' || c == '\n') l++;
+    }
+    return i + column - 1;
+}
+
+/// Edits applied by position to a plain string — every position resolved
+/// in the text before the call — give the model's text. Many calls, several
+/// edits each, multi-line text in and out: the model's line index must
+/// keep up.
+- (void)testEditsByPositionMatchAPlainString {
+    for (uint64_t seed = 1; seed <= 40; seed++) {
+        UDRandom random = { seed };
+        NSMutableString *reference = [NSMutableString string];
+        for (NSInteger i = 0; i < 40; i++) [reference appendFormat:@"line %ld of the text %llu\n", (long)i, seed];
+        UDTextModel *model = [[UDTextModel alloc] initWithText:reference];
+        [model.undoManager disableUndoRegistration];
+        for (NSInteger round = 0; round < 30; round++) {
+            NSInteger lines = [model getLineCount];
+            NSMutableIndexSet *chosen = [NSMutableIndexSet indexSet];
+            NSInteger count = 1 + UDRandomBelow(&random, 3);
+            while ((NSInteger)chosen.count < count) [chosen addIndex:(NSUInteger)(1 + UDRandomBelow(&random, lines))];
+            NSMutableArray<UDTextModelEdit *> *edits = [NSMutableArray array];
+            NSMutableArray<NSValue *> *ranges = [NSMutableArray array];
+            NSArray *texts = @[@"", @",", @" 7", @"two\nlines\n", @"  \"new\": 1,\n  \"newer\": 2,\n"];
+            [chosen enumerateIndexesUsingBlock:^(NSUInteger line, BOOL *stop) {
+                NSInteger max = [model getLineMaxColumn:(NSInteger)line];
+                NSInteger c1 = 1 + UDRandomBelow(&random, max);
+                NSInteger c2 = MIN(max, c1 + UDRandomBelow(&random, 3));
+                NSString *t = texts[(NSUInteger)UDRandomBelow(&random, (NSInteger)texts.count)];
+                [edits addObject:[[UDTextModelEdit alloc] initWithRange:PTRangeMake((NSInteger)line, c1, (NSInteger)line, c2) text:t]];
+                NSInteger a = UDReferenceOffset(reference, (NSInteger)line, c1), b = UDReferenceOffset(reference, (NSInteger)line, c2);
+                [ranges addObject:[NSValue valueWithRange:NSMakeRange((NSUInteger)a, (NSUInteger)(b - a))]];
+            }];
+            for (NSInteger k = (NSInteger)edits.count - 1; k >= 0; k--) {   // chosen lines ascend: apply from the end
+                [reference replaceCharactersInRange:ranges[(NSUInteger)k].rangeValue withString:edits[(NSUInteger)k].text];
+            }
+            [model applyEdits:edits];
+            if (![reference isEqualToString:[model getValue]]) {
+                XCTFail(@"seed %llu round %ld: the model's text differs from the reference", seed, (long)round);
+                return;
+            }
+        }
+    }
+}
+
 - (void)testOverlappingEditsAreRefused {
     UDTextModel *model = [[UDTextModel alloc] initWithText:@"hello world\n"];
     NSArray *overlapping = @[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 1, 1, 6) text:@"a"],

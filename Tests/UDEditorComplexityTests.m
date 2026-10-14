@@ -234,4 +234,31 @@ static NSString *UDJSONDocument(NSInteger entries) {
     XCTAssertLessThan(large / small, 3.0, @"8× the document made drawing %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
+/// Typing while a search is open, with a match on every line: the find
+/// model searches the lines the edit touched again, not the text.
+- (double)typeWhileFindingInDocumentOf:(NSInteger)entries {
+    UDTextModelTextStorage *storage = [self highlightedStorageWithEntries:entries];
+    UDFindModel *find = [[UDFindModel alloc] initWithTextModel:storage.textModel];
+    find.searchString = @"value";
+    XCTAssertGreaterThan(find.matchCount, (NSUInteger)MIN(entries, 19999) - 1);
+    // Inside a string, so the text stays valid JSON: typing elsewhere would
+    // time tree-sitter's error recovery.
+    NSString *text = storage.string;
+    NSUInteger middle = [text rangeOfString:@"\"entry\"" options:0 range:NSMakeRange(text.length / 2, text.length / 2)].location + 2;
+    return UDTime(^{
+        for (NSInteger i = 0; i < 100; i++) {
+            [storage replaceCharactersInRange:NSMakeRange(middle, 0) withString:@"v"];
+            UDDrainMainQueue();
+        }
+    });
+}
+
+- (void)testTypingWhileFindingCostsTheEdit {
+    if (![self haveJSON]) return;
+    [self typeWhileFindingInDocumentOf:500];
+    double small = [self typeWhileFindingInDocumentOf:2000];
+    double large = [self typeWhileFindingInDocumentOf:16000];
+    XCTAssertLessThan(large / small, 3.0, @"8× the document made typing while finding %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
+}
+
 @end

@@ -51,6 +51,9 @@
 				UDFindResultsGutterView.h,
 				UDFoldingController.h,
 				UDLineNumberGutterView.h,
+				Find/UDFindModel.h,
+				Tabs/UDTabBarView.h,
+				Tabs/UDTabItemView.h,
 				UDStructuredNavigator.h,
 				UDCodeEditorViewController.h,
 			);

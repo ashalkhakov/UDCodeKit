@@ -4,6 +4,15 @@
 
 #import "UDFindResultsGutterView.h"
 
+/// The separator colour; GNUstep's NSColor has no -separatorColor.
+static NSColor *UDSeparatorColor(void) {
+#ifdef __APPLE__
+    return [NSColor separatorColor];
+#else
+    return [NSColor gridColor];
+#endif
+}
+
 @implementation UDFindResultsGutterView
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -34,7 +43,7 @@
     NSRectFill(self.bounds);
 
     // 1-px left border
-    [[NSColor separatorColor] setFill];
+    [UDSeparatorColor() setFill];
     NSRectFill(NSMakeRect(0.0, 0.0, 1.0, NSHeight(self.bounds)));
 
     CGFloat totalH = NSHeight(self.bounds);

@@ -27,7 +27,18 @@
     return self;
 }
 
+- (void)checkInstalled {
+    if ([self isJREInstalled] && [self isJARInstalled]) {
+        _state = XMLLSPInstallStateReady;
+        _javaURL = [self installedJavaURL];
+        _jarURL  = [self installedJarURL];
+    }
+}
+
 - (void)beginIfNeeded {
+    // Asked already (and answered, or downloading): not again.
+    if (_state == XMLLSPInstallStateNeedsConsent || _state == XMLLSPInstallStateDownloading ||
+        _state == XMLLSPInstallStateFailed) return;
     if ([self isJREInstalled] && [self isJARInstalled]) {
         _state = XMLLSPInstallStateReady;
         _javaURL = [self installedJavaURL];
@@ -36,9 +47,7 @@
     }
     
     _state = XMLLSPInstallStateNeedsConsent;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self.delegate installerNeedsConsent:self];
-    });
+    [(NSObject *)self.delegate performSelector:@selector(installerNeedsConsent:) withObject:self afterDelay:0];
 }
 
 - (void)userGrantedConsent:(BOOL)granted {
@@ -116,7 +125,7 @@
     NSURL *base = [[[NSFileManager defaultManager]
                     URLsForDirectory:NSApplicationSupportDirectory
                     inDomains:NSUserDomainMask] firstObject];
-    return [base URLByAppendingPathComponent:@"TestApp/LSP/XML"];
+    return [base URLByAppendingPathComponent:@"UDCode/LSP/XML"];
 }
 
 - (nullable NSURL *)installedJavaURL {

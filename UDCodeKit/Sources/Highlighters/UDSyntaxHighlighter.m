@@ -1,6 +1,6 @@
 //
 //  UDSyntaxHighlighter.m
-//  TestApp
+//  UDCodeKit
 //
 //  Created by artyom on 3/8/26.
 //
@@ -12,6 +12,11 @@
 #import "UDDecorationLayerRegistry.h"
 
 NSString * const UDHighlightDecorationOwner = @"highlight";
+
+static NSInteger UDCompareRangeStarts(NSValue *x, NSValue *y, void *context) {
+    NSUInteger a = x.rangeValue.location, b = y.rangeValue.location;
+    return a < b ? NSOrderedAscending : a > b ? NSOrderedDescending : NSOrderedSame;
+}
 
 
 @implementation UDSyntaxHighlighter
@@ -68,10 +73,7 @@ NSString * const UDHighlightDecorationOwner = @"highlight";
     if (changedCharRanges.count == 0) return;   // the tree did not change
 
     // The changed ranges, sorted and merged: disjoint, in document order.
-    NSArray<NSValue *> *sorted = [changedCharRanges sortedArrayUsingComparator:^NSComparisonResult(NSValue *x, NSValue *y) {
-        NSUInteger a = x.rangeValue.location, b = y.rangeValue.location;
-        return a < b ? NSOrderedAscending : a > b ? NSOrderedDescending : NSOrderedSame;
-    }];
+    NSArray<NSValue *> *sorted = [changedCharRanges sortedArrayUsingFunction:UDCompareRangeStarts context:NULL];
     NSMutableArray<NSValue *> *merged = [NSMutableArray arrayWithCapacity:sorted.count];
     for (NSValue *v in sorted) {
         NSRange r = v.rangeValue;

@@ -32,6 +32,10 @@ static const NSInteger UDInspectorPane = 2;
 
 @property (nonatomic, strong) UDErrorsViewController *errorsViewController;
 @property (nonatomic, strong) UDHoverViewController  *hover;
+// Where the language server's replies go: the text view that asked.
+@property (nonatomic, weak) UDDiagnosticTextView *completionTextView;
+@property (nonatomic, weak) UDDiagnosticTextView *hoverTextView;
+@property (nonatomic) NSUInteger hoverIndex;
 
 /// Pure model layer: owns UDCodeDocument objects, one per unique open file.
 @property (nonatomic, strong) UDWorkspaceModel *workspaceModel;
@@ -72,7 +76,7 @@ static const NSInteger UDInspectorPane = 2;
     // the rest; sizes and visibility are remembered.
     _paneSplit.minimumThicknesses = @[@160, @320, @200];
     _paneSplit.defaultThicknesses = @[@240, @0, @260];
-    _paneSplit.autosaveName = @"TestApp Workspace";
+    _paneSplit.autosaveName = @"UDCode Workspace";
     [_paneSplit restoreLayout];
 
     // The issues navigator, from its own XIB, in its host.
@@ -184,10 +188,8 @@ static const NSInteger UDInspectorPane = 2;
         }
     }
     panel.allowedContentTypes = types.count ? types : @[UTTypeData];
-    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
-        if (result != NSModalResponseOK) return;
-        for (NSURL *url in panel.URLs) [self openURLInNewTab:url];
-    }];
+    if ([panel runModal] != NSModalResponseOK) return;
+    for (NSURL *url in panel.URLs) [self openURLInNewTab:url];
 }
 
 - (void)openURLInNewTab:(NSURL *)url {
@@ -408,15 +410,16 @@ static const NSInteger UDInspectorPane = 2;
 // ---------------------------------------------------------------------------
 
 - (void)textViewRequestCompletion:(UDDiagnosticTextView *)textView {
-    UDEditorSession *session = [self _activeSession];
-    [session.lspCoordinator completionAtIndex:textView.selectedRange.location
-                            completionHandler:^(NSArray<LSPCompletionItem *> *items, NSError *err) {
-        if (err || !items.count) return;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            session.completionList = items;
-            [textView showCompleteList:nil];
-        });
-    }];
+    _completionTextView = textView;
+    [[self _activeSession].lspCoordinator completionAtIndex:textView.selectedRange.location
+                                                     target:self action:@selector(_didReceiveCompletion:)];
+}
+
+- (void)_didReceiveCompletion:(LSPResponse *)response {
+    NSArray<LSPCompletionItem *> *items = response.result;
+    if (response.error || !items.count) return;
+    [self _activeSession].completionList = items;
+    [_completionTextView showCompleteList:nil];
 }
 
 - (NSArray<NSString *> *)textView:(NSTextView *)textView
@@ -429,16 +432,18 @@ static const NSInteger UDInspectorPane = 2;
 }
 
 - (void)textView:(UDDiagnosticTextView *)textView requestTooltipAtIndex:(NSUInteger)characterIndex point:(NSPoint)point {
+    _hoverTextView = textView;
+    _hoverIndex = characterIndex;
     [[self _activeSession].lspCoordinator hoverAtIndex:characterIndex
-                                     completionHandler:^(NSDictionary *result, NSError *err) {
-        NSDictionary *contents = result[@"contents"];
-        NSString *text = contents[@"value"] ?: [contents description];
-        if (!text.length) return;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (!self->_hover) self->_hover = [[UDHoverViewController alloc] init];
-            [self->_hover showText:text atCharacterIndex:characterIndex ofTextView:textView];
-        });
-    }];
+                                                target:self action:@selector(_didReceiveHover:)];
+}
+
+- (void)_didReceiveHover:(LSPResponse *)response {
+    NSDictionary *contents = [response.result objectForKey:@"contents"];
+    NSString *text = [contents isKindOfClass:[NSDictionary class]] ? contents[@"value"] : [contents description];
+    if (!text.length || !_hoverTextView) return;
+    if (!_hover) _hover = [[UDHoverViewController alloc] init];
+    [_hover showText:text atCharacterIndex:_hoverIndex ofTextView:_hoverTextView];
 }
 
 // ---------------------------------------------------------------------------

@@ -88,8 +88,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// element is the executable path; subsequent elements are the command-line
 /// arguments.  @c nil when no language server is configured for this mode.
 ///
-/// This value is supplied by the extension via
-/// @c -languageServerCommandForIdentifier: and cached here for the lifetime
+/// Asked of the extension (-languageServerCommandForIdentifier:) each time,
+/// so a server installed later is found; without an extension, the command
+/// given at creation. (Formerly cached here for the lifetime
 /// of the mode object.
 @property (nonatomic, copy, readonly, nullable) NSArray<NSString *> *languageServerCommand;
 

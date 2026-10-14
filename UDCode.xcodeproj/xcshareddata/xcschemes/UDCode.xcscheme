@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A46FAAAA2F5441C80079BB37"
-               BuildableName = "TestApp.app"
-               BlueprintName = "TestApp"
-               ReferencedContainer = "container:TestApp.xcodeproj">
+               BuildableName = "UDCode.app"
+               BlueprintName = "UDCode"
+               ReferencedContainer = "container:UDCode.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -30,7 +30,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:Tests/TestApp.xctestplan"
+            reference = "container:Tests/UDCode.xctestplan"
             default = "YES">
          </TestPlanReference>
       </TestPlans>
@@ -50,9 +50,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A46FAAAA2F5441C80079BB37"
-            BuildableName = "TestApp.app"
-            BlueprintName = "TestApp"
-            ReferencedContainer = "container:TestApp.xcodeproj">
+            BuildableName = "UDCode.app"
+            BlueprintName = "UDCode"
+            ReferencedContainer = "container:UDCode.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -67,9 +67,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A46FAAAA2F5441C80079BB37"
-            BuildableName = "TestApp.app"
-            BlueprintName = "TestApp"
-            ReferencedContainer = "container:TestApp.xcodeproj">
+            BuildableName = "UDCode.app"
+            BlueprintName = "UDCode"
+            ReferencedContainer = "container:UDCode.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

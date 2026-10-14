@@ -349,7 +349,7 @@ static int UDCompareOffsets(const void *x, const void *y) {
 // ---------------------------------------------------------------------------
 
 - (void)processEditing {
-    NSTextStorageEditActions mask = self.editedMask;
+    NSUInteger mask = self.editedMask;
 
     [super processEditing];
 

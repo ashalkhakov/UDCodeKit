@@ -12,7 +12,7 @@
 #import "UDDocument.h"
 #import "UDDocumentWindowController.h"
 
-static NSString * const UDSavedPanes = @"UDPaneSplit TestApp Workspace";
+static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
 
 @interface UDDocumentWindowController (Testing)
 @property (nonatomic, strong) UDPaneSplitController  *paneSplit;

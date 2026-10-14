@@ -156,25 +156,17 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
     }
 }
 
+/// Offers -willVisitNode:depth: the nodes under @a root that hold an error
+/// and reach [low, high] (a node ending at @a low or starting at @a high
+/// counts: a MISSING node there is empty), depth first, in order. Skips
+/// subtrees without errors and children outside the range, so it costs the
+/// paths to the errors in the range, not the tree.
 - (void)_walkErrorsUnder:(TSNode)root from:(uint32_t)low to:(uint32_t)high {
-    [self _walkErrorsUnder:root from:low to:high visiting:^BOOL(TSNode node, NSUInteger depth) {
-        return self->_remainingBudget > 0 && [self willVisitNode:node depth:depth];
-    }];
-}
-
-/// Offers @a visit the nodes under @a root that hold an error and reach
-/// [low, high] (a node ending at @a low or starting at @a high counts: a
-/// MISSING node there is empty), depth first, in order; it returns whether
-/// to walk the node's children. Skips subtrees without errors and children
-/// outside the range, so it costs the paths to the errors in the range, not
-/// the tree.
-- (void)_walkErrorsUnder:(TSNode)root from:(uint32_t)low to:(uint32_t)high
-                visiting:(BOOL (^)(TSNode node, NSUInteger depth))visit {
     TSTreeCursor cursor = ts_tree_cursor_new(root);
     NSUInteger depth = 0;
     for (;;) {
         TSNode node = ts_tree_cursor_current_node(&cursor);
-        BOOL descend = ts_node_has_error(node) && visit(node, depth);
+        BOOL descend = ts_node_has_error(node) && _remainingBudget > 0 && [self willVisitNode:node depth:depth];
         // First child ending at or after `low`.
         if (descend && ts_tree_cursor_goto_first_child_for_byte(&cursor, low > 0 ? low - 1 : 0) >= 0) {
             if (ts_node_start_byte(ts_tree_cursor_current_node(&cursor)) <= high) {

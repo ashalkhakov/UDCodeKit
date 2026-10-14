@@ -102,6 +102,12 @@ FOUNDATION_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 /// start a language server for the corresponding mode.
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier;
 
+/// Called when a document of the mode wants its language server and
+/// -languageServerCommandForIdentifier: has none yet — the moment to offer
+/// to install one (not at load: nobody may ever open such a document).
+/// When it is ready, post UDExtensionLanguageServerDidBecomeReadyNotification.
+- (void)languageServerWantedForIdentifier:(NSString *)identifier;
+
 /// Returns a language-specific key handler for the given language mode
 /// identifier, or @c nil when this extension provides no special key handling
 /// for that mode.

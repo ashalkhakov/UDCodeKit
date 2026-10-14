@@ -312,7 +312,7 @@ bash scripts/update-grammars.sh
 ```
 
 This calls each bundle's `fetch-deps.sh` in turn and also fetches the
-shared `tree-sitter/` runtime at the repo root (used by `TestApp.xcodeproj`).
+shared `tree-sitter/` runtime at the repo root (compiled into UDCodeKit).
 
 ```sh
 # Fetch only specific grammars
@@ -348,7 +348,7 @@ bash scripts/fetch-tree-sitter.sh
 ```
 
 This fetches the tree-sitter runtime into `tree-sitter/` at the repo root.
-`TestApp.xcodeproj` references `tree-sitter/src/lib.c` and
+`UDCodeKit.xcodeproj` references `tree-sitter/src/lib.c` and
 `tree-sitter/include/` from here.  Running `scripts/update-grammars.sh`
 automatically calls this script too.
 
@@ -376,11 +376,11 @@ Each standalone project compiles:
 - `src/scanner.c` or `src/scanner.cc` — the external scanner (when present)
 - `Sources/TreeSitter<Lang>Plugin.m` — the principal class (conforms to UDExtension)
 
-### TestApp workspace
+### UDCode workspace
 
 The full app build uses `UDPieceTable.xcworkspace`, which includes all 10
 grammar subprojects in a "Grammar Bundles" group alongside the main
-`TestApp.xcodeproj`.
+`UDCode.xcodeproj`.
 
 ### Runtime loading
 
@@ -432,7 +432,7 @@ the plaintext fallback handles those file extensions).
 3. Add the new grammar name to the `ALL_GRAMMARS` array in
    `scripts/update-grammars.sh`.
 
-4. Add a **bundle target** to `TestApp.xcodeproj` following the pattern of
+4. Add a **bundle target** to `UDCode.xcodeproj` following the pattern of
    the other grammar bundle targets (sources, resources, HEADER_SEARCH_PATHS,
    INFOPLIST_FILE, PRODUCT_BUNDLE_IDENTIFIER).
 

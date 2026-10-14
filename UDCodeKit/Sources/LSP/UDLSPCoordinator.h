@@ -36,13 +36,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// document), so passing it here costs nothing extra.
 - (void)documentDidOpenWithContent:(UDTextModel *)content;
 
-/// LSP textDocument/completion at the given character index.
-- (void)completionAtIndex:(NSUInteger)characterIndex
-        completionHandler:(void (^)(NSArray<LSPCompletionItem *> *items, NSError *error))handler;
+/// LSP textDocument/completion at the given character index; @a action
+/// gets an LSPResponse whose result is NSArray<LSPCompletionItem *>.
+/// Returns the request's identifier (0 when the server is not ready).
+- (NSInteger)completionAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action;
 
-/// LSP textDocument/hover at the given character index.
-- (void)hoverAtIndex:(NSUInteger)characterIndex
-   completionHandler:(void (^)(NSDictionary *result, NSError *error))handler;
+/// LSP textDocument/hover at the given character index; @a action gets an
+/// LSPResponse whose result is the server's hover dictionary.
+- (NSInteger)hoverAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action;
 
 @end
 

@@ -1,6 +1,6 @@
 //
 //  AppDelegate.h
-//  TestApp
+//  UDCode
 //
 
 #import <Cocoa/Cocoa.h>

@@ -24,7 +24,7 @@
     NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(characterIndex, 1) actualCharacterRange:NULL];
     NSRect rect = [lm boundingRectForGlyphRange:glyphs inTextContainer:textView.textContainer];
     rect = NSOffsetRect(rect, textView.textContainerOrigin.x, textView.textContainerOrigin.y);
-    [_popover showRelativeToRect:rect ofView:textView preferredEdge:NSRectEdgeMaxY];
+    [_popover showRelativeToRect:rect ofView:textView preferredEdge:NSMaxYEdge];
 }
 
 @end

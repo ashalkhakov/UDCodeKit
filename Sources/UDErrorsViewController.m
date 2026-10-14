@@ -4,6 +4,15 @@
 
 #import "UDErrorsViewController.h"
 
+/// The separator colour; GNUstep's NSColor has no -separatorColor.
+static NSColor *UDSeparatorColor(void) {
+#ifdef __APPLE__
+    return [NSColor separatorColor];
+#else
+    return [NSColor gridColor];
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - UDErrorsEntry  (private model object for one file group)
 // ---------------------------------------------------------------------------
@@ -48,7 +57,7 @@
     [[NSColor windowBackgroundColor] setFill];
     NSRectFill(self.bounds);
     // 1-px right border matching the visual style of the existing gutters.
-    [[NSColor separatorColor] setFill];
+    [UDSeparatorColor() setFill];
     NSRectFill(NSMakeRect(NSWidth(self.bounds) - 1.0, 0.0, 1.0, NSHeight(self.bounds)));
 }
 

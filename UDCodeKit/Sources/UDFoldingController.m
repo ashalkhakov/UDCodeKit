@@ -67,13 +67,13 @@ typedef struct {
     return YES;
 }
 
-/// The regions opening on lines [first, last], in tree order (outer first).
-/// Walks only the nodes overlapping those lines.
-- (void)_regionsOnLines:(NSInteger)first through:(NSInteger)last
-               visiting:(void (^)(UDFoldRegion region))visit {
+/// The regions opening on lines [first, last] — UDFoldRegion structs, in
+/// tree order (outer first). Walks only the nodes overlapping those lines.
+- (NSData *)_regionsOnLines:(NSInteger)first through:(NSInteger)last {
+    NSMutableData *regions = [NSMutableData data];
     const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
     UDTextModel *model = _textStorage.textModel;
-    if (!tree || ![self _clampLines:&first through:&last]) return;
+    if (!tree || ![self _clampLines:&first through:&last]) return regions;
     uint32_t low  = (uint32_t)[model getOffsetAt:first column:1] * 2;
     uint32_t high = (uint32_t)[model getOffsetAt:last column:[model getLineMaxColumn:last]] * 2;
 
@@ -92,7 +92,7 @@ typedef struct {
                 UDCharIndexFromByte(ts_node_start_byte(close)),
             };
             if (region.line >= first && region.line <= last && region.interiorStart < region.interiorEnd) {
-                visit(region);
+                [regions appendBytes:&region length:sizeof region];
             }
         }
         // Children overlapping [low, high]; then the next sibling there, or up.
@@ -116,6 +116,7 @@ typedef struct {
         if (!moved) break;
     }
     ts_tree_cursor_delete(&cursor);
+    return regions;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,11 +143,12 @@ typedef struct {
 - (BOOL)_regionExistsFrom:(NSInteger)start to:(NSInteger)end {
     if (start >= end) return NO;
     NSInteger line = [_textStorage.textModel getPositionAt:start].line;
-    __block BOOL found = NO;
-    [self _regionsOnLines:line through:line visiting:^(UDFoldRegion r) {
-        if ((NSInteger)r.interiorStart == start && (NSInteger)r.interiorEnd == end) found = YES;
-    }];
-    return found;
+    NSData *regions = [self _regionsOnLines:line through:line];
+    const UDFoldRegion *r = regions.bytes;
+    for (NSUInteger i = 0; i < regions.length / sizeof *r; i++) {
+        if ((NSInteger)r[i].interiorStart == start && (NSInteger)r[i].interiorEnd == end) return YES;
+    }
+    return NO;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,10 +158,9 @@ typedef struct {
 - (NSIndexSet *)foldableLinesInRange:(NSRange)lines {
     NSMutableIndexSet *out = [NSMutableIndexSet indexSet];
     if (lines.length == 0) return out;
-    [self _regionsOnLines:(NSInteger)lines.location through:(NSInteger)NSMaxRange(lines) - 1
-                 visiting:^(UDFoldRegion region) {
-        [out addIndex:(NSUInteger)region.line];
-    }];
+    NSData *regions = [self _regionsOnLines:(NSInteger)lines.location through:(NSInteger)NSMaxRange(lines) - 1];
+    const UDFoldRegion *r = regions.bytes;
+    for (NSUInteger i = 0; i < regions.length / sizeof *r; i++) [out addIndex:(NSUInteger)r[i].line];
     return out;
 }
 
@@ -221,13 +222,10 @@ typedef struct {
         for (UDIntervalNode *fold in folds) [ids addObject:fold.identifier];
         [model deltaDecorations:ids newDecorations:@[] owner:UDFoldDecorationOwner];
     } else {
-        __block UDFoldRegion innermost;
-        __block BOOL found = NO;
-        [self _regionsOnLines:lineNumber through:lineNumber visiting:^(UDFoldRegion region) {
-            innermost = region;     // tree order: the last is the innermost
-            found = YES;
-        }];
-        if (!found) return;
+        NSData *regions = [self _regionsOnLines:lineNumber through:lineNumber];
+        if (regions.length == 0) return;
+        // Tree order: the last is the innermost.
+        UDFoldRegion innermost = ((const UDFoldRegion *)regions.bytes)[regions.length / sizeof innermost - 1];
         UDPosition sp = [model getPositionAt:(NSInteger)innermost.interiorStart];
         UDPosition ep = [model getPositionAt:(NSInteger)innermost.interiorEnd];
         UDDecorationOptions *opts =

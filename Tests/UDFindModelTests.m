@@ -10,6 +10,10 @@
 #import <UDCodeKit/UDCodeKit.h>
 
 typedef struct { uint64_t state; } UDRandom;
+/// MIN, with each argument evaluated once: GNUstep's MIN evaluates them
+/// twice, and an argument that draws a random number would draw two.
+static inline NSInteger UDMin(NSInteger a, NSInteger b) { return a < b ? a : b; }
+
 static NSInteger UDRandomBelow(UDRandom *r, NSInteger bound) {
     r->state = r->state * 6364136223846793005ULL + 1442695040888963407ULL;
     return (NSInteger)((r->state >> 33) % (uint64_t)MAX(bound, 1));
@@ -74,7 +78,7 @@ static NSArray<NSString *> *UDFresh(UDFindModel *find) {
                 [chosen enumerateIndexesUsingBlock:^(NSUInteger line, BOOL *stop) {
                     NSInteger max = [model getLineMaxColumn:(NSInteger)line];
                     NSInteger c1 = 1 + UDRandomBelow(&random, max);
-                    NSInteger c2 = MIN(max, c1 + UDRandomBelow(&random, 5));
+                    NSInteger c2 = UDMin(max, c1 + UDRandomBelow(&random, 5));
                     [edits addObject:[[UDTextModelEdit alloc] initWithRange:PTRangeMake((NSInteger)line, c1, (NSInteger)line, c2)
                                                                         text:inserts[(NSUInteger)UDRandomBelow(&random, (NSInteger)inserts.count)]]];
                 }];

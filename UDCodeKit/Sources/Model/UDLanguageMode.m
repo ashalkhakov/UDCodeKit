@@ -7,6 +7,8 @@
 
 @implementation UDLanguageMode
 
+@synthesize languageServerCommand = _languageServerCommand;
+
 - (instancetype)initWithIdentifier:(NSString *)identifier
                         displayName:(NSString *)displayName
                      fileExtensions:(NSArray<NSString *> *)fileExtensions
@@ -41,6 +43,13 @@
 - (NSString *)description {
     return [NSString stringWithFormat:@"<%@: %@ (%@)>",
             NSStringFromClass(self.class), _identifier, _displayName];
+}
+
+- (NSArray<NSString *> *)languageServerCommand {
+    if ([_extension respondsToSelector:@selector(languageServerCommandForIdentifier:)]) {
+        return [_extension languageServerCommandForIdentifier:_identifier];
+    }
+    return _languageServerCommand;
 }
 
 @end

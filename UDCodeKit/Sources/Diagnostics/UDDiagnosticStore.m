@@ -1,6 +1,6 @@
 //
 //  UDDiagnosticStore.m
-//  TestApp
+//  UDCodeKit
 //
 //  Created by artyom on 3/8/26.
 //

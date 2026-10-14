@@ -49,7 +49,23 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
     return [NSColor colorWithRed:0.80 green:0.12 blue:0.12 alpha:0.85];
 }
 
+// What AppKit and GNUstep's AppKit both have stand in for the newer names
+// GNUstep has not (glyphIndexForCharacterAtIndex:, the NSCompositing-
+// Operation names).
+static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
+    return [lm glyphRangeForCharacterRange:NSMakeRange(charIndex, 1) actualCharacterRange:NULL].location;
+}
+#ifdef __APPLE__
+#define UDCompositeSourceOver NSCompositingOperationSourceOver
+#else
+#define UDCompositeSourceOver NSCompositeSourceOver
+#endif
+
+#ifdef __APPLE__
 @interface UDDiagnosticTextView () <NSLayoutManagerDelegate>
+#else
+@interface UDDiagnosticTextView ()
+#endif
 /// Character offset of the cursor position from the last selection-change
 /// notification; used to look up the previous line rect so only that rect
 /// is invalidated when the cursor moves to a different line.
@@ -206,7 +222,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
     NSRect (^lineRect)(NSUInteger) = ^NSRect(NSUInteger charOffset) {
         if (len == 0) return NSZeroRect;
         NSUInteger safe = (charOffset < len) ? charOffset : len - 1;
-        NSUInteger gi   = [lm glyphIndexForCharacterAtIndex:safe];
+        NSUInteger gi   = UDGlyphIndex(lm, safe);
         NSRange    er;
         NSRect     r  = [lm lineFragmentRectForGlyphAtIndex:gi effectiveRange:&er];
         if (NSIsEmptyRect(r)) return NSZeroRect;
@@ -304,7 +320,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
     NSArray<UDIntervalNode *> *nodes =
         [model decorationNodesInOffsetRange:(NSInteger)chars.location end:(NSInteger)NSMaxRange(chars)];
     NSFont          *labelFont =
-        [NSFont monospacedSystemFontOfSize:kLabelFontSize weight:NSFontWeightRegular];
+        [NSFont userFixedPitchFontOfSize:kLabelFontSize];
 
     for (UDIntervalNode *node in nodes) {
         if (!IsDiagnosticNode(node)) continue;
@@ -313,7 +329,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
         if (charOffset >= (NSUInteger)docLen) continue;
 
         // Glyph location for the start of this decoration.
-        NSUInteger glyphIdx = [lm glyphIndexForCharacterAtIndex:charOffset];
+        NSUInteger glyphIdx = UDGlyphIndex(lm, charOffset);
 
         NSRect usedRect =
         [lm lineFragmentUsedRectForGlyphAtIndex:glyphIdx effectiveRange:nil];
@@ -347,15 +363,14 @@ static const unsigned short kKeyCodeRightArrow = 124;
         [pill fill];
 
         // Draw message text.
+        NSMutableParagraphStyle *truncating = [[NSMutableParagraphStyle alloc] init];
+        truncating.lineBreakMode = NSLineBreakByTruncatingTail;
         NSDictionary *attrs = @{
             NSFontAttributeName:            labelFont,
             NSForegroundColorAttributeName: [NSColor whiteColor],
+            NSParagraphStyleAttributeName:  truncating,
         };
-        [msg drawWithRect:NSInsetRect(labelRect, 4.0, 1.0)
-                  options:NSStringDrawingTruncatesLastVisibleLine |
-                           NSStringDrawingUsesLineFragmentOrigin
-               attributes:attrs
-                  context:nil];
+        [msg drawInRect:NSInsetRect(labelRect, 4.0, 1.0) withAttributes:attrs];
     }
 }
 
@@ -375,7 +390,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
     NSUInteger charIdx  = (sel.location < str.length) ? sel.location
                                                        : str.length - 1;
 
-    NSUInteger glyphIdx = [lm glyphIndexForCharacterAtIndex:charIdx];
+    NSUInteger glyphIdx = UDGlyphIndex(lm, charIdx);
     if (glyphIdx == NSNotFound) return;
 
     NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:glyphIdx
@@ -395,7 +410,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
     // warm-gray band, and on a dark bg it produces a slightly brighter band.
     [[NSColor colorWithWhite:0.5 alpha:0.10] setFill];
     NSRectFillUsingOperation(NSIntersectionRect(lineRect, rect),
-                             NSCompositingOperationSourceOver);
+                             UDCompositeSourceOver);
 }
 
 /// Returns the diagnostic message from a decoration's @c userInfo value,
@@ -413,11 +428,18 @@ static const unsigned short kKeyCodeRightArrow = 124;
 
 // MARK: - NSTextInputClient overrides for multi-cursor
 
+// Typing reaches -insertText:replacementRange: on macOS and -insertText: on
+// GNUstep; both go to the cursors when there are several.
 - (void)insertText:(id)string replacementRange:(NSRange)replacementRange {
     // Single cursor: let the standard NSTextView path handle it.
     // It calls replaceCharactersInRange:, which goes through UDTextModel.
     if (_cursorsController.selections.count <= 1) {
+#ifdef __APPLE__
         [super insertText:string replacementRange:replacementRange];
+#else
+        if (replacementRange.location != NSNotFound) [self setSelectedRange:replacementRange];
+        [super insertText:string];
+#endif
         return;
     }
 
@@ -427,6 +449,12 @@ static const unsigned short kKeyCodeRightArrow = 124;
     [_cursorsController typeText:text source:@"keyboard"];
     [self _syncSelectionsFromController];
 }
+
+#ifndef __APPLE__
+- (void)insertText:(id)string {
+    [self insertText:string replacementRange:NSMakeRange(NSNotFound, 0)];
+}
+#endif
 
 - (void)deleteBackward:(id)sender {
     if (_cursorsController.selections.count <= 1) {
@@ -504,9 +532,8 @@ static const unsigned short kKeyCodeRightArrow = 124;
     NSPoint pt = [self convertPoint:event.locationInWindow fromView:nil];
     NSLayoutManager *lm = self.layoutManager;
     NSTextContainer *tc = self.textContainer;
-    NSUInteger charIdx  = [lm characterIndexForPoint:pt
-                                     inTextContainer:tc
-            fractionOfDistanceBetweenInsertionPoints:NULL];
+    NSPoint inContainer = NSMakePoint(pt.x - self.textContainerOrigin.x, pt.y - self.textContainerOrigin.y);
+    NSUInteger charIdx  = [lm characterIndexForGlyphAtIndex:[lm glyphIndexForPoint:inContainer inTextContainer:tc]];
 
     // TODO: use a different key?
     if ([self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)]) {
@@ -611,7 +638,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
             selRect.origin.x += orig.x;
             selRect.origin.y += orig.y;
             [[NSColor selectedTextBackgroundColor] setFill];
-            NSRectFillUsingOperation(selRect, NSCompositingOperationSourceOver);
+            NSRectFillUsingOperation(selRect, UDCompositeSourceOver);
         }
 
         // Draw the cursor bar.
@@ -657,7 +684,9 @@ static const unsigned short kKeyCodeRightArrow = 124;
 
 - (void)performTextFinderAction:(id)sender {
     if (_findActionHandler) [_findActionHandler performFindAction:[sender tag]];
+#ifdef __APPLE__
     else [super performTextFinderAction:sender];
+#endif
 }
 
 @end

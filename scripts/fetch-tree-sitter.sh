@@ -2,7 +2,7 @@
 # scripts/fetch-tree-sitter.sh
 #
 # Fetches the tree-sitter runtime into the repo-root tree-sitter/ directory.
-# This copy is referenced by TestApp.xcodeproj (HEADER_SEARCH_PATHS, lib.c).
+# This copy is compiled into UDCodeKit (UDCodeKit/UDCodeKit.xcodeproj: lib.c, HEADER_SEARCH_PATHS).
 #
 # USAGE
 #   bash scripts/fetch-tree-sitter.sh

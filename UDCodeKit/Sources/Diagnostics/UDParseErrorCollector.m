@@ -6,6 +6,12 @@
 #import "UDDiagnosticItem.h"
 #import "UDTextModelTextStorage.h"
 
+static NSInteger UDCompareDiagnosticPositions(UDDiagnosticItem *a, UDDiagnosticItem *b, void *context) {
+    if (a.line != b.line) return a.line < b.line ? NSOrderedAscending : NSOrderedDescending;
+    if (a.column != b.column) return a.column < b.column ? NSOrderedAscending : NSOrderedDescending;
+    return NSOrderedSame;
+}
+
 @implementation UDParseErrorCollector {
     __weak UDTextModel *_textModel;
     UDDiagnosticStore *_store;
@@ -33,11 +39,7 @@
                                                        severity:UDDiagnosticSeverityError
                                                          source:UDDiagnosticSourceParser]];
     }
-    [items sortUsingComparator:^NSComparisonResult(UDDiagnosticItem *a, UDDiagnosticItem *b) {
-        if (a.line != b.line) return a.line < b.line ? NSOrderedAscending : NSOrderedDescending;
-        if (a.column != b.column) return a.column < b.column ? NSOrderedAscending : NSOrderedDescending;
-        return NSOrderedSame;
-    }];
+    [items sortUsingFunction:UDCompareDiagnosticPositions context:NULL];
     [_store setDiagnostics:items forSource:UDDiagnosticSourceParser];
 }
 

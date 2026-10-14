@@ -1,6 +1,6 @@
 //
 //  UDTextModel+LSPTextBuffer.h
-//  TestApp
+//  UDCodeKit
 //
 //  Created by artyom on 3/23/26.
 //

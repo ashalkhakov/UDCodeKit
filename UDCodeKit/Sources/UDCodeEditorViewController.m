@@ -159,7 +159,7 @@
 // ---------------------------------------------------------------------------
 
 - (BOOL)isFindBarVisible {
-    return _findBar != nil && !_findBarHost.hidden;
+    return _findBar != nil && ![_findBarHost isHidden];
 }
 
 - (void)showFindBarReplacing:(BOOL)replacing {

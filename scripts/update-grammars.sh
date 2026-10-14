@@ -2,7 +2,7 @@
 # scripts/update-grammars.sh
 #
 # Convenience wrapper that runs each grammar bundle's fetch-deps.sh and then
-# fetches the shared tree-sitter runtime used by TestApp.xcodeproj.
+# fetches the shared tree-sitter runtime compiled into UDCodeKit.
 #
 # USAGE
 #   bash scripts/update-grammars.sh [grammar ...]
@@ -18,7 +18,7 @@
 #   tree-sitter runtime, then writes all generated files into the bundle
 #   directory.  This wrapper simply delegates to those per-bundle scripts.
 #
-#   The shared tree-sitter/ runtime at the repo root (used by TestApp) is
+#   The shared tree-sitter/ runtime at the repo root (compiled into UDCodeKit) is
 #   fetched separately via scripts/fetch-tree-sitter.sh.
 #
 # ADDING A NEW GRAMMAR
@@ -79,6 +79,6 @@ echo
 
 echo "Done."
 echo "Remember to:"
-echo "  1. Add new source files to TestApp.xcodeproj/project.pbxproj."
+echo "  1. Add the bundle to UDCode.xcodeproj (a target dependency, and Embed PlugIns)."
 echo "  2. Add grammar src/ directories to HEADER_SEARCH_PATHS."
 echo "  3. Register the new bundle name in Sources/Model/UDLanguageModeRegistry.m."

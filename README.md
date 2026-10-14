@@ -45,7 +45,7 @@ bash scripts/update-grammars.sh     # every grammar bundle, and the shared runti
 ```
 
 Then open `UDPieceTable.xcworkspace`: the `UDCodeKit` scheme builds the
-framework, and the `TestApp` scheme builds the application with the
+framework, and the `UDCode` scheme builds the application with the
 frameworks and grammar bundles embedded.
 
 ## Tests
@@ -55,7 +55,7 @@ frameworks and grammar bundles embedded.
   the result rather than to the document, and `UDReferenceTests`, which check
   the decoration tree and the undo bookkeeping against plain reference
   implementations.
-- `TestApp` scheme, `TestAppTests` — the editor (`Tests/`): text storage,
+- `UDCode` scheme, `UDCodeTests` — the editor (`Tests/`): text storage,
   incremental parsing and highlighting, parse errors, folding, find and
   replace, auto-indent, language modes, documents; `UDEditorComplexityTests`
   for the editor's hot paths; and the find bar and the workspace window
@@ -63,7 +63,7 @@ frameworks and grammar bundles embedded.
 
 ```bash
 xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDPieceTable -destination 'platform=macOS' test
-xcodebuild -workspace UDPieceTable.xcworkspace -scheme TestApp -destination 'platform=macOS' test
+xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDCode -destination 'platform=macOS' test
 ```
 
 ## License

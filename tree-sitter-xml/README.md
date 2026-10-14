@@ -74,8 +74,8 @@ Open `tree-sitter-xml/TreeSitterXml.xcodeproj` in Xcode and press ⌘B.
 The bundle product (`TreeSitterXml.bundle`) lands in the Xcode-derived-data
 build directory.
 
-To use the bundle in the TestApp, build via the top-level workspace
-(`UDPieceTable.xcworkspace`) or `TestApp.xcodeproj` directly — it embeds all
+To use the bundle in UDCode, build via the top-level workspace
+(`UDPieceTable.xcworkspace`) or `UDCode.xcodeproj` directly — it embeds all
 bundles via its **Embed PlugIns** build phase.
 
 ## Principal class and lifecycle

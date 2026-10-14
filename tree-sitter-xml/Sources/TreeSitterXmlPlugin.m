@@ -19,7 +19,7 @@ const TSLanguage *tree_sitter_xml(void);
     _bundle = bundle;
     _installer = [[XMLLSPInstaller alloc] init];
     _installer.delegate = self;
-    [_installer beginIfNeeded];  // returns immediately; async if download needed
+    [_installer checkInstalled];   // no prompt here: only when an XML document wants a server
     NSLog(@"TreeSitterXmlPlugin: loaded from %@", bundle.bundlePath);
 }
 
@@ -60,6 +60,11 @@ const TSLanguage *tree_sitter_xml(void);
         ];
     }
     return nil;
+}
+
+- (void)languageServerWantedForIdentifier:(NSString *)identifier {
+    if (![identifier isEqualToString:@"xml"]) return;
+    [_installer beginIfNeeded];    // asks once; downloads with consent
 }
 
 #pragma mark - XMLLSPInstallerDelegate

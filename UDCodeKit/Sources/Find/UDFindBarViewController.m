@@ -132,9 +132,9 @@ const CGFloat UDFindBarReplaceHeight = 56.0;
     NSRange range = NSMakeRange((NSUInteger)start, (NSUInteger)(end - start));
     _textView.selectedRange = range;
     [_textView scrollRangeToVisible:range];
-    if ([_textView respondsToSelector:@selector(showFindIndicatorForRange:)]) {
-        [_textView showFindIndicatorForRange:range];
-    }
+#ifdef __APPLE__
+    [_textView showFindIndicatorForRange:range];    // AppKit's bounce; GNUstep has none
+#endif
     [self _updateStatus];
 }
 

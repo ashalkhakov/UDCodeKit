@@ -7,6 +7,7 @@
 @property (nonatomic, copy)   NSURL                      *documentURL;
 @property (nonatomic, strong) UDLSPDiagnosticHighlighter *diagnosticHighlighter;
 @property (nonatomic, assign) BOOL                        clientInitialized;
+@property (nonatomic, weak)   UDTextModel                *openContent;   // for didOpen, once initialized
 @end
 
 @implementation UDLSPCoordinator
@@ -44,32 +45,16 @@
     UDTextModel *textModel = note.object;
     if (![textModel isKindOfClass:[UDTextModel class]]) return;
 
-    NSArray<UDTextModelEdit *> *edits = note.userInfo[@"edits"];  // already set by _modelDidChange:
-    if (!edits.count) return;
-
-    // End to start, so each change's range is unaffected by the ones sent
-    // after it. The ranges are in the text as it was before these edits, so
-    // they are compared as they are (the model has moved on).
-    NSArray<UDTextModelEdit *> *sorted = [edits sortedArrayUsingComparator:
-        ^NSComparisonResult(UDTextModelEdit *a, UDTextModelEdit *b) {
-            UDRange ra = a.range, rb = b.range;
-            if (ra.startLineNumber != rb.startLineNumber) {
-                return ra.startLineNumber > rb.startLineNumber ? NSOrderedAscending : NSOrderedDescending;
-            }
-            if (ra.startColumn != rb.startColumn) {
-                return ra.startColumn > rb.startColumn ? NSOrderedAscending : NSOrderedDescending;
-            }
-            return NSOrderedSame;
-        }];
-
-    for (UDTextModelEdit *edit in sorted) {
-        LSPPosition *startPos = [LSPPosition positionWithLine:edit.range.startLineNumber - 1 character:edit.range.startColumn - 1];
-        LSPPosition *endPos = [LSPPosition positionWithLine:edit.range.endLineNumber - 1 character:edit.range.endColumn - 1];
-        LSPRange *lspRange = [LSPRange range:startPos end:endPos];
-
+    // The changes as the model made them: end to start, each range in the
+    // text as the ones before it left it — the order LSP applies them in.
+    NSArray<UDTextModelContentChange *> *changes = note.userInfo[UDTextModelChangesKey];
+    for (UDTextModelContentChange *change in changes) {
+        UDRange r = change.range;
+        LSPPosition *startPos = [LSPPosition positionWithLine:r.startLineNumber - 1 character:r.startColumn - 1];
+        LSPPosition *endPos = [LSPPosition positionWithLine:r.endLineNumber - 1 character:r.endColumn - 1];
         [_client document:_documentURL
-        changeTextInRange:lspRange
-        replacementString:edit.text];
+        changeTextInRange:[LSPRange range:startPos end:endPos]
+        replacementString:change.text];
     }
 }
 
@@ -81,18 +66,23 @@
     if (!_client) return;
     [_client addObserver:self];
 
-    __weak typeof(self) weakSelf = self;
-    [_client initialWithCompletionHandler:^(NSError *error) {
-        __strong typeof(self) strongSelf = weakSelf;
-        if (!strongSelf) return;
-        if (error) {
-            NSLog(@"[UDLSPCoordinator] LSP initialize failed: %@", error);
-            return;
-        }
-        strongSelf->_clientInitialized = YES;
-        [strongSelf->_client documentDidOpen:strongSelf->_documentURL
-                                      content:content];
-    }];
+    _openContent = content;
+    [_client initializeWithTarget:self action:@selector(_clientDidInitialize:)];
+}
+
+- (void)_clientDidInitialize:(LSPResponse *)response {
+    if (response.error) {
+        NSLog(@"[UDLSPCoordinator] LSP initialize failed: %@", response.error);
+        return;
+    }
+    _clientInitialized = YES;
+    [_client documentDidOpen:_documentURL content:_openContent];
+}
+
+/// The server ended and was started again: open the document again.
+- (void)languageServerDidRestart:(LSPClient *)client {
+    _clientInitialized = NO;
+    [_client initializeWithTarget:self action:@selector(_clientDidInitialize:)];
 }
 
 - (void)documentWillSave {
@@ -123,20 +113,16 @@
     return [LSPPosition positionWithLine:p.line - 1 character:p.column - 1];
 }
 
-- (void)completionAtIndex:(NSUInteger)characterIndex
-        completionHandler:(void (^)(NSArray<LSPCompletionItem *> *, NSError *))handler {
-    [_client documentCompletion:_documentURL
-                     atPosition:[self _positionAtIndex:characterIndex]
-              completionHandler:^(NSArray<LSPCompletionItem *> *list, BOOL isIncomplete, NSError *err) {
-        handler(list, err);
-    }];
+- (NSInteger)completionAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {
+    if (!_clientInitialized) return 0;
+    return [_client documentCompletion:_documentURL atPosition:[self _positionAtIndex:characterIndex]
+                                target:target action:action];
 }
 
-- (void)hoverAtIndex:(NSUInteger)characterIndex
-   completionHandler:(void (^)(NSDictionary *, NSError *))handler {
-    [_client documentHover:_documentURL
-                atPosition:[self _positionAtIndex:characterIndex]
-         completionHandler:handler];
+- (NSInteger)hoverAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {
+    if (!_clientInitialized) return 0;
+    return [_client documentHover:_documentURL atPosition:[self _positionAtIndex:characterIndex]
+                           target:target action:action];
 }
 
 // ---------------------------------------------------------------------------

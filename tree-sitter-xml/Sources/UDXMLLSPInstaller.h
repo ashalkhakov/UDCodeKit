@@ -38,6 +38,7 @@ typedef NS_ENUM(NSInteger, XMLLSPInstallState) {
 @property (nonatomic, strong) NSURL *javaURL;
 @property (nonatomic, strong) NSURL *jarURL;
 
-- (void)beginIfNeeded;           // call from extensionDidLoad:
+- (void)checkInstalled;          // at load: whether the server is there, no prompt
+- (void)beginIfNeeded;           // when an XML document wants the server: asks once
 - (void)userGrantedConsent:(BOOL)granted;
 @end

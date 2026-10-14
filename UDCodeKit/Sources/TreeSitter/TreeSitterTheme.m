@@ -1,6 +1,6 @@
 //
 //  TreeSitterTheme.m
-//  TestApp
+//  UDCodeKit
 //
 //  Created by artyom on 12/17/25.
 //

@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 extern const CGFloat UDFindBarFindHeight;
 extern const CGFloat UDFindBarReplaceHeight;
 
-@interface UDFindBarViewController : NSViewController <NSSearchFieldDelegate, NSTextFieldDelegate>
+@interface UDFindBarViewController : NSViewController <NSTextFieldDelegate>
 
 /// Loads UDFindBar.xib from UDCodeKit's bundle.
 - (instancetype)initWithFindModel:(UDFindModel *)findModel textView:(NSTextView *)textView NS_DESIGNATED_INITIALIZER;

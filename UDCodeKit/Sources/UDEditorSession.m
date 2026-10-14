@@ -4,6 +4,7 @@
 #import "UDParseErrorHighlighter.h"
 #import "UDParseErrorCollector.h"
 #import "UDLSPDiagnosticHighlighter.h"
+#import "UDExtension.h"
 
 @interface UDEditorSession ()
 @property (nonatomic, strong) UDMissingNodeHighlighter *missingNodeHighlighter;
@@ -67,8 +68,20 @@
 
 - (BOOL)startLanguageServer {
     UDLanguageMode *mode = _document.languageMode;
+    if (_lspCoordinator || !mode.lspLanguageID) return _lspCoordinator != nil;
     NSArray<NSString *> *serverCommand = mode.languageServerCommand;
-    if (!serverCommand.count || !mode.lspLanguageID) return NO;
+    if (!serverCommand.count) {
+        // None yet: the extension may offer to install one; when it is
+        // ready, this session starts it.
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(_languageServerDidBecomeReady:)
+                                                     name:UDExtensionLanguageServerDidBecomeReadyNotification
+                                                   object:nil];
+        if ([mode.extension respondsToSelector:@selector(languageServerWantedForIdentifier:)]) {
+            [mode.extension languageServerWantedForIdentifier:mode.identifier];
+        }
+        return NO;
+    }
 
     NSString *defaultFilename = [NSString stringWithFormat:@"untitled.%@",
                                  mode.fileExtensions.firstObject ?: @"txt"];
@@ -101,6 +114,12 @@
                                 diagnosticHighlighter:lspHL];
     [_lspCoordinator documentDidOpenWithContent:_textStorage.textModel];
     return YES;
+}
+
+- (void)_languageServerDidBecomeReady:(NSNotification *)note {
+    if (![note.userInfo[UDExtensionLanguageServerReadyIdentifierKey] isEqual:_document.languageMode.identifier]) return;
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UDExtensionLanguageServerDidBecomeReadyNotification object:nil];
+    [self startLanguageServer];
 }
 
 - (void)close {

@@ -2,6 +2,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// A Swift annotation GNUstep's Foundation has not.
+#ifndef NS_TYPED_EXTENSIBLE_ENUM
+#define NS_TYPED_EXTENSIBLE_ENUM
+#endif
+
 typedef NS_ENUM(NSInteger, UDDiagnosticSeverity) {
     UDDiagnosticSeverityError   = 0,
     UDDiagnosticSeverityWarning = 1,

@@ -4,6 +4,15 @@
 
 #import "UDLineNumberGutterView.h"
 
+/// The separator colour; GNUstep's NSColor has no -separatorColor.
+static NSColor *UDSeparatorColor(void) {
+#ifdef __APPLE__
+    return [NSColor separatorColor];
+#else
+    return [NSColor gridColor];
+#endif
+}
+
 // Minimum line-fragment height (in container pts) below which the line is
 // considered visually collapsed (e.g., inside a fold region) and skipped.
 static const CGFloat kMinimumVisibleFragmentHeight = 2.0;
@@ -85,7 +94,7 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
     NSRectFill(self.bounds);
 
     // Right-side separator
-    [[NSColor separatorColor] setFill];
+    [UDSeparatorColor() setFill];
     NSRectFill(NSMakeRect(NSWidth(self.bounds) - 1.0, 0,
                           1.0, NSHeight(self.bounds)));
 
@@ -205,8 +214,11 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 }
 
 - (NSDictionary *)_lineNumberAttributes {
-    NSFont *font = [NSFont monospacedDigitSystemFontOfSize:10.0
-                                                    weight:NSFontWeightRegular];
+#ifdef __APPLE__
+    NSFont *font = [NSFont monospacedDigitSystemFontOfSize:10.0 weight:NSFontWeightRegular];
+#else
+    NSFont *font = [NSFont userFixedPitchFontOfSize:10.0];     // GNUstep: no digit-monospaced system font
+#endif
     return @{
         NSFontAttributeName:            font,
         NSForegroundColorAttributeName: [NSColor secondaryLabelColor],

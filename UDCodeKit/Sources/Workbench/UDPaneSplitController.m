@@ -66,7 +66,9 @@ NSNotificationName const UDPaneSplitControllerDidChangeVisibilityNotification = 
     NSString *key = [self _defaultsKey];
     if (!key || _laying) return;
     NSMutableArray *hidden = [NSMutableArray array];
-    [_hidden enumerateIndexesUsingBlock:^(NSUInteger i, BOOL *stop) { [hidden addObject:@(i)]; }];
+    for (NSUInteger i = _hidden.firstIndex; i != NSNotFound; i = [_hidden indexGreaterThanIndex:i]) {
+        [hidden addObject:@(i)];
+    }
     [[NSUserDefaults standardUserDefaults] setObject:@{ @"thicknesses": [_thicknesses copy], @"hidden": hidden }
                                               forKey:key];
 }

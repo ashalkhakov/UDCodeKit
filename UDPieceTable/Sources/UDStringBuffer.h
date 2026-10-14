@@ -13,9 +13,14 @@ NS_ASSUME_NONNULL_BEGIN
 // MARK: - StringBuffer
 
 @interface UDStringBuffer : NSObject
-@property (nonatomic, strong) NSString *buffer;
+/// The buffer's text. Original buffers never change; the change buffer
+/// (buffers[0]) only grows, through -appendString:, so a range read from it
+/// stays valid.
+@property (nonatomic, readonly) NSString *buffer;
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *lineStarts; // array of NSInteger offsets
 - (instancetype)initWithBuffer:(NSString *)buffer lineStarts:(NSArray<NSNumber *> *)lineStarts;
+/// Appends in place: amortised O(length of string), whatever the buffer's size.
+- (void)appendString:(NSString *)string;
 @end
 
 NS_ASSUME_NONNULL_END

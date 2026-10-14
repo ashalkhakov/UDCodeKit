@@ -120,9 +120,122 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
 @property (nonatomic, strong) UDIntervalTree *decorationTree;
 @end
 
+
+// MARK: - Undo offsets
+//
+// One applyEdits call records, for each edit, where its replacement text ends
+// up in the final document. Every later edit moves those positions by the
+// same order-preserving rule — before the edit: unchanged; inside what it
+// deleted: to the end of its inserted text; after it: shifted by the length
+// change — so they live in a treap ordered by value, where the rule is one
+// lazy "assign" on a contiguous run and one lazy "add" on a suffix: O(log E)
+// per edit instead of a pass over all E positions.
+
+typedef struct {
+    NSInteger value;
+    NSInteger tagAdd;            // pending for the children: add…
+    NSInteger tagAssign;         // …after setting every value to this, if hasAssign
+    BOOL      hasAssign;
+    uint32_t  priority;
+    NSInteger left, right;       // indices, -1 for none
+} UDOffsetNode;
+
+typedef struct {
+    UDOffsetNode *nodes;
+    NSInteger count, capacity, root;
+    uint32_t random;
+} UDOffsetSet;
+
+static void UDOffsetApply(UDOffsetSet *set, NSInteger i, BOOL hasAssign, NSInteger assign, NSInteger add) {
+    if (i < 0) return;
+    UDOffsetNode *n = &set->nodes[i];
+    if (hasAssign) {
+        n->value = assign;
+        n->hasAssign = YES;
+        n->tagAssign = assign;
+        n->tagAdd = 0;
+    }
+    n->value += add;
+    if (n->hasAssign) n->tagAssign += add; else n->tagAdd += add;
+}
+
+static void UDOffsetPush(UDOffsetSet *set, NSInteger i) {
+    UDOffsetNode *n = &set->nodes[i];
+    if (!n->hasAssign && n->tagAdd == 0) return;
+    // With hasAssign the children are set to tagAssign (which already
+    // includes any later adds); otherwise they get tagAdd.
+    UDOffsetApply(set, n->left, n->hasAssign, n->tagAssign, n->hasAssign ? 0 : n->tagAdd);
+    UDOffsetApply(set, n->right, n->hasAssign, n->tagAssign, n->hasAssign ? 0 : n->tagAdd);
+    n->hasAssign = NO;
+    n->tagAdd = 0;
+}
+
+/// Splits into values < limit and values >= limit.
+static void UDOffsetSplit(UDOffsetSet *set, NSInteger t, NSInteger limit, NSInteger *outLeft, NSInteger *outRight) {
+    if (t < 0) { *outLeft = -1; *outRight = -1; return; }
+    UDOffsetPush(set, t);
+    if (set->nodes[t].value < limit) {
+        UDOffsetSplit(set, set->nodes[t].right, limit, &set->nodes[t].right, outRight);
+        *outLeft = t;
+    } else {
+        UDOffsetSplit(set, set->nodes[t].left, limit, outLeft, &set->nodes[t].left);
+        *outRight = t;
+    }
+}
+
+static NSInteger UDOffsetMerge(UDOffsetSet *set, NSInteger a, NSInteger b) {
+    if (a < 0) return b;
+    if (b < 0) return a;
+    if (set->nodes[a].priority > set->nodes[b].priority) {
+        UDOffsetPush(set, a);
+        set->nodes[a].right = UDOffsetMerge(set, set->nodes[a].right, b);
+        return a;
+    }
+    UDOffsetPush(set, b);
+    set->nodes[b].left = UDOffsetMerge(set, a, set->nodes[b].left);
+    return b;
+}
+
+/// Adds a position; returns its index (the order of addition).
+static NSInteger UDOffsetAdd(UDOffsetSet *set, NSInteger value) {
+    if (set->count == set->capacity) {
+        set->capacity = set->capacity ? set->capacity * 2 : 16;
+        set->nodes = realloc(set->nodes, (size_t)set->capacity * sizeof(UDOffsetNode));
+    }
+    NSInteger i = set->count++;
+    set->random ^= set->random << 13; set->random ^= set->random >> 17; set->random ^= set->random << 5;
+    set->nodes[i] = (UDOffsetNode){ value, 0, 0, NO, set->random, -1, -1 };
+    NSInteger left, right;
+    UDOffsetSplit(set, set->root, value, &left, &right);
+    set->root = UDOffsetMerge(set, UDOffsetMerge(set, left, i), right);
+    return i;
+}
+
+/// Moves every position through the replacement of [start, start + deleted)
+/// with `inserted` characters.
+static void UDOffsetAcceptEdit(UDOffsetSet *set, NSInteger start, NSInteger deleted, NSInteger inserted) {
+    NSInteger before, rest, inside, after;
+    UDOffsetSplit(set, set->root, start, &before, &rest);
+    UDOffsetSplit(set, rest, start + deleted, &inside, &after);
+    UDOffsetApply(set, inside, YES, start + inserted, 0);
+    UDOffsetApply(set, after, NO, 0, inserted - deleted);
+    set->root = UDOffsetMerge(set, UDOffsetMerge(set, before, inside), after);
+}
+
+/// Pushes every pending change down, so each node's value is final.
+static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
+    while (t >= 0) {
+        UDOffsetPush(set, t);
+        UDOffsetSettle(set, set->nodes[t].left);
+        t = set->nodes[t].right;
+    }
+}
+
 // MARK: - UDTextModel implementation
 
-@implementation UDTextModel
+@implementation UDTextModel {
+    NSUInteger _lastDecorationID;   // decoration ids are "1", "2", … per model
+}
 
 - (instancetype)initWithText:(NSString *)text {
     self = [super init];
@@ -223,12 +336,36 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
                 return (a.range.endColumn > b.range.endColumn)
                        ? NSOrderedAscending : NSOrderedDescending;
             }
+            // Same end: the later start first, so an insertion at the end of
+            // a replaced range goes after the replacement.
+            if (a.range.startLineNumber != b.range.startLineNumber) {
+                return (a.range.startLineNumber > b.range.startLineNumber)
+                       ? NSOrderedAscending : NSOrderedDescending;
+            }
+            if (a.range.startColumn != b.range.startColumn) {
+                return (a.range.startColumn > b.range.startColumn)
+                       ? NSOrderedAscending : NSOrderedDescending;
+            }
             return NSOrderedSame;
         }];
 
-    NSMutableArray<NSNumber *> *undoStartOffsets =
+    // As in VS Code, edits in one call must not overlap (touching is fine):
+    // their ranges all refer to the document before the call.
+    for (NSUInteger i = 1; i < sorted.count; i++) {
+        UDRange later = sorted[i - 1].range, earlier = sorted[i].range;
+        BOOL overlaps = earlier.endLineNumber > later.startLineNumber ||
+                        (earlier.endLineNumber == later.startLineNumber && earlier.endColumn > later.startColumn);
+        if (overlaps) {
+            [NSException raise:NSInvalidArgumentException format:@"Overlapping ranges are not allowed!"];
+        }
+    }
+
+    // Where each edit's replacement ends up: start and end positions, moved
+    // by every later edit (see UDOffsetSet).
+    UDOffsetSet undoOffsets = { NULL, 0, 0, -1, 0x9E3779B9u };
+    NSMutableArray<NSNumber *> *undoStartIndices =
         [NSMutableArray arrayWithCapacity:sorted.count];
-    NSMutableArray<NSNumber *> *undoEndOffsets =
+    NSMutableArray<NSNumber *> *undoEndIndices =
         [NSMutableArray arrayWithCapacity:sorted.count];
     NSMutableArray<NSString *> *undoTexts =
         [NSMutableArray arrayWithCapacity:sorted.count];
@@ -254,28 +391,11 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
                              eolNormalized:NO];
         }
 
-        // Shift previously accumulated undo offsets (they are in the evolving document).
-        NSUInteger prevCount = undoStartOffsets.count;
-        for (NSUInteger k = 0; k < prevCount; k++) {
-            NSInteger s = undoStartOffsets[k].integerValue;
-            NSInteger e = undoEndOffsets[k].integerValue;
-            NSInteger newS = s, newE = e;
-            if (s >= startOffset + deleteLen) {
-                newS = s - deleteLen + insertedLen;
-            } else if (s >= startOffset) {
-                newS = startOffset + insertedLen;
-            }
-            if (e >= startOffset + deleteLen) {
-                newE = e - deleteLen + insertedLen;
-            } else if (e >= startOffset) {
-                newE = startOffset + insertedLen;
-            }
-            undoStartOffsets[k] = @(newS);
-            undoEndOffsets[k]   = @(newE);
-        }
+        // Move the undo positions recorded so far (they are in the evolving document).
+        UDOffsetAcceptEdit(&undoOffsets, startOffset, deleteLen, insertedLen);
 
-        [undoStartOffsets addObject:@(startOffset)];
-        [undoEndOffsets   addObject:@(startOffset + insertedLen)];
+        [undoStartIndices addObject:@(UDOffsetAdd(&undoOffsets, startOffset))];
+        [undoEndIndices   addObject:@(UDOffsetAdd(&undoOffsets, startOffset + insertedLen))];
         [undoTexts        addObject:originalText];
 
         // Adjust all decoration ranges through this edit via the interval tree.
@@ -288,9 +408,10 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
     // Build undo edits from the final-state offsets.
     NSMutableArray<UDTextModelEdit *> *undoEdits =
         [NSMutableArray arrayWithCapacity:undoTexts.count];
+    UDOffsetSettle(&undoOffsets, undoOffsets.root);
     for (NSUInteger k = 0; k < undoTexts.count; k++) {
-        NSInteger s = undoStartOffsets[k].integerValue;
-        NSInteger e = undoEndOffsets[k].integerValue;
+        NSInteger s = undoOffsets.nodes[undoStartIndices[k].integerValue].value;
+        NSInteger e = undoOffsets.nodes[undoEndIndices[k].integerValue].value;
         UDPosition startPos = [self.pieceTree getPositionAt:s];
         UDPosition endPos   = (e > s) ? [self.pieceTree getPositionAt:e] : startPos;
         UDRange range = PTRangeMake(startPos.line, startPos.column,
@@ -298,6 +419,8 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
         [undoEdits addObject:[[UDTextModelEdit alloc] initWithRange:range
                                                                text:undoTexts[k]]];
     }
+
+    free(undoOffsets.nodes);
 
     NSArray<UDTextModelEdit *> *undoArray = [undoEdits copy];
     [self.undoManager registerUndoWithTarget:self
@@ -344,7 +467,9 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
     NSMutableArray<NSString *> *newIDs =
         [NSMutableArray arrayWithCapacity:newDecorations.count];
     for (UDModelDeltaDecoration *delta in newDecorations) {
-        NSString *identifier = [[NSUUID UUID] UUIDString];
+        // Digits only: Apple's NSString hash clusters keys like "d1"…"d80000"
+        // so badly that removing them from a dictionary goes linear.
+        NSString *identifier = [NSString stringWithFormat:@"%lu", (unsigned long)++_lastDecorationID];
         NSInteger startOffset = [self getOffsetAt:delta.range.startLineNumber
                                            column:delta.range.startColumn];
         NSInteger endOffset   = [self getOffsetAt:delta.range.endLineNumber
@@ -383,15 +508,12 @@ static UDSearchData * _Nullable BuildSearchData(NSString *searchString,
 }
 
 - (NSArray<NSString *> *)decorationsForOwner:(nullable NSString *)owner {
-    NSMutableArray<NSString *> *result = [NSMutableArray array];
-    for (UDIntervalNode *n in [self.decorationTree allNodes]) {
-        BOOL sameOwner = (owner == nil && n.owner == nil)
-                      || [owner isEqualToString:n.owner];
-        if (sameOwner) {
-            [result addObject:n.identifier];
-        }
+    NSArray<UDIntervalNode *> *nodes = [self.decorationTree nodesForOwner:owner];
+    NSMutableArray<NSString *> *result = [NSMutableArray arrayWithCapacity:nodes.count];
+    for (UDIntervalNode *n in nodes) {
+        [result addObject:n.identifier];
     }
-    return [result copy];
+    return result;
 }
 
 - (NSArray<NSString *> *)decorationsInRange:(UDRange)range {

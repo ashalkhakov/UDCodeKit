@@ -290,21 +290,16 @@ static void RBDelete(UDPieceTree *tree, UDPieceTreeNode *z);
 // MARK: - Private helpers (inlined from TS private methods)
 // ---------------------------------------------------------------------------
 
-// Equivalent of TS offsetInBuffer(bufferIndex, cursor)
-static NSInteger PTOffsetInBuffer(NSArray<NSNumber *> *lineStarts,
-                                   NSInteger line, NSInteger column) {
-    return lineStarts[(NSUInteger)line].integerValue + column;
-}
-
 // Equivalent of TS positionInBuffer(node, remainder) -> {line, column}
 // Returns the buffer-relative {line, column} for `remainder` chars into node.
+// `buffer` is the buffer the node's piece is in.
 static void PTPositionInBuffer(UDPieceTreeNode *node,
                                 NSInteger remainder,
-                                NSArray<NSArray<NSNumber *> *> *bufferLineStarts,
+                                UDStringBuffer *buffer,
                                 NSInteger *outLine,
                                 NSInteger *outColumn) {
     UDPiece *piece = node.piece;
-    NSArray<NSNumber *> *lineStarts = bufferLineStarts[(NSUInteger)piece.bufferIndex];
+    NSArray<NSNumber *> *lineStarts = buffer.lineStarts;
 
     NSInteger startOffset = lineStarts[(NSUInteger)piece.start.line].integerValue
                           + piece.start.column;
@@ -329,15 +324,13 @@ static void PTPositionInBuffer(UDPieceTreeNode *node,
 }
 
 // Equivalent of TS getLineFeedCnt(bufferIndex, start, end)
-static NSInteger PTGetLineFeedCnt(NSInteger bufferIndex,
+static NSInteger PTGetLineFeedCnt(UDStringBuffer *buffer,
                                    NSInteger startLine,
-                                   NSInteger endLine, NSInteger endColumn,
-                                   NSArray<NSArray<NSNumber *> *> *bufferLineStarts,
-                                   NSArray<NSString *> *buffers) {
+                                   NSInteger endLine, NSInteger endColumn) {
     if (endColumn == 0) {
         return endLine - startLine;
     }
-    NSArray<NSNumber *> *lineStarts = bufferLineStarts[(NSUInteger)bufferIndex];
+    NSArray<NSNumber *> *lineStarts = buffer.lineStarts;
     if (endLine == (NSInteger)lineStarts.count - 1) {
         return endLine - startLine;
     }
@@ -347,7 +340,7 @@ static NSInteger PTGetLineFeedCnt(NSInteger bufferIndex,
         return endLine - startLine;
     }
     // character at endOffset - 1: check for \r
-    NSString *buf = buffers[(NSUInteger)bufferIndex];
+    NSString *buf = buffer.buffer;
     NSInteger prevCharOffset = endOffset - 1;
     unichar prevChar = [buf characterAtIndex:(NSUInteger)prevCharOffset];
     if (prevChar == '\r') {
@@ -357,29 +350,28 @@ static NSInteger PTGetLineFeedCnt(NSInteger bufferIndex,
 }
 
 // Equivalent of TS getIndexOf(node, accumulatedValue) -> {index, remainder}
+// `buffer` is the buffer the node's piece is in.
 static void PTGetIndexOf(UDPieceTreeNode *node,
                           NSInteger accumulatedValue,
-                          NSArray<NSArray<NSNumber *> *> *bufferLineStarts,
-                          NSArray<NSString *> *buffers,
+                          UDStringBuffer *buffer,
                           NSInteger *outIndex,
                           NSInteger *outRemainder) {
     UDPiece *piece = node.piece;
 
     NSInteger posLine = 0, posColumn = 0;
-    PTPositionInBuffer(node, accumulatedValue, bufferLineStarts, &posLine, &posColumn);
+    PTPositionInBuffer(node, accumulatedValue, buffer, &posLine, &posColumn);
 
     NSInteger lineCnt = posLine - piece.start.line;
 
     // CRLF check: if accumulatedValue == full piece length, verify lineFeedCnt
-    NSArray<NSNumber *> *lineStarts = bufferLineStarts[(NSUInteger)piece.bufferIndex];
+    NSArray<NSNumber *> *lineStarts = buffer.lineStarts;
     NSInteger pieceEndOffset   = lineStarts[(NSUInteger)piece.end.line].integerValue + piece.end.column;
     NSInteger pieceStartOffset = lineStarts[(NSUInteger)piece.start.line].integerValue + piece.start.column;
 
     if (pieceEndOffset - pieceStartOffset == accumulatedValue) {
-        NSInteger realLineCnt = PTGetLineFeedCnt(piece.bufferIndex,
+        NSInteger realLineCnt = PTGetLineFeedCnt(buffer,
                                                   piece.start.line,
-                                                  posLine, posColumn,
-                                                  bufferLineStarts, buffers);
+                                                  posLine, posColumn);
         if (realLineCnt != lineCnt) {
             *outIndex     = realLineCnt;
             *outRemainder = 0;
@@ -398,16 +390,6 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
 - (UDPosition)getPositionAt:(NSInteger)offset {
     offset = MAX((NSInteger)0, offset);
 
-    // Build the two arrays needed by the helpers:
-    // bufferLineStarts[i] = NSArray<NSNumber*> of line-start offsets for buffer i
-    // bufferStrings[i]    = the raw NSString for buffer i
-    NSMutableArray<NSArray<NSNumber *> *> *bufferLineStarts = [NSMutableArray array];
-    NSMutableArray<NSString *> *bufferStrings = [NSMutableArray array];
-    for (UDStringBuffer *buf in self.buffers) {
-        [bufferLineStarts addObject:buf.lineStarts];
-        [bufferStrings    addObject:buf.buffer];
-    }
-
     UDPieceTreeNode *x = self.root;
     NSInteger lfCnt = 0;
     NSInteger originalOffset = offset;
@@ -418,7 +400,7 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
         } else if (x.sizeLeft + x.piece.length >= offset) {
             NSInteger idxOut = 0, remOut = 0;
             PTGetIndexOf(x, offset - x.sizeLeft,
-                         bufferLineStarts, bufferStrings,
+                         self.buffers[(NSUInteger)x.piece.bufferIndex],
                          &idxOut, &remOut);
 
             lfCnt += x.lfLeft + idxOut;
@@ -1260,9 +1242,7 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
     BOOL hitCRLF = [self shouldCheckCRLF] && [self startWithLFString:value] && [self endWithCRNode:node];
     NSInteger startOffset = (NSInteger)self.buffers[0].buffer.length;
 
-    NSMutableString *buf = [self.buffers[0].buffer mutableCopy];
-    [buf appendString:value];
-    self.buffers[0].buffer = [buf copy];
+    [self.buffers[0] appendString:value];
 
     NSMutableArray<NSNumber *> *lineStarts = CreateLineStartsFast(value);
     for (NSUInteger i = 0; i < lineStarts.count; i++) {
@@ -1358,9 +1338,8 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
         }
         NSMutableArray *ls0 = self.buffers[0].lineStarts;
         for (NSUInteger i = 1; i < lineStarts.count; i++) { [ls0 addObject:lineStarts[i]]; }
-        NSMutableString *b = [self.buffers[0].buffer mutableCopy];
-        [b appendString:[@"_" stringByAppendingString:text]];
-        self.buffers[0].buffer = [b copy];
+        [self.buffers[0] appendString:@"_"];
+        [self.buffers[0] appendString:text];
         startOffset += 1;
     } else {
         if (startOffset != 0) {
@@ -1370,9 +1349,7 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
         }
         NSMutableArray *ls0 = self.buffers[0].lineStarts;
         for (NSUInteger i = 1; i < lineStarts.count; i++) { [ls0 addObject:lineStarts[i]]; }
-        NSMutableString *b = [self.buffers[0].buffer mutableCopy];
-        [b appendString:text];
-        self.buffers[0].buffer = [b copy];
+        [self.buffers[0] appendString:text];
     }
 
     NSInteger endOffset = (NSInteger)self.buffers[0].buffer.length;

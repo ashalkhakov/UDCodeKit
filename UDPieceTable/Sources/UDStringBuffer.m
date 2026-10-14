@@ -10,7 +10,10 @@
 
 // MARK: - UDStringBuffer
 
-@implementation UDStringBuffer
+@implementation UDStringBuffer {
+    NSString *_buffer;
+    NSMutableString *_mutableBuffer;   // set once the buffer is first appended to
+}
 
 - (instancetype)initWithBuffer:(NSString *)buffer lineStarts:(NSArray<NSNumber *> *)lineStarts {
     self = [super init];
@@ -19,6 +22,18 @@
         _lineStarts = [lineStarts mutableCopy];
     }
     return self;
+}
+
+- (NSString *)buffer {
+    return _mutableBuffer ?: _buffer;
+}
+
+- (void)appendString:(NSString *)string {
+    if (_mutableBuffer == nil) {
+        _mutableBuffer = [_buffer mutableCopy];   // once; appends then grow it in place
+        _buffer = nil;
+    }
+    [_mutableBuffer appendString:string];
 }
 
 @end

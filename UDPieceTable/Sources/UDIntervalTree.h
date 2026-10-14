@@ -2,7 +2,8 @@
  *  Portions Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See LICENSE.txt for license information.
  *
- *  Objective-C port of VS Code's intervalTree.ts (decoration-tracking subset)
+ *  Decoration tracking after VS Code's intervalTree.ts (its node edit rules;
+ *  the tree itself is a treap with lazy offsets)
  *  Original source: https://github.com/microsoft/vscode/blob/main/src/vs/editor/common/model/intervalTree.ts
  *--------------------------------------------------------------------------------------------*/
 
@@ -19,12 +20,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// decoration's current document-offset range together with its metadata.
 @interface UDIntervalNode : NSObject
 
-/// Start offset in the document (inclusive, 0-based).
-@property (nonatomic) NSInteger start;
+/// Start offset in the document (inclusive, 0-based). Read-only: the tree
+/// moves its nodes as the text is edited (O(log D) to read on a node the
+/// tree has not just returned, O(1) otherwise).
+@property (nonatomic, readonly) NSInteger start;
 /// End offset in the document (exclusive, 0-based).
-@property (nonatomic) NSInteger end;
+@property (nonatomic, readonly) NSInteger end;
 
-/// Stable decoration identifier (UUID string).
+/// Stable decoration identifier.
 @property (nonatomic, copy) NSString *identifier;
 /// Decoration rendering options.
 @property (nonatomic, strong) UDDecorationOptions *options;
@@ -44,17 +47,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 // MARK: - UDIntervalTree
 
-/// A minimal interval tree for decoration range tracking.
-///
-/// The tree is backed by a plain sorted NSMutableArray of UDIntervalNode objects.
-/// This gives O(n) for inserts, deletes, and edit-adjustment but provides
-/// correct range-intersection queries with early-exit based on start-position order
-/// — all nodes whose start ≥ queryEnd are skipped without visiting them.
-///
-/// The key algorithmic value-add over the previous flat-dictionary implementation
-/// is the stickiness-aware @c acceptEdit logic (ported from VS Code's
-/// @c nodeAcceptEdit function) and the @c nodesInRange: intersection query.
+/// The decorations of a text model, ordered by (start, end), as a treap whose
+/// nodes carry pending offsets and their subtree's largest end. With D
+/// decorations:
+///   insert, remove              O(log D)
+///   nodesInRange:end:           O(log D + nodes returned)
+///   acceptEdit:…                O(log D + nodes touching the edit · log D);
+///                               everything after the edit moves in one step
+///   nodeWithIdentifier:         O(1)
+///   nodesForOwner:              O(k log k) for the owner's k nodes
+///   allNodes                    O(D)
 @interface UDIntervalTree : NSObject
+
+/// Number of nodes in the tree.
+@property (nonatomic, readonly) NSUInteger count;
 
 /// Insert a new node into the tree.
 - (void)insert:(UDIntervalNode *)node;
@@ -65,8 +71,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Return the node with the given decoration identifier, or nil.
 - (nullable UDIntervalNode *)nodeWithIdentifier:(NSString *)identifier;
 
-/// Return all nodes in insertion order.
+/// Return all nodes, ordered by start (then end).
 - (NSArray<UDIntervalNode *> *)allNodes;
+
+/// Return the nodes created with this owner (nil: no owner), ordered by start.
+- (NSArray<UDIntervalNode *> *)nodesForOwner:(nullable NSString *)owner;
 
 /// Return all nodes whose [start, end) range intersects [queryStart, queryEnd).
 - (NSArray<UDIntervalNode *> *)nodesInRange:(NSInteger)queryStart

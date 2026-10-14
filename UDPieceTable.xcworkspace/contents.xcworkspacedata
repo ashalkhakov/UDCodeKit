@@ -38,6 +38,9 @@
          location = "group:tree-sitter-make/TreeSitterMake.xcodeproj">
       </FileRef>
       <FileRef
+         location = "group:tree-sitter-idscript/TreeSitterIdScript.xcodeproj">
+      </FileRef>
+      <FileRef
          location = "group:tree-sitter-markdown/TreeSitterMarkdown.xcodeproj">
       </FileRef>
       <FileRef

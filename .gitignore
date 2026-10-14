@@ -22,6 +22,11 @@ tree-sitter-*/Resources/locals.scm
 # Provenance files written by fetch-deps.sh
 tree-sitter-*/UPSTREAM
 
+# Grammars written here commit their generated sources and queries
+!tree-sitter-idscript/src/
+!tree-sitter-idscript/queries/
+!tree-sitter-idscript/Resources/highlights.scm
+
 # Shared tree-sitter runtime at the repo root (compiled into UDCodeKit)
 # Fetch with:  bash scripts/fetch-tree-sitter.sh
 tree-sitter/

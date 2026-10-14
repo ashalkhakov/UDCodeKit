@@ -344,6 +344,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
         @"TreeSitterObjc.bundle",
         @"TreeSitterBash.bundle",
         @"TreeSitterMake.bundle",
+        @"TreeSitterIdScript.bundle",
     ];
 
     for (NSString *bundleName in bundleNames) {

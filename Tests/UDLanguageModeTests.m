@@ -193,6 +193,14 @@
     XCTAssertNotNil(make.highlightsQuery);
 }
 
+- (void)testRegistryHasIdScriptMode {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    UDLanguageMode *script = [reg modeForIdentifier:@"idscript"];
+    XCTAssertEqualObjects(script.identifier, @"idscript");
+    XCTAssertTrue(script.languageFunc != NULL, @"idScript mode must have a tree-sitter grammar");
+    XCTAssertNotNil(script.highlightsQuery);
+}
+
 - (void)testRegistryHasPlaintextFallback {
     UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
     UDLanguageMode *plain = [reg modeForIdentifier:@"plaintext"];
@@ -287,6 +295,12 @@
     UDLanguageMode *mode =
         [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"mk"];
     XCTAssertEqualObjects(mode.identifier, @"make");
+}
+
+- (void)testLookupByExtension_script {
+    UDLanguageMode *mode =
+        [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"script"];
+    XCTAssertEqualObjects(mode.identifier, @"idscript");
 }
 
 - (void)testLookupByExtension_unknownFallsBackToPlaintext {

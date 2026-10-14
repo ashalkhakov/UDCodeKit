@@ -23,6 +23,14 @@ NS_ASSUME_NONNULL_BEGIN
   didClickFoldIndicatorAtLine:(NSInteger)lineNumber;
 @end
 
+/// What the gutter asks about folding, for the lines it draws.
+@protocol UDLineNumberGutterFoldingSource <NSObject>
+/// The lines (1-based) among @a lines on which a foldable region opens.
+- (NSIndexSet *)foldableLinesInRange:(NSRange)lines;
+/// The lines among @a lines whose region is folded.
+- (NSIndexSet *)foldedLinesInRange:(NSRange)lines;
+@end
+
 /// Preferred width of the line-number gutter view.
 extern const CGFloat UDLineNumberGutterWidth;
 
@@ -34,13 +42,9 @@ extern const CGFloat UDLineNumberGutterWidth;
 
 @property (nonatomic, weak, nullable) id<UDLineNumberGutterViewDelegate> delegate;
 
-/// 1-based line numbers whose first character begins a foldable region.
-/// Setting this property triggers a redraw.
-@property (nonatomic, copy) NSSet<NSNumber *> *foldableLines;
-
-/// Subset of foldableLines that are currently folded (interior collapsed).
-/// Setting this property triggers a redraw.
-@property (nonatomic, copy) NSSet<NSNumber *> *foldedLines;
+/// Which of the drawn lines show a fold indicator, and which of those are
+/// folded. Asked for the visible lines only, on each draw.
+@property (nonatomic, weak, nullable) id<UDLineNumberGutterFoldingSource> foldingSource;
 
 @end
 

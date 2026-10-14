@@ -33,8 +33,6 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
     _scrollView    = scrollView;
     _textView      = textView;
     _textModel     = textModel;
-    _foldableLines = [NSSet set];
-    _foldedLines   = [NSSet set];
 
     // Redraw when the clip view scrolls.
     [scrollView.contentView setPostsBoundsChangedNotifications:YES];
@@ -68,13 +66,8 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 
 - (BOOL)isFlipped { return YES; }
 
-- (void)setFoldableLines:(NSSet<NSNumber *> *)foldableLines {
-    _foldableLines = [foldableLines copy];
-    [self setNeedsDisplay:YES];
-}
-
-- (void)setFoldedLines:(NSSet<NSNumber *> *)foldedLines {
-    _foldedLines = [foldedLines copy];
+- (void)setFoldingSource:(id<UDLineNumberGutterFoldingSource>)foldingSource {
+    _foldingSource = foldingSource;
     [self setNeedsDisplay:YES];
 }
 
@@ -133,6 +126,14 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
                                               inTextContainer:tc];
     if (visibleGlyphRange.length == 0) return;
 
+    // The visible lines' fold indicators, asked once.
+    NSRange visibleChars = [lm characterRangeForGlyphRange:visibleGlyphRange actualGlyphRange:NULL];
+    NSInteger firstLine = [_textModel getPositionAt:(NSInteger)visibleChars.location].line;
+    NSInteger lastLine  = [_textModel getPositionAt:(NSInteger)NSMaxRange(visibleChars)].line;
+    NSRange visibleLines = NSMakeRange((NSUInteger)firstLine, (NSUInteger)(lastLine - firstLine + 1));
+    NSIndexSet *foldable = [_foldingSource foldableLinesInRange:visibleLines] ?: [NSIndexSet indexSet];
+    NSIndexSet *folded   = [_foldingSource foldedLinesInRange:visibleLines] ?: [NSIndexSet indexSet];
+
     NSDictionary *attrs = [self _lineNumberAttributes];
     CGFloat numberColumnRight = NSWidth(self.bounds) - kFoldColumnWidth - 2.0;
     NSInteger lastDrawnLine   = -1;
@@ -181,9 +182,9 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
             [lineStr drawAtPoint:NSMakePoint(numX, numY) withAttributes:attrs];
 
             // -- Fold indicator --
-            BOOL isFoldable = [_foldableLines containsObject:@(lineNumber)];
+            BOOL isFoldable = [foldable containsIndex:(NSUInteger)lineNumber];
             if (isFoldable) {
-                BOOL isFolded  = [_foldedLines containsObject:@(lineNumber)];
+                BOOL isFolded  = [folded containsIndex:(NSUInteger)lineNumber];
                 NSString *indicator = isFolded ? @"▶" : @"▼";
                 NSSize    indSize   = [indicator sizeWithAttributes:attrs];
                 CGFloat   indX = NSWidth(self.bounds) - kFoldColumnWidth +
@@ -257,7 +258,7 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
     NSUInteger charIdx = [lm characterIndexForGlyphAtIndex:fragRange.location];
     NSInteger lineNumber = [_textModel getPositionAt:(NSInteger)charIdx].line;
 
-    if ([_foldableLines containsObject:@(lineNumber)]) {
+    if ([[_foldingSource foldableLinesInRange:NSMakeRange((NSUInteger)lineNumber, 1)] containsIndex:(NSUInteger)lineNumber]) {
         [_delegate lineNumberGutterView:self
               didClickFoldIndicatorAtLine:lineNumber];
     }

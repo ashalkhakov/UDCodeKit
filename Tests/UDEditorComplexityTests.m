@@ -170,4 +170,68 @@ static NSString *UDJSONDocument(NSInteger entries) {
     XCTAssertLessThan(large / small, 3.0, @"8× the document made typing %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
+/// Typing with a fold open, then asking what the gutter asks for a
+/// screenful: the folding controller walks the tree over those lines, and
+/// checks only the folds an edit touched.
+- (double)typeWithFoldsInDocumentOf:(NSInteger)entries {
+    UDTextModelTextStorage *storage = [self highlightedStorageWithEntries:entries];
+    UDFoldingController *folding = [[UDFoldingController alloc] initWithTextView:[[NSTextView alloc] init]
+                                                                      textStorage:storage
+                                                                      highlighter:storage.highlighter];
+    UDTextModel *model = storage.textModel;
+    NSInteger lines = [model getLineCount];
+    [folding toggleFoldAtLine:lines / 3];
+    [folding toggleFoldAtLine:2 * lines / 3];
+    NSUInteger middle = (NSUInteger)[model getOffsetAt:lines / 2 column:5];
+    NSRange screen = NSMakeRange((NSUInteger)(lines / 2 - 30), 60);
+    return UDTime(^{
+        for (NSInteger i = 0; i < 100; i++) {
+            [storage replaceCharactersInRange:NSMakeRange(middle, 0) withString:@"x"];
+            UDDrainMainQueue();
+            [folding update];
+            (void)[folding foldableLinesInRange:screen];
+            (void)[folding foldedLinesInRange:screen];
+        }
+    });
+}
+
+- (void)testFoldingCostsTheLinesShown {
+    if (![self haveJSON]) return;
+    [self typeWithFoldsInDocumentOf:500];
+    double small = [self typeWithFoldsInDocumentOf:2000];
+    double large = [self typeWithFoldsInDocumentOf:16000];
+    XCTAssertLessThan(large / small, 3.0, @"8× the document made typing with folds %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
+}
+
+/// Drawing a screenful in the middle of the document, as the editor's text
+/// view does it (its background draws the diagnostics' labels): it costs the
+/// lines drawn, not every decoration in the document.
+- (double)drawInDocumentOf:(NSInteger)entries {
+    UDTextModelTextStorage *storage = [self highlightedStorageWithEntries:entries];
+    UDDiagnosticTextView *textView = [[UDDiagnosticTextView alloc] initWithFrame:NSMakeRect(0, 0, 600, 400)];
+    NSLayoutManager *layoutManager = textView.layoutManager;
+    [layoutManager.textStorage removeLayoutManager:layoutManager];
+    [storage addLayoutManager:layoutManager];
+    textView.textModel = storage.textModel;
+    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 600, 400)];
+    scrollView.documentView = textView;
+    [textView scrollRangeToVisible:NSMakeRange(storage.length / 2, 0)];
+    NSRect visible = textView.visibleRect;
+    NSBitmapImageRep *bitmap = [textView bitmapImageRepForCachingDisplayInRect:visible];
+    [textView cacheDisplayInRect:visible toBitmapImageRep:bitmap];
+    return UDTime(^{
+        for (NSInteger i = 0; i < 50; i++) {
+            [textView cacheDisplayInRect:visible toBitmapImageRep:bitmap];
+        }
+    });
+}
+
+- (void)testDrawingCostsTheLinesDrawn {
+    if (![self haveJSON]) return;
+    [self drawInDocumentOf:500];
+    double small = [self drawInDocumentOf:2000];
+    double large = [self drawInDocumentOf:16000];
+    XCTAssertLessThan(large / small, 3.0, @"8× the document made drawing %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
+}
+
 @end

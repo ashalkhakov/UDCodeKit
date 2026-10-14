@@ -1,13 +1,14 @@
 /*---------------------------------------------------------------------------------------------
  *  UDFoldingController.h
  *
- *  Computes foldable regions from the current tree-sitter parse tree and manages
- *  UDFoldDecorationOwner decorations on UDTextModel to produce a collapsed
- *  visual appearance via UDTextModelTextStorage.
+ *  Finds foldable regions in the tree-sitter parse tree and folds them with
+ *  UDFoldDecorationOwner decorations on the UDTextModel, which
+ *  UDTextModelTextStorage draws collapsed.
  *
- *  Call -update whenever the document or its parse tree changes.
- *  Wire the UDLineNumberGutterView via -lineNumberGutterView to keep fold
- *  indicators in sync automatically.
+ *  Nothing is computed for the whole document: the gutter asks which of the
+ *  lines it draws are foldable or folded, and the answer walks only the parse
+ *  tree over those lines. Folds are their decorations, so they move with
+ *  edits; -update drops the ones an edit took the region of.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -18,7 +19,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface UDFoldingController : NSObject
+@interface UDFoldingController : NSObject <UDLineNumberGutterFoldingSource>
 
 /// Designated initialiser.
 /// @param foldableNodeTypes  Node type names (as returned by ts_node_type) whose
@@ -34,22 +35,23 @@ NS_ASSUME_NONNULL_BEGIN
                      textStorage:(UDTextModelTextStorage *)textStorage
                      highlighter:(UDTreeSitterHighlighter *)highlighter;
 
-/// Optional reference to the line-number gutter; updated automatically when
-/// fold state or foldable regions change.
+/// The line-number gutter that shows the fold indicators: the controller
+/// becomes its folding source and asks it to redraw when folds change.
 @property (nonatomic, weak, nullable) UDLineNumberGutterView *lineNumberGutterView;
 
-/// 1-based line numbers of all currently foldable regions (read-only, updated by -update).
-@property (nonatomic, readonly, copy) NSSet<NSNumber *> *foldableLineNumbers;
+/// The lines, 1-based, among @a lines (location = first line, length =
+/// count) on which a foldable region opens. Costs the parse tree over them.
+- (NSIndexSet *)foldableLinesInRange:(NSRange)lines;
 
-/// 1-based line numbers of all currently folded regions (read-only).
-@property (nonatomic, readonly, copy) NSSet<NSNumber *> *foldedLineNumbers;
+/// The lines among @a lines whose region is folded.
+- (NSIndexSet *)foldedLinesInRange:(NSRange)lines;
 
-/// Re-compute foldable regions from the current parse tree.
-/// Call after each document or tree-sitter update.
+/// After the document or its parse tree changed: drops the folds whose
+/// region an edit took. Costs the folds the change touched.
 - (void)update;
 
-/// Toggle the fold state for the region whose opening delimiter is on @c lineNumber.
-/// Does nothing if @c lineNumber is not in foldableLineNumbers.
+/// Folds or unfolds the region that opens on @a lineNumber (the innermost,
+/// when several do). Does nothing when none does.
 - (void)toggleFoldAtLine:(NSInteger)lineNumber;
 
 @end

@@ -8,7 +8,9 @@
 #                                     editor's (which drive UDCode's windows)
 #   make -f Makefile.apple install DESTDIR=<dir>       UDCode.app, and
 #                                     UDPieceTable, LSPKit and UDCodeKit
-#                                     .xcframework for what builds on them
+#                                     .xcframework for what builds on them,
+#                                     with the grammar bundles in PlugIns/ for
+#                                     the apps that embed UDCodeKit
 #   make -f Makefile.apple installcheck DESTDIR=<dir>  its signature holds,
 #                                     and it starts and stays up, in a fresh home
 #
@@ -50,6 +52,10 @@ install: all
 	rm -rf $(DESTDIR)/UDCode.app && ditto $(RELEASE)/UDCode.app $(DESTDIR)/UDCode.app
 	for f in $(FRAMEWORKS); do \
 	  rm -rf $(DESTDIR)/$$f.xcframework && ditto $(BUILD)/$$f.xcframework $(DESTDIR)/$$f.xcframework || exit 1; \
+	done
+	rm -rf $(DESTDIR)/PlugIns && mkdir -p $(DESTDIR)/PlugIns
+	for b in $(RELEASE)/UDCode.app/Contents/PlugIns/*.bundle; do \
+	  ditto $$b $(DESTDIR)/PlugIns/$$(basename $$b) || exit 1; \
 	done
 
 installcheck:

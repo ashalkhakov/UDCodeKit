@@ -6,7 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
-#import "UDCodeDocument.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 @interface UDCodeDocumentTests : XCTestCase
 @end

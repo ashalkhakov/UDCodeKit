@@ -17,7 +17,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Cocoa/Cocoa.h>
-#import "UDTextModelTextStorage.h"
+#import <UDCodeKit/UDCodeKit.h>
 #import "UDWorkspaceModel.h"
 
 NS_ASSUME_NONNULL_BEGIN

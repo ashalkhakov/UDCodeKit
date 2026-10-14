@@ -11,6 +11,9 @@
       location = "group:UDPieceTable/UDPieceTable.xcodeproj">
    </FileRef>
    <FileRef
+      location = "group:UDCodeKit/UDCodeKit.xcodeproj">
+   </FileRef>
+   <FileRef
       location = "group:LSPKit/LSPKit.xcodeproj">
    </FileRef>
    <FileRef

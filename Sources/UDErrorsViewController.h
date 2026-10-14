@@ -18,7 +18,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Cocoa/Cocoa.h>
-#import "UDDiagnosticStore.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

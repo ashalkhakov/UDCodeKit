@@ -3,13 +3,13 @@
  *
  *  PUBLIC API
  *  ----------
- *  The Sources/Extensions/ directory is the public API of the editor exposed to
+ *  The UDCodeKit/Sources/Extensions/ directory is the public API of the editor exposed to
  *  extension bundles.  All headers that extension code may import are here:
  *    • UDExtension.h          — this file; extension lifecycle + factory methods
  *    • UDLanguageKeyHandler.h — key-event handling protocol
  *    • UDDiagnosticItem.h     — a diagnostic, for extensions that produce them
  *
- *  Extension bundle targets have $(SRCROOT)/../Sources/Extensions in their
+ *  Extension bundle targets have $(SRCROOT)/../UDCodeKit/Sources/Extensions in their
  *  HEADER_SEARCH_PATHS, making these headers available as #import "...".
  *  Key handlers get the text model itself (UDTextModel, from the UDPieceTable
  *  framework). Symbols are resolved at runtime via -undefined dynamic_lookup.
@@ -47,7 +47,6 @@
 
 #import <Foundation/Foundation.h>
 #import <UDPieceTable/UDPieceTable.h>   // UDTextModel, UDTypes, UDRange, etc.
-#import <tree_sitter/api.h>
 #import "UDLanguageKeyHandler.h"
 
 // Forward declarations for types used in optional factory methods.

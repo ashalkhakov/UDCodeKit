@@ -8,7 +8,7 @@
  *    – find search field (top)
  *    – folding, bracket-match, structured-navigation, auto-indentation
  *
- *  Loaded from UDTextEditorViewController.xib.
+ *  Loaded from UDTextEditorViewController.xib, in the UDCodeKit bundle.
  *  Initialise with -initWithTextStorage: before accessing .view so that the
  *  layout manager is wired before any parse is triggered.
  *--------------------------------------------------------------------------------------------*/
@@ -18,6 +18,7 @@
 #import "UDFindResultsGutterView.h"
 #import "UDDiagnosticTextView.h"
 #import "UDAutoIndenter.h"
+#import "UDLanguageMode.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -37,6 +38,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;
+
+/// Sets up auto-indentation, bracket pairs and key handling for @a mode.
+/// Loads the view if it has not been loaded.
+- (void)configureForLanguageMode:(UDLanguageMode *)mode;
 - (instancetype)initWithNibName:(nullable NSNibName)nibNameOrNil
                          bundle:(nullable NSBundle *)nibBundleOrNil NS_UNAVAILABLE;
 - (instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;

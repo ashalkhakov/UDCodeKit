@@ -9,7 +9,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
-#import "UDTextModelTextStorage.h"
+#import <UDCodeKit/UDCodeKit.h>
 // UDTextModel, UDRange, PTRangeMake etc. are available transitively via
 // UDTextModelTextStorage.h → <UDPieceTable/UDPieceTable.h>.
 

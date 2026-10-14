@@ -14,9 +14,15 @@ on GNUstep (Linux).
 - `UDPieceTable/` — the text model, `UDPieceTable.framework` (Foundation
   only): `UDPieceTree`, `UDTextModel` (edits, undo, decorations, search),
   `UDIntervalTree`, `UDCursorsController`.
-- `Sources/` — the editor and the test application: the `NSTextStorage` over
-  the text model, the text view, gutters, folding, the highlighters, language
-  modes and their registry, the LSP coordinator.
+- `UDCodeKit/` — the editor, `UDCodeKit.framework`, for applications to
+  embed: the `NSTextStorage` over the text model, the editor view controller
+  with its text view, gutters and folding, the highlighters, language modes
+  and their registry, the LSP coordinator, and `UDEditorSession`, which ties
+  one document's services together. It compiles the tree-sitter runtime in;
+  only the umbrella header `<UDCodeKit/UDCodeKit.h>` and the headers it
+  names are public.
+- `Sources/` — the test application on top of it: documents, workspaces,
+  tabs, the issues pane.
 - `LSPKit/` — the Language Server Protocol client (`LSPKit.framework`), after
   Christopher Atlan's LSPKit.
 - `tree-sitter-<lang>/` — grammar bundles (bash, c, html, json, make,
@@ -34,8 +40,9 @@ git:
 bash scripts/update-grammars.sh     # every grammar bundle, and the shared runtime
 ```
 
-Then open `UDPieceTable.xcworkspace`: the `TestApp` scheme builds the
-application with its grammar bundles.
+Then open `UDPieceTable.xcworkspace`: the `UDCodeKit` scheme builds the
+framework, and the `TestApp` scheme builds the application with the
+frameworks and grammar bundles embedded.
 
 ## Tests
 

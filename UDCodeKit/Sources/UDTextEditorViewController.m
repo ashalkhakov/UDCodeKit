@@ -49,7 +49,8 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
 // ---------------------------------------------------------------------------
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage {
-    self = [super initWithNibName:@"UDTextEditorViewController" bundle:nil];
+    self = [super initWithNibName:@"UDTextEditorViewController"
+                           bundle:[NSBundle bundleForClass:[UDTextEditorViewController class]]];
     if (self) {
         _textStorage       = textStorage;
         _findDecorationIDs = @[];
@@ -166,6 +167,16 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
            selector:@selector(_textStorageDidEdit:)
                name:NSTextStorageDidProcessEditingNotification
              object:_textStorage];
+}
+
+- (void)configureForLanguageMode:(UDLanguageMode *)mode {
+    (void)self.view;
+    if (mode.languageFunc && mode.indentsQuery) {
+        [_autoIndenter configureWithLanguageFunc:mode.languageFunc
+                                    indentsQuery:mode.indentsQuery];
+    }
+    _autoIndenter.languageConfiguration = mode.languageConfiguration;
+    _autoIndenter.languageKeyHandler    = mode.keyHandler;
 }
 
 // ---------------------------------------------------------------------------

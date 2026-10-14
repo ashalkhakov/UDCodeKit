@@ -9,10 +9,7 @@
 
 #import <XCTest/XCTest.h>
 #import <tree_sitter/api.h>
-#import "UDTextModelTextStorage.h"
-#import "UDTreeSitterHighlighter.h"
-#import "UDLanguageModeRegistry.h"
-#import "UDLanguageMode.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 @interface UDIncrementalParseTests : XCTestCase
 @end

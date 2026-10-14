@@ -65,7 +65,7 @@ tree-sitter-<lang>/
 ## The UDExtension protocol
 
 Each bundle's `NSPrincipalClass` conforms to the `UDExtension` protocol
-(defined in `Sources/Extensions/UDExtension.h`):
+(defined in `UDCodeKit/Sources/Extensions/UDExtension.h`):
 
 ```objc
 @protocol UDExtension <NSObject>
@@ -437,7 +437,7 @@ the plaintext fallback handles those file extensions).
    INFOPLIST_FILE, PRODUCT_BUNDLE_IDENTIFIER).
 
 5. Add the bundle name to the `bundleNames` array in
-   `Sources/Model/UDLanguageModeRegistry.m`.
+   `UDCodeKit/Sources/Model/UDLanguageModeRegistry.m`.
 
 6. Add the new `tree-sitter-<id>/TreeSitter<Id>.xcodeproj` to the
    "Grammar Bundles" group in `UDPieceTable.xcworkspace`.

@@ -11,7 +11,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
-#import "UDCodeDocument.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

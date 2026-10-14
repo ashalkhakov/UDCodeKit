@@ -15,9 +15,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
-#import "UDAutoIndenter.h"
-#import "UDTextModelTextStorage.h"
-#import "UDLanguageConfiguration.h"
+#import <UDCodeKit/UDCodeKit.h>
 #import <UDPieceTable/UDPieceTable.h>
 
 // ---------------------------------------------------------------------------

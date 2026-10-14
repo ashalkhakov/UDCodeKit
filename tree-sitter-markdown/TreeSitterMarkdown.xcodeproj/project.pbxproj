@@ -209,7 +209,7 @@
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/src",
-					"$(SRCROOT)/../Sources/Extensions",
+					"$(SRCROOT)/../UDCodeKit/Sources/Extensions",
 				);
 				INFOPLIST_FILE = Resources/Info.plist;
 				MAACOSX_DEPLOYMENT_TARGET = 14.0;
@@ -252,7 +252,7 @@
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/tree-sitter/src",
 					"$(SRCROOT)/src",
-					"$(SRCROOT)/../Sources/Extensions",
+					"$(SRCROOT)/../UDCodeKit/Sources/Extensions",
 				);
 				INFOPLIST_FILE = Resources/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;

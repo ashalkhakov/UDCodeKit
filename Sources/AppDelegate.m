@@ -6,7 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "AppDelegate.h"
-#import "UDLanguageModeRegistry.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 @implementation AppDelegate
 

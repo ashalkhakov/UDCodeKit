@@ -291,11 +291,18 @@ static const unsigned short kKeyCodeRightArrow = 124;
     NSInteger docLen = [model getLength];
     if (docLen <= 0) return;
 
-    NSArray<UDIntervalNode *> *nodes =
-        [model decorationNodesInOffsetRange:0 end:docLen];
-
     NSLayoutManager *lm        = self.layoutManager;
     NSPoint          origin    = self.textContainerOrigin;
+
+    // Only the lines the dirty rect crosses, across the whole width (a pill
+    // sits right of its line's text, maybe where no glyph is).
+    NSRect rows = NSMakeRect(0, NSMinY(rect) - origin.y,
+                             self.textContainer.containerSize.width, NSHeight(rect));
+    NSRange glyphs = [lm glyphRangeForBoundingRect:rows inTextContainer:self.textContainer];
+    if (glyphs.length == 0) return;
+    NSRange chars = [lm characterRangeForGlyphRange:glyphs actualGlyphRange:NULL];
+    NSArray<UDIntervalNode *> *nodes =
+        [model decorationNodesInOffsetRange:(NSInteger)chars.location end:(NSInteger)NSMaxRange(chars)];
     NSFont          *labelFont =
         [NSFont monospacedSystemFontOfSize:kLabelFontSize weight:NSFontWeightRegular];
 

@@ -79,9 +79,9 @@ grammar_work="$work_dir/repo"
 cleanup() { rm -rf "$work_dir"; }
 trap cleanup EXIT
 
-log "cloning tree-sitter (shallow)..."
-git clone --depth=1 --quiet "$TREE_SITTER_URL" "$ts_work"
-log "tree-sitter HEAD = $(git -C "$ts_work" rev-parse HEAD)"
+log "fetching tree-sitter (scripts/grammars.lock)..."
+"$SCRIPT_DIR/../scripts/fetch-pinned.sh" tree-sitter "$TREE_SITTER_URL" "$ts_work"
+log "tree-sitter = $(git -C "$ts_work" rev-parse HEAD)"
 
 rm -rf "$DEST/tree-sitter"
 mkdir -p "$DEST/tree-sitter"
@@ -92,10 +92,10 @@ log "OK"
 # ── Fetch grammar sources ──────────────────────────────────────────────────────
 info "Fetching grammar ${GRAMMAR_ID}  ($GRAMMAR_URL)"
 
-log "cloning grammar (shallow)..."
-git clone --depth=1 --quiet "$GRAMMAR_URL" "$grammar_work"
+log "fetching grammar (scripts/grammars.lock)..."
+"$SCRIPT_DIR/../scripts/fetch-pinned.sh" "$GRAMMAR_ID" "$GRAMMAR_URL" "$grammar_work"
 commit_sha="$(git -C "$grammar_work" rev-parse HEAD)"
-log "HEAD = $commit_sha"
+log "commit = $commit_sha"
 
 src_in="$grammar_work/$GRAMMAR_SRC_SUBDIR"
 qry_in="$grammar_work/$GRAMMAR_QUERIES_SUBDIR"

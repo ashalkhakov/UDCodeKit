@@ -1,0 +1,14 @@
+# What the fetch scripts check out, by name: the tree-sitter runtime (the
+# one compiled into UDCodeKit, and each bundle's copy) and each grammar.
+# Builds are reproducible from these; `scripts/update-grammars.sh --latest`
+# fetches each upstream's head instead and writes it here.
+tree-sitter 08d676b4174251b82059307dd4bc0ac78f27534a
+bash        a06c2e4415e9bc0346c6b86d401879ffb44058f7
+c           ae19b676b13bdcc13b7665397e6d9b14975473dd
+html        73a3947324f6efddf9e17c0ea58d454843590cc0
+json        001c28d7a29832b06b0e831ec77845553c89b56d
+make        a4b9187417d6be349ee5fd4b6e77b4172c6827dd
+markdown    8b8b77af0493e26d378135a3e7f5ae25b555b375
+objc        181a81b8f23a2d593e7ab4259981f50122909fda
+xml         5000ae8f22d11fbe93939b05c1e37cf21117162d
+yaml        4463985dfccc640f3d6991e3396a2047610cf5f8

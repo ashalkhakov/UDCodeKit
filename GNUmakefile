@@ -20,6 +20,12 @@ SUBPROJECTS = UDPieceTable LSPKit UDCodeKit $(UD_GRAMMAR_DIRS) Sources \
 
 include $(GNUSTEP_MAKEFILES)/aggregate.make
 
+# The tree-sitter runtime and the grammars' C sources are fetched, at the
+# commits in scripts/grammars.lock, the first time.
+UD_FETCHED = tree-sitter/src/lib.c $(foreach g,$(UD_GRAMMAR_DIRS),$(g)/src/parser.c)
+before-all::
+	@if ! ls $(UD_FETCHED) >/dev/null 2>&1; then bash scripts/update-grammars.sh; fi
+
 # A screen wider than the windows the tests size (xvfb-run's is 1280 wide,
 # and a window is kept to its screen).
 XVFB = $(if $(DISPLAY),,$(shell command -v xvfb-run >/dev/null 2>&1 && echo "xvfb-run -a -s '-screen 0 1920x1200x24'"))

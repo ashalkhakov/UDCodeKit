@@ -22,11 +22,11 @@ echo "==> Fetching tree-sitter runtime → tree-sitter/"
 work_dir="$(mktemp -d)"
 trap "rm -rf '$work_dir'" EXIT
 
-echo "  cloning (shallow)..."
-git clone --depth=1 --quiet "$TREE_SITTER_URL" "$work_dir/tree-sitter"
+echo "  fetching (scripts/grammars.lock)..."
+"$REPO_ROOT/scripts/fetch-pinned.sh" tree-sitter "$TREE_SITTER_URL" "$work_dir/tree-sitter"
 
 commit_sha="$(git -C "$work_dir/tree-sitter" rev-parse HEAD)"
-echo "  HEAD = $commit_sha"
+echo "  commit = $commit_sha"
 
 rm -rf "$DEST"
 mkdir -p "$DEST"

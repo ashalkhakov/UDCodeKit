@@ -5,9 +5,11 @@
 # fetches the shared tree-sitter runtime compiled into UDCodeKit.
 #
 # USAGE
-#   bash scripts/update-grammars.sh [grammar ...]
+#   bash scripts/update-grammars.sh [--latest] [grammar ...]
 #
-#   With no arguments all known grammars are updated.
+#   With no arguments all known grammars are updated, each at its commit in
+#   scripts/grammars.lock (and the tree-sitter runtime at its). --latest
+#   fetches each upstream's head instead and records it in the lock.
 #   Pass one or more grammar names to update only specific ones, e.g.:
 #
 #       bash scripts/update-grammars.sh html xml yaml
@@ -49,6 +51,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ALL_GRAMMARS=(bash c html json make markdown objc xml yaml)
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
+
+if [[ "${1:-}" == "--latest" ]]; then
+    export UD_FETCH_LATEST=1
+    shift
+fi
 
 if [[ $# -eq 0 ]]; then
     targets=("${ALL_GRAMMARS[@]}")

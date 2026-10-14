@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		C0DEA00000000000000000A1 /* UDCodeKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F1 /* UDCodeKit.framework */; };
+		5BA4C1E00000000000000002 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000001 /* Sparkle.xcframework */; };
+		5BA4C1E00000000000000003 /* Sparkle.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000001 /* Sparkle.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C0DEA00000000000000000A2 /* UDCodeKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F1 /* UDCodeKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C0DEA00000000000000000A3 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F2 /* UDPieceTable.framework */; };
 		C0DEA00000000000000000A4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F2 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -205,6 +207,7 @@
 				C0DEA00000000000000000A2 /* UDCodeKit.framework in Embed Frameworks */,
 				C0DEA00000000000000000A4 /* UDPieceTable.framework in Embed Frameworks */,
 				BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */,
+				5BA4C1E00000000000000003 /* Sparkle.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -212,6 +215,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5BA4C1E00000000000000001 /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Sparkle.xcframework; path = .deps/Sparkle.xcframework; sourceTree = SOURCE_ROOT; };
 		C0DEA00000000000000000F1 /* UDCodeKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDCodeKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0DEA00000000000000000F2 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAAAB2F5441C80079BB37 /* UDCode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UDCode.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -260,6 +264,7 @@
 				C0DEA00000000000000000A1 /* UDCodeKit.framework in Frameworks */,
 				C0DEA00000000000000000A3 /* UDPieceTable.framework in Frameworks */,
 				BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */,
+				5BA4C1E00000000000000002 /* Sparkle.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -325,6 +330,7 @@
 			children = (
 				C0DEA00000000000000000F1 /* UDCodeKit.framework */,
 				C0DEA00000000000000000F2 /* UDPieceTable.framework */,
+				5BA4C1E00000000000000001 /* Sparkle.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

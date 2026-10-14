@@ -57,3 +57,6 @@ DerivedData/
 
 # GNUstep builds (make): everything under build/gnustep
 build/
+
+# What the release workflows fetch by .github/pins.env (Sparkle)
+.deps/

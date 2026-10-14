@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=UDCode
+Comment=A code editor: tree-sitter highlighting, language servers, workspaces
+Exec=AppRun
+Icon=udcode
+Categories=Development;TextEditor;
+MimeType=text/plain;application/json;text/x-c;text/x-objcsrc;text/markdown;application/xml;
+Terminal=false

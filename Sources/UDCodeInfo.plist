@@ -1,6 +1,8 @@
 {
     ApplicationName = "UDCode";
     ApplicationDescription = "A code editor on UDCodeKit.";
+    ApplicationRelease = "0.0.0";
+    NSIcon = "udcode.png";
     CFBundleIdentifier = "org.underivable.UDCode";
     NSPrincipalClass = "NSApplication";
     NSMainNibFile = "MainMenu";

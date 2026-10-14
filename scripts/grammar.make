@@ -25,7 +25,9 @@ $(BUNDLE_NAME)_PRINCIPAL_CLASS = TreeSitter$(UD_GRAMMAR)Plugin
 $(BUNDLE_NAME)_RESOURCE_FILES = Resources/LanguageInfo.plist $(wildcard Resources/*.scm)
 $(BUNDLE_NAME)_INCLUDE_DIRS = -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit -ISources -Isrc \
     -I../tree-sitter/include
-$(BUNDLE_NAME)_STANDARD_INSTALL = no
+# Installed for what embeds UDCodeKit (UDCode carries its own copy, in its
+# PlugIns folder): Library/Bundles/UDCodeKit/.
+BUNDLE_INSTALL_DIR = $(GNUSTEP_BUNDLES)/UDCodeKit
 # Generated code: its warnings are not ours.
 ADDITIONAL_CFLAGS += -w
 

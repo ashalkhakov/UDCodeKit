@@ -79,6 +79,16 @@ On GNUstep the editor's tests run without a host application: the
 XIBs, and finds the grammars through `$UD_PLUGINS_PATH`, which `make check`
 points at the `UDCode.app` it built.
 
+## Releases
+
+`.github/workflows/build.yml` builds every push with gnustep-release-actions,
+the familiar way on each system (`make`, `make check`, `make install` on
+GNUstep; `make -f Makefile.apple` and the same targets on macOS), on what
+`.github/pins.env` names. It publishes UDCodeKit as a library (the installed
+frameworks and grammar bundles for Linux; UDPieceTable, LSPKit and UDCodeKit
+as XCFrameworks for Apple) and UDCode as an AppImage and a Mac app; a `v*`
+tag releases them, the Mac app signed, notarized and updated by Sparkle.
+
 ## License
 
 MIT (`LICENSE.md`): the ported VS Code code is Microsoft's, under MIT. LSPKit,

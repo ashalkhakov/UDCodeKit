@@ -25,7 +25,6 @@
 		CE43044D2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m in Sources */ = {isa = PBXBuildFile; fileRef = CE43044B2F6EE0E300BF45A3 /* UDXMLLSPInstaller.m */; };
 		CE7CFB7C2F65A62000F294D4 /* UDXMLTagMirror.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFB7B2F65A62000F294D4 /* UDXMLTagMirror.m */; };
 		CE7CFB842F65B53600F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; };
-		CE7CFB852F65B53600F294D4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB832F65B53600F294D4 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,7 +44,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				CE7CFB852F65B53600F294D4 /* UDPieceTable.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;

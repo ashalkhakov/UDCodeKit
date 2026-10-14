@@ -73,6 +73,11 @@ extern NSNotificationName const UDCodeDocumentTextDidChangeNotification;
 // MARK: - I/O  (pure Foundation — no AppKit)
 // ---------------------------------------------------------------------------
 
+/// The UTF-8 text of the file at url (empty for an empty file). Returns nil
+/// and populates *outError when the file cannot be read or is not UTF-8.
++ (nullable NSString *)textOfURL:(NSURL *)url
+                           error:(NSError *__autoreleasing *)outError;
+
 /// Read text from url, create, and return a new document.
 /// Returns nil and populates *outError on any I/O failure.
 + (nullable instancetype)documentFromURL:(NSURL *)url

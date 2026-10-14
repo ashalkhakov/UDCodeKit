@@ -52,11 +52,24 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
 // MARK: - I/O
 // ---------------------------------------------------------------------------
 
+// The bytes, then the text: GNUstep's -stringWithContentsOfURL:encoding:error:
+// gives no error for a missing file, and nil for an empty one.
++ (nullable NSString *)textOfURL:(NSURL *)url
+                           error:(NSError *__autoreleasing *)outError {
+    NSData *data = [NSData dataWithContentsOfURL:url options:0 error:outError];
+    if (!data) return nil;
+    NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (!text && outError) {
+        *outError = [NSError errorWithDomain:NSCocoaErrorDomain
+                                        code:NSFileReadInapplicableStringEncodingError
+                                    userInfo:@{ NSURLErrorKey: url }];
+    }
+    return text;
+}
+
 + (nullable instancetype)documentFromURL:(NSURL *)url
                                    error:(NSError *__autoreleasing *)outError {
-    NSString *content = [NSString stringWithContentsOfURL:url
-                                                 encoding:NSUTF8StringEncoding
-                                                    error:outError];
+    NSString *content = [self textOfURL:url error:outError];
     if (!content) return nil;
     return [[UDCodeDocument alloc] initWithText:content fileURL:url];
 }

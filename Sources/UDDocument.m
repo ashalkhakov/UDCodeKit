@@ -49,9 +49,7 @@
             // (e.g. File > Revert to Saved, or external change reload).
             UDCodeDocument *doc = _workspaceModel.documents.firstObject;
             if (doc) {
-                NSString *content = [NSString stringWithContentsOfURL:url
-                                                             encoding:NSUTF8StringEncoding
-                                                                error:outError];
+                NSString *content = [UDCodeDocument textOfURL:url error:outError];
                 if (!content) return NO;
                 UDTextModel *model = doc.textModel;
                 NSInteger    len   = [model getLength];

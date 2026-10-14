@@ -68,6 +68,13 @@ static int UDCompareOffsets(const void *x, const void *y) {
 @property (nonatomic)         BOOL                     hasPendingDirty;
 @property (nonatomic)         NSInteger                pendingDirtyStart;
 @property (nonatomic)         NSInteger                pendingDirtyEnd;
+// The model's alternativeVersionId as of the last change this storage has
+// told its layout managers of. Another observer of the same change may ask
+// for highlights first (notification order is AppKit's or GNUstep's to
+// choose), while the string already reads the new text but layout has not
+// heard of it; such a request waits until the storage catches up.
+@property (nonatomic)         NSInteger                seenVersionId;
+@property (nonatomic)         BOOL                     highlightsDeferred;
 // Attribute runs, built a window at a time as layout asks for them (most
 // recently used first); all dropped when the text or a decoration changes.
 // Layout reads what it lays out, so it costs what is on screen.
@@ -124,6 +131,7 @@ static int UDCompareOffsets(const void *x, const void *y) {
     _syntaxHighlighter = [[UDSyntaxHighlighter alloc] initWithTextStorage:self
                                                                highlighter:_highlighter];
     _lastKnownLength = (NSUInteger)[_textModel getLength];
+    _seenVersionId   = _textModel.alternativeVersionId;
     _hasPendingDirty = NO;
     _pendingDirtyStart = 0;
     _pendingDirtyEnd   = 0;
@@ -183,6 +191,7 @@ static int UDCompareOffsets(const void *x, const void *y) {
 
     NSArray<UDTextModelContentChange *> *changes = note.userInfo[UDTextModelChangesKey];
     _lastKnownLength = (NSUInteger)[_textModel getLength];
+    _seenVersionId   = _textModel.alternativeVersionId;
     _attrCacheDirty  = YES;
 
     // Each change, as the model made it: the parse tree learns of it, and the
@@ -235,6 +244,7 @@ static int UDCompareOffsets(const void *x, const void *y) {
             }
         }
     }
+    [self _applyDeferredHighlights];
 }
 
 // ---------------------------------------------------------------------------
@@ -328,9 +338,11 @@ static int UDCompareOffsets(const void *x, const void *y) {
 
     NSInteger delta  = (NSInteger)str.length - (NSInteger)safe.length;
     _lastKnownLength = (NSUInteger)((NSInteger)docLen + delta);
+    _seenVersionId   = _textModel.alternativeVersionId;
     _attrCacheDirty  = YES;
 
     [self edited:NSTextStorageEditedCharacters range:safe changeInLength:delta];
+    [self _applyDeferredHighlights];
 }
 
 - (void)setAttributes:(nullable NSDictionary<NSAttributedStringKey, id> *)attrs
@@ -392,6 +404,10 @@ static int UDCompareOffsets(const void *x, const void *y) {
 // ---------------------------------------------------------------------------
 
 - (void)applyDecorationHighlights {
+    if (_textModel.alternativeVersionId != _seenVersionId) {
+        _highlightsDeferred = YES;
+        return;
+    }
     NSUInteger docLen = _lastKnownLength;
     if (docLen == 0) { [self _resetPendingDirty]; return; }
     if (!_hasPendingDirty) return;
@@ -433,6 +449,17 @@ static int UDCompareOffsets(const void *x, const void *y) {
 }
 
 - (void)applyDecorationHighlightsInRange:(NSRange)range {
+    if (_textModel.alternativeVersionId != _seenVersionId) {
+        // In the model's new offsets, as the pending range is.
+        if (range.length > 0) {
+            NSInteger s = (NSInteger)range.location, e = (NSInteger)NSMaxRange(range);
+            _pendingDirtyStart = _hasPendingDirty ? MIN(_pendingDirtyStart, s) : s;
+            _pendingDirtyEnd   = _hasPendingDirty ? MAX(_pendingDirtyEnd, e) : e;
+            _hasPendingDirty   = YES;
+        }
+        _highlightsDeferred = YES;
+        return;
+    }
     NSUInteger docLen = _lastKnownLength;
     if (docLen == 0 || range.length == 0) return;
     NSUInteger loc = MIN(range.location, docLen);
@@ -479,6 +506,14 @@ static int UDCompareOffsets(const void *x, const void *y) {
         _pendingDirtyStart = 0;
         _pendingDirtyEnd   = MAX(_pendingDirtyEnd, (NSInteger)docLen);
     }
+}
+
+/// A highlight request made while the storage was behind the model, now that
+/// it has caught up.
+- (void)_applyDeferredHighlights {
+    if (!_highlightsDeferred) return;
+    _highlightsDeferred = NO;
+    [self applyDecorationHighlights];
 }
 
 - (void)_resetPendingDirty {

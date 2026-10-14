@@ -1182,7 +1182,8 @@ static NSString *SubstringDelete(NSString *orig, NSInteger pos, NSInteger count)
         } else {
             if (str.length == 0) { continue; }
             NSInteger pos = (NSInteger)arc4random_uniform((uint32_t)str.length);
-            NSInteger len = MIN((NSInteger)str.length - pos, (NSInteger)arc4random_uniform(10));
+            NSInteger want = (NSInteger)arc4random_uniform(10);   // once: GNUstep's MIN evaluates twice
+            NSInteger len = MIN((NSInteger)str.length - pos, want);
             [pt deleteAtOffset:pos count:len];
             str = SubstringDelete(str, pos, len);
         }
@@ -1207,7 +1208,8 @@ static NSString *SubstringDelete(NSString *orig, NSInteger pos, NSInteger count)
         } else {
             if (str.length == 0) { continue; }
             NSInteger pos = (NSInteger)arc4random_uniform((uint32_t)str.length);
-            NSInteger len = MIN((NSInteger)str.length - pos, (NSInteger)arc4random_uniform(10));
+            NSInteger want = (NSInteger)arc4random_uniform(10);   // once: GNUstep's MIN evaluates twice
+            NSInteger len = MIN((NSInteger)str.length - pos, want);
             [pt deleteAtOffset:pos count:len];
             str = SubstringDelete(str, pos, len);
         }
@@ -1231,7 +1233,8 @@ static NSString *SubstringDelete(NSString *orig, NSInteger pos, NSInteger count)
         } else {
             if (str.length == 0) { continue; }
             NSInteger pos = (NSInteger)arc4random_uniform((uint32_t)str.length);
-            NSInteger len = MIN((NSInteger)str.length - pos, (NSInteger)arc4random_uniform(10));
+            NSInteger want = (NSInteger)arc4random_uniform(10);   // once: GNUstep's MIN evaluates twice
+            NSInteger len = MIN((NSInteger)str.length - pos, want);
             [pt deleteAtOffset:pos count:len];
             str = SubstringDelete(str, pos, len);
         }
@@ -1363,7 +1366,8 @@ static NSArray<NSString *> *ExpectedLinesContent(NSString *str) {
         } else {
             if (str.length == 0) { continue; }
             NSInteger pos = (NSInteger)arc4random_uniform((uint32_t)str.length);
-            NSInteger len = MIN((NSInteger)str.length - pos, (NSInteger)arc4random_uniform(10));
+            NSInteger want = (NSInteger)arc4random_uniform(10);   // once: GNUstep's MIN evaluates twice
+            NSInteger len = MIN((NSInteger)str.length - pos, want);
             [pt deleteAtOffset:pos count:len];
             str = SubstringDelete(str, pos, len);
         }

@@ -293,6 +293,9 @@ static const unsigned short kKeyCodeRightArrow = 124;
 
 - (void)drawViewBackgroundInRect:(NSRect)rect {
     [super drawViewBackgroundInRect:rect];
+    // What shows of it: GNUstep asks for the whole view's background.
+    rect = NSIntersectionRect(rect, self.visibleRect);
+    if (NSIsEmptyRect(rect)) return;
 
     // --- Current-line highlight
     [self _drawCurrentLineHighlightInRect:rect];

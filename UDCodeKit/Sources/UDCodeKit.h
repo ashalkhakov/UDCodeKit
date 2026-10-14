@@ -40,5 +40,5 @@
 #import <UDCodeKit/UDFindResultsGutterView.h>
 #import <UDCodeKit/UDFoldingController.h>
 #import <UDCodeKit/UDDiagnosticTextView.h>
-#import <UDCodeKit/UDTextEditorViewController.h>
+#import <UDCodeKit/UDCodeEditorViewController.h>
 #import <UDCodeKit/UDEditorSession.h>

@@ -44,7 +44,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (atomic, weak) id<UDDiagnosticTextViewDelegate> delegate;
 
-/// Set by UDTextEditorViewController after viewDidLoad.
+/// Set by UDCodeEditorViewController after viewDidLoad.
 /// The text view uses this to route multi-cursor editing operations.
 @property (nonatomic, weak, nullable) UDCursorsController *cursorsController;
 
@@ -53,11 +53,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, nullable) UDTextModel *textModel;
 
 /// Auto-indenter for Return-key electric indentation and electric-pair
-/// insertion.  Set by UDTextEditorViewController after -viewDidLoad.
+/// insertion.  Set by UDCodeEditorViewController after -viewDidLoad.
 @property (nonatomic, weak, nullable) UDAutoIndenter *autoIndenter;
 
 /// Structured navigator for Option+Arrow tree navigation.
-/// Set by UDTextEditorViewController after -viewDidLoad.
+/// Set by UDCodeEditorViewController after -viewDidLoad.
 @property (nonatomic, weak, nullable) UDStructuredNavigator *structuredNavigator;
 
 /// Synchronise the cursors controller's primary selection from NSTextView's

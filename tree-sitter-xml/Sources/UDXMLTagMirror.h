@@ -14,7 +14,7 @@
  *  - `=` typed right after an attribute name inside a start tag: inserts `=""`
  *    and places the cursor between the two quotes
  *
- *  Usage (in UDTextEditorViewController -viewDidLoad):
+ *  Usage (in UDCodeEditorViewController -viewDidLoad):
  *    _xmlTagMirror = [[UDXMLTagMirror alloc] initWithTextView:_textView
  *                                                  highlighter:_textStorage.highlighter
  *                                                   textModel:_textStorage.textModel

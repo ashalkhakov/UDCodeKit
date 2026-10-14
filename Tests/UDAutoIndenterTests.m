@@ -63,7 +63,7 @@ static UDLanguageConfiguration *UDConfigWithPairsAndBefore(NSArray *pairs,
     NSTextView *tv =
         [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, 500, 400)];
 
-    // Re-wire the layout manager (same as UDTextEditorViewController).
+    // Re-wire the layout manager (same as UDCodeEditorViewController).
     NSLayoutManager *lm = tv.layoutManager;
     [[lm textStorage] removeLayoutManager:lm];
     [storage addLayoutManager:lm];

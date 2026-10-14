@@ -52,7 +52,7 @@
 				UDFoldingController.h,
 				UDLineNumberGutterView.h,
 				UDStructuredNavigator.h,
-				UDTextEditorViewController.h,
+				UDCodeEditorViewController.h,
 			);
 			target = C0DEC0DE0000000000000004 /* UDCodeKit */;
 		};

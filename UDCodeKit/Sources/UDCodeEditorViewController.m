@@ -1,4 +1,4 @@
-#import "UDTextEditorViewController.h"
+#import "UDCodeEditorViewController.h"
 #import "UDLineNumberGutterView.h"
 #import "UDFoldingController.h"
 #import "UDBracketMatchHighlighter.h"
@@ -18,10 +18,10 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
 // MARK: - Private interface
 // ---------------------------------------------------------------------------
 
-@interface UDTextEditorViewController () <NSSearchFieldDelegate,
+@interface UDCodeEditorViewController () <NSSearchFieldDelegate,
                                           UDLineNumberGutterViewDelegate>
 
-// IBOutlets wired from UDTextEditorViewController.xib.
+// IBOutlets wired from UDCodeEditorViewController.xib.
 @property (nonatomic, weak) IBOutlet NSScrollView         *scrollView;
 @property (nonatomic, weak) IBOutlet UDDiagnosticTextView *textView;
 @property (nonatomic, weak) IBOutlet NSSearchField        *findField;
@@ -42,15 +42,15 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
 
 // ---------------------------------------------------------------------------
 
-@implementation UDTextEditorViewController
+@implementation UDCodeEditorViewController
 
 // ---------------------------------------------------------------------------
 // MARK: - Init
 // ---------------------------------------------------------------------------
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage {
-    self = [super initWithNibName:@"UDTextEditorViewController"
-                           bundle:[NSBundle bundleForClass:[UDTextEditorViewController class]]];
+    self = [super initWithNibName:@"UDCodeEditorViewController"
+                           bundle:[NSBundle bundleForClass:[UDCodeEditorViewController class]]];
     if (self) {
         _textStorage       = textStorage;
         _findDecorationIDs = @[];

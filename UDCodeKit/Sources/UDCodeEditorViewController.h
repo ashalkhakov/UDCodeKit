@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  UDTextEditorViewController.h
+ *  UDCodeEditorViewController.h
  *
  *  NSViewController subclass that owns the text-editor pane:
  *    – scroll view + UDDiagnosticTextView
@@ -8,7 +8,7 @@
  *    – find search field (top)
  *    – folding, bracket-match, structured-navigation, auto-indentation
  *
- *  Loaded from UDTextEditorViewController.xib, in the UDCodeKit bundle.
+ *  Loaded from UDCodeEditorViewController.xib, in the UDCodeKit bundle.
  *  Initialise with -initWithTextStorage: before accessing .view so that the
  *  layout manager is wired before any parse is triggered.
  *--------------------------------------------------------------------------------------------*/
@@ -22,7 +22,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface UDTextEditorViewController : NSViewController
+@interface UDCodeEditorViewController : NSViewController
 
 /// The editor text view (UDDiagnosticTextView). Available after the view is loaded.
 @property (nonatomic, weak, readonly) UDDiagnosticTextView    *textView;

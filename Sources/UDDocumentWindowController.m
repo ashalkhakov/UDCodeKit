@@ -252,8 +252,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     // b. Wire an editor VC.  Loading its view attaches a new NSLayoutManager
     //    to ctx.textStorage.  This MUST happen before -activateWithTheme:
     //    fires the first parse.
-    UDTextEditorViewController *editorVC =
-        [[UDTextEditorViewController alloc] initWithTextStorage:ctx.textStorage];
+    UDCodeEditorViewController *editorVC =
+        [[UDCodeEditorViewController alloc] initWithTextStorage:ctx.textStorage];
     [self _configureEditorVC:editorVC languageMode:document.languageMode];     // forces -viewDidLoad
 
     // c. Activate: first parse, diagnostic pipeline, edit notifications.
@@ -288,8 +288,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 /// shares the context's textStorage, diagnosticStore, and lspCoordinator;
 /// edits in either tab appear immediately in both.
 - (void)_addViewTabForContext:(UDEditorSession *)ctx {
-    UDTextEditorViewController *editorVC =
-        [[UDTextEditorViewController alloc] initWithTextStorage:ctx.textStorage];
+    UDCodeEditorViewController *editorVC =
+        [[UDCodeEditorViewController alloc] initWithTextStorage:ctx.textStorage];
     [self _configureEditorVC:editorVC
                 languageMode:ctx.document.languageMode];  // adds another NSLayoutManager to shared storage
 
@@ -335,7 +335,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 /// Configure a freshly created editor VC: loads its view (attaching its
 /// NSLayoutManager to the text storage), makes this window controller the
 /// text-view delegate (LSP), and sets it up for the document's language.
-- (void)_configureEditorVC:(UDTextEditorViewController *)vc
+- (void)_configureEditorVC:(UDCodeEditorViewController *)vc
               languageMode:(UDLanguageMode *)mode {
     [vc configureForLanguageMode:mode];
     vc.textView.delegate = self;
@@ -483,8 +483,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
     for (NSUInteger i = 0; i < MIN(_tabContexts.count, items.count); i++) {
         if (_tabContexts[i].document != doc) continue;
 
-        UDTextEditorViewController *editorVC =
-            (UDTextEditorViewController *)items[i].viewController;
+        UDCodeEditorViewController *editorVC =
+            (UDCodeEditorViewController *)items[i].viewController;
         [self _updateGutterErrorMarks:all
                            forEditorVC:editorVC
                                context:_tabContexts[i]];
@@ -518,8 +518,8 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
         if (_editorTabViewController.selectedTabViewItemIndex != (NSInteger)i) {
             [_editorTabViewController.tabView selectTabViewItemAtIndex:(NSInteger)i];
         }
-        UDTextEditorViewController *editorVC =
-            (UDTextEditorViewController *)items[i].viewController;
+        UDCodeEditorViewController *editorVC =
+            (UDCodeEditorViewController *)items[i].viewController;
         [self _navigateEditorVC:editorVC
                          toLine:diagnostic.line
                          column:diagnostic.column
@@ -531,7 +531,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 /// Scrolls @a editorVC to @a line (1-based) / @a column (0-based) and places
 /// the insertion point there.  Uses the text model to map the position to a
 /// character offset, then asks the text view to scroll into view.
-- (void)_navigateEditorVC:(UDTextEditorViewController *)editorVC
+- (void)_navigateEditorVC:(UDCodeEditorViewController *)editorVC
                    toLine:(NSInteger)line
                    column:(NSInteger)column
                   context:(UDEditorSession *)ctx {
@@ -559,7 +559,7 @@ static NSToolbarItemIdentifier const kToolbarOpenInTab = @"openFileInNewTab";
 // ---------------------------------------------------------------------------
 
 - (void)_updateGutterErrorMarks:(NSArray<UDDiagnosticItem *> *)diagnostics
-                     forEditorVC:(UDTextEditorViewController *)editorVC
+                     forEditorVC:(UDCodeEditorViewController *)editorVC
                          context:(UDEditorSession *)ctx {
     NSInteger    totalLines = [ctx.textStorage.textModel getLineCount];
     UDFindResultsGutterView *gutter = editorVC.gutterView;

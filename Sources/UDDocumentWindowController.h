@@ -8,7 +8,7 @@
  *    NSSplitViewController
  *      ├── UDErrorsViewController   — diagnostic list (left, fixed width)
  *      └── NSTabViewController      — one or more editor tabs (right, resizable)
- *              └── UDTextEditorViewController ×N
+ *              └── UDCodeEditorViewController ×N
  *
  *  Each tab is backed by a UDEditorTabContext (defined privately in the .m).
  *  A context owns the text storage, diagnostics pipeline, and LSP coordinator

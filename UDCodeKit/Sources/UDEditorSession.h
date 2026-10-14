@@ -5,7 +5,7 @@
  *  the parse-error and missing-node highlighters, the collector that feeds
  *  parse errors into the document's diagnostic store, and the language server.
  *
- *  Any number of UDTextEditorViewControllers may show one session: each adds
+ *  Any number of UDCodeEditorViewControllers may show one session: each adds
  *  its own layout manager to the shared text storage.
  *
  *  Lifecycle:

@@ -58,23 +58,41 @@
 
 // MARK: - PTIsValidMatch
 
+/// As VS Code's leftIsWordBounday / rightIsWordBoundary: the match starts
+/// (ends) at the edge of the text, after (before) a separator or a line
+/// break, or with a separator of its own.
+static BOOL PTIsBreak(unichar c) { return c == '\r' || c == '\n'; }
+
+static BOOL PTLeftIsWordBoundary(UDWordCharacterClassifier *classifier, NSString *text,
+                                 NSInteger matchStart, NSInteger matchLength) {
+    if (matchStart == 0) return YES;
+    unichar before = [text characterAtIndex:(NSUInteger)(matchStart - 1)];
+    if (![classifier isWordCharacter:before] || PTIsBreak(before)) return YES;
+    if (matchLength > 0) {
+        unichar first = [text characterAtIndex:(NSUInteger)matchStart];
+        if (![classifier isWordCharacter:first]) return YES;
+    }
+    return NO;
+}
+
+static BOOL PTRightIsWordBoundary(UDWordCharacterClassifier *classifier, NSString *text, NSInteger textLength,
+                                  NSInteger matchStart, NSInteger matchLength) {
+    NSInteger matchEnd = matchStart + matchLength;
+    if (matchEnd == textLength) return YES;
+    unichar after = [text characterAtIndex:(NSUInteger)matchEnd];
+    if (![classifier isWordCharacter:after] || PTIsBreak(after)) return YES;
+    if (matchLength > 0) {
+        unichar last = [text characterAtIndex:(NSUInteger)(matchEnd - 1)];
+        if (![classifier isWordCharacter:last]) return YES;
+    }
+    return NO;
+}
+
 BOOL PTIsValidMatch(UDWordCharacterClassifier *classifier,
                     NSString *text, NSInteger textLength,
                     NSInteger matchStart, NSInteger matchLength) {
-    if (matchStart > 0) {
-        unichar charBefore = [text characterAtIndex:(NSUInteger)(matchStart - 1)];
-        if ([classifier isWordCharacter:charBefore]) {
-            return NO;
-        }
-    }
-    NSInteger matchEnd = matchStart + matchLength;
-    if (matchEnd < textLength) {
-        unichar charAfter = [text characterAtIndex:(NSUInteger)matchEnd];
-        if ([classifier isWordCharacter:charAfter]) {
-            return NO;
-        }
-    }
-    return YES;
+    return PTLeftIsWordBoundary(classifier, text, matchStart, matchLength) &&
+           PTRightIsWordBoundary(classifier, text, textLength, matchStart, matchLength);
 }
 
 // MARK: - PTSearchData
@@ -155,8 +173,12 @@ static BOOL IsMultilineRegexSource(NSString *searchString) {
     if (!_matchCase) {
         options |= NSRegularExpressionCaseInsensitive;
     }
+    // As VS Code, which always builds the regex with the 'm' flag: ^ and $
+    // match at line breaks, since the text searched is a piece of the
+    // buffer, not one line.
+    options |= NSRegularExpressionAnchorsMatchLines;
     if (multiline) {
-        options |= NSRegularExpressionAnchorsMatchLines | NSRegularExpressionDotMatchesLineSeparators;
+        options |= NSRegularExpressionDotMatchesLineSeparators;
     }
 
     // Escape the search string if not a regex

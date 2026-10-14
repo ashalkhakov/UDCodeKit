@@ -180,6 +180,10 @@ extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
 /// Pass nil to get decorations belonging to the anonymous owner.
 - (NSArray<NSString *> *)decorationsForOwner:(nullable NSString *)owner;
 
+/// The decoration nodes of @a owner, sorted by start: O(k log k) for the
+/// owner's k decorations, whatever else the model holds.
+- (NSArray<UDIntervalNode *> *)decorationNodesForOwner:(nullable NSString *)owner;
+
 /// Returns the IDs of all decorations whose ranges intersect the given range.
 - (NSArray<NSString *> *)decorationsInRange:(UDRange)range;
 
@@ -203,6 +207,19 @@ extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
                                 isRegex:(BOOL)isRegex
                               matchCase:(BOOL)matchCase
                          wordSeparators:(nullable NSString *)wordSeparators
+                       limitResultCount:(NSInteger)limitResultCount;
+
+/// Finds the matches in @a searchRange, as VS Code's findMatches with a
+/// search range: line by line (a match never spans lines), at most
+/// @a limitResultCount of them (NSIntegerMax for all). With
+/// @a captureMatches each match carries the text of the whole match and of
+/// each regex group.
+- (NSArray<UDFindMatch *> *)findMatches:(NSString *)searchString
+                            searchRange:(UDRange)searchRange
+                                isRegex:(BOOL)isRegex
+                              matchCase:(BOOL)matchCase
+                         wordSeparators:(nullable NSString *)wordSeparators
+                         captureMatches:(BOOL)captureMatches
                        limitResultCount:(NSInteger)limitResultCount;
 
 /// Finds the next match at or after @c startPosition, wrapping around to the

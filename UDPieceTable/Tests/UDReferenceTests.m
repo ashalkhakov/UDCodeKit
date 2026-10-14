@@ -301,6 +301,88 @@ static NSInteger UDReferenceOffset(NSString *text, NSInteger line, NSInteger col
     }
 }
 
+/// Searching some lines of an edited text — pieces from several buffers —
+/// finds what a plain search of those lines finds.
+- (void)testSearchingSomeLinesMatchesAPlainSearch {
+    for (uint64_t seed = 1; seed <= 40; seed++) {
+        UDRandom random = { seed };
+        NSMutableString *start = [NSMutableString string];
+        for (NSInteger i = 0; i < 30; i++) [start appendFormat:@"ab line %ld ab cab\n", (long)i];
+        UDTextModel *model = [[UDTextModel alloc] initWithText:start];
+        [model.undoManager disableUndoRegistration];
+        NSArray *texts = @[@"", @"ab", @"x\nab\n", @"a", @"b ab\nab", @"zz"];
+        for (NSInteger round = 0; round < 25; round++) {
+            NSInteger lines = [model getLineCount];
+            NSInteger line = 1 + UDRandomBelow(&random, lines);
+            NSInteger max = [model getLineMaxColumn:line];
+            NSInteger c1 = 1 + UDRandomBelow(&random, max), c2 = MIN(max, c1 + UDRandomBelow(&random, 4));
+            [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(line, c1, line, c2)
+                                                                   text:texts[(NSUInteger)UDRandomBelow(&random, (NSInteger)texts.count)]]]];
+            lines = [model getLineCount];
+            NSInteger first = 1 + UDRandomBelow(&random, lines);
+            NSInteger last = MIN(lines, first + UDRandomBelow(&random, 6));
+            NSMutableArray<NSString *> *expected = [NSMutableArray array];
+            NSArray<NSString *> *all = [[model getValue] componentsSeparatedByString:@"\n"];
+            for (NSInteger l = first; l <= last; l++) {
+                NSString *content = all[(NSUInteger)l - 1];
+                NSRange r = NSMakeRange(0, content.length);
+                while ((r = [content rangeOfString:@"ab" options:0 range:r]).location != NSNotFound) {
+                    [expected addObject:[NSString stringWithFormat:@"%ld:%lu", (long)l, (unsigned long)r.location + 1]];
+                    r = NSMakeRange(NSMaxRange(r), content.length - NSMaxRange(r));
+                }
+            }
+            for (NSNumber *capture in @[@NO, @YES]) {
+                NSMutableArray<NSString *> *found = [NSMutableArray array];
+                @try {
+                    for (UDFindMatch *m in [model findMatches:@"ab" searchRange:PTRangeMake(first, 1, last, [model getLineMaxColumn:last])
+                                                      isRegex:capture.boolValue matchCase:YES wordSeparators:nil
+                                               captureMatches:capture.boolValue limitResultCount:NSIntegerMax]) {
+                        [found addObject:[NSString stringWithFormat:@"%ld:%ld", (long)m.range.startLineNumber, (long)m.range.startColumn]];
+                    }
+                } @catch (NSException *e) {
+                    XCTFail(@"seed %llu round %ld lines %ld-%ld: %@", seed, (long)round, (long)first, (long)last, e);
+                    return;
+                }
+                if (![found isEqualToArray:expected]) {
+                    XCTFail(@"seed %llu round %ld lines %ld-%ld (regex %@): found %@, expected %@ in %@",
+                            seed, (long)round, (long)first, (long)last, capture, found, expected,
+                            [all subarrayWithRange:NSMakeRange((NSUInteger)first - 1, (NSUInteger)(last - first + 2))]);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+/// Whole-word search: line breaks and the text's edges bound words, and
+/// so does a separator inside the match, as in VS Code.
+- (void)testWholeWordsEndAtLineBreaks {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"foo\nx foo\r\nfoo.bar foofoo\n(foo)\n"];
+    NSInteger lines = [model getLineCount];
+    NSMutableArray *found = [NSMutableArray array];
+    for (UDFindMatch *m in [model findMatches:@"foo" searchRange:PTRangeMake(1, 1, lines, [model getLineMaxColumn:lines])
+                                      isRegex:NO matchCase:YES wordSeparators:@"`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/? \t"
+                               captureMatches:NO limitResultCount:NSIntegerMax]) {
+        [found addObject:[NSString stringWithFormat:@"%ld:%ld", (long)m.range.startLineNumber, (long)m.range.startColumn]];
+    }
+    XCTAssertEqualObjects(found, (@[@"1:1", @"2:3", @"3:1", @"4:2"]));
+}
+
+/// ^ and $ match at line breaks, as in VS Code, wherever the line sits in
+/// the buffer.
+- (void)testAnchorsMatchAtLineBreaks {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"key = 1\nnot key = 2\nkey = 3\r\nkey = 4"];
+    [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(2, 1, 2, 1) text:@"key = 0\n"]]];
+    NSInteger lines = [model getLineCount];
+    NSMutableArray *found = [NSMutableArray array];
+    for (UDFindMatch *m in [model findMatches:@"^key = \\d$" searchRange:PTRangeMake(1, 1, lines, [model getLineMaxColumn:lines])
+                                      isRegex:YES matchCase:YES wordSeparators:nil
+                               captureMatches:NO limitResultCount:NSIntegerMax]) {
+        [found addObject:@(m.range.startLineNumber)];
+    }
+    XCTAssertEqualObjects(found, (@[@1, @2, @4, @5]));
+}
+
 - (void)testOverlappingEditsAreRefused {
     UDTextModel *model = [[UDTextModel alloc] initWithText:@"hello world\n"];
     NSArray *overlapping = @[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 1, 1, 6) text:@"a"],

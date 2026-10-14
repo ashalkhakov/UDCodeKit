@@ -1626,10 +1626,10 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
     NSInteger startAbsOffset = [self offsetInBuffer:bufIdx cursor:startCursor];
     NSInteger endAbsOffset   = [self offsetInBuffer:bufIdx cursor:endCursor];
     NSInteger pieceStartAbsOffset = [self offsetInBuffer:bufIdx cursor:node.piece.start];
-    UDWordCharacterClassifier *wordSeparators = searchData.wordSeparators;
-
-    if (wordSeparators) {
-        // Extract just the relevant substring so PTIsValidMatch can use text.length
+    // Only the piece's text, [start, end): the buffer goes on with text that
+    // may no longer be in the document (deleted, or another piece's), and a
+    // match searched in the whole buffer could run on into it.
+    {
         NSString *searchText = [buffer.buffer
                                 substringWithRange:NSMakeRange((NSUInteger)startAbsOffset,
                                                                (NSUInteger)(endAbsOffset - startAbsOffset))];
@@ -1673,47 +1673,8 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
             if (absStart + matchLength >= endAbsOffset) { break; }
             if (resultLen >= limitResultCount) { break; }
         }
-    } else {
-        [searcher reset:startAbsOffset];
-        while (YES) {
-            NSTextCheckingResult *match = [searcher next:buffer.buffer];
-            if (!match) { break; }
-            NSInteger absStart = (NSInteger)match.range.location;
-            if (absStart >= endAbsOffset) { break; }
-
-            NSInteger matchLength = (NSInteger)match.range.length;
-            NSInteger remainder   = absStart - pieceStartAbsOffset;
-            UDBufferCursor ret    = [self positionInBufferForNode:node remainder:remainder];
-            NSInteger lineFeedCnt = [self getLineFeedCnt:bufIdx start:startCursor end:ret];
-            NSInteger retStartColumn = (ret.line == startCursor.line)
-                ? ret.column - startCursor.column + startColumn
-                : ret.column + 1;
-            NSInteger retEndColumn = retStartColumn + matchLength;
-
-            NSArray<NSString *> *matches = nil;
-            if (captureMatches) {
-                NSMutableArray<NSString *> *arr = [NSMutableArray array];
-                for (NSUInteger g = 0; g < match.numberOfRanges; g++) {
-                    NSRange gr = [match rangeAtIndex:g];
-                    if (gr.location != NSNotFound) {
-                        [arr addObject:[buffer.buffer substringWithRange:gr]];
-                    } else {
-                        [arr addObject:@""];
-                    }
-                }
-                matches = [arr copy];
-            }
-
-            UDFindMatch *fm = [[UDFindMatch alloc]
-                               initWithRange:PTRangeMake(startLineNumber + lineFeedCnt, retStartColumn,
-                                                         startLineNumber + lineFeedCnt, retEndColumn)
-                                     matches:matches];
-            [result addObject:fm];
-            resultLen++;
-            if (absStart + matchLength >= endAbsOffset) { break; }
-            if (resultLen >= limitResultCount) { break; }
-        }
     }
+
     return resultLen;
 }
 
@@ -1756,23 +1717,25 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
         return result;
     }
 
-    // Case B: multiple nodes
+    // Case B: multiple nodes. As VS Code: the whole lines of each node in
+    // the buffer, then the node's last line through the line API — the
+    // range's last line only up to its end column — then on from the node
+    // that holds the next line.
     NSInteger startLineNumber = searchRange.startLineNumber;
     UDPieceTreeNode *currentNode = startPos.node;
     UDBufferCursor start = startCursor;
-    NSInteger startCol = searchRange.startColumn;
 
     while (currentNode != endPos.node) {
         NSInteger bufIdx = currentNode.piece.bufferIndex;
         NSInteger lineBreakCnt = [self getLineFeedCnt:bufIdx start:start end:currentNode.piece.end];
 
         if (lineBreakCnt >= 1) {
-            // Search the multi-line portion of this node in the buffer
             UDBufferCursor loopEndCursor = PTBufferCursorMake(start.line + lineBreakCnt, 0);
+            NSInteger startColumn = startLineNumber == searchRange.startLineNumber ? searchRange.startColumn : 1;
             resultLen = [self _findMatchesInNode:currentNode
                                         searcher:searcher
                                  startLineNumber:startLineNumber
-                                     startColumn:startCol
+                                     startColumn:startColumn
                                      startCursor:start
                                        endCursor:loopEndCursor
                                       searchData:searchData
@@ -1784,57 +1747,56 @@ static void PTGetIndexOf(UDPieceTreeNode *node,
             startLineNumber += lineBreakCnt;
         }
 
-        // Handle the tail fragment (last line of the current node) via line API
-        NSString *lastLineFragment = [self getLineContent:startLineNumber];
-        resultLen = [self _findMatchesInLine:searchData
-                                    searcher:searcher
-                                        text:lastLineFragment
-                                  lineNumber:startLineNumber
-                                 deltaOffset:0
-                                   resultLen:resultLen
-                                      result:result
-                              captureMatches:captureMatches
-                            limitResultCount:limitResultCount];
-        if (resultLen >= limitResultCount) { return result; }
-        startLineNumber += 1;
-
-        // Advance to the next node
-        PTNodePosition nextPos = [self nodeAt2Line:startLineNumber column:1];
-        if (nextPos.node) {
-            currentNode = nextPos.node;
-            start = [self positionInBufferForNode:nextPos.node remainder:nextPos.remainder];
-            startCol = 1;
-        } else {
-            break;
+        NSInteger startColumn = startLineNumber == searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
+        NSString *line = [self getLineContent:startLineNumber];
+        if (startLineNumber == searchRange.endLineNumber) {
+            NSInteger endColumn = MIN((NSInteger)line.length, searchRange.endColumn - 1);
+            NSString *text = startColumn < endColumn
+                ? [line substringWithRange:NSMakeRange((NSUInteger)startColumn, (NSUInteger)(endColumn - startColumn))]
+                : @"";
+            [self _findMatchesInLine:searchData searcher:searcher text:text lineNumber:startLineNumber
+                         deltaOffset:startColumn resultLen:resultLen result:result
+                      captureMatches:captureMatches limitResultCount:limitResultCount];
+            return result;
         }
+        NSString *text = startColumn < (NSInteger)line.length ? [line substringFromIndex:(NSUInteger)startColumn] : @"";
+        resultLen = [self _findMatchesInLine:searchData searcher:searcher text:text lineNumber:startLineNumber
+                                 deltaOffset:startColumn resultLen:resultLen result:result
+                              captureMatches:captureMatches limitResultCount:limitResultCount];
+        if (resultLen >= limitResultCount) { return result; }
+
+        startLineNumber++;
+        PTNodePosition nextPos = [self nodeAt2Line:startLineNumber column:1];
+        if (!nextPos.node) return result;
+        currentNode = nextPos.node;
+        start = [self positionInBufferForNode:nextPos.node remainder:nextPos.remainder];
     }
 
-    // Handle the last node
     if (startLineNumber == searchRange.endLineNumber) {
-        NSString *lastLine = [self getLineContent:startLineNumber];
-        [self _findMatchesInLine:searchData
-                        searcher:searcher
-                            text:lastLine
-                      lineNumber:startLineNumber
-                     deltaOffset:0
-                       resultLen:resultLen
-                          result:result
-                  captureMatches:captureMatches
-                limitResultCount:limitResultCount];
-    } else {
-        [self _findMatchesInNode:endPos.node
-                        searcher:searcher
-                 startLineNumber:startLineNumber
-                     startColumn:startCol
-                     startCursor:start
-                       endCursor:endCursor
-                      searchData:searchData
-                  captureMatches:captureMatches
-                limitResultCount:limitResultCount
-                       resultLen:resultLen
-                          result:result];
+        NSInteger startColumn = startLineNumber == searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
+        NSString *line = [self getLineContent:startLineNumber];
+        NSInteger endColumn = MIN((NSInteger)line.length, searchRange.endColumn - 1);
+        NSString *text = startColumn < endColumn
+            ? [line substringWithRange:NSMakeRange((NSUInteger)startColumn, (NSUInteger)(endColumn - startColumn))]
+            : @"";
+        [self _findMatchesInLine:searchData searcher:searcher text:text lineNumber:startLineNumber
+                     deltaOffset:startColumn resultLen:resultLen result:result
+                  captureMatches:captureMatches limitResultCount:limitResultCount];
+        return result;
     }
 
+    NSInteger startColumn = startLineNumber == searchRange.startLineNumber ? searchRange.startColumn : 1;
+    [self _findMatchesInNode:endPos.node
+                    searcher:searcher
+             startLineNumber:startLineNumber
+                 startColumn:startColumn
+                 startCursor:start
+                   endCursor:endCursor
+                  searchData:searchData
+              captureMatches:captureMatches
+            limitResultCount:limitResultCount
+                   resultLen:resultLen
+                      result:result];
     return result;
 }
 

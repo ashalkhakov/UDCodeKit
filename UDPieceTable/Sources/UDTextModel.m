@@ -569,6 +569,10 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
     return result;
 }
 
+- (NSArray<UDIntervalNode *> *)decorationNodesForOwner:(nullable NSString *)owner {
+    return [self.decorationTree nodesForOwner:owner];
+}
+
 - (NSArray<NSString *> *)decorationsInRange:(UDRange)range {
     NSInteger startOffset = [self getOffsetAt:range.startLineNumber column:range.startColumn];
     NSInteger endOffset   = [self getOffsetAt:range.endLineNumber   column:range.endColumn];
@@ -617,6 +621,21 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
     return [self.pieceTree findMatchesLineByLine:fullRange
                                      searchData:data
                                  captureMatches:NO
+                               limitResultCount:limitResultCount];
+}
+
+- (NSArray<UDFindMatch *> *)findMatches:(NSString *)searchString
+                            searchRange:(UDRange)searchRange
+                                isRegex:(BOOL)isRegex
+                              matchCase:(BOOL)matchCase
+                         wordSeparators:(nullable NSString *)wordSeparators
+                         captureMatches:(BOOL)captureMatches
+                       limitResultCount:(NSInteger)limitResultCount {
+    UDSearchData *data = BuildSearchData(searchString, isRegex, matchCase, wordSeparators);
+    if (!data || limitResultCount <= 0) return @[];
+    return [self.pieceTree findMatchesLineByLine:searchRange
+                                     searchData:data
+                                 captureMatches:captureMatches
                                limitResultCount:limitResultCount];
 }
 

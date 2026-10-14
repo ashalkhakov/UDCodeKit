@@ -352,7 +352,7 @@ static void UDCollectAll(UDIntervalNode *t, NSInteger offset, NSUInteger cacheVe
 @implementation UDIntervalTree {
     UDIntervalNode *_root;
     NSMutableDictionary<NSString *, UDIntervalNode *> *_byID;
-    NSMutableDictionary<id, NSMutableSet<UDIntervalNode *> *> *_byOwner;   // owner (or NSNull) → nodes
+    NSMutableDictionary<id<NSCopying>, NSMutableSet<UDIntervalNode *> *> *_byOwner;   // owner (or NSNull) → nodes
     NSUInteger _nextSequence;
     uint64_t _random;
 }

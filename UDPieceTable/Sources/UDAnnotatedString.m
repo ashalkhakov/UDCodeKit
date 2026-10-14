@@ -43,39 +43,34 @@ NSAttributedStringKey const UDAnnotationAttributeName = @"UDAnnotation";
 
 // MARK: - Querying annotations
 
+/// Each run of one annotation value in @a range, in order. A loop over
+/// -attribute:atIndex:longestEffectiveRange:inRange:, which GNUstep's
+/// Foundation has — -enumerateAttribute:inRange:options:usingBlock: it has not.
+- (NSArray<NSDictionary *> *)_annotationsInRange:(NSRange)range {
+    NSMutableArray<NSDictionary *> *result = [NSMutableArray array];
+    NSUInteger index = range.location;
+    while (index < NSMaxRange(range)) {
+        NSRange run;
+        id value = [_attrStr attribute:UDAnnotationAttributeName atIndex:index
+                 longestEffectiveRange:&run inRange:range];
+        if (value) {
+            [result addObject:@{ @"range": [NSValue valueWithRange:run], @"annotation": value }];
+        }
+        index = NSMaxRange(run);
+    }
+    return [result copy];
+}
+
 - (NSArray<NSDictionary *> *)annotationsIntersectingRange:(NSRange)range {
     if (range.location >= _attrStr.length) { return @[]; }
     NSRange clampedRange = NSIntersectionRange(range, NSMakeRange(0, _attrStr.length));
     if (clampedRange.length == 0) { return @[]; }
-
-    NSMutableArray<NSDictionary *> *result = [NSMutableArray array];
-    [_attrStr enumerateAttribute:UDAnnotationAttributeName
-                         inRange:clampedRange
-                         options:0
-                      usingBlock:^(id _Nullable value, NSRange r, BOOL *stop) {
-        if (!value) { return; }
-        [result addObject:@{
-            @"range":      [NSValue valueWithRange:r],
-            @"annotation": value
-        }];
-    }];
-    return [result copy];
+    return [self _annotationsInRange:clampedRange];
 }
 
 - (NSArray<NSDictionary *> *)allAnnotations {
     if (_attrStr.length == 0) { return @[]; }
-    NSMutableArray<NSDictionary *> *result = [NSMutableArray array];
-    [_attrStr enumerateAttribute:UDAnnotationAttributeName
-                         inRange:NSMakeRange(0, _attrStr.length)
-                         options:0
-                      usingBlock:^(id _Nullable value, NSRange r, BOOL *stop) {
-        if (!value) { return; }
-        [result addObject:@{
-            @"range":      [NSValue valueWithRange:r],
-            @"annotation": value
-        }];
-    }];
-    return [result copy];
+    return [self _annotationsInRange:NSMakeRange(0, _attrStr.length)];
 }
 
 // MARK: - Applying edits

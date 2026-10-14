@@ -52,6 +52,27 @@
 }
 @end
 
+// MARK: - UDTextModelUndoRecord
+
+/// What undoing an edit call needs: the edits that put the text back, and
+/// the version the text had before the call.
+@interface UDTextModelUndoRecord : NSObject
+@property (nonatomic, copy, readonly) NSArray<UDTextModelEdit *> *edits;
+@property (nonatomic, readonly) NSInteger alternativeVersionId;
+- (instancetype)initWithEdits:(NSArray<UDTextModelEdit *> *)edits alternativeVersionId:(NSInteger)version;
+@end
+
+@implementation UDTextModelUndoRecord
+- (instancetype)initWithEdits:(NSArray<UDTextModelEdit *> *)edits alternativeVersionId:(NSInteger)version {
+    self = [super init];
+    if (self) {
+        _edits = [edits copy];
+        _alternativeVersionId = version;
+    }
+    return self;
+}
+@end
+
 // MARK: - UDTextModelContentChange
 
 @implementation UDTextModelContentChange
@@ -338,6 +359,25 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
     return [self.pieceTree getOffsetAtLine:lineNumber column:column];
 }
 
+- (UDPosition)validatePosition:(UDPosition)position {
+    NSInteger lineCount = [self.pieceTree getLineCount];
+    if (position.line < 1) return (UDPosition){ 1, 1 };
+    if (position.line > lineCount) {
+        return (UDPosition){ lineCount, [self.pieceTree getLineLength:lineCount] + 1 };
+    }
+    NSInteger maxColumn = [self.pieceTree getLineLength:position.line] + 1;
+    return (UDPosition){ position.line, MAX(1, MIN(position.column, maxColumn)) };
+}
+
+- (UDRange)validateRange:(UDRange)range {
+    UDPosition s = [self validatePosition:(UDPosition){ range.startLineNumber, range.startColumn }];
+    UDPosition e = [self validatePosition:(UDPosition){ range.endLineNumber, range.endColumn }];
+    if (e.line < s.line || (e.line == s.line && e.column < s.column)) {
+        UDPosition t = s; s = e; e = t;
+    }
+    return PTRangeMake(s.line, s.column, e.line, e.column);
+}
+
 - (NSString *)getValueInRange:(UDRange)range {
     return [self.pieceTree getValueInRange_startLine:range.startLineNumber
                                         startColumn:range.startColumn
@@ -368,6 +408,16 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
 - (NSArray<UDTextModelContentChange *> *)_applyEditsCore:(NSArray<UDTextModelEdit *> *)edits
                                      alternativeVersionId:(NSInteger)version {
     NSInteger versionBefore = _alternativeVersionId;
+    // Ranges past the text are put within it, as VS Code does: an offset
+    // beyond the end sent the piece tree looking for it forever.
+    NSMutableArray<UDTextModelEdit *> *validated = [NSMutableArray arrayWithCapacity:edits.count];
+    for (UDTextModelEdit *edit in edits) {
+        UDRange r = [self validateRange:edit.range];
+        BOOL same = r.startLineNumber == edit.range.startLineNumber && r.startColumn == edit.range.startColumn &&
+                    r.endLineNumber == edit.range.endLineNumber && r.endColumn == edit.range.endColumn;
+        [validated addObject:same ? edit : [[UDTextModelEdit alloc] initWithRange:r text:edit.text]];
+    }
+    edits = validated;
     // Sort edits end-to-start so each edit's range indexes into the unmodified document.
     NSArray<UDTextModelEdit *> *sorted =
         [edits sortedArrayUsingComparator:^NSComparisonResult(UDTextModelEdit *a,
@@ -474,16 +524,21 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
 
     _alternativeVersionId = version;
 
-    NSArray<UDTextModelEdit *> *undoArray = [undoEdits copy];
+    // Undoing applies the edits that put the text back, under the version
+    // it had before.
     [self.undoManager registerUndoWithTarget:self
-                                     handler:^(UDTextModel *target) {
-        NSArray *undoChanges = [target _applyEditsCore:undoArray alternativeVersionId:versionBefore];
-        [[NSNotificationCenter defaultCenter]
-            postNotificationName:UDTextModelDidChangeNotification
-                          object:target
-                        userInfo:@{@"edits": undoArray, UDTextModelChangesKey: undoChanges}];
-    }];
+                                    selector:@selector(_undoEdits:)
+                                      object:[[UDTextModelUndoRecord alloc] initWithEdits:[undoEdits copy]
+                                                                  alternativeVersionId:versionBefore]];
     return changes;
+}
+
+- (void)_undoEdits:(UDTextModelUndoRecord *)record {
+    NSArray *changes = [self _applyEditsCore:record.edits alternativeVersionId:record.alternativeVersionId];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:UDTextModelDidChangeNotification
+                      object:self
+                    userInfo:@{@"edits": record.edits, UDTextModelChangesKey: changes}];
 }
 
 - (void)applyEdits:(NSArray<UDTextModelEdit *> *)edits {
@@ -523,10 +578,9 @@ static void UDOffsetSettle(UDOffsetSet *set, NSInteger t) {
         // Digits only: Apple's NSString hash clusters keys like "d1"…"d80000"
         // so badly that removing them from a dictionary goes linear.
         NSString *identifier = [NSString stringWithFormat:@"%lu", (unsigned long)++_lastDecorationID];
-        NSInteger startOffset = [self getOffsetAt:delta.range.startLineNumber
-                                           column:delta.range.startColumn];
-        NSInteger endOffset   = [self getOffsetAt:delta.range.endLineNumber
-                                           column:delta.range.endColumn];
+        UDRange range = [self validateRange:delta.range];
+        NSInteger startOffset = [self getOffsetAt:range.startLineNumber column:range.startColumn];
+        NSInteger endOffset   = [self getOffsetAt:range.endLineNumber column:range.endColumn];
         dirtyStart = MIN(dirtyStart, startOffset);
         dirtyEnd   = MAX(dirtyEnd,   endOffset);
         UDIntervalNode *node =

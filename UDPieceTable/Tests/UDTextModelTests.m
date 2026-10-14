@@ -7,6 +7,16 @@
 @interface UDTextModelTests : XCTestCase
 @end
 
+/// XCTest's measuring on Apple; GNUstep's XCTest has no -measureBlock:, so
+/// there the block just runs.
+static void UDMeasure(XCTestCase *test, void (^block)(void)) {
+#ifdef __APPLE__
+    [test measureBlock:block];
+#else
+    block();
+#endif
+}
+
 @implementation UDTextModelTests
 
 // MARK: - Initialisation
@@ -798,12 +808,12 @@
 
     // Query positions spread across the whole document.
     // Each query should be O(log N), not O(N), so 1000 queries should be fast.
-    [self measureBlock:^{
+    UDMeasure(self, ^{
         for (NSInteger q = 0; q < 1000; q++) {
             NSInteger pos = (q * 30) % (tokenCount * 3 - 1);
             (void)[m decorationNodesInOffsetRange:pos end:pos + 1];
         }
-    }];
+    });
 }
 
 // MARK: - getNearestChunkAtOffset: / bulk character access

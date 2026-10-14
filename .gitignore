@@ -22,7 +22,7 @@ tree-sitter-*/Resources/locals.scm
 # Provenance files written by fetch-deps.sh
 tree-sitter-*/UPSTREAM
 
-# Shared tree-sitter runtime at the repo root (used by TestApp.xcodeproj)
+# Shared tree-sitter runtime at the repo root (compiled into UDCodeKit)
 # Fetch with:  bash scripts/fetch-tree-sitter.sh
 tree-sitter/
 
@@ -54,3 +54,6 @@ DerivedData/
 
 # Swift packages (if any are added in future)
 .build/
+
+# GNUstep builds (make): everything under build/gnustep
+build/

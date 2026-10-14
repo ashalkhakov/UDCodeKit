@@ -12,6 +12,10 @@
 
 /// Deterministic random numbers, the same on every platform.
 typedef struct { uint64_t state; } UDRandom;
+/// MIN, with each argument evaluated once: GNUstep's MIN evaluates them
+/// twice, and an argument that draws a random number would draw two.
+static inline NSInteger UDMin(NSInteger a, NSInteger b) { return a < b ? a : b; }
+
 static NSInteger UDRandomBelow(UDRandom *r, NSInteger bound) {
     r->state = r->state * 6364136223846793005ULL + 1442695040888963407ULL;
     return (NSInteger)((r->state >> 33) % (uint64_t)MAX(bound, 1));
@@ -62,7 +66,7 @@ static void UDReferenceAcceptEdit(NSInteger *start, NSInteger *end, UDTrackedRan
             NSInteger action = UDRandomBelow(&random, 10);
             if (action < 3 || nodes.count < 5) {                          // add a decoration
                 NSInteger start = UDRandomBelow(&random, length + 1);
-                NSInteger end = MIN(length, start + UDRandomBelow(&random, 30));
+                NSInteger end = UDMin(length, start + UDRandomBelow(&random, 30));
                 UDTrackedRangeStickiness st = (UDTrackedRangeStickiness)UDRandomBelow(&random, 4);
                 UDIntervalNode *node = [[UDIntervalNode alloc] initWithIdentifier:[NSString stringWithFormat:@"%ld", (long)step]
                                                                             start:start end:end options:options owner:nil stickiness:st];
@@ -78,7 +82,7 @@ static void UDReferenceAcceptEdit(NSInteger *start, NSInteger *end, UDTrackedRan
                 [stickiness removeObjectAtIndex:(NSUInteger)i];
             } else {                                                      // edit the text
                 NSInteger editStart = UDRandomBelow(&random, length + 1);
-                NSInteger deleted = MIN(length - editStart, UDRandomBelow(&random, 3) == 0 ? UDRandomBelow(&random, 40) : 0);
+                NSInteger deleted = UDMin(length - editStart, UDRandomBelow(&random, 3) == 0 ? UDRandomBelow(&random, 40) : 0);
                 NSInteger inserted = UDRandomBelow(&random, 3) == 0 ? 0 : UDRandomBelow(&random, 25);
                 [tree acceptEdit:editStart deleteCount:deleted insertCount:inserted forceMoveMarkers:NO];
                 for (NSUInteger i = 0; i < reference.count; i++) {
@@ -152,8 +156,8 @@ static void UDReferenceAcceptEdit(NSInteger *start, NSInteger *end, UDTrackedRan
                 NSInteger max = [model getLineMaxColumn:line];
                 NSInteger column = 1;
                 for (NSInteger k = 0; k < 3 && column <= max; k++) {
-                    NSInteger c1 = MIN(max, column + UDRandomBelow(&random, 3));
-                    NSInteger c2 = MIN(max, c1 + UDRandomBelow(&random, 4));
+                    NSInteger c1 = UDMin(max, column + UDRandomBelow(&random, 3));
+                    NSInteger c2 = UDMin(max, c1 + UDRandomBelow(&random, 4));
                     [edits addObject:[[UDTextModelEdit alloc] initWithRange:PTRangeMake(line, c1, line, c2) text:@"xy"]];
                     column = c2;
                 }
@@ -162,7 +166,7 @@ static void UDReferenceAcceptEdit(NSInteger *start, NSInteger *end, UDTrackedRan
             [chosen enumerateIndexesUsingBlock:^(NSUInteger line, BOOL *stop) {
                 NSInteger max = [model getLineMaxColumn:(NSInteger)line];
                 NSInteger c1 = 1 + UDRandomBelow(&random, max);
-                NSInteger c2 = MIN(max, c1 + UDRandomBelow(&random, 6));
+                NSInteger c2 = UDMin(max, c1 + UDRandomBelow(&random, 6));
                 NSString *insert = [@"" stringByPaddingToLength:(NSUInteger)UDRandomBelow(&random, 5) withString:@"ab\n" startingAtIndex:0];
                 [edits addObject:[[UDTextModelEdit alloc] initWithRange:PTRangeMake((NSInteger)line, c1, (NSInteger)line, c2) text:insert]];
             }];
@@ -230,7 +234,7 @@ static UDPosition UDReferencePosition(NSString *text, NSInteger offset) {
             [chosen enumerateIndexesUsingBlock:^(NSUInteger line, BOOL *stop) {
                 NSInteger max = [model getLineMaxColumn:(NSInteger)line];
                 NSInteger c1 = 1 + UDRandomBelow(&random, max);
-                NSInteger c2 = MIN(max, c1 + UDRandomBelow(&random, 4));
+                NSInteger c2 = UDMin(max, c1 + UDRandomBelow(&random, 4));
                 NSArray *texts = @[@"", @"x", @"two\nlines", @"a\r\nb\rc"];
                 [edits addObject:[[UDTextModelEdit alloc] initWithRange:PTRangeMake((NSInteger)line, c1, (NSInteger)line, c2)
                                                                    text:texts[(NSUInteger)UDRandomBelow(&random, 4)]]];
@@ -283,7 +287,7 @@ static NSInteger UDReferenceOffset(NSString *text, NSInteger line, NSInteger col
             [chosen enumerateIndexesUsingBlock:^(NSUInteger line, BOOL *stop) {
                 NSInteger max = [model getLineMaxColumn:(NSInteger)line];
                 NSInteger c1 = 1 + UDRandomBelow(&random, max);
-                NSInteger c2 = MIN(max, c1 + UDRandomBelow(&random, 3));
+                NSInteger c2 = UDMin(max, c1 + UDRandomBelow(&random, 3));
                 NSString *t = texts[(NSUInteger)UDRandomBelow(&random, (NSInteger)texts.count)];
                 [edits addObject:[[UDTextModelEdit alloc] initWithRange:PTRangeMake((NSInteger)line, c1, (NSInteger)line, c2) text:t]];
                 NSInteger a = UDReferenceOffset(reference, (NSInteger)line, c1), b = UDReferenceOffset(reference, (NSInteger)line, c2);
@@ -315,12 +319,12 @@ static NSInteger UDReferenceOffset(NSString *text, NSInteger line, NSInteger col
             NSInteger lines = [model getLineCount];
             NSInteger line = 1 + UDRandomBelow(&random, lines);
             NSInteger max = [model getLineMaxColumn:line];
-            NSInteger c1 = 1 + UDRandomBelow(&random, max), c2 = MIN(max, c1 + UDRandomBelow(&random, 4));
+            NSInteger c1 = 1 + UDRandomBelow(&random, max), c2 = UDMin(max, c1 + UDRandomBelow(&random, 4));
             [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(line, c1, line, c2)
                                                                    text:texts[(NSUInteger)UDRandomBelow(&random, (NSInteger)texts.count)]]]];
             lines = [model getLineCount];
             NSInteger first = 1 + UDRandomBelow(&random, lines);
-            NSInteger last = MIN(lines, first + UDRandomBelow(&random, 6));
+            NSInteger last = UDMin(lines, first + UDRandomBelow(&random, 6));
             NSMutableArray<NSString *> *expected = [NSMutableArray array];
             NSArray<NSString *> *all = [[model getValue] componentsSeparatedByString:@"\n"];
             for (NSInteger l = first; l <= last; l++) {
@@ -381,6 +385,28 @@ static NSInteger UDReferenceOffset(NSString *text, NSInteger line, NSInteger col
         [found addObject:@(m.range.startLineNumber)];
     }
     XCTAssertEqualObjects(found, (@[@1, @2, @4, @5]));
+}
+
+/// Edits and decorations reaching past the text are put within it, as in
+/// VS Code: a column past a line's end, a line past the last. Such an edit
+/// used to send the model looking for the offset forever.
+- (void)testRangesPastTheTextAreValidated {
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"abc\nde"];
+    [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(2, 1, 2, 9) text:@"X"]]];
+    XCTAssertEqualObjects([model getValue], @"abc\nX");
+    [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 3, 1, 50) text:@"Y"]]];
+    XCTAssertEqualObjects([model getValue], @"abY\nX");
+    [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(7, 1, 9, 9) text:@"!"]]];
+    XCTAssertEqualObjects([model getValue], @"abY\nX!");
+    [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(0, 0, 1, 2) text:@""]]];
+    XCTAssertEqualObjects([model getValue], @"bY\nX!");
+    UDRange r = [model validateRange:PTRangeMake(2, 9, 1, 1)];
+    XCTAssertTrue(r.startLineNumber == 1 && r.startColumn == 1 && r.endLineNumber == 2 && r.endColumn == 3, @"ordered, and within the text");
+
+    UDDecorationOptions *options = [[UDDecorationOptions alloc] initWithClassName:@"x" userInfo:nil];
+    NSArray *ids = [model deltaDecorations:nil newDecorations:@[[[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(2, 2, 5, 5) options:options]]];
+    UDRange d = [model rangeForDecoration:ids.firstObject];
+    XCTAssertTrue(d.startLineNumber == 2 && d.startColumn == 2 && d.endLineNumber == 2 && d.endColumn == 3);
 }
 
 - (void)testOverlappingEditsAreRefused {

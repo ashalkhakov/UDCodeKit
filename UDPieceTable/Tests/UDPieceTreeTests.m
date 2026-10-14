@@ -104,24 +104,26 @@ static NSInteger TreeDepth(UDPieceTreeNode *n) {
     return (n.color == PTNodeColorBlack ? 1 : 0) + l;
 }
 
-static PTNodeStats AssertValidNode(UDPieceTreeNode *n, XCTestCase *tc) {
+// The XCTAssert macros name the test case `self`; so do these helpers'
+// parameters, which makes them assert from a C function on every platform.
+static PTNodeStats AssertValidNode(UDPieceTreeNode *n, XCTestCase *self) {
     if (n == Sentinel()) { return (PTNodeStats){0, 0}; }
     UDPieceTreeNode *l = n.left, *r = n.right;
     if (n.color == PTNodeColorRed) {
         XCTAssertEqual(l.color, PTNodeColorBlack, @"Red node must have black left child");
         XCTAssertEqual(r.color, PTNodeColorBlack, @"Red node must have black right child");
     }
-    PTNodeStats leftStats = AssertValidNode(l, tc);
+    PTNodeStats leftStats = AssertValidNode(l, self);
     XCTAssertEqual(leftStats.lfCnt, n.lfLeft,   @"lf_left mismatch");
     XCTAssertEqual(leftStats.size,  n.sizeLeft,  @"size_left mismatch");
-    PTNodeStats rightStats = AssertValidNode(r, tc);
+    PTNodeStats rightStats = AssertValidNode(r, self);
     return (PTNodeStats){
         n.sizeLeft + n.piece.length + rightStats.size,
         n.lfLeft   + n.piece.lineFeedCnt + rightStats.lfCnt
     };
 }
 
-static void AssertTreeInvariants(UDPieceTree *T, XCTestCase *tc) {
+static void AssertTreeInvariants(UDPieceTree *T, XCTestCase *self) {
     UDPieceTreeNode *s = Sentinel();
     XCTAssertEqual(s.color, PTNodeColorBlack);
     XCTAssertEqual(s.parent, s);
@@ -134,12 +136,12 @@ static void AssertTreeInvariants(UDPieceTree *T, XCTestCase *tc) {
     NSInteger ld = TreeDepth(T.root.left);
     NSInteger rd = TreeDepth(T.root.right);
     XCTAssertEqual(ld, rd, @"Black-depth of left and right subtrees must match");
-    AssertValidNode(T.root, tc);
+    AssertValidNode(T.root, self);
 }
 
 /// Faithful port of VS Code's testLinesContent.
 /// Uses SplitLines (which keeps line-endings) and getLineContent (which strips them).
-static void TestLinesContent(NSString *str, UDPieceTree *pt, XCTestCase *tc) {
+static void TestLinesContent(NSString *str, UDPieceTree *pt, XCTestCase *self) {
     NSArray<NSString *> *lines = SplitLines(str);
     XCTAssertEqual([pt getLineCount], (NSInteger)lines.count,
                    @"getLineCount mismatch for: %@", str);
@@ -169,7 +171,7 @@ static void TestLinesContent(NSString *str, UDPieceTree *pt, XCTestCase *tc) {
 
 /// Faithful port of VS Code's testLineStarts.
 /// Requires both getOffsetAt(line, col) AND getPositionAt(offset).
-static void TestLineStarts(NSString *str, UDPieceTree *pt, XCTestCase *tc) {
+static void TestLineStarts(NSString *str, UDPieceTree *pt, XCTestCase *self) {
     // Build the expected array of line-start offsets by scanning for \r\n, \r, \n
     NSMutableArray<NSNumber *> *lineStarts = [NSMutableArray arrayWithObject:@0];
     NSInteger len = (NSInteger)str.length;

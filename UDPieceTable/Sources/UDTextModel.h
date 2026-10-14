@@ -131,6 +131,15 @@ extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
 - (UDPosition)getPositionAt:(NSInteger)offset;
 /// Returns the character offset for a 1-based line/column.
 - (NSInteger)getOffsetAt:(NSInteger)lineNumber column:(NSInteger)column;
+
+/// The nearest position in the text, as VS Code's validatePosition: a line
+/// before the first is the start, after the last the end; a column is put
+/// within its line.
+- (UDPosition)validatePosition:(UDPosition)position;
+
+/// The range with both ends validated, start first. Edits and decorations
+/// are validated before use.
+- (UDRange)validateRange:(UDRange)range;
 /// Returns the text within the given (1-based) range.
 - (NSString *)getValueInRange:(UDRange)range;
 

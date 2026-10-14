@@ -88,7 +88,7 @@
 		</dict>
 	</array>
 	<key>SUFeedURL</key>
-	<string>https://github.com/ashalkhakov/UDPieceTable/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/ashalkhakov/UDCodeKit/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>9cBO16YcwJZy7uzpT8tSbD/UnYF9HNTekubfnW8WlUE=</string>
 </dict>

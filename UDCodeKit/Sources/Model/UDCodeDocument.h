@@ -58,9 +58,15 @@ extern NSNotificationName const UDCodeDocumentTextDidChangeNotification;
 // MARK: - Lifecycle
 // ---------------------------------------------------------------------------
 
-/// Designated initialiser.
+/// Designated initialiser. The language mode is @a languageMode, or with
+/// nil the one the file's extension names (plain text when untitled).
 - (instancetype)initWithText:(NSString *)text
-                     fileURL:(nullable NSURL *)fileURL NS_DESIGNATED_INITIALIZER;
+                     fileURL:(nullable NSURL *)fileURL
+                languageMode:(nullable UDLanguageMode *)languageMode NS_DESIGNATED_INITIALIZER;
+
+/// With the language mode the file's extension names.
+- (instancetype)initWithText:(NSString *)text
+                     fileURL:(nullable NSURL *)fileURL;
 - (instancetype)init NS_UNAVAILABLE;
 
 // ---------------------------------------------------------------------------

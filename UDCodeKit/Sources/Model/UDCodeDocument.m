@@ -19,6 +19,10 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
 // ---------------------------------------------------------------------------
 
 - (instancetype)initWithText:(NSString *)text fileURL:(NSURL *)fileURL {
+    return [self initWithText:text fileURL:fileURL languageMode:nil];
+}
+
+- (instancetype)initWithText:(NSString *)text fileURL:(NSURL *)fileURL languageMode:(UDLanguageMode *)languageMode {
     self = [super init];
     if (!self) return nil;
 
@@ -26,7 +30,7 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     _diagnosticStore = [[UDDiagnosticStore alloc] init];
     _fileURL         = [fileURL copy];
     _displayName     = fileURL.lastPathComponent ?: @"Untitled";
-    _languageMode    = [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:fileURL];
+    _languageMode    = languageMode ?: [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:fileURL];
     _savedAlternativeVersionId = _textModel.alternativeVersionId;
 
     // Track edits so we can raise the modified flag and forward the

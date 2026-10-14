@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
     <dependencies>
         <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
@@ -8,19 +8,269 @@
         <customObject id="-2" userLabel="File's Owner" customClass="UDDocumentWindowController">
             <connections>
                 <outlet property="window" destination="UDW-01-window" id="UDO-01-windowOutlet"/>
+                <outlet property="paneSplit" destination="WS-split-controller" id="WS-o-split"/>
+                <outlet property="editorTabs" destination="WS-tabs-controller" id="WS-o-tabs"/>
+                <outlet property="navigatorControl" destination="WS-nav-control" id="WS-o-nav-control"/>
+                <outlet property="navigatorTabView" destination="WS-nav-tabs" id="WS-o-nav-tabs"/>
+                <outlet property="filesTable" destination="WS-files-table" id="WS-o-files"/>
+                <outlet property="issuesHost" destination="WS-issues-host" id="WS-o-issues"/>
+                <outlet property="inspectorName" destination="WS-insp-name" id="WS-o-insp-name"/>
+                <outlet property="inspectorPath" destination="WS-insp-path" id="WS-o-insp-path"/>
+                <outlet property="inspectorLanguage" destination="WS-insp-language" id="WS-o-insp-language"/>
+                <outlet property="inspectorLines" destination="WS-insp-lines" id="WS-o-insp-lines"/>
+                <outlet property="inspectorLineEndings" destination="WS-insp-eol" id="WS-o-insp-eol"/>
             </connections>
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <customObject id="WS-split-controller" userLabel="Pane Split" customClass="UDPaneSplitController">
+            <connections>
+                <outlet property="splitView" destination="WS-split" id="WS-o-split-view"/>
+            </connections>
+        </customObject>
+        <customObject id="WS-tabs-controller" userLabel="Editor Tabs" customClass="UDEditorTabsController">
+            <connections>
+                <outlet property="tabBar" destination="WS-tab-bar" id="WS-o-tab-bar"/>
+                <outlet property="tabView" destination="WS-editor-tabs" id="WS-o-editor-tabs"/>
+                <outlet property="delegate" destination="-2" id="WS-o-tabs-delegate"/>
+            </connections>
+        </customObject>
         <window title="Document" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" animationBehavior="default" id="UDW-01-window">
             <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES"/>
             <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
-            <rect key="contentRect" x="100" y="100" width="1080" height="640"/>
+            <rect key="contentRect" x="100" y="100" width="1200" height="760"/>
             <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1055"/>
+            <value key="minSize" type="size" width="720" height="400"/>
             <view key="contentView" id="UDV-00-content">
-                <rect key="frame" x="0.0" y="0.0" width="1080" height="640"/>
+                <rect key="frame" x="0.0" y="0.0" width="1200" height="760"/>
                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                <subviews>
+                    <splitView dividerStyle="thin" vertical="YES" id="WS-split" userLabel="Navigator | Editors | Inspector">
+                        <rect key="frame" x="0.0" y="0.0" width="1200" height="760"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <customView id="WS-navigator" userLabel="Navigator">
+                                <rect key="frame" x="0.0" y="0.0" width="240" height="760"/>
+                                <autoresizingMask key="autoresizingMask" heightSizable="YES"/>
+                                <subviews>
+                                    <segmentedControl verticalHuggingPriority="750" id="WS-nav-control" userLabel="Navigator Selector">
+                                        <rect key="frame" x="6" y="730" width="228" height="24"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                        <segmentedCell key="cell" borderStyle="border" alignment="left" style="rounded" trackingMode="selectOne" id="WS-nav-control-cell">
+                                            <font key="font" metaFont="system"/>
+                                            <segments>
+                                                <segment label="Files" width="110" selected="YES"/>
+                                                <segment label="Issues" width="110" tag="1"/>
+                                            </segments>
+                                        </segmentedCell>
+                                        <connections>
+                                            <action selector="navigatorChanged:" target="-2" id="WS-a-nav"/>
+                                        </connections>
+                                    </segmentedControl>
+                                    <tabView type="noTabsNoBorder" initialItem="WS-nav-files" id="WS-nav-tabs">
+                                        <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                        <font key="font" metaFont="system"/>
+                                        <tabViewItems>
+                                            <tabViewItem label="Files" identifier="files" id="WS-nav-files">
+                                                <view key="view" id="WS-nav-files-view">
+                                                    <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    <subviews>
+                                                        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="19" horizontalPageScroll="10" verticalLineScroll="19" verticalPageScroll="10" usesPredominantAxisScrolling="NO" id="WS-files-scroll">
+                                                            <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                            <clipView key="contentView" id="WS-files-clip">
+                                                                <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                                <subviews>
+                                                                    <tableView verticalHuggingPriority="750" allowsExpansionToolTips="YES" columnAutoresizingStyle="lastColumnOnly" columnReordering="NO" columnResizing="NO" multipleSelection="NO" autosaveColumns="NO" id="WS-files-table" userLabel="Open Files">
+                                                                        <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                                        <size key="intercellSpacing" width="3" height="2"/>
+                                                                        <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                        <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
+                                                                        <tableColumns>
+                                                                            <tableColumn identifier="name" editable="NO" width="234" minWidth="40" maxWidth="1000" id="WS-files-column">
+                                                                                <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Open Files">
+                                                                                    <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                                                                    <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                                                                </tableHeaderCell>
+                                                                                <textFieldCell key="dataCell" lineBreakMode="truncatingMiddle" selectable="YES" title="Text Cell" id="WS-files-cell">
+                                                                                    <font key="font" metaFont="system"/>
+                                                                                    <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                                                                    <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                                                </textFieldCell>
+                                                                                <tableColumnResizingMask key="resizingMask" resizeWithTable="YES"/>
+                                                                            </tableColumn>
+                                                                        </tableColumns>
+                                                                        <connections>
+                                                                            <outlet property="dataSource" destination="-2" id="WS-o-files-source"/>
+                                                                            <outlet property="delegate" destination="-2" id="WS-o-files-delegate"/>
+                                                                        </connections>
+                                                                    </tableView>
+                                                                </subviews>
+                                                            </clipView>
+                                                            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="WS-files-hscroll">
+                                                                <rect key="frame" x="0.0" y="708" width="240" height="16"/>
+                                                                <autoresizingMask key="autoresizingMask"/>
+                                                            </scroller>
+                                                            <scroller key="verticalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="NO" id="WS-files-vscroll">
+                                                                <rect key="frame" x="224" y="0.0" width="16" height="724"/>
+                                                                <autoresizingMask key="autoresizingMask"/>
+                                                            </scroller>
+                                                        </scrollView>
+                                                    </subviews>
+                                                </view>
+                                            </tabViewItem>
+                                            <tabViewItem label="Issues" identifier="issues" id="WS-nav-issues">
+                                                <view key="view" id="WS-nav-issues-view">
+                                                    <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    <subviews>
+                                                        <customView id="WS-issues-host" userLabel="Issues Host">
+                                                            <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                        </customView>
+                                                    </subviews>
+                                                </view>
+                                            </tabViewItem>
+                                        </tabViewItems>
+                                    </tabView>
+                                </subviews>
+                            </customView>
+                            <customView id="WS-editors" userLabel="Editors">
+                                <rect key="frame" x="241" y="0.0" width="698" height="760"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <subviews>
+                                    <customView id="WS-tab-bar" userLabel="Tab Bar" customClass="UDTabBarView">
+                                        <rect key="frame" x="0.0" y="732" width="698" height="28"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                    </customView>
+                                    <tabView type="noTabsNoBorder" id="WS-editor-tabs" userLabel="Editor Pages">
+                                        <rect key="frame" x="0.0" y="0.0" width="698" height="732"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                        <font key="font" metaFont="system"/>
+                                    </tabView>
+                                </subviews>
+                            </customView>
+                            <customView id="WS-inspector" userLabel="Inspector">
+                                <rect key="frame" x="940" y="0.0" width="260" height="760"/>
+                                <autoresizingMask key="autoresizingMask" heightSizable="YES"/>
+                                <subviews>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-title">
+                                        <rect key="frame" x="10" y="730" width="240" height="17"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" title="Document" id="WS-insp-title-cell">
+                                            <font key="font" metaFont="systemBold"/>
+                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-name-label">
+                                        <rect key="frame" x="10" y="700" width="80" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Name" id="WS-insp-name-label-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-name">
+                                        <rect key="frame" x="96" y="700" width="154" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingMiddle" selectable="YES" title="" id="WS-insp-name-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-path-label">
+                                        <rect key="frame" x="10" y="676" width="80" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Path" id="WS-insp-path-label-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-path">
+                                        <rect key="frame" x="96" y="676" width="154" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingHead" selectable="YES" title="" id="WS-insp-path-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-language-label">
+                                        <rect key="frame" x="10" y="652" width="80" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Language" id="WS-insp-language-label-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-language">
+                                        <rect key="frame" x="96" y="652" width="154" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-language-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-lines-label">
+                                        <rect key="frame" x="10" y="628" width="80" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Lines" id="WS-insp-lines-label-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-lines">
+                                        <rect key="frame" x="96" y="628" width="154" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-lines-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-eol-label">
+                                        <rect key="frame" x="10" y="604" width="80" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Line Endings" id="WS-insp-eol-label-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                    <textField verticalHuggingPriority="750" id="WS-insp-eol">
+                                        <rect key="frame" x="96" y="604" width="154" height="16"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-eol-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                    </textField>
+                                </subviews>
+                            </customView>
+                        </subviews>
+                        <holdingPriorities>
+                            <real value="260"/>
+                            <real value="250"/>
+                            <real value="260"/>
+                        </holdingPriorities>
+                    </splitView>
+                </subviews>
             </view>
+            <connections>
+                <outlet property="delegate" destination="-2" id="WS-o-window-delegate"/>
+            </connections>
             <point key="canvasLocation" x="200" y="200"/>
         </window>
     </objects>

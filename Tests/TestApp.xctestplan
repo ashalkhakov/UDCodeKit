@@ -24,13 +24,6 @@
         "identifier" : "A46FAABB2F5441CB0079BB37",
         "name" : "TestAppTests"
       }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:TestApp.xcodeproj",
-        "identifier" : "A46FAAC52F5441CB0079BB37",
-        "name" : "TestAppUITests"
-      }
     }
   ],
   "version" : 1

@@ -37,6 +37,11 @@ extern NSNotificationName const UDWorkspaceModelDidChangeNotification;
 - (UDCodeDocument *)addDocumentWithText:(NSString *)text
                                 fileURL:(nullable NSURL *)fileURL;
 
+/// The same, in @a languageMode (nil: the one the file's extension names).
+- (UDCodeDocument *)addDocumentWithText:(NSString *)text
+                                fileURL:(nullable NSURL *)fileURL
+                           languageMode:(nullable UDLanguageMode *)languageMode;
+
 /// Read file content from url, create a document, add it, and return it.
 /// If url is already open, returns the existing document without re-reading
 /// the file.  Returns nil and sets *outError on I/O failure.

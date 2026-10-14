@@ -36,11 +36,17 @@ NSNotificationName const UDWorkspaceModelDidChangeNotification =
 
 - (UDCodeDocument *)addDocumentWithText:(NSString *)text
                                 fileURL:(nullable NSURL *)fileURL {
+    return [self addDocumentWithText:text fileURL:fileURL languageMode:nil];
+}
+
+- (UDCodeDocument *)addDocumentWithText:(NSString *)text
+                                fileURL:(nullable NSURL *)fileURL
+                           languageMode:(nullable UDLanguageMode *)languageMode {
     if (fileURL) {
         UDCodeDocument *existing = [self documentForFileURL:fileURL];
         if (existing) return existing;
     }
-    UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:text fileURL:fileURL];
+    UDCodeDocument *doc = [[UDCodeDocument alloc] initWithText:text fileURL:fileURL languageMode:languageMode];
     [self _appendDocument:doc];
     return doc;
 }

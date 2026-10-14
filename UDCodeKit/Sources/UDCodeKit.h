@@ -47,3 +47,6 @@
 
 #import <UDCodeKit/UDTabBarView.h>
 #import <UDCodeKit/UDTabItemView.h>
+#import <UDCodeKit/UDEditorTabsController.h>
+#import <UDCodeKit/UDPaneSplitController.h>
+#import <UDCodeKit/UDHoverViewController.h>

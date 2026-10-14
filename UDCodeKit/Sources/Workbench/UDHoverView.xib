@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDHoverViewController">
+            <connections>
+                <outlet property="view" destination="HV-root" id="HV-o-view"/>
+                <outlet property="textView" destination="HV-text" id="HV-o-text"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="HV-root" userLabel="Hover">
+            <rect key="frame" x="0.0" y="0.0" width="360" height="120"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <clipView key="contentView" drawsBackground="NO" id="HV-clip">
+                <rect key="frame" x="0.0" y="0.0" width="360" height="120"/>
+                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                <subviews>
+                    <textView editable="NO" importsGraphics="NO" richText="NO" verticallyResizable="YES" drawsBackground="NO" id="HV-text">
+                        <rect key="frame" x="0.0" y="0.0" width="360" height="120"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                        <size key="minSize" width="360" height="120"/>
+                        <size key="maxSize" width="10000000" height="10000000"/>
+                    </textView>
+                </subviews>
+            </clipView>
+            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="HV-hscroll">
+                <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                <autoresizingMask key="autoresizingMask"/>
+            </scroller>
+            <scroller key="verticalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="NO" id="HV-vscroll">
+                <rect key="frame" x="344" y="0.0" width="16" height="120"/>
+                <autoresizingMask key="autoresizingMask"/>
+            </scroller>
+            <point key="canvasLocation" x="200" y="200"/>
+        </scrollView>
+    </objects>
+</document>

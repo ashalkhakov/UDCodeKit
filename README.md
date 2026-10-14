@@ -20,7 +20,11 @@ on GNUstep (Linux).
   and their registry, the LSP coordinator, and `UDEditorSession`, which ties
   one document's services together. It compiles the tree-sitter runtime in;
   only the umbrella header `<UDCodeKit/UDCodeKit.h>` and the headers it
-  names are public.
+  names are public. It also has what an Xcode-like window is made of:
+  `UDPaneSplitController` (navigator | editors | inspector, panes that keep
+  their size, hide, and are remembered), `UDEditorTabsController` with
+  `UDTabBarView` (editor tabs), and the find and replace bar. Every view is
+  in a XIB.
 - `Sources/` — the test application on top of it: documents, workspaces,
   tabs, the issues pane.
 - `LSPKit/` — the Language Server Protocol client (`LSPKit.framework`), after
@@ -52,11 +56,14 @@ frameworks and grammar bundles embedded.
   the decoration tree and the undo bookkeeping against plain reference
   implementations.
 - `TestApp` scheme, `TestAppTests` — the editor (`Tests/`): text storage,
-  incremental parsing, auto-indent, language modes, documents.
+  incremental parsing and highlighting, parse errors, folding, find and
+  replace, auto-indent, language modes, documents; `UDEditorComplexityTests`
+  for the editor's hot paths; and the find bar and the workspace window
+  driven in-process.
 
 ```bash
 xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDPieceTable -destination 'platform=macOS' test
-xcodebuild -workspace UDPieceTable.xcworkspace -scheme TestApp -destination 'platform=macOS' test -only-testing:TestAppTests
+xcodebuild -workspace UDPieceTable.xcworkspace -scheme TestApp -destination 'platform=macOS' test
 ```
 
 ## License

@@ -248,9 +248,17 @@ static NSString *UDJSONDocument(NSInteger entries) {
 
 - (void)testDrawingCostsTheLinesDrawn {
     if (![self haveJSON]) return;
-    [self drawInDocumentOf:500];
-    double small = [self drawInDocumentOf:2000];
-    double large = [self drawInDocumentOf:16000];
+#ifdef __APPLE__
+    NSInteger entries = 2000;
+#else
+    // GNUstep lays the whole text out before it draws any of it, in time
+    // quadratic in the text (GSLayoutManager runs its debug checks in
+    // release builds): smaller documents, 8x apart all the same.
+    NSInteger entries = 500;
+#endif
+    [self drawInDocumentOf:entries / 4];
+    double small = [self drawInDocumentOf:entries];
+    double large = [self drawInDocumentOf:entries * 8];
     XCTAssertLessThan(large / small, 3.0, @"8× the document made drawing %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 

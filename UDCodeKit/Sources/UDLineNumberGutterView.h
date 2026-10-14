@@ -40,7 +40,13 @@ extern const CGFloat UDLineNumberGutterWidth;
                           textView:(NSTextView *)textView
                          textModel:(UDTextModel *)textModel;
 
-@property (nonatomic, weak, nullable) id<UDLineNumberGutterViewDelegate> delegate;
+/// Shows the lines of @a textView, in @a scrollView, of @a textModel — for
+/// a gutter loaded from a XIB (or to move it to another text view).
+- (void)attachToScrollView:(NSScrollView *)scrollView
+                  textView:(NSTextView *)textView
+                 textModel:(UDTextModel *)textModel;
+
+@property (nonatomic, weak, nullable) IBOutlet id<UDLineNumberGutterViewDelegate> delegate;
 
 /// Which of the drawn lines show a fold indicator, and which of those are
 /// folded. Asked for the visible lines only, on each draw.

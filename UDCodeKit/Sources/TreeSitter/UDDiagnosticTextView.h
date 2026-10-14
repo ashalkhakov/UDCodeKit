@@ -40,6 +40,14 @@ NS_ASSUME_NONNULL_BEGIN
                     point:(NSPoint)point;
 @end
 
+/// Who handles the Find menu for the text view: its editor's find bar.
+/// Actions are NSTextFinderAction values (the Find menu items' tags; the
+/// first ones match NSFindPanelAction's).
+@protocol UDFindActionHandler <NSObject>
+- (void)performFindAction:(NSInteger)action;
+- (BOOL)canPerformFindAction:(NSInteger)action;
+@end
+
 @interface UDDiagnosticTextView : NSTextView
 
 @property (atomic, weak) id<UDDiagnosticTextViewDelegate> delegate;
@@ -64,6 +72,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// current selectedRange. Call once after the view has loaded and the
 /// cursors controller has been assigned.
 - (void)syncCursorControllerFromSelection;
+
+/// Takes the Find menu (performFindPanelAction: and performTextFinderAction:)
+/// instead of AppKit's find panel or find bar.
+@property (nonatomic, weak, nullable) id<UDFindActionHandler> findActionHandler;
 
 - (void)showCompleteList:(id)sender;
 

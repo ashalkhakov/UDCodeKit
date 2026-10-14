@@ -58,7 +58,8 @@ extern const NSUInteger UDFindModelMatchLimit;
 - (nullable UDFindMatch *)matchBefore:(NSInteger)offset;
 
 /// 1-based: the rank among the matches of the one at [start, end), or 0
-/// when that is not a match.
+/// when that is not a match — which the decorations there tell; only a
+/// match is ranked, at the cost of the matches.
 - (NSUInteger)indexOfMatchFrom:(NSInteger)start to:(NSInteger)end;
 
 /// If [start, end) is a match, replaces it and returns where the

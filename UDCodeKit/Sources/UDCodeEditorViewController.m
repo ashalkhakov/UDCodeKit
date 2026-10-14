@@ -6,29 +6,24 @@
 #import "UDAutoIndenter.h"
 #import "UDTreeSitterHighlighter.h"
 #import "UDTextModelTextStorage.h"
+#import "UDFindBarViewController.h"
 #import <UDPieceTable/UDPieceTable.h>
-
-// ---------------------------------------------------------------------------
-// MARK: - Layout constants (private to this file)
-// ---------------------------------------------------------------------------
-
-static CGFloat const kEditorFindGutterWidth = 12.0;
 
 // ---------------------------------------------------------------------------
 // MARK: - Private interface
 // ---------------------------------------------------------------------------
 
-@interface UDCodeEditorViewController () <NSSearchFieldDelegate,
-                                          UDLineNumberGutterViewDelegate>
+@interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDFindBarDelegate, UDFindActionHandler>
 
 // IBOutlets wired from UDCodeEditorViewController.xib.
-@property (nonatomic, weak) IBOutlet NSScrollView         *scrollView;
-@property (nonatomic, weak) IBOutlet UDDiagnosticTextView *textView;
-@property (nonatomic, weak) IBOutlet NSSearchField        *findField;
+@property (nonatomic, weak) IBOutlet NSScrollView            *scrollView;
+@property (nonatomic, weak) IBOutlet UDDiagnosticTextView    *textView;
+@property (nonatomic, weak) IBOutlet NSView                  *findBarHost;
+@property (nonatomic, weak) IBOutlet NSView                  *editorArea;
+@property (nonatomic, weak) IBOutlet UDLineNumberGutterView  *lineNumberGutterView;
+@property (nonatomic, weak) IBOutlet UDFindResultsGutterView *gutterView;
 
-// Created programmatically in -viewDidLoad.
-@property (nonatomic, weak)   UDFindResultsGutterView *gutterView;
-@property (nonatomic, strong) UDLineNumberGutterView   *lineNumberGutterView;
+@property (nonatomic, strong, nullable) UDFindBarViewController *findBar;
 @property (nonatomic, strong) UDFoldingController      *foldingController;
 @property (nonatomic, strong) UDBracketMatchHighlighter *bracketMatchHighlighter;
 @property (nonatomic, strong) UDStructuredNavigator    *structuredNavigator;
@@ -36,7 +31,7 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
 
 // Text-model state.
 @property (nonatomic, strong) UDTextModelTextStorage   *textStorage;
-@property (nonatomic, strong) NSArray<NSString *>      *findDecorationIDs;
+@property (nonatomic, strong, nullable) UDFindModel    *findModel;
 
 @end
 
@@ -52,8 +47,7 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
     self = [super initWithNibName:@"UDCodeEditorViewController"
                            bundle:[NSBundle bundleForClass:[UDCodeEditorViewController class]]];
     if (self) {
-        _textStorage       = textStorage;
-        _findDecorationIDs = @[];
+        _textStorage = textStorage;
     }
     return self;
 }
@@ -80,47 +74,11 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
     // Ensure the cursor controller reflects the text view's initial position.
     [_textView syncCursorControllerFromSelection];
 
-    // 3. Compute frames from the initial XIB bounds.
-    NSView  *container = self.view;
-    CGFloat  W         = NSWidth(container.bounds);
-    CGFloat  H         = NSHeight(container.bounds);
-    CGFloat  findH     = NSHeight(_findField.frame);
-    CGFloat  editorH   = H - findH;
-
-    // 4. Stretch find field to full width.
-    NSRect ff   = _findField.frame;
-    ff.origin.x = 0;
-    ff.size.width = W;
-    _findField.frame = ff;
-
-    // 5. Shrink scroll view to leave room for both gutters.
-    CGFloat svX = UDLineNumberGutterWidth;
-    CGFloat svW = W - svX - kEditorFindGutterWidth;
-    _scrollView.frame        = NSMakeRect(svX, 0, svW, editorH);
-    _scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-
-    // 6. Find-results / error-marks gutter (right edge).
-    UDFindResultsGutterView *findGutter =
-        [[UDFindResultsGutterView alloc]
-             initWithFrame:NSMakeRect(W - kEditorFindGutterWidth, 0,
-                                      kEditorFindGutterWidth, editorH)];
-    findGutter.autoresizingMask =
-        NSViewMinXMargin | NSViewHeightSizable | NSViewMaxYMargin;
-    [container addSubview:findGutter];
-    _gutterView = findGutter;
-
-    // 7. Line-number gutter (left of scroll view).
-    _lineNumberGutterView =
-        [[UDLineNumberGutterView alloc]
-             initWithScrollView:_scrollView
-                       textView:_textView
-                      textModel:_textStorage.textModel];
-    _lineNumberGutterView.frame =
-        NSMakeRect(0, 0, UDLineNumberGutterWidth, editorH);
-    _lineNumberGutterView.autoresizingMask =
-        NSViewMaxXMargin | NSViewHeightSizable | NSViewMaxYMargin;
-    _lineNumberGutterView.delegate = self;
-    [container addSubview:_lineNumberGutterView];
+    // 3. The gutters (from the XIB) follow the text view.
+    [_lineNumberGutterView attachToScrollView:_scrollView
+                                     textView:_textView
+                                    textModel:_textStorage.textModel];
+    _textView.findActionHandler = self;
 
     // 8. Folding controller.
     _foldingController =
@@ -155,13 +113,7 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
     _textView.autoIndenter        = _autoIndenter;
     _textView.structuredNavigator = _structuredNavigator;
 
-    // 13. Find field setup.
-    _findField.delegate = self;
-    _findField.target   = self;
-    _findField.action   = @selector(_findFieldDidChange:);
-    ((NSSearchFieldCell *)_findField.cell).sendsSearchStringImmediately = YES;
-
-    // 14. Observe text-storage edits for folding, bracket match, and find.
+    // 13. Observe text-storage edits for folding and bracket match.
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(_textStorageDidEdit:)
@@ -187,11 +139,6 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
     NSTextStorage *ts = note.object;
     if (!(ts.editedMask & NSTextStorageEditedCharacters)) return;
 
-    // Refresh find highlights if a query is active.
-    if (_findField.stringValue.length > 0) {
-        [self _findFieldDidChange:_findField];
-    }
-
     dispatch_async(dispatch_get_main_queue(), ^{
         [self->_foldingController update];
         [self->_bracketMatchHighlighter update];
@@ -208,59 +155,100 @@ static CGFloat const kEditorFindGutterWidth = 12.0;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - NSSearchFieldDelegate / Find
+// MARK: - Find
 // ---------------------------------------------------------------------------
 
-- (void)controlTextDidChange:(NSNotification *)obj {
-    if (obj.object == _findField) [self _findFieldDidChange:_findField];
+- (BOOL)isFindBarVisible {
+    return _findBar != nil && !_findBarHost.hidden;
 }
 
-- (void)_findFieldDidChange:(id)sender {
-    NSString    *query = _findField.stringValue;
-    UDTextModel *model = _textStorage.textModel;
-
-    if (query.length == 0) {
-        _findDecorationIDs =
-            [model deltaDecorations:_findDecorationIDs
-                     newDecorations:@[]
-                              owner:UDFindDecorationOwner];
-        [_textStorage applyDecorationHighlights];
-        _gutterView.matchFractions = @[];
-        return;
+- (void)showFindBarReplacing:(BOOL)replacing {
+    (void)self.view;
+    if (!_findBar) {
+        _findModel = [[UDFindModel alloc] initWithTextModel:_textStorage.textModel];
+        _findBar = [[UDFindBarViewController alloc] initWithFindModel:_findModel textView:_textView];
+        _findBar.delegate = self;
+        NSView *bar = _findBar.view;
+        bar.frame = _findBarHost.bounds;
+        bar.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        [_findBarHost addSubview:bar];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(_findMatchesChanged:)
+                                                     name:UDFindModelDidChangeNotification
+                                                   object:_findModel];
     }
-
-    NSArray<UDFindMatch *> *matches =
-        [model findMatches:query
-                   isRegex:NO
-                 matchCase:NO
-            wordSeparators:nil
-          limitResultCount:500];
-
-    NSMutableArray<UDModelDeltaDecoration *> *newDecors =
-        [NSMutableArray arrayWithCapacity:matches.count];
-    for (UDFindMatch *m in matches) {
-        UDDecorationOptions *opts =
-            [[UDDecorationOptions alloc] initWithClassName:@"find" userInfo:nil];
-        UDModelDeltaDecoration *d =
-            [[UDModelDeltaDecoration alloc] initWithRange:m.range options:opts];
-        d.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
-        [newDecors addObject:d];
+    _findBarHost.hidden = NO;
+    _findBar.replacing = replacing;    // asks for its height
+    NSRange selection = _textView.selectedRange;
+    NSString *selected = nil;
+    if (selection.length > 0 && selection.length < 200) {
+        selected = [_textStorage.string substringWithRange:selection];
+        if ([selected rangeOfCharacterFromSet:[NSCharacterSet newlineCharacterSet]].location != NSNotFound) selected = nil;
     }
+    [_findBar focusWithSearchString:selected];
+}
 
-    _findDecorationIDs =
-        [model deltaDecorations:_findDecorationIDs
-                 newDecorations:newDecors
-                          owner:UDFindDecorationOwner];
+- (void)findBar:(UDFindBarViewController *)findBar wantsHeight:(CGFloat)height {
+    NSRect bounds = self.view.bounds;
+    _findBarHost.frame = NSMakeRect(0, NSMaxY(bounds) - height, NSWidth(bounds), height);
+    _editorArea.frame  = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - height);
+}
+
+- (void)findBarDidClose:(UDFindBarViewController *)findBar {
+    [_findModel clear];
+    _findBarHost.hidden = YES;
+    _editorArea.frame = self.view.bounds;
+    [self.view.window makeFirstResponder:_textView];
+}
+
+/// The matches changed: their highlights, and their marks in the gutter.
+- (void)_findMatchesChanged:(NSNotification *)note {
     [_textStorage applyDecorationHighlights];
-
-    NSInteger totalLines = [model getLineCount];
-    if (totalLines <= 0) { _gutterView.matchFractions = @[]; return; }
-    NSMutableArray<NSNumber *> *fracs = [NSMutableArray arrayWithCapacity:matches.count];
-    for (UDFindMatch *m in matches) {
-        CGFloat frac = (CGFloat)(m.range.startLineNumber - 1) / (CGFloat)totalLines;
-        [fracs addObject:@(MAX(0.0, MIN(1.0, frac)))];
+    UDTextModel *model = _textStorage.textModel;
+    NSInteger lines = [model getLineCount];
+    NSArray<UDIntervalNode *> *matches = [_findModel matchNodes];
+    NSMutableArray<NSNumber *> *fractions = [NSMutableArray arrayWithCapacity:matches.count];
+    for (UDIntervalNode *node in matches) {
+        CGFloat line = (CGFloat)([model getPositionAt:node.start].line - 1);
+        [fractions addObject:@(MAX(0.0, MIN(1.0, line / (CGFloat)MAX(lines, 1))))];
     }
-    _gutterView.matchFractions = fracs;
+    _gutterView.matchFractions = fractions;
+}
+
+// The text view forwards the Find menu (NSTextFinderAction tags).
+- (void)performFindAction:(NSInteger)action {
+    switch (action) {
+        case 1:  [self showFindBarReplacing:NO]; break;                       // show find
+        case 12: [self showFindBarReplacing:YES]; break;                      // show replace
+        case 2:  if (!_findBar) [self showFindBarReplacing:NO]; else [_findBar findNext:nil]; break;
+        case 3:  if (!_findBar) [self showFindBarReplacing:NO]; else [_findBar findPrevious:nil]; break;
+        case 4:  [_findBar replaceAll:nil]; break;
+        case 5:
+        case 6:  [_findBar replace:nil]; break;
+        case 7: {                                                             // use selection for find
+            NSRange selection = _textView.selectedRange;
+            if (selection.length == 0) break;
+            [self showFindBarReplacing:_findBar.isReplacing];
+            [_findBar focusWithSearchString:[_textStorage.string substringWithRange:selection]];
+            [self.view.window makeFirstResponder:_textView];
+            break;
+        }
+        case 11: [self findBarDidClose:_findBar]; break;                      // hide find
+        case 13: _findBar.replacing = NO; break;                              // hide replace
+        default: NSBeep(); break;
+    }
+}
+
+- (BOOL)canPerformFindAction:(NSInteger)action {
+    switch (action) {
+        case 1: case 12: return YES;
+        case 2: case 3: return YES;
+        case 4: case 5: case 6: return self.isFindBarVisible && _findModel.matchCount > 0;
+        case 7: return _textView.selectedRange.length > 0;
+        case 11: return self.isFindBarVisible;
+        case 13: return self.isFindBarVisible && _findBar.isReplacing;
+        default: return NO;
+    }
 }
 
 @end

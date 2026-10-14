@@ -43,6 +43,7 @@
 #import <UDCodeKit/UDCodeEditorViewController.h>
 #import <UDCodeKit/UDEditorSession.h>
 #import <UDCodeKit/UDFindModel.h>
+#import <UDCodeKit/UDFindBarViewController.h>
 
 #import <UDCodeKit/UDTabBarView.h>
 #import <UDCodeKit/UDTabItemView.h>

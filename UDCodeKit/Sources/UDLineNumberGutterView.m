@@ -25,14 +25,19 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 - (instancetype)initWithScrollView:(NSScrollView *)scrollView
                           textView:(NSTextView *)textView
                          textModel:(UDTextModel *)textModel {
-    // The gutter sits to the LEFT of the scroll view; dimensions are set by
-    // the caller (AppDelegate) after positioning in the window content view.
     self = [super initWithFrame:NSZeroRect];
     if (!self) return nil;
+    [self attachToScrollView:scrollView textView:textView textModel:textModel];
+    return self;
+}
 
-    _scrollView    = scrollView;
-    _textView      = textView;
-    _textModel     = textModel;
+- (void)attachToScrollView:(NSScrollView *)scrollView
+                  textView:(NSTextView *)textView
+                 textModel:(UDTextModel *)textModel {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    _scrollView = scrollView;
+    _textView   = textView;
+    _textModel  = textModel;
 
     // Redraw when the clip view scrolls.
     [scrollView.contentView setPostsBoundsChangedNotifications:YES];
@@ -48,8 +53,7 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
            selector:@selector(_needsRedraw:)
                name:NSTextStorageDidProcessEditingNotification
              object:textView.textStorage];
-
-    return self;
+    [self setNeedsDisplay:YES];
 }
 
 - (void)dealloc {

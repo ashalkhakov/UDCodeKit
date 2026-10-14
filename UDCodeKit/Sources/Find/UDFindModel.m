@@ -194,13 +194,22 @@ static NSString * const UDFindWordSeparators = @"`~!@#$%^&*()-=+[{]}\\|;:'\",.<>
 }
 
 - (NSUInteger)indexOfMatchFrom:(NSInteger)start to:(NSInteger)end {
+    // Most selections are not matches: a look at the decorations there says
+    // so without counting them all.
+    BOOL isMatch = NO;
+    for (UDIntervalNode *node in [_textModel decorationNodesInOffsetRange:start end:MAX(end, start + 1)]) {
+        if (node.start == start && node.end == end && [_ids containsObject:node.identifier]) {
+            isMatch = YES;
+            break;
+        }
+    }
+    if (!isMatch) return 0;
     NSUInteger rank = 0;
     for (UDIntervalNode *node in [self matchNodes]) {
         if (node.start > start) break;
         rank++;
-        if (node.start == start) return node.end == end ? rank : 0;
     }
-    return 0;
+    return rank;
 }
 
 // ---------------------------------------------------------------------------

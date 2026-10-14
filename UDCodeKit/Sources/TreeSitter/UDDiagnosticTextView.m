@@ -475,6 +475,10 @@ static const unsigned short kKeyCodeRightArrow = 124;
 }
 
 - (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
+    if (_findActionHandler && (item.action == @selector(performFindPanelAction:) ||
+                               item.action == @selector(performTextFinderAction:))) {
+        return [_findActionHandler canPerformFindAction:item.tag];
+    }
     if (item.action == @selector(undo:))
         return [self.textModel.undoManager canUndo];
     if (item.action == @selector(redo:))
@@ -640,6 +644,20 @@ static const unsigned short kKeyCodeRightArrow = 124;
 
 - (void)showCompleteList:(id)sender {
     [super complete:sender];   // shows NSTextView's built-in completion popup
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Find menu
+// ---------------------------------------------------------------------------
+
+- (void)performFindPanelAction:(id)sender {
+    if (_findActionHandler) [_findActionHandler performFindAction:[sender tag]];
+    else [super performFindPanelAction:sender];
+}
+
+- (void)performTextFinderAction:(id)sender {
+    if (_findActionHandler) [_findActionHandler performFindAction:[sender tag]];
+    else [super performTextFinderAction:sender];
 }
 
 @end

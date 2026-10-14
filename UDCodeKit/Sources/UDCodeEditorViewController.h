@@ -5,7 +5,7 @@
  *    – scroll view + UDDiagnosticTextView
  *    – line-number gutter (left)
  *    – find-results / error-marks gutter (right)
- *    – find search field (top)
+ *    – the find and replace bar (top, on Find), UDFindBar.xib
  *    – folding, bracket-match, structured-navigation, auto-indentation
  *
  *  Loaded from UDCodeEditorViewController.xib, in the UDCodeKit bundle.
@@ -19,6 +19,9 @@
 #import "UDDiagnosticTextView.h"
 #import "UDAutoIndenter.h"
 #import "UDLanguageMode.h"
+#import "UDFindModel.h"
+
+@class UDFindBarViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -35,6 +38,15 @@ NS_ASSUME_NONNULL_BEGIN
 /// the language and indents query are known (e.g. in -windowDidLoad of the
 /// owning NSWindowController).
 @property (nonatomic, strong, readonly) UDAutoIndenter *autoIndenter;
+
+/// The find bar and its model, once Find has been used.
+@property (nonatomic, strong, readonly, nullable) UDFindBarViewController *findBar;
+@property (nonatomic, strong, readonly, nullable) UDFindModel *findModel;
+@property (nonatomic, readonly, getter=isFindBarVisible) BOOL findBarVisible;
+
+/// Shows the find bar (with the replace row when @a replacing), searching
+/// for the selection when it is a short single line.
+- (void)showFindBarReplacing:(BOOL)replacing;
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;

@@ -8,12 +8,20 @@
 
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
-    if (self) {
-        _matchFractions    = @[];
-        _errorFractions    = @[];
-        _currentMatchIndex = -1;
-    }
+    if (self) [self _setUp];
     return self;
+}
+
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super initWithCoder:coder];
+    if (self) [self _setUp];
+    return self;
+}
+
+- (void)_setUp {
+    _matchFractions    = @[];
+    _errorFractions    = @[];
+    _currentMatchIndex = -1;
 }
 
 // ---------------------------------------------------------------------------

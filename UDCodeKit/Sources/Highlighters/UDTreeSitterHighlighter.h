@@ -29,9 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) const void *currentQueryCursor;
 
 /// Character ranges (NSValue-wrapped NSRanges, 0-based character offsets)
-/// that changed in the most recent incremental re-parse.
-/// Nil after a full re-parse (initial load, undo/redo).
-/// Empty array when an incremental re-parse produced no changed ranges.
+/// that changed in the most recent incremental re-parse: where the tree
+/// changed, and the text the edits since the previous parse put in (an empty
+/// range where they only deleted). Nil after a full parse (initial load, a
+/// new language). Empty when nothing changed.
 @property (nonatomic, readonly, copy, nullable) NSArray<NSValue *> *lastChangedCharRanges;
 
 - (instancetype)initWithTextModel:(UDTextModel *)model;

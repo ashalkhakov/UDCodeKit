@@ -44,6 +44,8 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 @property (nonatomic, assign) TSQuery       *tsQuery;
 @property (nonatomic, assign) TSQueryCursor *tsQueryCursor;
 @property (nonatomic, copy, nullable) NSArray<NSValue *> *lastChangedCharRanges;
+/// What the edits since the last parse put in, in the text as it is now.
+@property (nonatomic, strong) NSMutableArray<NSValue *> *editedCharRanges;
 @end
 
 @implementation UDTreeSitterHighlighter
@@ -56,6 +58,7 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
     self = [super init];
     if (!self) return nil;
     _textModel = model;
+    _editedCharRanges = [NSMutableArray array];
     return self;
 }
 
@@ -120,6 +123,21 @@ static inline TSPoint pointFromPosition(UDPosition p) {
            oldEndPosition:(UDPosition)oldEndPosition
            newEndPosition:(UDPosition)newEndPosition {
     if (!_tsParser || !_tsCurrentTree) return;
+
+    // The ranges earlier edits put in, moved by this one; then this one's.
+    NSInteger delta = (NSInteger)newEnd - (NSInteger)oldEnd;
+    NSUInteger (^move)(NSUInteger) = ^NSUInteger(NSUInteger p) {
+        if (p <= start) return p;
+        if (p >= oldEnd) return (NSUInteger)((NSInteger)p + delta);
+        return start;
+    };
+    for (NSUInteger i = 0; i < _editedCharRanges.count; i++) {
+        NSRange r = _editedCharRanges[i].rangeValue;
+        NSUInteger s = move(r.location), e = move(NSMaxRange(r));
+        _editedCharRanges[i] = [NSValue valueWithRange:NSMakeRange(s, e - s)];
+    }
+    [_editedCharRanges addObject:[NSValue valueWithRange:NSMakeRange(start, newEnd - start)]];
+
     // Rows and columns too, not only bytes: nodes the parse reuses keep the
     // points the edit gives them (folding reads their rows).
     TSInputEdit ie = {
@@ -167,6 +185,7 @@ static inline TSPoint pointFromPosition(UDPosition p) {
             [changedCharRanges addObject:
                 [NSValue valueWithRange:NSMakeRange(cs, ce > cs ? ce - cs : 0)]];
         }
+        [changedCharRanges addObjectsFromArray:_editedCharRanges];
         _lastChangedCharRanges = [changedCharRanges copy];
         free(ranges);
         ts_tree_delete(oldTree);
@@ -175,6 +194,7 @@ static inline TSPoint pointFromPosition(UDPosition p) {
         _lastChangedCharRanges = nil;
     }
 
+    [_editedCharRanges removeAllObjects];
     _tsCurrentTree = newTree;
 }
 

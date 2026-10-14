@@ -16,12 +16,42 @@ NSString * const UDParseErrorDecorationOwner   = @"ts.error";
 // ---------------------------------------------------------------------------
 
 static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
-    NSFont *font = [NSFont userFixedPitchFontOfSize:13.0]
-                ?: [NSFont systemFontOfSize:13.0];
-    return @{
-        NSFontAttributeName:            font,
-        NSForegroundColorAttributeName: [NSColor labelColor],
-    };
+    static NSDictionary *attributes;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSFont *font = [NSFont userFixedPitchFontOfSize:13.0]
+                    ?: [NSFont systemFontOfSize:13.0];
+        attributes = @{
+            NSFontAttributeName:            font,
+            NSForegroundColorAttributeName: [NSColor labelColor],
+        };
+    });
+    return attributes;
+}
+
+// ---------------------------------------------------------------------------
+#pragma mark - Attribute runs, a window at a time
+// ---------------------------------------------------------------------------
+
+/// The attribute runs of one window of the text — [start, end), aligned to
+/// UDAttributeWindowLength — built from the decorations overlapping it.
+static const NSUInteger UDAttributeWindowLength = 4096;
+/// How many windows are kept: what a screenful or two of layout reads.
+static const NSUInteger UDAttributeWindowsKept = 4;
+
+@interface UDAttributeWindow : NSObject {
+@public
+    NSUInteger start, end;
+    NSData *runs;                    // NSRange[], sorted, covering [start, end)
+    NSArray<NSDictionary *> *attrs;  // attrs[i] for runs[i]
+}
+@end
+@implementation UDAttributeWindow
+@end
+
+static int UDCompareOffsets(const void *x, const void *y) {
+    NSInteger a = *(const NSInteger *)x, b = *(const NSInteger *)y;
+    return a < b ? -1 : a > b;
 }
 
 // ---------------------------------------------------------------------------
@@ -38,24 +68,11 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 @property (nonatomic)         BOOL                     hasPendingDirty;
 @property (nonatomic)         NSInteger                pendingDirtyStart;
 @property (nonatomic)         NSInteger                pendingDirtyEnd;
-// ---------------------------------------------------------------------------
-// Attribute-run cache.
-//
-// Rebuilt lazily whenever attrCacheDirty is YES.  Runs are sorted and cover
-// [0, lastKnownLength) without gaps.  attrRunRangesData holds a plain C
-// NSRange[] (stored as raw bytes in an NSData); attrRunAttrs[i] is the
-// attribute dictionary for the i-th run.
-//
-// Storing ranges as a raw C array instead of NSArray<NSValue *> eliminates
-// two ObjC message dispatches (objectAtIndexedSubscript: + rangeValue) and
-// one NSValue struct-extraction per binary-search step.  For a 330 KB JSON
-// file with ~50 000 syntax runs and O(log 50000) ≈ 16 comparisons per
-// -attributesAtIndex:effectiveRange: call, this saves ~800 000 ObjC message
-// sends per full-document layout pass.
-// ---------------------------------------------------------------------------
-@property (nonatomic, strong, nullable) NSData             *attrRunRangesData; // raw NSRange[]
-@property (nonatomic, strong, nullable) NSArray<NSDictionary *> *attrRunAttrs;
-@property (nonatomic)                  BOOL                     attrCacheDirty;
+// Attribute runs, built a window at a time as layout asks for them (most
+// recently used first); all dropped when the text or a decoration changes.
+// Layout reads what it lays out, so it costs what is on screen.
+@property (nonatomic, strong) NSMutableArray<UDAttributeWindow *> *attrWindows;
+@property (nonatomic)         BOOL                                 attrCacheDirty;
 @end
 
 @implementation UDTextModelTextStorage
@@ -111,6 +128,7 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     _pendingDirtyStart = 0;
     _pendingDirtyEnd   = 0;
     _attrCacheDirty    = YES;
+    _attrWindows       = [NSMutableArray array];
 
     [[NSNotificationCenter defaultCenter]
         addObserver:self
@@ -157,55 +175,46 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 }
 
 // ---------------------------------------------------------------------------
-#pragma mark - UDTextModelDidChangeNotification (undo / redo)
+#pragma mark - UDTextModelDidChangeNotification (undo, redo, edits made on the model)
 // ---------------------------------------------------------------------------
 
 - (void)_modelDidChange:(NSNotification *)note {
     if (_suppressModelNotification) return;
 
-    NSUInteger oldLen = _lastKnownLength;
-    NSUInteger newLen = (NSUInteger)[_textModel getLength];
-    NSInteger  delta  = (NSInteger)newLen - (NSInteger)oldLen;
-    _lastKnownLength  = newLen;
-    _attrCacheDirty   = YES;
+    NSArray<UDTextModelContentChange *> *changes = note.userInfo[UDTextModelChangesKey];
+    _lastKnownLength = (NSUInteger)[_textModel getLength];
+    _attrCacheDirty  = YES;
 
-    // Compute the narrowest editedRange from the incoming edits.
-    // Also track the offset where the cursor should land after the edit:
-    // = start of the first edit + length of inserted text.
-    NSRange editedRange = NSMakeRange(0, oldLen);
+    // Each change, as the model made it: the parse tree learns of it, and the
+    // layout managers of the range it replaced. The changes run end to start,
+    // so each one's offsets hold as the ones before it left the text; the
+    // last is the first in the document, and the cursor goes after its text.
     NSUInteger postEditCursorOffset = NSNotFound;
-
-    NSArray<UDTextModelEdit *> *edits = note.userInfo[@"edits"];
-    if (edits.count > 0) {
-        NSInteger minOffset = NSIntegerMax;
-        NSInteger insertedAtMin = 0;
-        for (UDTextModelEdit *edit in edits) {
-            NSInteger off = [_textModel getOffsetAt:edit.range.startLineNumber
-                                            column:edit.range.startColumn];
-            if (off < minOffset) {
-                minOffset      = off;
-                insertedAtMin  = (NSInteger)edit.text.length;
-            }
-        }
-        if (minOffset != NSIntegerMax && minOffset <= (NSInteger)oldLen) {
-            NSUInteger loc = (NSUInteger)minOffset;
-            NSUInteger len = (oldLen > loc) ? (oldLen - loc) : 0;
-            editedRange = NSMakeRange(loc, len);
-            // Cursor lands after the re-inserted text in the post-edit document.
-            postEditCursorOffset = (NSUInteger)(minOffset + insertedAtMin);
-        }
-    }
-
     [self beginEditing];
-    [self edited:(NSTextStorageEditedCharacters | NSTextStorageEditedAttributes)
-           range:editedRange
- changeInLength:delta];
+    for (UDTextModelContentChange *change in changes) {
+        NSUInteger start  = (NSUInteger)change.rangeOffset;
+        NSUInteger oldEnd = start + (NSUInteger)change.rangeLength;
+        NSUInteger newEnd = start + change.text.length;
+        if (_highlighter.isActive) {
+            UDRange r = change.range;
+            [_highlighter applyEditAtOffset:start
+                                     oldEnd:oldEnd
+                                     newEnd:newEnd
+                              startPosition:(UDPosition){ r.startLineNumber, r.startColumn }
+                             oldEndPosition:(UDPosition){ r.endLineNumber, r.endColumn }
+                             newEndPosition:[change endPositionOfText]];
+        }
+        [self edited:NSTextStorageEditedCharacters
+               range:NSMakeRange(start, (NSUInteger)change.rangeLength)
+      changeInLength:(NSInteger)change.text.length - change.rangeLength];
+        postEditCursorOffset = newEnd;
+    }
     [self endEditing];
 
     // After endEditing, NSLayoutManager has moved all text views' cursors to
     // the end of the invalidated range. Override that with the correct position.
     if (postEditCursorOffset != NSNotFound) {
-        NSUInteger clampedOffset = MIN(postEditCursorOffset, newLen);
+        NSUInteger clampedOffset = MIN(postEditCursorOffset, _lastKnownLength);
         NSRange cursorRange = NSMakeRange(clampedOffset, 0);
         for (NSLayoutManager *lm in self.layoutManagers) {
             for (NSTextContainer *tc in lm.textContainers) {
@@ -226,12 +235,6 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
             }
         }
     }
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self->_highlighter reparseFromModel];
-        [self->_syntaxHighlighter update];
-        [self applyDecorationHighlights];
-    });
 }
 
 // ---------------------------------------------------------------------------
@@ -250,22 +253,33 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         return BaseAttributes();
     }
 
-    // Rebuild the attribute-run cache if it is stale.
-    if (_attrCacheDirty || !_attrRunRangesData) {
-        [self _rebuildAttrRunCache];
+    if (_attrCacheDirty) {
+        [_attrWindows removeAllObjects];
+        _attrCacheDirty = NO;
+    }
+    UDAttributeWindow *window = nil;
+    for (NSUInteger i = 0; i < _attrWindows.count; i++) {
+        UDAttributeWindow *w = _attrWindows[i];
+        if (location >= w->start && location < w->end) {
+            window = w;
+            if (i > 0) {
+                [_attrWindows removeObjectAtIndex:i];
+                [_attrWindows insertObject:w atIndex:0];
+            }
+            break;
+        }
+    }
+    if (!window) {
+        NSUInteger start = location - location % UDAttributeWindowLength;
+        window = [self _attributeWindowFrom:start to:MIN(start + UDAttributeWindowLength, docLen)];
+        [_attrWindows insertObject:window atIndex:0];
+        if (_attrWindows.count > UDAttributeWindowsKept) [_attrWindows removeLastObject];
     }
 
-    // Binary-search for the cached run that contains 'location'.
-    // _attrRunRangesData holds a plain NSRange[] — direct C-struct access,
-    // no ObjC message dispatch per step (vs. the old NSArray<NSValue*> path).
-    // NSData bytes are guaranteed to be suitably aligned for any standard C
-    // type, so the cast to NSRange * is safe on all supported platforms.
-    NSCAssert(_attrRunRangesData.length % sizeof(NSRange) == 0,
-              @"attrRunRangesData must contain whole NSRange structs");
-    const NSRange *runs  = (const NSRange *)_attrRunRangesData.bytes;
-    NSUInteger     count = _attrRunRangesData.length / sizeof(NSRange);
-    NSArray       *attrs = _attrRunAttrs;
-
+    // Binary search of the window's runs. A run is cut at the window's
+    // edges; the effective range may be shorter than the attributes' extent.
+    const NSRange *runs  = (const NSRange *)window->runs.bytes;
+    NSUInteger     count = window->runs.length / sizeof(NSRange);
     NSUInteger lo = 0, hi = count;
     while (lo < hi) {
         NSUInteger mid = lo + (hi - lo) / 2;
@@ -275,9 +289,8 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
         } else if (r.location > location) {
             hi = mid;
         } else {
-            // r.location <= location < NSMaxRange(r)
             if (outRange) *outRange = r;
-            return attrs[mid];
+            return window->attrs[mid];
         }
     }
 
@@ -323,6 +336,12 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
 - (void)setAttributes:(nullable NSDictionary<NSAttributedStringKey, id> *)attrs
                 range:(NSRange)range {
     // Attributes derive entirely from decorations; intentional no-op.
+}
+
+// Fixing attributes sets attributes, which do not change here — and AppKit's
+// glyph-info fix asks for the longest range without NSGlyphInfo, which is
+// the whole text: every edit would read every attribute run.
+- (void)fixAttributesInRange:(NSRange)range {
 }
 
 // ---------------------------------------------------------------------------
@@ -507,104 +526,52 @@ static NSDictionary<NSAttributedStringKey, id> *BaseAttributes(void) {
     return [merged copy];
 }
 
-/// Rebuilds the attribute-run cache by performing a single pass over all
-/// decoration nodes in the document.
-///
-/// Algorithm (O(N log N)):
-///  1. Fetch all decoration nodes in one O(N) query (allNodes, sorted by start).
-///  2. Collect all boundary offsets (node starts and ends) and sort them.
-///  3. Sweep left-to-right, maintaining an "active" set of nodes covering the
-///     current segment.  At each segment boundary, emit one run with the merged
-///     attributes of the active set.
-///
-/// After this method the cache is clean.  All subsequent calls to
-/// -attributesAtIndex:effectiveRange: are O(log K) binary searches over a
-/// plain C NSRange[] (no ObjC message dispatch per comparison step).
-- (void)_rebuildAttrRunCache {
-    _attrCacheDirty = NO;
+/// The attribute runs of [start, end), from the decorations overlapping it:
+/// their starts and ends inside the window cut it into segments, and each
+/// segment gets the merged attributes of the decorations covering it.
+/// Costs the decorations overlapping the window, plus a logarithmic lookup.
+- (UDAttributeWindow *)_attributeWindowFrom:(NSUInteger)start to:(NSUInteger)end {
+    UDAttributeWindow *window = [[UDAttributeWindow alloc] init];
+    window->start = start;
+    window->end   = end;
 
-    NSUInteger docLen = _lastKnownLength;
-    if (docLen == 0) {
-        _attrRunRangesData = [NSData data];
-        _attrRunAttrs      = @[];
-        return;
+    // Sorted by start.
+    NSArray<UDIntervalNode *> *nodes =
+        [_textModel decorationNodesInOffsetRange:(NSInteger)start end:(NSInteger)end];
+
+    NSUInteger capacity = nodes.count * 2 + 2, count = 0;
+    NSInteger *bounds = malloc(capacity * sizeof(NSInteger));
+    bounds[count++] = (NSInteger)start;
+    bounds[count++] = (NSInteger)end;
+    for (UDIntervalNode *n in nodes) {
+        if (n.start > (NSInteger)start && n.start < (NSInteger)end) bounds[count++] = n.start;
+        if (n.end   > (NSInteger)start && n.end   < (NSInteger)end) bounds[count++] = n.end;
     }
+    qsort(bounds, count, sizeof(NSInteger), UDCompareOffsets);
 
-    // ── 1. Fetch all decoration nodes (one query, sorted by start) ──────────
-    NSArray<UDIntervalNode *> *allNodes =
-        [_textModel decorationNodesInOffsetRange:0 end:(NSInteger)docLen];
-
-    if (allNodes.count == 0) {
-        NSRange whole = NSMakeRange(0, docLen);
-        _attrRunRangesData = [NSData dataWithBytes:&whole length:sizeof(NSRange)];
-        _attrRunAttrs      = @[ BaseAttributes() ];
-        return;
-    }
-
-    // ── 2. Collect boundary offsets ─────────────────────────────────────────
-    // Each node contributes its (clamped) start and end as boundaries.
-    // Using NSMutableSet for automatic deduplication.
-    NSMutableSet<NSNumber *> *boundarySet =
-        [NSMutableSet setWithCapacity:allNodes.count * 2 + 2];
-    [boundarySet addObject:@(0LL)];
-    [boundarySet addObject:@((NSInteger)docLen)];
-    for (UDIntervalNode *n in allNodes) {
-        NSInteger s = MAX(0LL, n.start);
-        NSInteger e = MIN((NSInteger)docLen, n.end);
-        [boundarySet addObject:@(s)];
-        if (e > 0) [boundarySet addObject:@(e)];
-    }
-    NSArray<NSNumber *> *bounds =
-        [[boundarySet allObjects] sortedArrayUsingSelector:@selector(compare:)];
-
-    NSUInteger numSeg = bounds.count > 1 ? bounds.count - 1 : 0;
-    if (numSeg == 0) {
-        NSRange whole = NSMakeRange(0, docLen);
-        _attrRunRangesData = [NSData dataWithBytes:&whole length:sizeof(NSRange)];
-        _attrRunAttrs      = @[ BaseAttributes() ];
-        return;
-    }
-
-    // ── 3. Sweep left-to-right ───────────────────────────────────────────────
-    // 'active' holds nodes whose ranges overlap the current segment.
-    // 'nodeIdx' advances through allNodes (sorted by start) as the sweep moves.
-    //
-    // Ranges are appended as raw NSRange structs into an NSMutableData so the
-    // binary search in -attributesAtIndex:effectiveRange: can access them via
-    // a plain C pointer — no ObjC message dispatch or NSValue unboxing.
-    NSMutableData            *runRangesData =
-        [NSMutableData dataWithCapacity:numSeg * sizeof(NSRange)];
-    NSMutableArray<NSDictionary *> *runAttrs =
-        [NSMutableArray arrayWithCapacity:numSeg];
-    NSMutableArray<UDIntervalNode *> *active =
-        [NSMutableArray arrayWithCapacity:4];
-    NSUInteger nodeIdx   = 0;
-    NSUInteger nodeCount = allNodes.count;
-
-    for (NSUInteger seg = 0; seg < numSeg; seg++) {
-        NSInteger segStart = [bounds[seg]     integerValue];
-        NSInteger segEnd   = [bounds[seg + 1] integerValue];
-
-        // Remove nodes whose ranges ended at or before segStart.
-        for (NSUInteger ai = active.count; ai > 0; ai--) {
-            if (active[ai - 1].end <= segStart) {
-                [active removeObjectAtIndex:ai - 1];
-            }
+    NSMutableData *runs = [NSMutableData dataWithCapacity:count * sizeof(NSRange)];
+    NSMutableArray<NSDictionary *> *attrs = [NSMutableArray arrayWithCapacity:count];
+    NSMutableArray<UDIntervalNode *> *active = [NSMutableArray array];
+    NSUInteger next = 0;
+    for (NSUInteger i = 0; i + 1 < count; i++) {
+        NSInteger segStart = bounds[i], segEnd = bounds[i + 1];
+        if (segEnd <= segStart) continue;     // a repeated boundary
+        for (NSUInteger a = active.count; a > 0; a--) {
+            if (active[a - 1].end <= segStart) [active removeObjectAtIndex:a - 1];
         }
-        // Add nodes that start at or before segStart and extend into this segment.
-        while (nodeIdx < nodeCount && allNodes[nodeIdx].start <= segStart) {
-            UDIntervalNode *n = allNodes[nodeIdx++];
+        while (next < nodes.count && nodes[next].start <= segStart) {
+            UDIntervalNode *n = nodes[next++];
             if (n.end > segStart) [active addObject:n];
         }
-
-        NSRange r = NSMakeRange((NSUInteger)segStart,
-                                (NSUInteger)(segEnd - segStart));
-        [runRangesData appendBytes:&r length:sizeof(NSRange)];
-        [runAttrs addObject:[self _mergedAttrsForCovering:active]];
+        NSRange r = NSMakeRange((NSUInteger)segStart, (NSUInteger)(segEnd - segStart));
+        [runs appendBytes:&r length:sizeof(NSRange)];
+        [attrs addObject:active.count ? [self _mergedAttrsForCovering:active] : BaseAttributes()];
     }
+    free(bounds);
 
-    _attrRunRangesData = [runRangesData copy];
-    _attrRunAttrs      = [runAttrs copy];
+    window->runs  = runs;
+    window->attrs = attrs;
+    return window;
 }
 
 @end

@@ -51,40 +51,8 @@ NSString * const UDHighlightDecorationOwner = @"highlight";
     if (docLen <= 0) { [self clearDecorations]; return; }
 
     NSArray<NSValue *> *changedCharRanges = self.highlighter.lastChangedCharRanges;
-
-    if (changedCharRanges) {
-        // Incremental path: replace decorations only in the changed byte ranges.
-        if (changedCharRanges.count == 0) return; // nothing changed
-
-        // Convert char ranges → TSRanges for query filtering.
-        NSUInteger n = changedCharRanges.count;
-        TSRange *tsRanges = (TSRange *)malloc(n * sizeof(TSRange));
-        for (NSUInteger i = 0; i < n; i++) {
-            NSRange cr     = [changedCharRanges[i] rangeValue];
-            TSPoint zero   = {0, 0};
-            tsRanges[i]    = (TSRange){
-                .start_byte  = (uint32_t)(cr.location * 2),
-                .end_byte    = (uint32_t)(NSMaxRange(cr) * 2),
-                .start_point = zero,
-                .end_point   = zero,
-            };
-        }
-
-        NSMutableArray<UDModelDeltaDecoration *> *newDecors = [NSMutableArray array];
-        for (NSUInteger i = 0; i < n; i++) {
-            [self _collectDecorationsForRange:tsRanges[i]
-                                         tree:(TSTree *)tree
-                                         into:newDecors];
-        }
-
-        [self _replaceDecorationsInTSRanges:tsRanges
-                                      count:(uint32_t)n
-                                 withNewOnes:newDecors
-                                      docLen:(NSUInteger)docLen];
-        free(tsRanges);
-
-    } else {
-        // Full path: replace all decorations.
+    if (!changedCharRanges) {
+        // A fresh parse: everything.
         NSMutableArray<UDModelDeltaDecoration *> *all = [NSMutableArray array];
         TSNode root = ts_tree_root_node((TSTree *)tree);
         TSRange full = {
@@ -93,17 +61,86 @@ NSString * const UDHighlightDecorationOwner = @"highlight";
             .start_point = ts_node_start_point(root),
             .end_point   = ts_node_end_point(root),
         };
-        [self _collectDecorationsForRange:full tree:(TSTree *)tree into:all];
+        [self _collectDecorationsForRange:full tree:(TSTree *)tree previousEnd:0 into:all];
         [self commitDecorations:all];
+        return;
     }
+    if (changedCharRanges.count == 0) return;   // the tree did not change
+
+    // The changed ranges, sorted and merged: disjoint, in document order.
+    NSArray<NSValue *> *sorted = [changedCharRanges sortedArrayUsingComparator:^NSComparisonResult(NSValue *x, NSValue *y) {
+        NSUInteger a = x.rangeValue.location, b = y.rangeValue.location;
+        return a < b ? NSOrderedAscending : a > b ? NSOrderedDescending : NSOrderedSame;
+    }];
+    NSMutableArray<NSValue *> *merged = [NSMutableArray arrayWithCapacity:sorted.count];
+    for (NSValue *v in sorted) {
+        NSRange r = v.rangeValue;
+        NSRange last = merged.lastObject.rangeValue;
+        if (merged.count && r.location <= NSMaxRange(last)) {
+            merged[merged.count - 1] = [NSValue valueWithRange:NSUnionRange(last, r)];
+        } else {
+            [merged addObject:v];
+        }
+    }
+
+    // In each range: this highlighter's decorations there go, the captures
+    // there come. A capture reaching back into the previous range was
+    // collected with it; a decoration reaching into two ranges goes once.
+    NSString *owner = UDHighlightDecorationOwner;
+    NSMutableOrderedSet<NSString *> *stale = [NSMutableOrderedSet orderedSet];
+    NSMutableArray<UDModelDeltaDecoration *> *fresh = [NSMutableArray array];
+    uint32_t previousEnd = 0;
+    for (NSValue *v in merged) {
+        NSRange r = v.rangeValue;
+        NSInteger s = (NSInteger)MIN(r.location, (NSUInteger)docLen);
+        NSInteger end = (NSInteger)MIN(NSMaxRange(r), (NSUInteger)docLen);
+        // What overlaps the range, and what a deletion there squashed to
+        // nothing (an overlap query does not return empty decorations).
+        for (UDIntervalNode *node in [model decorationNodesInOffsetRange:MAX(0, s - 1) end:end + 1]) {
+            if (![node.owner isEqualToString:owner]) continue;
+            BOOL overlaps = node.start < end && node.end > s;
+            BOOL squashed = node.start == node.end && node.start >= s && node.start <= end;
+            if (overlaps || squashed) [stale addObject:node.identifier];
+        }
+        if (s >= end) continue;
+        TSRange tr = { .start_byte = (uint32_t)(s * 2), .end_byte = (uint32_t)(end * 2) };
+        [self _collectDecorationsForRange:tr tree:(TSTree *)tree previousEnd:previousEnd into:fresh];
+        previousEnd = tr.end_byte;
+    }
+    [model deltaDecorations:stale.array newDecorations:fresh owner:owner];
+    [self.textStorage applyDecorationHighlights];
+}
+
+// Every highlight decoration in the model is this highlighter's (one per
+// text storage), so it finds them by owner rather than keeping their IDs.
+- (void)commitDecorations:(NSArray<UDModelDeltaDecoration *> *)newDecorations {
+    UDTextModel *model = self.textStorage.textModel;
+    [model deltaDecorations:[model decorationsForOwner:UDHighlightDecorationOwner]
+             newDecorations:newDecorations
+                      owner:UDHighlightDecorationOwner];
+    [self.textStorage applyDecorationHighlights];
+}
+
+- (void)clearDecorations {
+    [self commitDecorations:@[]];
+}
+
+- (void)dealloc {
+    UDTextModel *model = self.textStorage.textModel;
+    [model deltaDecorations:[model decorationsForOwner:UDHighlightDecorationOwner]
+             newDecorations:@[]
+                      owner:UDHighlightDecorationOwner];
 }
 
 // ---------------------------------------------------------------------------
 #pragma mark - Decoration collection
 // ---------------------------------------------------------------------------
 
+/// The captures overlapping @a r, except those that start before
+/// @a previousEnd (the end of a range already collected).
 - (void)_collectDecorationsForRange:(TSRange)r
                                tree:(TSTree *)tree
+                        previousEnd:(uint32_t)previousEnd
                                into:(NSMutableArray<UDModelDeltaDecoration *> *)out {
     TSNode         root        = ts_tree_root_node(tree);
     TSQuery       *query       = (TSQuery *)self.highlighter.currentQuery;
@@ -119,6 +156,7 @@ NSString * const UDHighlightDecorationOwner = @"highlight";
                 uint32_t nb = ts_node_start_byte(cap.node);
                 uint32_t ne = ts_node_end_byte(cap.node);
                 if (ne <= r.start_byte || nb >= r.end_byte) continue;
+                if (nb < r.start_byte && nb < previousEnd) continue;
                 uint32_t nl  = 0;
                 const char *cn =
                     ts_query_capture_name_for_id(query, cap.index, &nl);
@@ -131,22 +169,26 @@ NSString * const UDHighlightDecorationOwner = @"highlight";
             }
         }
     } else {
-        [self _collectNodeDecorationsForNode:root inRange:r into:out];
+        [self _collectNodeDecorationsForNode:root inRange:r previousEnd:previousEnd into:out];
     }
 }
 
 - (void)_collectNodeDecorationsForNode:(TSNode)node
                                 inRange:(TSRange)r
+                            previousEnd:(uint32_t)previousEnd
                                    into:(NSMutableArray<UDModelDeltaDecoration *> *)out {
     uint32_t nb = ts_node_start_byte(node), ne = ts_node_end_byte(node);
     if (ne <= r.start_byte || nb >= r.end_byte) return;
-    NSString *type = [NSString stringWithUTF8String:ts_node_type(node)];
-    UDModelDeltaDecoration *d = [self _makeDecorationFromByte:nb toByte:ne name:type];
-    if (d) [out addObject:d];
+    if (!(nb < r.start_byte && nb < previousEnd)) {
+        NSString *type = [NSString stringWithUTF8String:ts_node_type(node)];
+        UDModelDeltaDecoration *d = [self _makeDecorationFromByte:nb toByte:ne name:type];
+        if (d) [out addObject:d];
+    }
     uint32_t cc = ts_node_child_count(node);
     for (uint32_t i = 0; i < cc; i++) {
         [self _collectNodeDecorationsForNode:ts_node_child(node, i)
                                      inRange:r
+                                 previousEnd:previousEnd
                                         into:out];
     }
 }
@@ -170,56 +212,6 @@ NSString * const UDHighlightDecorationOwner = @"highlight";
         [[UDModelDeltaDecoration alloc] initWithRange:ur options:opts];
     d.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
     return d;
-}
-
-// ---------------------------------------------------------------------------
-#pragma mark - Incremental decoration replacement
-// ---------------------------------------------------------------------------
-
-/// Replaces only the decorations that fall within the union of changedRanges,
-/// preserving all others.  Calls through to UDDecorationHighlighter's
-/// internal ID list via the protected -_replaceDecorationIDs:keeping:adding: hook.
-- (void)_replaceDecorationsInTSRanges:(TSRange *)changedRanges
-                                 count:(uint32_t)count
-                            withNewOnes:(NSArray<UDModelDeltaDecoration *> *)newDecors
-                                docLen:(NSUInteger)docLen {
-    if (count == 0) return;
-
-    // Union of all changed byte ranges → one character range for the lookup.
-    uint32_t uStart = changedRanges[0].start_byte;
-    uint32_t uEnd   = changedRanges[0].end_byte;
-    for (uint32_t i = 1; i < count; i++) {
-        if (changedRanges[i].start_byte < uStart) uStart = changedRanges[i].start_byte;
-        if (changedRanges[i].end_byte   > uEnd)   uEnd   = changedRanges[i].end_byte;
-    }
-
-    NSUInteger sc = UDCharIndexFromByte(uStart);
-    NSUInteger ec = MIN(UDCharIndexFromByte(uEnd), docLen);
-    if (sc > docLen) return;
-
-    UDTextModel *model = self.textStorage.textModel;
-    UDPosition sp = [model getPositionAt:(NSInteger)sc];
-    UDPosition ep = [model getPositionAt:(NSInteger)ec];
-    UDRange cmr = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
-
-    // Ask the model which decoration IDs are inside the union range.
-    NSSet *inRangeSet =
-        [NSSet setWithArray:[model decorationsInRange:cmr]];
-
-    // Partition: IDs inside the changed area are replaced; outside are kept.
-    NSMutableArray<NSString *> *toRemove = [NSMutableArray array];
-    NSMutableArray<NSString *> *toKeep   = [NSMutableArray array];
-    for (NSString *did in [self _currentDecorationIDs]) {
-        [([inRangeSet containsObject:did] ? toRemove : toKeep)
-            addObject:did];
-    }
-
-    NSArray<NSString *> *added =
-        [model deltaDecorations:toRemove
-                 newDecorations:newDecors
-                          owner:UDHighlightDecorationOwner];
-
-    [self _setDecorationIDs:[toKeep arrayByAddingObjectsFromArray:added]];
 }
 
 @end

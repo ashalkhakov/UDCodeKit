@@ -14,11 +14,29 @@ static inline uint32_t byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); }
 // Physical key codes (hardware layout — independent of locale)
 // ---------------------------------------------------------------------------
 
-static const unsigned short kKeyCodeReturn        = 36;
-static const unsigned short kKeyCodeKeypadReturn  = 76;
-static const unsigned short kKeyCodeTab           = 48;
-static const unsigned short kKeyCodeBackspace     = 51;   // ⌫
-static const unsigned short kKeyCodeForwardDelete = 117;  // fn+⌫ or dedicated Del key
+// Keys are told by the characters they type, not their key codes: those are
+// the Mac keyboard's, and an X server's differ (its quote key is the Mac's
+// Tab, its backslash the Mac's Delete).
+/// Whether a tree-sitter node's type is one of @a kinds, as a language
+/// configuration names them ("string", "comment", after VS Code's): C's
+/// "string_literal" is a string, Rust's "line_comment" a comment.
+static BOOL UDNodeTypeIsOneOf(const char *type, NSArray<NSString *> *kinds) {
+    NSString *name = @(type);
+    for (NSString *kind in kinds) {
+        if ([name rangeOfString:kind].location != NSNotFound) return YES;
+    }
+    return NO;
+}
+
+static unichar UDKeyCharacter(NSEvent *event) {
+    NSString *keys = event.charactersIgnoringModifiers;
+    return keys.length ? [keys characterAtIndex:0] : 0;
+}
+static BOOL UDIsReturnKey(unichar c)        { return c == '\r' || c == '\n' || c == 0x03; }   // 0x03: the keypad's Enter
+static BOOL UDIsTabKey(unichar c)           { return c == '\t'; }
+static BOOL UDIsBackTabKey(unichar c)       { return c == 0x19; }
+static BOOL UDIsBackspaceKey(unichar c)     { return c == 0x7f || c == 0x08; }
+static BOOL UDIsForwardDeleteKey(unichar c) { return c == NSDeleteFunctionKey; }
 
 // macOS function-key characters (arrow keys, F1–F20, Home, End, …) are encoded
 // in the Unicode private-use range starting at 0xF700 (NSFunctionKeyMask area).
@@ -106,9 +124,8 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
                                NSEventModifierFlagShift);
 
     // --- Return / KP-Return: smart indentation ---
-    if (mods == 0 &&
-            (event.keyCode == kKeyCodeReturn ||
-             event.keyCode == kKeyCodeKeypadReturn)) {
+    unichar key = UDKeyCharacter(event);
+    if (mods == 0 && UDIsReturnKey(key)) {
         // Give the language handler first crack.
         id<UDLanguageKeyHandler> retHandler = _languageKeyHandler;
         if ([retHandler respondsToSelector:
@@ -125,7 +142,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     }
 
     // --- Tab (no modifiers): give language handler first crack, else default insert ---
-    if (mods == 0 && event.keyCode == kKeyCodeTab) {
+    if (mods == 0 && UDIsTabKey(key)) {
         id<UDLanguageKeyHandler> tabHandler = _languageKeyHandler;
         if ([tabHandler respondsToSelector:
                 @selector(handleTabKeyWithParseTree:textModel:cursorsController:)]) {
@@ -142,7 +159,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     }
 
     // --- Shift-Tab: dedent ---
-    if (mods == NSEventModifierFlagShift && event.keyCode == kKeyCodeTab) {
+    if ((mods == NSEventModifierFlagShift && UDIsTabKey(key)) || ((mods & ~NSEventModifierFlagShift) == 0 && UDIsBackTabKey(key))) {
         id<UDLanguageKeyHandler> stHandler = _languageKeyHandler;
         if ([stHandler respondsToSelector:
                 @selector(handleShiftTabKeyWithParseTree:textModel:cursorsController:)]) {
@@ -159,8 +176,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 
     // --- Delete key: give the language handler a chance to mirror the deletion
     //     BEFORE NSTextView applies it (e.g. XML tag-name synchronisation). ---
-    if (mods == 0 && (event.keyCode == kKeyCodeBackspace ||
-                      event.keyCode == kKeyCodeForwardDelete)) {
+    if (mods == 0 && (UDIsBackspaceKey(key) || UDIsForwardDeleteKey(key))) {
         NSRange   sel    = _textView.selectedRange;
         NSInteger docLen = [_textModel getLength];
         NSRange   delRange = NSMakeRange(0, 0);
@@ -168,10 +184,10 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
         if (sel.length > 0) {
             delRange = sel;
             valid    = YES;
-        } else if (event.keyCode == kKeyCodeBackspace && sel.location > 0) {
+        } else if (UDIsBackspaceKey(key) && sel.location > 0) {
             delRange = NSMakeRange(sel.location - 1, 1);
             valid    = YES;
-        } else if (event.keyCode == kKeyCodeForwardDelete &&
+        } else if (UDIsForwardDeleteKey(key) &&
                    (NSInteger)sel.location < docLen) {
             delRange = NSMakeRange(sel.location, 1);
             valid    = YES;
@@ -451,9 +467,14 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     // ------------------------------------------------------------------
     if (UDSelectionIsEmpty(primarySel) && cursorPos < (NSUInteger)docLen) {
         for (UDAutoClosingPair *pair in config.autoClosingPairs) {
+            // A quote, when the next character is the one that closes the
+            // string the caret is in ("Reload|" -> "Reload"|), not one that
+            // opens another (|"abc").
+            BOOL closesString = [pair.open isEqualToString:pair.close] && pair.notIn.count > 0
+                && [self _offset:cursorPos closesNodeOfTypes:pair.notIn];
             if (pair.close.length == 1
                     && [pair.close characterAtIndex:0] == typedChar
-                    && ![pair.open isEqualToString:pair.close]) {
+                    && (![pair.open isEqualToString:pair.close] || closesString)) {
                 if ([model getCharacterAtOffset:cursorPos] == typedChar) {
                     NSUInteger newOffset = cursorPos + 1;
                     UDPosition newPos = [model getPositionAt:(NSInteger)newOffset];
@@ -563,8 +584,7 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     while (!ts_node_is_null(node)) {
         const char *rawType = ts_node_type(node);
         if (rawType) {
-            NSString *typeStr = [NSString stringWithUTF8String:rawType];
-            if ([nodeTypes containsObject:typeStr]) return YES;
+            if (UDNodeTypeIsOneOf(rawType, nodeTypes)) return YES;
         }
         node = ts_node_parent(node);
     }
@@ -577,6 +597,36 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 
 /// Returns how many characters should be stripped from the leading whitespace
 /// of @c lineContent to remove one indentation level.
+/// Whether the character at @a offset is the last of a node of one of
+/// @a nodeTypes holding it: the closing quote of a string, say.
+- (BOOL)_offset:(NSUInteger)offset closesNodeOfTypes:(NSArray<NSString *> *)nodeTypes {
+    const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
+    if (!nodeTypes.count) return NO;
+    if (!tree) {
+        // No parse: the quote closes when the line has an odd number of them
+        // (unescaped) before it.
+        unichar quote = [_textModel getCharacterAtOffset:offset];
+        UDPosition p = [_textModel getPositionAt:(NSInteger)offset];
+        NSUInteger lineStart = (NSUInteger)[_textModel getOffsetAt:p.line column:1], count = 0;
+        for (NSUInteger i = lineStart; i < offset; i++) {
+            unichar c = [_textModel getCharacterAtOffset:i];
+            if (c == '\\') { i++; continue; }
+            if (c == quote) count++;
+        }
+        return count % 2 == 1;
+    }
+    uint32_t byte = byteFromChar(offset);
+    TSNode node = ts_node_descendant_for_byte_range(ts_tree_root_node((TSTree *)tree), byte, byte);
+    while (!ts_node_is_null(node)) {
+        const char *type = ts_node_type(node);
+        if (type && UDNodeTypeIsOneOf(type, nodeTypes)) {
+            return ts_node_start_byte(node) < byte && ts_node_end_byte(node) == byteFromChar(offset + 1);
+        }
+        node = ts_node_parent(node);
+    }
+    return NO;
+}
+
 - (NSInteger)_stripLengthForLine:(NSString *)lineContent {
     if (lineContent.length == 0) return 0;
     unichar first = [lineContent characterAtIndex:0];

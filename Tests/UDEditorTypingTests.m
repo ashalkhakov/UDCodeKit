@@ -308,4 +308,29 @@
     XCTAssertEqualObjects([_storage.string substringWithRange:textView.selectedRange], @"<#x#>");
 }
 
+#pragma mark - Quotes
+
+/// A quote typed inside a call's parentheses goes in, closed by its pair;
+/// typing on and the closing quote over it leave one pair. (Key code 48 is
+/// X's quote key and the Mac's Tab: keys are told by their characters.)
+- (void)testAQuoteGoesInAfterAParenthesis {
+    UDLanguageMode *c = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"c"];
+    XCTAssertNotNil(c);
+    if (c == nil) return;
+    [_editor configureForLanguageMode:c];
+    [_storage setLanguageFunc:c.languageFunc withHighlightsQuery:c.highlightsQuery ?: @""];   // a parse, to know a string by
+    UDDiagnosticTextView *textView = _editor.textView;
+    [textView setSelectedRange:NSMakeRange(4, 0)];
+    [self pressKey:@"(" code:25];
+    XCTAssertEqualObjects([_storage.textModel getValue], @"\tone()\n\ttwo\n");
+    NSEvent *quote = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:NSEventModifierFlagShift
+                                     timestamp:0 windowNumber:_window.windowNumber context:nil
+                                    characters:@"\"" charactersIgnoringModifiers:@"\"" isARepeat:NO keyCode:48];   // X's quote key; the Mac's Tab
+    [textView keyDown:quote];
+    XCTAssertEqualObjects([_storage.textModel getValue], @"\tone(\"\")\n\ttwo\n");
+    [textView insertText:@"Reload"];
+    [textView keyDown:quote];
+    XCTAssertEqualObjects([_storage.textModel getValue], @"\tone(\"Reload\")\n\ttwo\n", @"the closing quote types over");
+}
+
 @end

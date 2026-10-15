@@ -1,6 +1,6 @@
 #import "UDDocumentWindowController.h"
 #import "UDDocument.h"
-#import "UDErrorsViewController.h"
+#import <UDCodeKit/UDErrorsViewController.h>
 #import "UDWorkspaceModel.h"
 #import <UDCodeKit/UDCodeKit.h>
 #ifdef __APPLE__

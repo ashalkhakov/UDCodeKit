@@ -14,11 +14,12 @@
  *             by the caller).
  *  Level 1 — individual diagnostics for that document.
  *
- *  The view is built entirely in code — no XIB.
+ *  Laid out in UDErrorsView.xib. An app's navigator shows it (UDCode's
+ *  Issues, Decl Browser's) and says which documents' stores it lists.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Cocoa/Cocoa.h>
-#import <UDCodeKit/UDCodeKit.h>
+#import "UDDiagnosticStore.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

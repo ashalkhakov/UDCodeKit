@@ -31,6 +31,7 @@ UDCodeKit_HEADER_FILES = \
     UDDiagnosticStore.h \
     UDDiagnosticTextView.h \
     UDEditorSession.h \
+    UDErrorsViewController.h \
     UDEditorTabsController.h \
     UDExtension.h \
     UDFindBarViewController.h \
@@ -47,6 +48,7 @@ UDCodeKit_HEADER_FILES = \
     UDLanguageModeRegistry.h \
     UDLineNumberGutterView.h \
     UDPaneSplitController.h \
+    UDPlaceholderHighlighter.h \
     UDStructuredNavigator.h \
     UDSyntaxHighlighter.h \
     UDTabBarView.h \

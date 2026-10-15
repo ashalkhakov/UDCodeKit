@@ -1,4 +1,5 @@
 #import "UDCodeEditorViewController.h"
+#import "UDPlaceholderHighlighter.h"
 #import "UDLineNumberGutterView.h"
 #import "UDFoldingController.h"
 #import "UDBracketMatchHighlighter.h"
@@ -26,6 +27,7 @@
 @property (nonatomic, strong, nullable) UDFindBarViewController *findBar;
 @property (nonatomic, strong) UDFoldingController      *foldingController;
 @property (nonatomic, strong) UDBracketMatchHighlighter *bracketMatchHighlighter;
+@property (nonatomic, strong) UDPlaceholderHighlighter *placeholderHighlighter;
 @property (nonatomic, strong) UDStructuredNavigator    *structuredNavigator;
 @property (nonatomic, strong) UDAutoIndenter           *autoIndenter;
 
@@ -93,6 +95,12 @@
         [[UDBracketMatchHighlighter alloc] initWithTextView:_textView
                                                 textStorage:_textStorage
                                                  highlighter:_textStorage.highlighter];
+
+    // 9b. Placeholders ("<#…#>"), as pills.
+    _placeholderHighlighter =
+        [[UDPlaceholderHighlighter alloc] initWithTextStorage:_textStorage
+                                                  highlighter:_textStorage.highlighter];
+    [_placeholderHighlighter update];
 
     // 10. Structured navigator.
     _structuredNavigator =

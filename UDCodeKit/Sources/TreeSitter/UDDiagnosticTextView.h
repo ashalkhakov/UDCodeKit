@@ -43,6 +43,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// The mouse has left the word it rested on (or the view), or a key was
 /// pressed: the hover tooltip goes.
 - (void)textViewHoverDidEnd:(UDDiagnosticTextView *)textView;
+
+/// What accepting @a completion (one of -textView:completions:…'s) inserts:
+/// a call with its arguments as placeholders, say ("accelSound(<#string
+/// sound#>)"; UDPlaceholderTextFromSnippet turns LSP's snippets into them).
+/// Its first placeholder is then selected. Without it, the completion itself.
+- (nullable NSString *)textView:(UDDiagnosticTextView *)textView insertTextForCompletion:(NSString *)completion;
 @end
 
 /// Who handles the Find menu for the text view: its editor's find bar.
@@ -65,6 +71,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// close; typing on narrows it.
 - (void)showCompleteList:(nullable id)sender;
 @property (nonatomic, readonly, getter=isShowingCompletions) BOOL showingCompletions;
+
+/// Selects the next placeholder after the selection (or the previous one
+/// before it), wrapping around: Tab and Shift-Tab. NO when there is none.
+- (BOOL)selectPlaceholderForward:(BOOL)forward;
 
 @property (atomic, weak) id<UDDiagnosticTextViewDelegate> delegate;
 

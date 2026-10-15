@@ -185,36 +185,42 @@ static NSColor *UDSeparatorColor(void) {
 // MARK: - NSOutlineViewDelegate
 // ---------------------------------------------------------------------------
 
-- (nullable NSView *)outlineView:(NSOutlineView *)outlineView
-              viewForTableColumn:(nullable NSTableColumn *)tableColumn
-                            item:(id)item {
-    // The prototype in UDErrorsView.xib, named after its column.
-    NSTableCellView *cell = [outlineView makeViewWithIdentifier:[tableColumn identifier] owner:self];
+// A cell-based outline: GNUstep makes a view-based one's rows by copying
+// the prototype, and its NSView copy keeps no subviews (gnustep-patches#26):
+// rows came out empty.
 
+- (nullable id)outlineView:(NSOutlineView *)outlineView
+ objectValueForTableColumn:(nullable NSTableColumn *)tableColumn
+                    byItem:(nullable id)item {
     if ([item isKindOfClass:[UDErrorsEntry class]]) {
-        // File-group row: "<filename> (N error(s))" — bold, red when errors present.
+        // File-group row: "<filename> (N error(s))".
         UDErrorsEntry *entry = (UDErrorsEntry *)item;
         NSUInteger count = entry.diagnostics.count;
-        NSString *label = (count == 0)
+        return (count == 0)
             ? entry.displayName
-            : [NSString stringWithFormat:@"%@ (%lu %@)",
-               entry.displayName,
-               (unsigned long)count,
+            : [NSString stringWithFormat:@"%@ (%lu %@)", entry.displayName, (unsigned long)count,
                count == 1 ? @"error" : @"errors"];
-        cell.textField.stringValue = label;
-        cell.textField.font        = [NSFont boldSystemFontOfSize:NSFont.smallSystemFontSize];
-        cell.textField.textColor   = (count > 0)
+    }
+    // Error row: "Line L: message"
+    UDDiagnosticItem *diag = (UDDiagnosticItem *)item;
+    return [NSString stringWithFormat:@"Line %ld: %@", (long)diag.line, diag.message];
+}
+
+// File-group rows bold, red when they have errors; error rows plain.
+- (void)outlineView:(NSOutlineView *)outlineView
+    willDisplayCell:(id)cell
+     forTableColumn:(nullable NSTableColumn *)tableColumn
+               item:(id)item {
+    if (![cell isKindOfClass:[NSTextFieldCell class]]) return;
+    NSTextFieldCell *text = cell;
+    if ([item isKindOfClass:[UDErrorsEntry class]]) {
+        text.font      = [NSFont boldSystemFontOfSize:NSFont.smallSystemFontSize];
+        text.textColor = ((UDErrorsEntry *)item).diagnostics.count > 0
             ? [NSColor systemRedColor] : [NSColor secondaryLabelColor];
     } else {
-        // Error row: "Line L: message"
-        UDDiagnosticItem *diag = (UDDiagnosticItem *)item;
-        cell.textField.stringValue =
-            [NSString stringWithFormat:@"Line %ld: %@", (long)diag.line, diag.message];
-        cell.textField.font      = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
-        cell.textField.textColor = [NSColor labelColor];
+        text.font      = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+        text.textColor = [NSColor labelColor];
     }
-
-    return cell;
 }
 
 - (CGFloat)outlineView:(NSOutlineView *)outlineView heightOfRowByItem:(id)item {

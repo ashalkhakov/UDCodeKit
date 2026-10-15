@@ -4,10 +4,14 @@
 
 #import "UDLanguageMode.h"
 #import "UDExtension.h"
+#import "UDLanguageModeRegistry.h"
 
-@implementation UDLanguageMode
+@implementation UDLanguageMode {
+    BOOL _inheritanceResolved, _resolvingInheritance;
+}
 
 @synthesize languageServerCommand = _languageServerCommand;
+@synthesize highlightsQuery = _highlightsQuery;
 
 - (instancetype)initWithIdentifier:(NSString *)identifier
                         displayName:(NSString *)displayName
@@ -43,6 +47,31 @@
 - (NSString *)description {
     return [NSString stringWithFormat:@"<%@: %@ (%@)>",
             NSStringFromClass(self.class), _identifier, _displayName];
+}
+
+/// The query, with those of the languages its first line says it inherits
+/// ("; inherits: c", as Neovim's and tree-sitter's grammars write it; or
+/// "; inherits: c,cpp") before it: Objective-C's adds to C's. Resolved the
+/// first time it is asked for, when every mode has been registered.
+- (NSString *)highlightsQuery {
+    if (_highlightsQuery == nil || _resolvingInheritance) return _highlightsQuery;
+    NSString *firstLine = [[_highlightsQuery componentsSeparatedByString:@"\n"] firstObject];
+    NSString *prefix = @"; inherits:";
+    if (![firstLine hasPrefix:prefix] || _inheritanceResolved) return _highlightsQuery;
+
+    _resolvingInheritance = YES;                         // a cycle stops here
+    NSMutableString *query = [NSMutableString string];
+    for (NSString *name in [[firstLine substringFromIndex:prefix.length] componentsSeparatedByString:@","]) {
+        NSString *parent = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        UDLanguageMode *mode = parent.length ? [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:parent] : nil;
+        NSString *inherited = mode.highlightsQuery;
+        if (inherited.length) [query appendFormat:@"%@\n", inherited];
+    }
+    [query appendString:_highlightsQuery];
+    _resolvingInheritance = NO;
+    _inheritanceResolved = YES;
+    _highlightsQuery = [query copy];
+    return _highlightsQuery;
 }
 
 - (NSArray<NSString *> *)languageServerCommand {

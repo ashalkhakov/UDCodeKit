@@ -36,6 +36,12 @@
     }
 
     UDTreeSitterHighlighter *hl = _textStorage.highlighter;
+    if (!languageMode.reportsParseErrors) {
+        // A language whose errors come from its server, or not at all.
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textModelDidChange:)
+                                                     name:UDTextModelDidChangeNotification object:_textStorage.textModel];
+        return;
+    }
     _missingNodeHighlighter =
         [[UDMissingNodeHighlighter alloc] initWithTextStorage:_textStorage highlighter:hl];
     [_missingNodeHighlighter update];

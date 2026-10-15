@@ -297,6 +297,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
             languageConfiguration:config
                      keyHandler:keyHandler
                       extension:ext];
+        mode.reportsParseErrors = [modeInfo[@"reportsParseErrors"] boolValue];
 
         [self _registerModeUnsafe:mode];
     }

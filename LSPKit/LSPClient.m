@@ -15,6 +15,7 @@
 #import "LSPCommon.h"
 
 #include <sys/wait.h>
+#include <signal.h>
 
 NSNotificationName const LSPDocumentDidChangeNotification = @"LSPDocumentDidChange";
 NSString * const LSPDocumentUserInfoKey = @"Document";
@@ -420,6 +421,9 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
 }
 
 - (void)_launch {
+    // A server that has ended must not end the app with it: writing to its
+    // pipe then fails (and -writeData: says so) instead of raising SIGPIPE.
+    signal(SIGPIPE, SIG_IGN);
     _pipeline = [[LSPPipeline alloc] init];
     _pipeline.delegate = self;
     _task = [[NSTask alloc] init];
@@ -445,6 +449,9 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
 - (void)terminate {
     if ([_task isRunning]) {
         _shouldTerminate = YES;
+        // Nothing more is sent: the documents' closing, say, before the
+        // task's end is noticed on the run loop.
+        _initialized = NO;
         [_task terminate];
     }
 }
@@ -894,6 +901,22 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
     if (_initialized == NO) return 0;
     return [self _request:@"textDocument/hover" params:[self _paramsForDocument:url position:position]
                      kind:LSPReplyHover target:target action:action text:nil];
+}
+
+- (NSInteger)documentDefinition:(NSURL *)url atPosition:(LSPPosition *)position target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
+    return [self _request:@"textDocument/definition" params:[self _paramsForDocument:url position:position]
+                     kind:LSPReplyRaw target:target action:action text:nil];
+}
+
+- (NSInteger)sendRequest:(NSString *)method params:(NSDictionary *)params target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
+    return [self _request:method params:params kind:LSPReplyRaw target:target action:action text:nil];
+}
+
+- (void)sendNotification:(NSString *)method params:(NSDictionary *)params {
+    if (_initialized == NO) return;
+    [_pipeline sendNotification:method params:params];
 }
 
 - (NSInteger)documentHover:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {

@@ -329,27 +329,22 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
                   extension:nil];
     [self _registerModeUnsafe:_plaintextFallback];
 
-    // Load grammar bundles from the app's PlugIns directory, or from
-    // $UD_PLUGINS_PATH: a test runner (xctest on GNUstep) is no app.
-    // LanguageInfo.plist in each bundle is read before any bundle code runs.
-    NSString *plugInsPath = [[NSProcessInfo processInfo] environment][@"UD_PLUGINS_PATH"]
+    // Every grammar bundle in the app's PlugIns folder: UDCodeKit's, and any
+    // the app adds of its own (UDQuakeTools' idScript). Or in the folders
+    // $UD_PLUGINS_PATH names, ':'-separated: a test runner (xctest on
+    // GNUstep) is no app. Sorted by name, so the order does not depend on
+    // the file system's. LanguageInfo.plist in each bundle is read before
+    // any bundle code runs.
+    NSString *searchPath = [[NSProcessInfo processInfo] environment][@"UD_PLUGINS_PATH"]
         ?: [[NSBundle mainBundle] builtInPlugInsPath];
-    NSArray<NSString *> *bundleNames = @[
-        @"TreeSitterJson.bundle",
-        @"TreeSitterHtml.bundle",
-        @"TreeSitterMarkdown.bundle",
-        @"TreeSitterXml.bundle",
-        @"TreeSitterYaml.bundle",
-        @"TreeSitterC.bundle",
-        @"TreeSitterObjc.bundle",
-        @"TreeSitterBash.bundle",
-        @"TreeSitterMake.bundle",
-        @"TreeSitterIdScript.bundle",
-    ];
-
-    for (NSString *bundleName in bundleNames) {
-        NSString *path = [plugInsPath stringByAppendingPathComponent:bundleName];
-        [self _loadBundleAtPath:path];
+    for (NSString *plugInsPath in [searchPath componentsSeparatedByString:@":"]) {
+        if (plugInsPath.length == 0) continue;
+        NSArray<NSString *> *names = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:plugInsPath error:NULL]
+            sortedArrayUsingSelector:@selector(compare:)];
+        for (NSString *name in names) {
+            if (![name.pathExtension isEqualToString:@"bundle"]) continue;
+            [self _loadBundleAtPath:[plugInsPath stringByAppendingPathComponent:name]];
+        }
     }
 
     return self;

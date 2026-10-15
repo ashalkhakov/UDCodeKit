@@ -45,6 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// LSPResponse whose result is the server's hover dictionary.
 - (NSInteger)hoverAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action;
 
+/// LSP textDocument/definition at the given character index; @a action gets
+/// an LSPResponse whose result is the server's: a Location, an array of
+/// them, or nil.
+- (NSInteger)definitionAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action;
+
 @end
 
 NS_ASSUME_NONNULL_END

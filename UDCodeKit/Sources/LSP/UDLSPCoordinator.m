@@ -125,6 +125,12 @@
                            target:target action:action];
 }
 
+- (NSInteger)definitionAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {
+    if (!_clientInitialized) return 0;
+    return [_client documentDefinition:_documentURL atPosition:[self _positionAtIndex:characterIndex]
+                                target:target action:action];
+}
+
 // ---------------------------------------------------------------------------
 #pragma mark - LSPClientObserver
 // ---------------------------------------------------------------------------

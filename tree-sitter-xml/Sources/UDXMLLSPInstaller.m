@@ -4,27 +4,34 @@
 //
 //  Created by artyom on 3/21/26.
 //
+//  One step at a time, on the main thread: the session calls back on the
+//  main queue, tar's end comes as NSTaskDidTerminateNotification. The steps
+//  are the Java runtime (Adoptium's JRE for this system: a macOS bundle's
+//  Contents/Home, or Linux's plain tree) and LemMinX's jar, each only when
+//  missing.
+//
 
+#ifdef __APPLE__
 #include <sys/xattr.h>
+#endif
 #import "UDXMLLSPInstaller.h"
 
-@interface XMLLSPInstaller () <NSURLSessionDownloadDelegate>
+typedef NS_ENUM(NSInteger, XMLLSPInstallStep) {
+    XMLLSPInstallStepNone,
+    XMLLSPInstallStepJRE,
+    XMLLSPInstallStepJAR,
+};
 
+@interface XMLLSPInstaller () <NSURLSessionDownloadDelegate>
 @end
 
 @implementation XMLLSPInstaller {
-    NSUInteger _completedDownloads;  // tracks JRE + JAR concurrently
-    NSURL *_javaURL;
-    NSURL *_jarURL;
-    NSURLSession              *_downloadSession;
-    NSMutableDictionary       *_taskInfo;   // keyed by NSNumber (taskIdentifier)
-}
-
-- (instancetype)init {
-    if (self = [super init]) {
-        _taskInfo = [NSMutableDictionary dictionary];
-    }
-    return self;
+    NSURLSession *_downloadSession;
+    XMLLSPInstallStep _step;        // what is downloading or unpacking
+    NSTask *_tar;
+    NSURL *_tarball;
+    NSUInteger _redirects;          // followed by hand this step
+    NSURLSessionTask *_task;        // the download the step waits for
 }
 
 - (void)checkInstalled {
@@ -45,7 +52,7 @@
         _jarURL  = [self installedJarURL];
         return;  // nothing to do, host can query synchronously
     }
-    
+
     _state = XMLLSPInstallStateNeedsConsent;
     [(NSObject *)self.delegate performSelector:@selector(installerNeedsConsent:) withObject:self afterDelay:0];
 }
@@ -57,43 +64,52 @@
     }
 
     _state = XMLLSPInstallStateDownloading;
-    [self downloadJREIfNeededThenJAR];
+    [self nextStep];
 }
 
-- (void)downloadJREIfNeededThenJAR {
+#pragma mark - Steps
+
+/// The next missing piece, or the end.
+- (void)nextStep {
+    _redirects = 0;
     if (![self isJREInstalled]) {
-        [self downloadJREWithProgress:^(double p) {
-            [self.delegate installer:self downloadProgress:p label:@"Downloading Java runtime…"];
-        } completion:^(NSError *err) {
-            if (err) { [self failWithError:err]; return; }
-            [self downloadJARIfNeededThenFinish];
-        }];
+        _step = XMLLSPInstallStepJRE;
+        [self downloadURL:[self JREURL]];
+    } else if (![self isJARInstalled]) {
+        _step = XMLLSPInstallStepJAR;
+        [self downloadURL:[NSURL URLWithString:
+            @"https://download.eclipse.org/lemminx/releases/0.31.0/org.eclipse.lemminx-uber.jar"]];
     } else {
-        [self downloadJARIfNeededThenFinish];
-    }
-}
-
-- (void)downloadJARIfNeededThenFinish {
-    if (![self isJARInstalled]) {
-        [self downloadJARWithProgress:^(double p) {
-            [self.delegate installer:self downloadProgress:p label:@"Downloading XML language server…"];
-        } completion:^(NSError *err) {
-            if (err) { [self failWithError:err]; return; }
-            [self removeQuarantineFromURL:self.installedJarURL completion:^(NSError *qErr) {
-                if (qErr) { [self failWithError:qErr]; return; }
-                [self finishInstallation];
-            }];
-        }];
-    } else {
+        _step = XMLLSPInstallStepNone;
         [self finishInstallation];
     }
+}
+
+- (NSString *)stepLabel {
+    return _step == XMLLSPInstallStepJRE ? @"Downloading Java runtime…" : @"Downloading XML language server…";
+}
+
+/// Adoptium's latest Java 21 runtime for this system and architecture.
+- (NSURL *)JREURL {
+#if defined(__aarch64__) || defined(__arm64__)
+    NSString *arch = @"aarch64";
+#else
+    NSString *arch = @"x64";
+#endif
+#ifdef __APPLE__
+    NSString *os = @"mac";
+#else
+    NSString *os = @"linux";
+#endif
+    return [NSURL URLWithString:[NSString stringWithFormat:
+        @"https://api.adoptium.net/v3/binary/latest/21/ga/%@/%@/jre/hotspot/normal/eclipse", os, arch]];
 }
 
 - (void)finishInstallation {
     NSURL *java = [self installedJavaURL];
     NSURL *jar  = [self installedJarURL];
 
-    if (!java || !jar) {
+    if (!java || ![self isJARInstalled]) {
         [self failWithError:[NSError errorWithDomain:@"XMLLSPInstaller"
                                                code:-1
                                            userInfo:@{
@@ -103,20 +119,26 @@
         return;
     }
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-        _state   = XMLLSPInstallStateReady;
-        _javaURL = java;
-        _jarURL  = jar;
-        [self.delegate installerDidFinish:self javaURL:java jarURL:jar];
-    });
+    [_downloadSession finishTasksAndInvalidate];
+    _downloadSession = nil;
+    _state   = XMLLSPInstallStateReady;
+    _javaURL = java;
+    _jarURL  = jar;
+    [self.delegate installerDidFinish:self javaURL:java jarURL:jar];
 }
 
 - (void)failWithError:(NSError *)error {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (_state == XMLLSPInstallStateFailed) return;  // report once
-        _state = XMLLSPInstallStateFailed;
-        [self.delegate installer:self didFailWithError:error];
-    });
+    if (_state == XMLLSPInstallStateFailed) return;  // report once
+    [_downloadSession invalidateAndCancel];
+    _downloadSession = nil;
+    _step = XMLLSPInstallStepNone;
+    _state = XMLLSPInstallStateFailed;
+    [self.delegate installer:self didFailWithError:error];
+}
+
+static NSError *UDInstallError(NSString *description) {
+    return [NSError errorWithDomain:@"XMLLSPInstaller" code:-1
+                           userInfo:@{ NSLocalizedDescriptionKey: description }];
 }
 
 #pragma mark - Paths
@@ -128,20 +150,24 @@
     return [base URLByAppendingPathComponent:@"UDCode/LSP/XML"];
 }
 
+/// Where java is in an unpacked runtime: inside the bundle on macOS.
+static NSString *const UDJavaInRuntime =
+#ifdef __APPLE__
+    @"Contents/Home/bin/java";
+#else
+    @"bin/java";
+#endif
+
 - (nullable NSURL *)installedJavaURL {
-    NSError *error;
     NSArray<NSURL *> *contents = [[NSFileManager defaultManager]
                                   contentsOfDirectoryAtURL:self.appSupportURL
                                   includingPropertiesForKeys:nil
                                   options:NSDirectoryEnumerationSkipsHiddenFiles
-                                  error:&error];
-    
-    if (error) return nil;
-    
+                                  error:NULL];
     for (NSURL *item in contents) {
         if ([item.lastPathComponent hasPrefix:@"jdk-"]) {
-            NSURL *java = [item URLByAppendingPathComponent:@"Contents/Home/bin/java"];
-            if ([[NSFileManager defaultManager] fileExistsAtPath:java.path]) {
+            NSURL *java = [item URLByAppendingPathComponent:UDJavaInRuntime];
+            if ([[NSFileManager defaultManager] isExecutableFileAtPath:java.path]) {
                 return java;
             }
         }
@@ -161,240 +187,180 @@
     return [[NSFileManager defaultManager] fileExistsAtPath:self.installedJarURL.path];
 }
 
-#pragma mark - Shared Download Primitive (GNUstep-compatible)
+#pragma mark - Downloading
 
-- (void)downloadFileAtURL:(NSURL *)url
-               completion:(void (^)(NSURL *tmpLocation, NSError *err))completion
-                 progress:(void (^)(double))progress {
-
-    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-    config.timeoutIntervalForRequest  = 30.0;
-    config.timeoutIntervalForResource = 600.0;
-
-    // Must use a delegate-based session to get progress callbacks
-    // but use downloadTask so the file is written by the system (no quarantine)
-    _downloadSession = [NSURLSession sessionWithConfiguration:config
-                                                     delegate:self
-                                                delegateQueue:nil];
-
-    NSURLSessionDownloadTask *task = [_downloadSession downloadTaskWithURL:url];
-
-    @synchronized(_taskInfo) {
-        _taskInfo[@(task.taskIdentifier)] = @{
-            @"completion" : [completion copy],
-            @"progress"   : [progress copy],
-            @"url"        : url,
-        };
+- (void)downloadURL:(NSURL *)url {
+    if (_downloadSession == nil) {
+        NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+        config.timeoutIntervalForRequest  = 30.0;
+        config.timeoutIntervalForResource = 600.0;
+        // The delegate is called on the main queue: one step at a time,
+        // nothing to hand over between threads.
+        _downloadSession = [NSURLSession sessionWithConfiguration:config
+                                                         delegate:self
+                                                    delegateQueue:[NSOperationQueue mainQueue]];
     }
-
-    [task resume];
+    _task = [_downloadSession downloadTaskWithURL:url];
+    [_task resume];
 }
-
-#pragma mark - NSURLSessionDownloadDelegate
 
 - (void)URLSession:(NSURLSession *)session
       downloadTask:(NSURLSessionDownloadTask *)task
       didWriteData:(int64_t)bytesWritten
  totalBytesWritten:(int64_t)totalBytesWritten
 totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
-
-    if (totalBytesExpectedToWrite <= 0) return;
-
-    double fraction = (double)totalBytesWritten / (double)totalBytesExpectedToWrite;
-    void (^progress)(double) = nil;
-
-    @synchronized(_taskInfo) {
-        progress = _taskInfo[@(task.taskIdentifier)][@"progress"];
-    }
-
-    if (progress) progress(fraction);
+    if (task != _task || totalBytesExpectedToWrite <= 0) return;
+    [self.delegate installer:self
+            downloadProgress:(double)totalBytesWritten / (double)totalBytesExpectedToWrite
+                       label:[self stepLabel]];
 }
 
+// The file is the session's only until this returns: it is moved now.
 - (void)URLSession:(NSURLSession *)session
       downloadTask:(NSURLSessionDownloadTask *)task
 didFinishDownloadingToURL:(NSURL *)location {
-
-    void (^completion)(NSURL *, NSError *) = nil;
-
-    @synchronized(_taskInfo) {
-        completion = _taskInfo[@(task.taskIdentifier)][@"completion"];
-        [_taskInfo removeObjectForKey:@(task.taskIdentifier)];
+    if (task != _task) return;
+    NSHTTPURLResponse *response = [task.response isKindOfClass:[NSHTTPURLResponse class]]
+        ? (NSHTTPURLResponse *)task.response : nil;
+    NSInteger status = response ? response.statusCode : 200;
+    if (status >= 300 && status < 400) {
+        [self followRedirect:response ofTask:task];
+        return;
+    }
+    if (status >= 400) {
+        [self failWithError:UDInstallError([NSString stringWithFormat:@"%@ answered %ld",
+                                            task.originalRequest.URL.host, (long)status])];
+        return;
     }
 
-    if (completion) completion(location, nil);
+    NSError *error = nil;
+    if (![[NSFileManager defaultManager] createDirectoryAtURL:self.appSupportURL
+                                  withIntermediateDirectories:YES attributes:nil error:&error]) {
+        [self failWithError:error];
+        return;
+    }
+
+    if (_step == XMLLSPInstallStepJRE) {
+        _tarball = [self.appSupportURL URLByAppendingPathComponent:@"jre.tar.gz"];
+        [[NSFileManager defaultManager] removeItemAtURL:_tarball error:NULL];
+        if (![[NSFileManager defaultManager] moveItemAtURL:location toURL:_tarball error:&error]) {
+            [self failWithError:error];
+            return;
+        }
+        [self extractTarball];
+    } else if (_step == XMLLSPInstallStepJAR) {
+        [[NSFileManager defaultManager] removeItemAtURL:self.installedJarURL error:NULL];
+        if (![[NSFileManager defaultManager] moveItemAtURL:location toURL:self.installedJarURL error:&error]) {
+            [self failWithError:error];
+            return;
+        }
+        [self removeQuarantineFromPath:self.installedJarURL.path];
+        [self nextStep];
+    }
+}
+
+/// GNUstep's NSURLSession misses a redirect whose Location header is
+/// lowercase, as HTTP/2 sends it (gnustep-patches#24): the 3xx is handed
+/// over as the download. It is followed here instead, a few times at most.
+- (void)followRedirect:(NSHTTPURLResponse *)response ofTask:(NSURLSessionTask *)task {
+    NSString *location = nil;
+    for (NSString *name in response.allHeaderFields) {
+        if ([name caseInsensitiveCompare:@"Location"] == NSOrderedSame) location = response.allHeaderFields[name];
+    }
+    NSURL *url = location ? [NSURL URLWithString:location relativeToURL:task.originalRequest.URL].absoluteURL : nil;
+    if (url == nil || ++_redirects > 5) {
+        [self failWithError:UDInstallError([NSString stringWithFormat:@"%@ redirects nowhere",
+                                            task.originalRequest.URL.host])];
+        return;
+    }
+    [self downloadURL:url];
 }
 
 - (void)URLSession:(NSURLSession *)session
               task:(NSURLSessionTask *)task
 didCompleteWithError:(NSError *)error {
+    // Success went through didFinishDownloadingToURL; a redirect's own task
+    // may end with an error after the download it led to has started.
+    if (task == _task && error != nil) [self failWithError:error];
+}
 
-    if (!error) return; // success handled in didFinishDownloadingToURL
+#pragma mark - Unpacking
 
-    void (^completion)(NSURL *, NSError *) = nil;
-
-    @synchronized(_taskInfo) {
-        completion = _taskInfo[@(task.taskIdentifier)][@"completion"];
-        [_taskInfo removeObjectForKey:@(task.taskIdentifier)];
+- (void)extractTarball {
+    _tar = [[NSTask alloc] init];
+    _tar.launchPath = @"/usr/bin/env";
+    _tar.arguments  = @[ @"tar", @"-xzf", _tarball.path, @"-C", self.appSupportURL.path ];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_tarDidTerminate:)
+                                                 name:NSTaskDidTerminateNotification object:_tar];
+    @try {
+        [_tar launch];
+    } @catch (NSException *exception) {
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:NSTaskDidTerminateNotification object:_tar];
+        _tar = nil;
+        [self failWithError:UDInstallError([NSString stringWithFormat:@"tar does not start: %@", exception.reason])];
     }
-
-    if (completion) completion(nil, error);
 }
 
-#pragma mark - JRE Download
+- (void)_tarDidTerminate:(NSNotification *)notification {
+    int status = _tar.terminationStatus;
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:NSTaskDidTerminateNotification object:_tar];
+    _tar = nil;
+    [[NSFileManager defaultManager] removeItemAtURL:_tarball error:NULL];
+    _tarball = nil;
 
-- (void)downloadJREWithProgress:(void (^)(double))progress
-                     completion:(void (^)(NSError *))completion {
-    NSString *arch;
-#if defined(__aarch64__)
-    arch = @"aarch64";
-#else
-    arch = @"x64";
-#endif
-    
-    NSString *urlStr = [NSString stringWithFormat:
-                        @"https://api.adoptium.net/v3/binary/latest/21/ga/mac/%@/jre/hotspot/normal/eclipse", arch];
-    
-    [self downloadFileAtURL:[NSURL URLWithString:urlStr]
-                 completion:^(NSURL *tmpLocation, NSError *err) {
-        if (err) { completion(err); return; }
-        
-        // Ensure destination directory exists before moving
-        NSError *dirErr;
-        [[NSFileManager defaultManager]
-            createDirectoryAtURL:self.appSupportURL
-         withIntermediateDirectories:YES
-                          attributes:nil
-                               error:&dirErr];
-        if (dirErr) { completion(dirErr); return; }
-
-        NSURL *tarball = [self.appSupportURL URLByAppendingPathComponent:@"jre.tar.gz"];
-        NSError *moveErr;
-        [[NSFileManager defaultManager] moveItemAtURL:tmpLocation
-                                                toURL:tarball
-                                                error:&moveErr];
-        if (moveErr) { completion(moveErr); return; }
-
-        [self extractTarball:tarball completion:^(NSError *extractErr) {
-            [[NSFileManager defaultManager] removeItemAtURL:tarball error:nil];
-            completion(extractErr);
-        }];
-    } progress:progress];
+    if (status != 0) {
+        [self failWithError:UDInstallError([NSString stringWithFormat:@"JRE extraction failed with status %d", status])];
+        return;
+    }
+    NSURL *java = [self installedJavaURL];
+    if (java == nil) {
+        [self failWithError:UDInstallError(@"java binary not found after extraction")];
+        return;
+    }
+    [self removeQuarantineFromPath:[self runtimeRootOfJava:java].path];
+    NSError *error = [self fixPermissionsInDirectory:java.URLByDeletingLastPathComponent];
+    if (error != nil) {
+        [self failWithError:error];
+        return;
+    }
+    [self nextStep];
 }
 
-#pragma mark - JAR Download
-
-- (void)downloadJARWithProgress:(void (^)(double))progress
-                     completion:(void (^)(NSError *))completion {
-    NSURL *url = [NSURL URLWithString:
-                  @"https://download.eclipse.org/lemminx/releases/0.31.0/org.eclipse.lemminx-uber.jar"];
-    
-    [self downloadFileAtURL:url
-                 completion:^(NSURL *tmpLocation, NSError *err) {
-        if (err) { completion(err); return; }
-
-        // Ensure destination directory exists before moving
-        NSError *dirErr;
-        [[NSFileManager defaultManager]
-            createDirectoryAtURL:self.appSupportURL
-         withIntermediateDirectories:YES
-                          attributes:nil
-                               error:&dirErr];
-        if (dirErr) { completion(dirErr); return; }
-
-        NSError *moveErr;
-        [[NSFileManager defaultManager] moveItemAtURL:tmpLocation
-                                                toURL:self.installedJarURL
-                                                error:&moveErr];
-        completion(moveErr);
-    } progress:progress];
+/// jdk-x.y.z/, from its java.
+- (NSURL *)runtimeRootOfJava:(NSURL *)java {
+    NSURL *root = java;
+    for (NSUInteger i = 0; i < UDJavaInRuntime.pathComponents.count; i++) {
+        root = root.URLByDeletingLastPathComponent;
+    }
+    return root;
 }
 
-#pragma mark - Extraction (GNUstep-compatible)
-
-- (NSError *)removeQuarantineFromPath:(NSString *)path {
-    NSDirectoryEnumerator *enumerator = [[NSFileManager defaultManager]
-        enumeratorAtPath:path];
-
-    // Handle the root path itself first
+/// What came from the internet loses its quarantine on macOS, which would
+/// otherwise stop java and the jar from running; nothing elsewhere.
+- (void)removeQuarantineFromPath:(NSString *)path {
+#ifdef __APPLE__
     removexattr(path.fileSystemRepresentation, "com.apple.quarantine", XATTR_NOFOLLOW);
-
+    NSDirectoryEnumerator *enumerator = [[NSFileManager defaultManager] enumeratorAtPath:path];
     NSString *relativePath;
     while ((relativePath = [enumerator nextObject])) {
         NSString *fullPath = [path stringByAppendingPathComponent:relativePath];
         removexattr(fullPath.fileSystemRepresentation, "com.apple.quarantine", XATTR_NOFOLLOW);
     }
-
-    return nil; // removexattr returns -1 on failure but quarantine removal failing is non-fatal
+#endif
 }
 
-- (void)removeQuarantineFromURL:(NSURL *)url completion:(void (^)(NSError *))completion {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        NSError *err = [self removeQuarantineFromPath:url.path];
-        completion(err);
-    });
-}
-
-- (void)extractTarball:(NSURL *)tarball completion:(void (^)(NSError *))completion {
-    NSTask *tar = [[NSTask alloc] init];
-    tar.launchPath = @"/usr/bin/tar";
-    tar.arguments  = @[@"-xzf", tarball.path, @"-C", self.appSupportURL.path];
-
-    tar.terminationHandler = ^(NSTask *t) {
-        if (t.terminationStatus != 0) {
-            completion([NSError errorWithDomain:@"XMLLSPInstaller"
-                                           code:t.terminationStatus
-                                       userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:
-                                           @"JRE extraction failed with status %d", t.terminationStatus]}]);
-            return;
+/// The runtime's bin/: executable.
+- (NSError *)fixPermissionsInDirectory:(NSURL *)binDir {
+    for (NSString *name in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:binDir.path error:NULL]) {
+        NSString *path = [binDir.path stringByAppendingPathComponent:name];
+        BOOL isDirectory = NO;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory] || isDirectory) continue;
+        NSError *error = nil;
+        if (![[NSFileManager defaultManager] setAttributes:@{ NSFilePosixPermissions: @(0755) }
+                                              ofItemAtPath:path error:&error]) {
+            return error;
         }
-
-        NSURL *java = [self installedJavaURL];
-        if (!java) {
-            completion([NSError errorWithDomain:@"XMLLSPInstaller"
-                                           code:-1
-                                       userInfo:@{NSLocalizedDescriptionKey:
-                                           @"java binary not found after extraction"}]);
-            return;
-        }
-
-        NSURL *jdkRoot = java.URLByDeletingLastPathComponent  // bin/
-                             .URLByDeletingLastPathComponent  // Home/
-                             .URLByDeletingLastPathComponent  // Contents/
-                             .URLByDeletingLastPathComponent; // jdk-x.x.x/
-
-        NSError *permErr = [self fixPermissionsInJREDirectory:jdkRoot];
-        completion(permErr);
-    };
-
-    NSError *err;
-    [tar launchAndReturnError:&err];
-    if (err) completion(err);
-}
-
-- (NSError *)fixPermissionsInJREDirectory:(NSURL *)jdkRoot {
-    NSURL *binDir = [[[jdkRoot URLByAppendingPathComponent:@"Contents"]
-                               URLByAppendingPathComponent:@"Home"]
-                               URLByAppendingPathComponent:@"bin"];
-
-    NSDirectoryEnumerator *enumerator = [[NSFileManager defaultManager]
-        enumeratorAtURL:binDir
-     includingPropertiesForKeys:@[NSURLIsRegularFileKey]
-                        options:0
-                   errorHandler:nil];
-
-    for (NSURL *fileURL in enumerator) {
-        NSNumber *isRegular;
-        [fileURL getResourceValue:&isRegular forKey:NSURLIsRegularFileKey error:nil];
-        if (!isRegular.boolValue) continue;
-
-        NSError *err;
-        [[NSFileManager defaultManager] setAttributes:@{
-            NSFilePosixPermissions: @(0755)
-        } ofItemAtPath:fileURL.path error:&err];
-
-        if (err) return err;
     }
-
     return nil;
 }
 

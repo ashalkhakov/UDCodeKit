@@ -20,6 +20,13 @@
             NSUnixExtensions = ( "json" );
             NSRole = "Editor";
             NSDocumentClass = "UDWorkspace";
+        },
+        {
+            NSName = "Text Document";
+            NSHumanReadableName = "Text Document";
+            NSUnixExtensions = ( "*" );
+            NSRole = "Editor";
+            NSDocumentClass = "UDWorkspace";
         }
     );
 }

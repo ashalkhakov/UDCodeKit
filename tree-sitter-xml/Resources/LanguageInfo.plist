@@ -20,6 +20,65 @@
 				<string>rss</string>
 				<string>atom</string>
 				<string>plist</string>
+				<string>xhtml</string>
+				<string>xht</string>
+				<string>xsd</string>
+				<string>xib</string>
+				<string>storyboard</string>
+				<string>xaml</string>
+				<string>xliff</string>
+				<string>xlf</string>
+				<string>wsdl</string>
+				<string>gpx</string>
+				<string>kml</string>
+				<string>opml</string>
+				<string>rdf</string>
+				<string>glade</string>
+				<string>csproj</string>
+				<string>vbproj</string>
+				<string>fsproj</string>
+				<string>nuspec</string>
+				<string>resx</string>
+				<string>xul</string>
+				<string>orm</string>
+				<string>xmi</string>
+				<string>uml</string>
+				<string>ecore</string>
+				<string>bpmn</string>
+				<string>dmn</string>
+				<string>graphml</string>
+				<string>gexf</string>
+				<string>dae</string>
+				<string>x3d</string>
+				<string>osm</string>
+				<string>tcx</string>
+				<string>owl</string>
+				<string>mxml</string>
+				<string>fxml</string>
+				<string>jrxml</string>
+				<string>jnlp</string>
+				<string>pom</string>
+				<string>wxs</string>
+				<string>wxi</string>
+				<string>wxl</string>
+				<string>vcxproj</string>
+				<string>props</string>
+				<string>targets</string>
+				<string>manifest</string>
+				<string>tmlanguage</string>
+				<string>tmtheme</string>
+				<string>tmpreferences</string>
+				<string>fodt</string>
+				<string>fods</string>
+				<string>fodp</string>
+				<string>fodg</string>
+				<string>dbk</string>
+				<string>xspf</string>
+				<string>ttml</string>
+				<string>smil</string>
+				<string>musicxml</string>
+				<string>drawio</string>
+				<string>qrc</string>
 			</array>
 			<key>lspLanguageID</key>
 			<string>xml</string>

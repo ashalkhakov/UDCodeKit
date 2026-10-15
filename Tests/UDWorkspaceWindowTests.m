@@ -173,4 +173,24 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     XCTAssertEqualObjects(_controller.navigatorTabView.selectedTabViewItem.identifier, @"issues");
 }
 
+#ifdef __APPLE__
+/// File > Open takes any text file, SVG, and what the system has no type
+/// for (NORMA's .orm), as a single-tab workspace; a workspace stays one.
+/// (On GNUstep the Text Document type's extension is "*".)
+- (void)testOpenTakesAnyTextFile {
+    NSDocumentController *controller = [NSDocumentController sharedDocumentController];
+    NSString *dir = NSTemporaryDirectory();
+    for (NSString *name in @[ @"page.xhtml", @"logo.svg", @"model.orm", @"notes.txt", @"data.json", @"my.udworkspace" ]) {
+        NSURL *url = [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:name]];
+        NSString *text = [name hasSuffix:@"udworkspace"] ? @"{\"version\":1,\"openFiles\":[]}" : @"<a/>";
+        XCTAssertTrue([text writeToURL:url atomically:YES encoding:NSUTF8StringEncoding error:NULL]);
+        NSError *error = nil;
+        NSString *type = [controller typeForContentsOfURL:url error:&error];
+        XCTAssertNotNil(type, @"%@: %@", name, error);
+        XCTAssertEqual([controller documentClassForType:type], [UDWorkspace class], @"%@ (%@)", name, type);
+        [[NSFileManager defaultManager] removeItemAtURL:url error:NULL];
+    }
+}
+#endif
+
 @end

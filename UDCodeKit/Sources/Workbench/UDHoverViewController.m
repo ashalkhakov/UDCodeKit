@@ -27,4 +27,12 @@
     [_popover showRelativeToRect:rect ofView:textView preferredEdge:NSMaxYEdge];
 }
 
+- (BOOL)isShown {
+    return _popover.isShown;
+}
+
+- (void)close {
+    if (_popover.isShown) [_popover close];
+}
+
 @end

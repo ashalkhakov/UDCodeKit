@@ -5,6 +5,8 @@
 	<key>languageModes</key>
 	<array>
 		<dict>
+			<key>reportsParseErrors</key>
+			<true/>
 			<key>identifier</key>
 			<string>json</string>
 			<key>displayName</key>

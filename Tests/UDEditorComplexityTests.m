@@ -24,6 +24,14 @@ static double UDTime(void (^block)(void)) {
     return -[start timeIntervalSinceNow];
 }
 
+/// The best of three: each measure builds what it times afresh, and a busy
+/// machine (a CI runner) slows one run, not all three.
+static double UDBest(double (^measure)(void)) {
+    double best = measure();
+    for (int i = 0; i < 2; i++) best = MIN(best, measure());
+    return best;
+}
+
 /// Runs what the edits left for the run loop's next turn (the highlighters'
 /// updates): a marker scheduled after them has run once they have. Three
 /// rounds, for what those schedule. Each pass of the run loop is told not to
@@ -109,8 +117,8 @@ static NSString *UDJSONDocument(NSInteger entries) {
 - (void)testUndoAndRedoCostTheChange {
     if (![self haveJSON]) return;
     [self undoRedoInDocumentOf:500];
-    double small = [self undoRedoInDocumentOf:2000];
-    double large = [self undoRedoInDocumentOf:16000];
+    double small = UDBest(^double{ return [self undoRedoInDocumentOf:2000]; });
+    double large = UDBest(^double{ return [self undoRedoInDocumentOf:16000]; });
     XCTAssertLessThan(large / small, 3.0, @"8× the document made undo/redo %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
@@ -136,8 +144,8 @@ static NSString *UDJSONDocument(NSInteger entries) {
 - (void)testAttributesCostTheWindowRead {
     if (![self haveJSON]) return;
     [self typeAndReadAttributesInDocumentOf:500];
-    double small = [self typeAndReadAttributesInDocumentOf:2000];
-    double large = [self typeAndReadAttributesInDocumentOf:16000];
+    double small = UDBest(^double{ return [self typeAndReadAttributesInDocumentOf:2000]; });
+    double large = UDBest(^double{ return [self typeAndReadAttributesInDocumentOf:16000]; });
     XCTAssertLessThan(large / small, 3.0, @"8× the document made typing and layout %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
@@ -167,8 +175,8 @@ static NSString *UDJSONDocument(NSInteger entries) {
 - (void)testTypingWithAnErrorCostsTheEdit {
     if (![self haveJSON]) return;
     [self typeWithAnErrorInDocumentOf:500];
-    double small = [self typeWithAnErrorInDocumentOf:2000];
-    double large = [self typeWithAnErrorInDocumentOf:16000];
+    double small = UDBest(^double{ return [self typeWithAnErrorInDocumentOf:2000]; });
+    double large = UDBest(^double{ return [self typeWithAnErrorInDocumentOf:16000]; });
     XCTAssertLessThan(large / small, 3.0, @"8× the document made typing %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
@@ -200,8 +208,8 @@ static NSString *UDJSONDocument(NSInteger entries) {
 - (void)testFoldingCostsTheLinesShown {
     if (![self haveJSON]) return;
     [self typeWithFoldsInDocumentOf:500];
-    double small = [self typeWithFoldsInDocumentOf:2000];
-    double large = [self typeWithFoldsInDocumentOf:16000];
+    double small = UDBest(^double{ return [self typeWithFoldsInDocumentOf:2000]; });
+    double large = UDBest(^double{ return [self typeWithFoldsInDocumentOf:16000]; });
     XCTAssertLessThan(large / small, 3.0, @"8× the document made typing with folds %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
@@ -250,8 +258,8 @@ static NSString *UDJSONDocument(NSInteger entries) {
 - (void)testDrawingCostsTheLinesDrawn {
     if (![self haveJSON]) return;
     [self drawInDocumentOf:500];
-    double small = [self drawInDocumentOf:2000];
-    double large = [self drawInDocumentOf:16000];
+    double small = UDBest(^double{ return [self drawInDocumentOf:2000]; });
+    double large = UDBest(^double{ return [self drawInDocumentOf:16000]; });
     XCTAssertLessThan(large / small, 3.0, @"8× the document made drawing %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 
@@ -277,8 +285,8 @@ static NSString *UDJSONDocument(NSInteger entries) {
 - (void)testTypingWhileFindingCostsTheEdit {
     if (![self haveJSON]) return;
     [self typeWhileFindingInDocumentOf:500];
-    double small = [self typeWhileFindingInDocumentOf:2000];
-    double large = [self typeWhileFindingInDocumentOf:16000];
+    double small = UDBest(^double{ return [self typeWhileFindingInDocumentOf:2000]; });
+    double large = UDBest(^double{ return [self typeWhileFindingInDocumentOf:16000]; });
     XCTAssertLessThan(large / small, 3.0, @"8× the document made typing while finding %.1f× slower (%.3fs → %.3fs)", large / small, small, large);
 }
 

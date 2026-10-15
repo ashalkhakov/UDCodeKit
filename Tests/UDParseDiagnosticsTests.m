@@ -104,4 +104,58 @@ static NSArray<NSString *> *UDParseErrors(UDEditorSession *session) {
     }
 }
 
+/// Typed through the editor, as a completion with placeholders is filled in:
+/// the errors each step leaves are a fresh session's, and none when it is done.
+- (void)testParseErrorsFollowTypingIntoPlaceholders {
+    if (![[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"json"].languageFunc) {
+        XCTFail(@"%@", @"the JSON grammar bundle did not load");
+        return;
+    }
+    UDEditorSession *session = [self sessionWithText:@"{\n  \"a\": 1\n}\n"];
+    UDCodeEditorViewController *editor = [[UDCodeEditorViewController alloc] initWithTextStorage:session.textStorage];
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 600, 400) styleMask:NSWindowStyleMaskTitled
+                                                     backing:NSBackingStoreBuffered defer:NO];
+    window.releasedWhenClosed = NO;
+    window.contentView = editor.view;
+    [editor configureForLanguageMode:session.document.languageMode];
+    UDDiagnosticTextView *textView = editor.textView;
+    [window orderFront:nil];
+    [window makeFirstResponder:textView];
+    NSString *(^text)(void) = ^{ return [session.document.textModel getValue]; };
+    NSEvent *quote = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:NSEventModifierFlagShift
+                                     timestamp:0 windowNumber:window.windowNumber context:nil
+                                    characters:@"\"" charactersIgnoringModifiers:@"\"" isARepeat:NO keyCode:48];
+
+    [textView setSelectedRange:NSMakeRange(10, 0)];                           // after "1"
+    [textView insertText:@", \"b\": [<#x#>, <#y#>]"];
+    [self assertErrorsOf:session areFresh:@"placeholders" expectingSome:YES];
+    [textView setSelectedRange:[text() rangeOfString:@"<#x#>"]];
+    [textView keyDown:quote];
+    [self assertErrorsOf:session areFresh:@"a quote over the first" expectingSome:YES];
+    [textView insertText:@"Reload"];
+    [self assertErrorsOf:session areFresh:@"its text" expectingSome:YES];
+    [textView keyDown:quote];
+    [self assertErrorsOf:session areFresh:@"its closing quote" expectingSome:YES];
+    [textView setSelectedRange:[text() rangeOfString:@"<#y#>"]];
+    [textView insertText:@"1"];
+    XCTAssertEqualObjects(text(), @"{\n  \"a\": 1, \"b\": [\"Reload\", 1]\n}\n");
+    [self assertErrorsOf:session areFresh:@"the second filled in" expectingSome:NO];
+    [window orderOut:nil];
+}
+
+/// What the parser says is missing, typed where it is missing: the error
+/// goes (the decoration of a MISSING node sits just after the text typed).
+- (void)testAMissingTokenTypedWhereItIsMissing {
+    if (![[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"json"].languageFunc) {
+        XCTFail(@"%@", @"the JSON grammar bundle did not load");
+        return;
+    }
+    UDEditorSession *session = [self sessionWithText:@"{\n  \"a\": [1, 2\n}\n"];
+    [self assertErrorsOf:session areFresh:@"a bracket missing" expectingSome:YES];
+    UDTextModel *model = session.document.textModel;
+    [model applyEdits:@[[[UDTextModelEdit alloc] initWithRange:PTRangeMake(2, 15, 2, 15) text:@"]"]]];
+    XCTAssertEqualObjects([model getValue], @"{\n  \"a\": [1, 2]\n}\n");
+    [self assertErrorsOf:session areFresh:@"the bracket typed" expectingSome:NO];
+}
+
 @end

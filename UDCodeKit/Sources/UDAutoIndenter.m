@@ -514,6 +514,13 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
             }
         }
 
+        // A quote that closes the string open on its line goes in alone
+        // ("Reload| -> "Reload"|): an unclosed string is no string node yet.
+        if ([pair.open isEqualToString:pair.close]
+                && [self _lineHasOpenQuote:typedChar beforeOffset:cursorPos]) {
+            return NO;
+        }
+
         // notIn: suppress auto-close when inside a restricted node type.
         if (pair.notIn.count > 0
                 && [self _cursorAtOffset:cursorPos isInsideNodeTypes:pair.notIn]) {
@@ -595,25 +602,14 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
 // MARK: - Private helpers (auto-indentation)
 // ---------------------------------------------------------------------------
 
-/// Returns how many characters should be stripped from the leading whitespace
-/// of @c lineContent to remove one indentation level.
 /// Whether the character at @a offset is the last of a node of one of
 /// @a nodeTypes holding it: the closing quote of a string, say.
 - (BOOL)_offset:(NSUInteger)offset closesNodeOfTypes:(NSArray<NSString *> *)nodeTypes {
     const TSTree *tree = (const TSTree *)_highlighter.currentParseTree;
     if (!nodeTypes.count) return NO;
     if (!tree) {
-        // No parse: the quote closes when the line has an odd number of them
-        // (unescaped) before it.
-        unichar quote = [_textModel getCharacterAtOffset:offset];
-        UDPosition p = [_textModel getPositionAt:(NSInteger)offset];
-        NSUInteger lineStart = (NSUInteger)[_textModel getOffsetAt:p.line column:1], count = 0;
-        for (NSUInteger i = lineStart; i < offset; i++) {
-            unichar c = [_textModel getCharacterAtOffset:i];
-            if (c == '\\') { i++; continue; }
-            if (c == quote) count++;
-        }
-        return count % 2 == 1;
+        // No parse: the quote closes when its string is open on the line.
+        return [self _lineHasOpenQuote:[_textModel getCharacterAtOffset:offset] beforeOffset:offset];
     }
     uint32_t byte = byteFromChar(offset);
     TSNode node = ts_node_descendant_for_byte_range(ts_tree_root_node((TSTree *)tree), byte, byte);
@@ -627,6 +623,21 @@ static const unichar kFunctionKeyRangeStart = 0xF700;
     return NO;
 }
 
+/// Whether the line has an odd number of (unescaped) @a quote before
+/// @a offset: a string it opened is still open there.
+- (BOOL)_lineHasOpenQuote:(unichar)quote beforeOffset:(NSUInteger)offset {
+    UDPosition p = [_textModel getPositionAt:(NSInteger)offset];
+    NSUInteger lineStart = (NSUInteger)[_textModel getOffsetAt:p.line column:1], count = 0;
+    for (NSUInteger i = lineStart; i < offset; i++) {
+        unichar c = [_textModel getCharacterAtOffset:i];
+        if (c == '\\') { i++; continue; }
+        if (c == quote) count++;
+    }
+    return count % 2 == 1;
+}
+
+/// Returns how many characters should be stripped from the leading whitespace
+/// of @c lineContent to remove one indentation level.
 - (NSInteger)_stripLengthForLine:(NSString *)lineContent {
     if (lineContent.length == 0) return 0;
     unichar first = [lineContent characterAtIndex:0];

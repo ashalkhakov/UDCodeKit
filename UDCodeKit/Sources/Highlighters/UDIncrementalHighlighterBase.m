@@ -59,8 +59,11 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
         // same, and so are their decorations.
 
         NSString *owner = [self decorationOwner];
-        // 1. Stale: what starts in a changed range, or was squashed to
-        //    nothing in one (an empty range is where edits only deleted).
+        // 1. Stale: what starts in a changed range or at its end (an empty
+        //    range is where edits only deleted, squashing what was there to
+        //    nothing). At its end: a MISSING node's decoration covers the
+        //    character after it, and text typed where it is missing pushes
+        //    the decoration to just past that text.
         NSMutableSet<NSString *> *staleIDs = [NSMutableSet set];
         for (NSValue *rv in changedRanges) {
             NSRange cr = [rv rangeValue];
@@ -69,9 +72,7 @@ static inline uint32_t   byteFromChar(NSUInteger c) { return (uint32_t)(c * 2); 
                 [model decorationNodesInOffsetRange:MAX(0, s - 1) end:e + 1];
             for (UDIntervalNode *n in nodes) {
                 if (![n.owner isEqualToString:owner]) continue;
-                BOOL startsInside = n.start >= s && (n.start < e || (cr.length == 0 && n.start == s));
-                BOOL squashed     = n.start == n.end && n.start >= s && n.start <= e;
-                if (startsInside || squashed) [staleIDs addObject:n.identifier];
+                if (n.start >= s && n.start <= e) [staleIDs addObject:n.identifier];
             }
         }
         NSMutableArray<NSString *> *toKeep   = [NSMutableArray array];

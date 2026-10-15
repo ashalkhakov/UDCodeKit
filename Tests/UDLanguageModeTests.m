@@ -247,6 +247,26 @@
     XCTAssertEqualObjects(mode.identifier, @"xml");
 }
 
+/// Parse errors are reported where VS Code reports a language's errors
+/// without a server of its own: JSON's are, C's and XML's are not.
+- (void)testParseErrorsAreReportedForSomeLanguages {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    XCTAssertTrue([reg modeForIdentifier:@"json"].reportsParseErrors);
+    XCTAssertFalse([reg modeForIdentifier:@"c"].reportsParseErrors);
+    XCTAssertFalse([reg modeForIdentifier:@"objc"].reportsParseErrors);
+    XCTAssertFalse([reg modeForIdentifier:@"xml"].reportsParseErrors);
+}
+
+/// Objective-C's highlights add to C's ("; inherits: c"): comments, strings
+/// and keywords are C's rules.
+- (void)testAQueryHasTheQueriesItInherits {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    NSString *c = [reg modeForIdentifier:@"c"].highlightsQuery;
+    NSString *objc = [reg modeForIdentifier:@"objc"].highlightsQuery;
+    XCTAssertTrue(c.length > 0 && [objc hasPrefix:c], @"C's query comes first");
+    XCTAssertTrue([objc containsString:@"; inherits: c"], @"then Objective-C's own");
+}
+
 /// XHTML is XML (tag mirroring, LemMinX), and so are SVG, NORMA's models,
 /// Interface Builder's files, schemas and the like; HTML keeps .html.
 - (void)testLookupByExtension_xmlFamily {

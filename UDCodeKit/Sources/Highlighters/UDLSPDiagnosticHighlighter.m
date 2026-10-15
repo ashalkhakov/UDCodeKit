@@ -28,14 +28,16 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 }
 
 + (NSDictionary *)decorationAttributesForNode:(UDIntervalNode *)node {
-    static NSColor *errC, *warnC;
+    static NSColor *errC, *warnC, *infoC;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         errC  = [NSColor colorWithRed:0.95 green:0.20 blue:0.20 alpha:0.18];
         warnC = [NSColor colorWithRed:0.95 green:0.75 blue:0.10 alpha:0.22];
+        infoC = [NSColor colorWithRed:0.25 green:0.50 blue:0.95 alpha:0.15];
     });
-    BOOL isWarning = [node.options.className isEqualToString:@"lsp.warning"];
-    return @{ NSBackgroundColorAttributeName: isWarning ? warnC : errC };
+    NSString *cls = node.options.className;
+    NSColor *color = [cls isEqualToString:@"lsp.warning"] ? warnC : [cls isEqualToString:@"lsp.info"] ? infoC : errC;
+    return @{ NSBackgroundColorAttributeName: color };
 }
 
 // ---------------------------------------------------------------------------
@@ -107,8 +109,12 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
         UDPosition ep = [model getPositionAt:(NSInteger)end];
         UDRange udRange = PTRangeMake(sp.line, sp.column, ep.line, ep.column);
 
+        // Hints are for the editor's quieter means, as VS Code's: no label,
+        // nor an issue (LemMinX's "No grammar constraints" is one).
+        if (diag.severity == LSPDiagnosticSeverityHint) continue;
         BOOL isWarning = (diag.severity == LSPDiagnosticSeverityWarning);
-        NSString *className = isWarning ? @"lsp.warning" : @"lsp.error";
+        BOOL isInfo    = (diag.severity == LSPDiagnosticSeverityInformation);
+        NSString *className = isWarning ? @"lsp.warning" : isInfo ? @"lsp.info" : @"lsp.error";
         UDDecorationOptions *opts =
             [[UDDecorationOptions alloc] initWithClassName:className
                                                   userInfo:diag.message ?: @""];
@@ -119,7 +125,8 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 
         // --- Diagnostic item --------------------------------------------
         UDDiagnosticSeverity severity = isWarning ? UDDiagnosticSeverityWarning
-                                                   : UDDiagnosticSeverityError;
+                                      : isInfo    ? UDDiagnosticSeverityInfo
+                                                  : UDDiagnosticSeverityError;
         UDDiagnosticItem *item =
             [[UDDiagnosticItem alloc] initWithLine:(NSInteger)diag.range.start.line + 1
                                             column:(NSInteger)diag.range.start.character

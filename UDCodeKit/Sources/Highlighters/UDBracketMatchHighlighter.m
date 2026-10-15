@@ -23,14 +23,17 @@ static inline BOOL isBracket(unichar ch) {
     [[UDDecorationLayerRegistry shared]
         registerOwner:UDBracketMatchDecorationOwner
                 layer:2
-           attrBlock:^NSDictionary *(UDIntervalNode *node) {
-        static NSColor *c;
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            c = [NSColor colorWithRed:0.38 green:0.60 blue:0.90 alpha:0.35];
-        });
-        return @{ NSBackgroundColorAttributeName: c };
-    }];
+               target:self
+               action:@selector(decorationAttributesForNode:)];
+}
+
++ (NSDictionary *)decorationAttributesForNode:(UDIntervalNode *)node {
+    static NSColor *c;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        c = [NSColor colorWithRed:0.38 green:0.60 blue:0.90 alpha:0.35];
+    });
+    return @{ NSBackgroundColorAttributeName: c };
 }
 
 // ---------------------------------------------------------------------------

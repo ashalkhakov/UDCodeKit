@@ -13,17 +13,20 @@ static inline NSUInteger charFromByte(uint32_t b) { return (NSUInteger)(b / 2); 
     [[UDDecorationLayerRegistry shared]
         registerOwner:UDMissingNodeDecorationOwner
                 layer:4
-           attrBlock:^NSDictionary *(UDIntervalNode *node) {
-        static NSColor *c;
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            c = [NSColor colorWithRed:0.95 green:0.42 blue:0.13 alpha:0.85];
-        });
-        return @{
-            NSBackgroundColorAttributeName: c,
-            NSForegroundColorAttributeName: [NSColor whiteColor],
-        };
-    }];
+               target:self
+               action:@selector(decorationAttributesForNode:)];
+}
+
++ (NSDictionary *)decorationAttributesForNode:(UDIntervalNode *)node {
+    static NSColor *c;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        c = [NSColor colorWithRed:0.95 green:0.42 blue:0.13 alpha:0.85];
+    });
+    return @{
+        NSBackgroundColorAttributeName: c,
+        NSForegroundColorAttributeName: [NSColor whiteColor],
+    };
 }
 
 // ---------------------------------------------------------------------------

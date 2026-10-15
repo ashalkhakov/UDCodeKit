@@ -48,6 +48,14 @@ static inline uint32_t   byteFromCharIdx(NSUInteger i) { return (uint32_t)(i * 2
 @property (nonatomic, strong) NSMutableArray<NSValue *> *editedCharRanges;
 @end
 
+/// Where an edit replacing [start, oldEnd) with [start, newEnd) moves p:
+/// before it, nowhere; after it, by its delta; inside it, to its start.
+static NSUInteger UDMovedByEdit(NSUInteger p, NSUInteger start, NSUInteger oldEnd, NSUInteger newEnd) {
+    if (p <= start) return p;
+    if (p >= oldEnd) return (NSUInteger)((NSInteger)p + (NSInteger)newEnd - (NSInteger)oldEnd);
+    return start;
+}
+
 @implementation UDTreeSitterHighlighter
 
 // ---------------------------------------------------------------------------
@@ -125,15 +133,10 @@ static inline TSPoint pointFromPosition(UDPosition p) {
     if (!_tsParser || !_tsCurrentTree) return;
 
     // The ranges earlier edits put in, moved by this one; then this one's.
-    NSInteger delta = (NSInteger)newEnd - (NSInteger)oldEnd;
-    NSUInteger (^move)(NSUInteger) = ^NSUInteger(NSUInteger p) {
-        if (p <= start) return p;
-        if (p >= oldEnd) return (NSUInteger)((NSInteger)p + delta);
-        return start;
-    };
     for (NSUInteger i = 0; i < _editedCharRanges.count; i++) {
         NSRange r = _editedCharRanges[i].rangeValue;
-        NSUInteger s = move(r.location), e = move(NSMaxRange(r));
+        NSUInteger s = UDMovedByEdit(r.location, start, oldEnd, newEnd),
+                   e = UDMovedByEdit(NSMaxRange(r), start, oldEnd, newEnd);
         _editedCharRanges[i] = [NSValue valueWithRange:NSMakeRange(s, e - s)];
     }
     [_editedCharRanges addObject:[NSValue valueWithRange:NSMakeRange(start, newEnd - start)]];

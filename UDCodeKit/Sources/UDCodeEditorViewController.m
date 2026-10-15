@@ -139,10 +139,13 @@
     NSTextStorage *ts = note.object;
     if (!(ts.editedMask & NSTextStorageEditedCharacters)) return;
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self->_foldingController update];
-        [self->_bracketMatchHighlighter update];
-    });
+    [self performSelector:@selector(_updateAfterEdit) withObject:nil
+               afterDelay:0 inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ]];
+}
+
+- (void)_updateAfterEdit {
+    [_foldingController update];
+    [_bracketMatchHighlighter update];
 }
 
 // ---------------------------------------------------------------------------

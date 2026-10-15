@@ -90,30 +90,36 @@ static int UDCompareOffsets(const void *x, const void *y) {
     [[UDDecorationLayerRegistry shared]
         registerOwner:UDFindDecorationOwner
                 layer:1
-           attrBlock:^NSDictionary *(UDIntervalNode *node) {
-        return @{ NSBackgroundColorAttributeName: [NSColor systemYellowColor] };
-    }];
+               target:self
+               action:@selector(findDecorationAttributesForNode:)];
 
     // Fold — collapse text visually
     [[UDDecorationLayerRegistry shared]
         registerOwner:UDFoldDecorationOwner
                 layer:3
-           attrBlock:^NSDictionary *(UDIntervalNode *node) {
-        static NSDictionary *d;
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            NSMutableParagraphStyle *s = [[NSMutableParagraphStyle alloc] init];
-            s.minimumLineHeight = 1.0; s.maximumLineHeight = 1.0;
-            s.lineSpacing = 0.0; s.paragraphSpacing = 0.0;
-            s.paragraphSpacingBefore = 0.0;
-            d = @{
-                NSForegroundColorAttributeName: [NSColor clearColor],
-                NSFontAttributeName:            [NSFont systemFontOfSize:0.1],
-                NSParagraphStyleAttributeName:  s,
-            };
-        });
-        return d;
-    }];
+               target:self
+               action:@selector(foldDecorationAttributesForNode:)];
+}
+
++ (NSDictionary *)findDecorationAttributesForNode:(UDIntervalNode *)node {
+    return @{ NSBackgroundColorAttributeName: [NSColor systemYellowColor] };
+}
+
++ (NSDictionary *)foldDecorationAttributesForNode:(UDIntervalNode *)node {
+    static NSDictionary *d;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSMutableParagraphStyle *s = [[NSMutableParagraphStyle alloc] init];
+        s.minimumLineHeight = 1.0; s.maximumLineHeight = 1.0;
+        s.lineSpacing = 0.0; s.paragraphSpacing = 0.0;
+        s.paragraphSpacingBefore = 0.0;
+        d = @{
+            NSForegroundColorAttributeName: [NSColor clearColor],
+            NSFontAttributeName:            [NSFont systemFontOfSize:0.1],
+            NSParagraphStyleAttributeName:  s,
+        };
+    });
+    return d;
 }
 
 // ---------------------------------------------------------------------------
@@ -367,11 +373,14 @@ static int UDCompareOffsets(const void *x, const void *y) {
 
     if ((mask & NSTextStorageEditedCharacters) && _highlighter.isActive) {
         [_highlighter reparseAfterEdits];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self->_syntaxHighlighter update];
-            [self applyDecorationHighlights];
-        });
+        [self performSelector:@selector(_updateHighlightsAfterEdit) withObject:nil
+                   afterDelay:0 inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ]];
     }
+}
+
+- (void)_updateHighlightsAfterEdit {
+    [_syntaxHighlighter update];
+    [self applyDecorationHighlights];
 }
 
 // ---------------------------------------------------------------------------

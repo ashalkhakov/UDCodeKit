@@ -210,28 +210,29 @@ static const unsigned short kKeyCodeRightArrow = 124;
 // MARK: - Selection change → invalidate current-line highlight
 // ---------------------------------------------------------------------------
 
+/// The line-fragment rect (in view coordinates) of the line that contains
+/// charOffset, or NSZeroRect if unavailable.
+- (NSRect)_lineRectAtCharOffset:(NSUInteger)charOffset {
+    NSLayoutManager *lm = self.layoutManager;
+    NSUInteger len = self.string.length;
+    if (lm == nil || len == 0) return NSZeroRect;
+    NSUInteger safe = (charOffset < len) ? charOffset : len - 1;
+    NSUInteger gi   = UDGlyphIndex(lm, safe);
+    NSRange    er;
+    NSRect     r  = [lm lineFragmentRectForGlyphAtIndex:gi effectiveRange:&er];
+    if (NSIsEmptyRect(r)) return NSZeroRect;
+    NSPoint origin = self.textContainerOrigin;
+    r.origin.y += origin.y;
+    r.origin.x  = 0;
+    r.size.width = self.bounds.size.width;
+    return r;
+}
+
 - (void)_selectionDidChange:(NSNotification *)note {
     NSLayoutManager *lm = self.layoutManager;
     if (!lm) return;
 
-    NSString *str = self.string;
-    NSUInteger len = str.length;
-
-    // Helper: returns the line-fragment rect (in view coordinates) for the
-    // line that contains charOffset, or NSZeroRect if unavailable.
-    NSRect (^lineRect)(NSUInteger) = ^NSRect(NSUInteger charOffset) {
-        if (len == 0) return NSZeroRect;
-        NSUInteger safe = (charOffset < len) ? charOffset : len - 1;
-        NSUInteger gi   = UDGlyphIndex(lm, safe);
-        NSRange    er;
-        NSRect     r  = [lm lineFragmentRectForGlyphAtIndex:gi effectiveRange:&er];
-        if (NSIsEmptyRect(r)) return NSZeroRect;
-        NSPoint origin = self.textContainerOrigin;
-        r.origin.y += origin.y;
-        r.origin.x  = 0;
-        r.size.width = self.bounds.size.width;
-        return r;
-    };
+    NSUInteger len = self.string.length;
 
     // Character offset of the cursor (insertion point) in the new selection.
     NSRange sel = self.selectedRange;
@@ -239,14 +240,14 @@ static const unsigned short kKeyCodeRightArrow = 124;
 
     // Invalidate only the old current-line rect (so it loses its highlight).
     if (_hasLastCursorCharOffset && _lastCursorCharOffset != cursorOffset) {
-        NSRect oldRect = lineRect(_lastCursorCharOffset);
+        NSRect oldRect = [self _lineRectAtCharOffset:_lastCursorCharOffset];
         if (!NSIsEmptyRect(oldRect)) {
             [self setNeedsDisplayInRect:oldRect];
         }
     }
 
     // Invalidate the new current-line rect.
-    NSRect newRect = lineRect(cursorOffset);
+    NSRect newRect = [self _lineRectAtCharOffset:cursorOffset];
     if (!NSIsEmptyRect(newRect)) {
         [self setNeedsDisplayInRect:newRect];
     }

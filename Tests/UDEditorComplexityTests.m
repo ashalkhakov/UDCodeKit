@@ -24,14 +24,15 @@ static double UDTime(void (^block)(void)) {
     return -[start timeIntervalSinceNow];
 }
 
-/// Runs what the edits queued on the main queue (the highlighters' updates).
+/// Runs what the edits left for the run loop's next turn (the highlighters'
+/// updates): a marker scheduled after them has run once they have. Three
+/// rounds, for what those schedule. Each pass of the run loop is told not to
+/// wait: it runs what is due.
 static void UDDrainMainQueue(void) {
-    // The main queue runs in order: once a block queued now has run, so has
-    // everything queued before it. Three rounds, for what those queue.
     for (int round = 0; round < 3; round++) {
-        __block BOOL reached = NO;
-        dispatch_async(dispatch_get_main_queue(), ^{ reached = YES; });
-        while (!reached) [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        NSMutableArray *reached = [NSMutableArray array];
+        [reached performSelector:@selector(addObject:) withObject:@YES afterDelay:0];
+        while (reached.count == 0) [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate date]];
     }
 }
 

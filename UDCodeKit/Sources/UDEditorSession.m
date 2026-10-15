@@ -59,11 +59,14 @@
 // On every model change — typing, and undo/redo or other edits made on the
 // model directly — once the parse tree has caught up.
 - (void)_textModelDidChange:(NSNotification *)note {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self->_missingNodeHighlighter update];
-        [self->_parseErrorHighlighter  update];
-        [self->_parseErrorCollector    update];
-    });
+    [self performSelector:@selector(_updateParseDecorations) withObject:nil
+               afterDelay:0 inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ]];
+}
+
+- (void)_updateParseDecorations {
+    [_missingNodeHighlighter update];
+    [_parseErrorHighlighter  update];
+    [_parseErrorCollector    update];
 }
 
 - (BOOL)startLanguageServer {

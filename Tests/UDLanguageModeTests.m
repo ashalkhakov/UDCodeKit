@@ -247,6 +247,16 @@
     XCTAssertEqualObjects(mode.identifier, @"xml");
 }
 
+/// XHTML is XML (tag mirroring, LemMinX), and so are SVG, NORMA's models,
+/// Interface Builder's files, schemas and the like; HTML keeps .html.
+- (void)testLookupByExtension_xmlFamily {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    for (NSString *ext in @[ @"xhtml", @"svg", @"orm", @"xsd", @"xib", @"storyboard", @"xaml", @"csproj", @"tmLanguage" ]) {
+        XCTAssertEqualObjects([reg modeForFileExtension:ext].identifier, @"xml", @"%@", ext);
+    }
+    XCTAssertEqualObjects([reg modeForFileExtension:@"html"].identifier, @"html");
+}
+
 - (void)testLookupByExtension_plist {
     UDLanguageMode *mode =
         [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"plist"];

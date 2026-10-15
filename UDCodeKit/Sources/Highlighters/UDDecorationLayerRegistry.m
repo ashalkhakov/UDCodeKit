@@ -32,8 +32,9 @@
 
 - (void)registerOwner:(NSString *)owner
                 layer:(NSInteger)layer
-           attrBlock:(UDDecorationAttrBlock)block {
-    NSDictionary *entry = @{ @"layer": @(layer), @"block": [block copy] };
+               target:(id)target
+               action:(SEL)action {
+    NSDictionary *entry = @{ @"layer": @(layer), @"target": target, @"action": NSStringFromSelector(action) };
     dispatch_barrier_async(_queue, ^{
         self->_entries[owner] = entry;
     });
@@ -48,6 +49,14 @@
     return layer;
 }
 
+/// Nodes by their owners' layers, ascending; an unknown owner's last.
+static NSInteger UDCompareLayers(id a, id b, void *context) {
+    NSDictionary<NSString *, NSDictionary *> *snapshot = (__bridge NSDictionary *)context;
+    NSInteger la = [snapshot[((UDIntervalNode *)a).owner][@"layer"] integerValue] ?: NSIntegerMax;
+    NSInteger lb = [snapshot[((UDIntervalNode *)b).owner][@"layer"] integerValue] ?: NSIntegerMax;
+    return la < lb ? NSOrderedAscending : la > lb ? NSOrderedDescending : NSOrderedSame;
+}
+
 - (NSDictionary<NSAttributedStringKey, id> *)
     mergedAttributesForNodes:(NSArray<UDIntervalNode *> *)nodes
              baseAttributes:(NSDictionary<NSAttributedStringKey, id> *)base {
@@ -57,21 +66,17 @@
 
     // Sort covering nodes by ascending layer so higher layers win.
     NSArray<UDIntervalNode *> *sorted =
-        [nodes sortedArrayUsingComparator:^NSComparisonResult(UDIntervalNode *a,
-                                                               UDIntervalNode *b) {
-            NSInteger la = [snapshot[a.owner][@"layer"] integerValue] ?: NSIntegerMax;
-            NSInteger lb = [snapshot[b.owner][@"layer"] integerValue] ?: NSIntegerMax;
-            return la < lb ? NSOrderedAscending
-                 : la > lb ? NSOrderedDescending
-                           : NSOrderedSame;
-        }];
+        [nodes sortedArrayUsingFunction:UDCompareLayers context:(__bridge void *)snapshot];
 
     NSMutableDictionary *merged = [NSMutableDictionary dictionaryWithDictionary:base];
     for (UDIntervalNode *node in sorted) {
         NSDictionary *entry = snapshot[node.owner];
         if (!entry) continue;
-        UDDecorationAttrBlock block = entry[@"block"];
-        NSDictionary *attrs = block ? block(node) : nil;
+        id target = entry[@"target"];
+        SEL action = NSSelectorFromString(entry[@"action"]);
+        NSDictionary *(*attributes)(id, SEL, UDIntervalNode *) =
+            (NSDictionary *(*)(id, SEL, UDIntervalNode *))[target methodForSelector:action];
+        NSDictionary *attrs = attributes(target, action, node);
         if (attrs) [merged addEntriesFromDictionary:attrs];
     }
     return [merged copy];

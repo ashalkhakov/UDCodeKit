@@ -9,11 +9,8 @@
 typedef struct TSLanguage TSLanguage;
 const TSLanguage *tree_sitter_xml(void);
 
-// The language server installer downloads macOS's Java runtime; elsewhere
-// XML has no language server yet.
-#ifdef __APPLE__
+// LemMinX on the Java runtime the installer downloads (macOS's or Linux's).
 #define UD_XML_LANGUAGE_SERVER 1
-#endif
 
 @implementation TreeSitterXmlPlugin {
     NSBundle *_bundle;
@@ -93,7 +90,7 @@ const TSLanguage *tree_sitter_xml(void);
     // Exactly how you do this depends on your host's UI API —
     // it could be a NSAlert, an info bar, a notification, etc.
     //
-    // For now: show an NSAlert on the main thread (already guaranteed by installer).
+    // For now: show an NSAlert (the installer calls on the main thread).
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"XML Support Requires Additional Components";
     alert.informativeText =

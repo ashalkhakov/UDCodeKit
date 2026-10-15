@@ -23,16 +23,19 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
     [[UDDecorationLayerRegistry shared]
         registerOwner:UDLSPDiagnosticDecorationOwner
                 layer:5
-           attrBlock:^NSDictionary *(UDIntervalNode *node) {
-        static NSColor *errC, *warnC;
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            errC  = [NSColor colorWithRed:0.95 green:0.20 blue:0.20 alpha:0.18];
-            warnC = [NSColor colorWithRed:0.95 green:0.75 blue:0.10 alpha:0.22];
-        });
-        BOOL isWarning = [node.options.className isEqualToString:@"lsp.warning"];
-        return @{ NSBackgroundColorAttributeName: isWarning ? warnC : errC };
-    }];
+               target:self
+               action:@selector(decorationAttributesForNode:)];
+}
+
++ (NSDictionary *)decorationAttributesForNode:(UDIntervalNode *)node {
+    static NSColor *errC, *warnC;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        errC  = [NSColor colorWithRed:0.95 green:0.20 blue:0.20 alpha:0.18];
+        warnC = [NSColor colorWithRed:0.95 green:0.75 blue:0.10 alpha:0.22];
+    });
+    BOOL isWarning = [node.options.className isEqualToString:@"lsp.warning"];
+    return @{ NSBackgroundColorAttributeName: isWarning ? warnC : errC };
 }
 
 // ---------------------------------------------------------------------------
@@ -67,9 +70,7 @@ NSString * const UDLSPDiagnosticDecorationOwner = @"lsp.diagnostic";
 - (void)applyDiagnostics:(NSArray<LSPDiagnostic *> *)diagnostics {
     // Ensure we always land on the main queue — callers need not worry.
     if (!NSThread.isMainThread) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self applyDiagnostics:diagnostics];
-        });
+        [self performSelectorOnMainThread:@selector(applyDiagnostics:) withObject:diagnostics waitUntilDone:NO];
         return;
     }
 

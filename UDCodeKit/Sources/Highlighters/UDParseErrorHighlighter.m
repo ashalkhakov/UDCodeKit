@@ -18,16 +18,19 @@ static inline NSUInteger charFromByte(uint32_t b) { return (NSUInteger)(b / 2); 
     [[UDDecorationLayerRegistry shared]
         registerOwner:UDParseErrorDecorationOwner
                 layer:6
-           attrBlock:^NSDictionary *(UDIntervalNode *node) {
-        static NSColor *errC, *missingC;
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            errC     = [NSColor colorWithRed:0.95 green:0.50 blue:0.05 alpha:0.22];
-            missingC = [NSColor colorWithRed:0.95 green:0.80 blue:0.10 alpha:0.22];
-        });
-        BOOL isMissing = [node.options.className isEqualToString:@"ts.missing"];
-        return @{ NSBackgroundColorAttributeName: isMissing ? missingC : errC };
-    }];
+               target:self
+               action:@selector(decorationAttributesForNode:)];
+}
+
++ (NSDictionary *)decorationAttributesForNode:(UDIntervalNode *)node {
+    static NSColor *errC, *missingC;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        errC     = [NSColor colorWithRed:0.95 green:0.50 blue:0.05 alpha:0.22];
+        missingC = [NSColor colorWithRed:0.95 green:0.80 blue:0.10 alpha:0.22];
+    });
+    BOOL isMissing = [node.options.className isEqualToString:@"ts.missing"];
+    return @{ NSBackgroundColorAttributeName: isMissing ? missingC : errC };
 }
 
 // ---------------------------------------------------------------------------

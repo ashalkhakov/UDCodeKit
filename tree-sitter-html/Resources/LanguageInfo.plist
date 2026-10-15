@@ -13,7 +13,6 @@
 			<array>
 				<string>html</string>
 				<string>htm</string>
-				<string>xhtml</string>
 				<string>shtml</string>
 			</array>
 			<key>lspLanguageID</key>

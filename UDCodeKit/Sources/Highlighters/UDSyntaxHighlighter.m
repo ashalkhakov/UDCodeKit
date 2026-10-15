@@ -30,13 +30,16 @@ static NSInteger UDCompareRangeStarts(NSValue *x, NSValue *y, void *context) {
     [[UDDecorationLayerRegistry shared]
         registerOwner:UDHighlightDecorationOwner
                 layer:0
-           attrBlock:^NSDictionary *(UDIntervalNode *node) {
-        // Resolved at draw time against the current theme via the text storage.
-        // Return nil here; UDTextModelTextStorage._attrsForNode: handles theme
-        // lookup because it needs access to self.theme.  This block is a
-        // placeholder that keeps the layer ordering correct.
-        return nil;
-    }];
+               target:self
+               action:@selector(decorationAttributesForNode:)];
+}
+
++ (NSDictionary *)decorationAttributesForNode:(UDIntervalNode *)node {
+    // Resolved at draw time against the current theme via the text storage.
+    // Return nil here; UDTextModelTextStorage._attrsForNode: handles theme
+    // lookup because it needs access to self.theme.  This block is a
+    // placeholder that keeps the layer ordering correct.
+    return nil;
 }
 
 // ---------------------------------------------------------------------------

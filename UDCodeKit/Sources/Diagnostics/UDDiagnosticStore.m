@@ -30,31 +30,57 @@ static const NSUInteger kDefaultMaxItemsPerSource = 100;
 #pragma mark - Public API
 // ---------------------------------------------------------------------------
 
+// The store is main-thread state: a change made there applies at once, so
+// a reader right after it sees it; one made elsewhere (a language server's
+// reply) is made again on the main thread.
+
 - (void)setDiagnostics:(NSArray<UDDiagnosticItem *> *)items
              forSource:(UDDiagnosticSource)source {
-    [self _mutate:^{
-        self->_bySource[source] = [self _cap:items];
-    }];
+    if (![NSThread isMainThread]) {
+        [self performSelectorOnMainThread:@selector(_setChange:)
+                               withObject:@[ items, source ] waitUntilDone:NO];
+        return;
+    }
+    _bySource[source] = [self _cap:items];
+    [self _didChange];
 }
 
 - (void)addDiagnostics:(NSArray<UDDiagnosticItem *> *)items
              forSource:(UDDiagnosticSource)source {
-    [self _mutate:^{
-        NSArray<UDDiagnosticItem *> *existing = self->_bySource[source] ?: @[];
-        self->_bySource[source] = [self _cap:[existing arrayByAddingObjectsFromArray:items]];
-    }];
+    if (![NSThread isMainThread]) {
+        [self performSelectorOnMainThread:@selector(_addChange:)
+                               withObject:@[ items, source ] waitUntilDone:NO];
+        return;
+    }
+    NSArray<UDDiagnosticItem *> *existing = _bySource[source] ?: @[];
+    _bySource[source] = [self _cap:[existing arrayByAddingObjectsFromArray:items]];
+    [self _didChange];
 }
 
 - (void)clearSource:(UDDiagnosticSource)source {
-    [self _mutate:^{
-        [self->_bySource removeObjectForKey:source];
-    }];
+    if (![NSThread isMainThread]) {
+        [self performSelectorOnMainThread:@selector(clearSource:) withObject:source waitUntilDone:NO];
+        return;
+    }
+    [_bySource removeObjectForKey:source];
+    [self _didChange];
 }
 
 - (void)clearAll {
-    [self _mutate:^{
-        [self->_bySource removeAllObjects];
-    }];
+    if (![NSThread isMainThread]) {
+        [self performSelectorOnMainThread:@selector(clearAll) withObject:nil waitUntilDone:NO];
+        return;
+    }
+    [_bySource removeAllObjects];
+    [self _didChange];
+}
+
+- (void)_setChange:(NSArray *)change {
+    [self setDiagnostics:change[0] forSource:change[1]];
+}
+
+- (void)_addChange:(NSArray *)change {
+    [self addDiagnostics:change[0] forSource:change[1]];
 }
 
 // ---------------------------------------------------------------------------
@@ -66,17 +92,8 @@ static const NSUInteger kDefaultMaxItemsPerSource = 100;
     return [[items subarrayWithRange:NSMakeRange(0, _maxItemsPerSource)] copy];
 }
 
-/// Runs block on the serial queue, rebuilds allDiagnostics, then posts the
-/// change notification on the main queue.
-/// The store is main-thread state: a change made there applies at once, so
-/// a reader right after it sees it; one made elsewhere (a language server's
-/// reply) is applied on the main thread.
-- (void)_mutate:(dispatch_block_t)block {
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{ [self _mutate:block]; });
-        return;
-    }
-    block();
+/// Rebuilds allDiagnostics and says so, on the main thread.
+- (void)_didChange {
     [self willChangeValueForKey:@"allDiagnostics"];
     _allDiagnostics = [self _buildMerged];
     [self didChangeValueForKey:@"allDiagnostics"];
@@ -85,20 +102,21 @@ static const NSUInteger kDefaultMaxItemsPerSource = 100;
                       object:self];
 }
 
+/// By line, then column.
+static NSInteger UDComparePositions(id first, id second, void *context) {
+    UDDiagnosticItem *a = first, *b = second;
+    if (a.line != b.line) return (a.line < b.line) ? NSOrderedAscending : NSOrderedDescending;
+    if (a.column != b.column) return (a.column < b.column) ? NSOrderedAscending : NSOrderedDescending;
+    return NSOrderedSame;
+}
+
 - (NSArray<UDDiagnosticItem *> *)_buildMerged {
     // Collect all items from every source, then sort by (line, column).
     NSMutableArray<UDDiagnosticItem *> *all = [NSMutableArray array];
     for (NSArray<UDDiagnosticItem *> *items in _bySource.allValues) {
         [all addObjectsFromArray:items];
     }
-    [all sortUsingComparator:^NSComparisonResult(UDDiagnosticItem *a,
-                                                  UDDiagnosticItem *b) {
-        if (a.line != b.line) return (a.line < b.line) ? NSOrderedAscending
-                                                        : NSOrderedDescending;
-        if (a.column != b.column) return (a.column < b.column) ? NSOrderedAscending
-                                                                 : NSOrderedDescending;
-        return NSOrderedSame;
-    }];
+    [all sortUsingFunction:UDComparePositions context:NULL];
     return [all copy];
 }
 

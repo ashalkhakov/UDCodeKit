@@ -22,7 +22,7 @@ typedef NS_ENUM(NSInteger, XMLLSPInstallState) {
 /// then call -userGrantedConsent: with YES or NO.
 - (void)installerNeedsConsent:(XMLLSPInstaller *)installer;
 
-/// Progress update during download (0.0 – 1.0). May be called on a background queue.
+/// Progress update during download (0.0 – 1.0). Every callback is on the main thread.
 - (void)installer:(XMLLSPInstaller *)installer downloadProgress:(double)progress label:(NSString *)label;
 
 /// Installation completed successfully.

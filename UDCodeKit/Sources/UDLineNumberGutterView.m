@@ -238,13 +238,13 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 - (void)_scheduleLayoutCompleteRedraw {
     if (_layoutRedrawScheduled) return;
     _layoutRedrawScheduled = YES;
-    __weak typeof(self) weak = self;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        __strong typeof(weak) strong = weak;
-        if (!strong) return;
-        strong->_layoutRedrawScheduled = NO;
-        [strong setNeedsDisplay:YES];
-    });
+    [self performSelector:@selector(_layoutCompleteRedraw) withObject:nil
+               afterDelay:0 inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ]];
+}
+
+- (void)_layoutCompleteRedraw {
+    _layoutRedrawScheduled = NO;
+    [self setNeedsDisplay:YES];
 }
 
 // ---------------------------------------------------------------------------

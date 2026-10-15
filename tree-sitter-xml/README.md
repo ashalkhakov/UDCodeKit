@@ -1,7 +1,10 @@
 # TreeSitterXml Grammar Bundle
 
-Standalone macOS loadable bundle that provides tree-sitter-based syntax
-highlighting for **XML** files.
+A loadable bundle (macOS and GNUstep) that provides tree-sitter-based syntax
+highlighting for **XML** files, mirrors an element's closing tag as its
+opening one is edited, and offers the LemMinX language server: on first use,
+with the user's consent, it downloads Adoptium's Java runtime for the system
+(macOS or Linux) and LemMinX into the app's Application Support.
 
 ## Directory layout
 

@@ -16,9 +16,9 @@
 
 // Horizontal gap between the end of line content and the label.
 static const CGFloat    kLabelGap          = 12.0;
-// Approximate pixels per character of label text.
-static const CGFloat    kLabelWidthPerChar = 6.5;
 // Maximum message characters displayed before truncation with "…".
+// (A label is as wide as its message in its font: measured, not estimated
+// per character, which on GNUstep's wider fonts cut "Missing ;" short.)
 static const NSUInteger kMaxLabelChars     = 60;
 // Fixed label height.
 static const CGFloat    kLabelHeight       = 16.0;
@@ -26,6 +26,15 @@ static const CGFloat    kLabelHeight       = 16.0;
 static const CGFloat    kLabelCornerRadius = 3.0;
 // Font size of the inline label text.
 static const CGFloat    kLabelFontSize     = 10.5;
+
+static NSFont *UDDiagnosticLabelFont(void) {
+    return [NSFont userFixedPitchFontOfSize:kLabelFontSize];
+}
+
+/// A label's width: its message's, in its font, and its padding.
+static CGFloat UDDiagnosticLabelWidth(NSString *message) {
+    return ceil([message sizeWithAttributes:@{ NSFontAttributeName: UDDiagnosticLabelFont() }].width) + 10.0;
+}
 
 // ---------------------------------------------------------------------------
 
@@ -87,15 +96,8 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 @property (nonatomic) NSRange completionRange;
 @end
 
-// ---------------------------------------------------------------------------
-// Physical key codes used for Option+Arrow structured navigation.
-// (Return, Tab key codes are handled inside UDAutoIndenter.)
-// ---------------------------------------------------------------------------
 
-static const unsigned short kKeyCodeUpArrow    = 126;
-static const unsigned short kKeyCodeDownArrow  = 125;
-static const unsigned short kKeyCodeLeftArrow  = 123;
-static const unsigned short kKeyCodeRightArrow = 124;
+
 
 // ---------------------------------------------------------------------------
 
@@ -199,14 +201,15 @@ static const unsigned short kKeyCodeRightArrow = 124;
     if (_structuredNavigator &&
             (mods & NSEventModifierFlagOption) &&
             !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) {
-        switch (event.keyCode) {
-            case kKeyCodeUpArrow:
+        NSString *arrows = event.charactersIgnoringModifiers;      // not key codes: the Mac's
+        switch (arrows.length ? [arrows characterAtIndex:0] : 0) {
+            case NSUpArrowFunctionKey:
                 [_structuredNavigator moveToParent];      return;
-            case kKeyCodeDownArrow:
+            case NSDownArrowFunctionKey:
                 [_structuredNavigator moveToFirstChild];  return;
-            case kKeyCodeLeftArrow:
+            case NSLeftArrowFunctionKey:
                 [_structuredNavigator moveToPrevSibling]; return;
-            case kKeyCodeRightArrow:
+            case NSRightArrowFunctionKey:
                 [_structuredNavigator moveToNextSibling]; return;
         }
     }
@@ -332,8 +335,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
     for (UDIntervalNode *node in nodes) {
         if (!IsDiagnosticNode(node)) continue;
         NSString *msg = [self _truncatedMessage:node.options.userInfo];
-        lineFragmentUsedRect->size.width +=
-            kLabelGap + (CGFloat)msg.length * kLabelWidthPerChar + 8.0;
+        lineFragmentUsedRect->size.width += kLabelGap + UDDiagnosticLabelWidth(msg);
         return YES;
     }
     return NO;
@@ -374,8 +376,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
     NSRange chars = [lm characterRangeForGlyphRange:glyphs actualGlyphRange:NULL];
     NSArray<UDIntervalNode *> *nodes =
         [model decorationNodesInOffsetRange:(NSInteger)chars.location end:(NSInteger)NSMaxRange(chars)];
-    NSFont          *labelFont =
-        [NSFont userFixedPitchFontOfSize:kLabelFontSize];
+    NSFont          *labelFont = UDDiagnosticLabelFont();
 
     for (UDIntervalNode *node in nodes) {
         if (!IsDiagnosticNode(node)) continue;
@@ -403,8 +404,7 @@ static const unsigned short kKeyCodeRightArrow = 124;
         CGFloat   labelX  = viewRect.origin.x + viewRect.size.width + kLabelGap;
         CGFloat   labelY  = viewRect.origin.y +
                             (viewRect.size.height - kLabelHeight) / 2.0;
-        CGFloat   labelW  = MIN((CGFloat)msg.length * kLabelWidthPerChar + 8.0,
-                                self.bounds.size.width - labelX - 4.0);
+        CGFloat   labelW  = MIN(UDDiagnosticLabelWidth(msg), self.bounds.size.width - labelX - 4.0);
         if (labelW < 20.0) continue;
 
         NSRect labelRect = NSMakeRect(labelX, labelY, labelW, kLabelHeight);

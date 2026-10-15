@@ -10,6 +10,10 @@
 #import <UDCodeKit/UDCodeKit.h>
 #import <UDPieceTable/UDPieceTable.h>
 
+@interface UDDiagnosticTextView (Labels)
+- (NSRect)_labelRectForNode:(UDIntervalNode *)node message:(NSString *)message;
+@end
+
 @interface UDEditorTypingTests : UDCodeTestCase <UDDiagnosticTextViewDelegate>
 @property (nonatomic) NSInteger hoverAskedAt;     // -1: not asked
 @property (nonatomic) NSInteger hoverEnded;
@@ -306,6 +310,62 @@
     [NSApp postEvent:up atStart:NO];                       // the click's mouse-up, for its tracking loop
     [textView mouseDown:down];
     XCTAssertEqualObjects([_storage.string substringWithRange:textView.selectedRange], @"<#x#>");
+}
+
+/// A placeholder is one thing, as Xcode's are: the caret does not rest inside
+/// one, a selection crossing its edge takes it all, and deleting next to one
+/// deletes it whole, never half of its "<#" and "#>".
+- (void)testAPlaceholderIsOneThing {
+    UDDiagnosticTextView *textView = _editor.textView;
+    [textView setSelectedRange:NSMakeRange(4, 0)];
+    [textView insertText:@"(<#int a#>, <#int b#>)"];
+    NSRange a = [_storage.string rangeOfString:@"<#int a#>"], b = [_storage.string rangeOfString:@"<#int b#>"];
+
+    [textView setSelectedRange:NSMakeRange(a.location + 3, 0)];
+    XCTAssertEqualObjects(NSStringFromRange(textView.selectedRange), NSStringFromRange(a), @"a caret inside takes it all");
+    [textView setSelectedRange:NSMakeRange(a.location - 1, 3)];
+    XCTAssertEqualObjects(NSStringFromRange(textView.selectedRange),
+                          NSStringFromRange(NSMakeRange(a.location - 1, a.length + 1)), @"a selection across its edge too");
+    [textView setSelectedRange:NSMakeRange(a.location, 0)];
+    XCTAssertEqualObjects(NSStringFromRange(textView.selectedRange), NSStringFromRange(NSMakeRange(a.location, 0)),
+                          @"a caret before it stays");
+    [textView moveRight:nil];
+    XCTAssertEqualObjects(NSStringFromRange(textView.selectedRange), NSStringFromRange(a), @"the arrow into it takes it all");
+
+    [textView setSelectedRange:NSMakeRange(NSMaxRange(a), 0)];
+    [self pressKey:@"\x7f" code:51];                                   // Backspace
+    XCTAssertEqualObjects([_storage.textModel getValue], @"\tone(, <#int b#>)\n\ttwo\n", @"Backspace after it deletes it whole");
+    b = [_storage.string rangeOfString:@"<#int b#>"];
+    [textView setSelectedRange:NSMakeRange(b.location, 0)];
+    [textView deleteForward:nil];
+    XCTAssertEqualObjects([_storage.textModel getValue], @"\tone(, )\n\ttwo\n", @"Delete before it too");
+}
+
+/// Two diagnostics on one line: their labels side by side, not one over the
+/// other.
+- (void)testDiagnosticLabelsOnOneLineDoNotOverlap {
+    UDDiagnosticTextView *textView = _editor.textView;
+    UDTextModel *model = _storage.textModel;
+    NSArray *decorations = @[
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 2, 1, 3)
+            options:[[UDDecorationOptions alloc] initWithClassName:@"lsp.error" userInfo:@"Unexpected token"]],
+        [[UDModelDeltaDecoration alloc] initWithRange:PTRangeMake(1, 4, 1, 5)
+            options:[[UDDecorationOptions alloc] initWithClassName:@"lsp.warning" userInfo:@"Missing ;"]],
+    ];
+    [model deltaDecorations:@[] newDecorations:decorations owner:UDLSPDiagnosticDecorationOwner];
+    [textView.layoutManager ensureLayoutForTextContainer:textView.textContainer];
+    NSArray<UDIntervalNode *> *nodes = [model decorationNodesInOffsetRange:0 end:5];
+    NSMutableArray<NSValue *> *rects = [NSMutableArray array];
+    for (UDIntervalNode *node in nodes) {
+        if (![node.owner isEqualToString:UDLSPDiagnosticDecorationOwner]) continue;
+        [rects addObject:[NSValue valueWithRect:[textView _labelRectForNode:node message:node.options.userInfo]]];
+    }
+    XCTAssertEqual(rects.count, 2U);
+    if (rects.count != 2) return;
+    NSRect first = rects[0].rectValue, second = rects[1].rectValue;
+    XCTAssertFalse(NSIsEmptyRect(first));
+    XCTAssertFalse(NSIsEmptyRect(second));
+    XCTAssertFalse(NSIntersectsRect(first, second), @"%@ and %@", NSStringFromRect(first), NSStringFromRect(second));
 }
 
 #pragma mark - Quotes

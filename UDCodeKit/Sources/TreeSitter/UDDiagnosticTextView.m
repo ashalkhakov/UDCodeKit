@@ -346,13 +346,14 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         [model decorationNodesInOffsetRange:(NSInteger)charRange.location
                                         end:(NSInteger)NSMaxRange(charRange)];
 
+    BOOL labelled = NO;
     for (UDIntervalNode *node in nodes) {
         if (!IsDiagnosticNode(node)) continue;
         NSString *msg = [self _truncatedMessage:node.options.userInfo];
         lineFragmentUsedRect->size.width += kLabelGap + UDDiagnosticLabelWidth(msg);
-        return YES;
+        labelled = YES;
     }
-    return NO;
+    return labelled;
 }
 
 // ---------------------------------------------------------------------------
@@ -366,11 +367,22 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     NSInteger docLen = [_textModel getLength];
     NSUInteger charOffset = (NSUInteger)MAX(0LL, node.start);
     if (lm == nil || charOffset >= (NSUInteger)docLen) return NSZeroRect;
-    NSRect usedRect = [lm lineFragmentUsedRectForGlyphAtIndex:UDGlyphIndex(lm, charOffset) effectiveRange:nil];
+    NSRange lineGlyphs;
+    NSRect usedRect = [lm lineFragmentUsedRectForGlyphAtIndex:UDGlyphIndex(lm, charOffset) effectiveRange:&lineGlyphs];
     if (NSIsEmptyRect(usedRect)) return NSZeroRect;
     NSPoint origin = self.textContainerOrigin;
     NSRect viewRect = NSOffsetRect(usedRect, origin.x, origin.y);
     CGFloat labelX = NSMaxX(viewRect) + kLabelGap;
+    // After the labels of the line's diagnostics before it (by where they
+    // start), not over them.
+    NSRange lineChars = [lm characterRangeForGlyphRange:lineGlyphs actualGlyphRange:NULL];
+    for (UDIntervalNode *other in [_textModel decorationNodesInOffsetRange:(NSInteger)lineChars.location
+                                                                      end:(NSInteger)NSMaxRange(lineChars)]) {
+        if (other == node || !IsDiagnosticNode(other)) continue;
+        if (other.start < node.start || (other.start == node.start && [other.identifier compare:node.identifier] == NSOrderedAscending)) {
+            labelX += UDDiagnosticLabelWidth([self _truncatedMessage:other.options.userInfo]) + kLabelGap;
+        }
+    }
     CGFloat labelY = NSMinY(viewRect) + (NSHeight(viewRect) - kLabelHeight) / 2.0;
     CGFloat labelW = MIN(UDDiagnosticLabelWidth(msg), self.bounds.size.width - labelX - 4.0);
     if (labelW < 20.0) return NSZeroRect;
@@ -543,6 +555,11 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 - (void)deleteBackward:(id)sender {
     if (_cursorsController.selections.count <= 1) {
+        // A placeholder just before the caret goes whole.
+        NSRange caret = self.selectedRange;
+        NSRange placeholder = caret.length == 0 && caret.location > 0
+            ? UDPlaceholderRangeAtIndex(self.string, caret.location - 1) : NSMakeRange(NSNotFound, 0);
+        if (placeholder.location != NSNotFound) [self setSelectedRange:placeholder];
         [super deleteBackward:sender];
         return;
     }
@@ -552,6 +569,11 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 - (void)deleteForward:(id)sender {
     if (_cursorsController.selections.count <= 1) {
+        // A placeholder just after the caret goes whole.
+        NSRange caret = self.selectedRange;
+        NSRange placeholder = caret.length == 0
+            ? UDPlaceholderRangeAtIndex(self.string, caret.location) : NSMakeRange(NSNotFound, 0);
+        if (placeholder.location != NSNotFound) [self setSelectedRange:placeholder];
         [super deleteForward:sender];
         return;
     }
@@ -741,11 +763,6 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         // Plain click: remove secondary cursors, let NSTextView place primary.
         [_cursorsController removeSecondaryCursors];
         [super mouseDown:event];
-        // A click in a placeholder takes the whole of it, as typing will.
-        if (self.selectedRange.length == 0) {
-            NSRange placeholder = UDPlaceholderRangeAtIndex(self.string, self.selectedRange.location);
-            if (placeholder.location != NSNotFound) [self setSelectedRange:placeholder];
-        }
         // After NSTextView updates selectedRanges, sync back to controller.
         [self _syncSelectionsToController];
         return;
@@ -766,13 +783,31 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 // MARK: - NSTextViewDelegate / selection change
 
+/// @a range with the placeholders its ends fall inside taken whole: a
+/// placeholder is one thing, as Xcode's are (and RDLKit's pills). A caret
+/// does not rest inside one, and a selection crossing an edge takes it all;
+/// edited half, it would be text that is neither placeholder nor code.
+static NSRange UDRangeTakingWholePlaceholders(NSString *text, NSRange range) {
+    NSUInteger start = range.location, end = NSMaxRange(range);
+    if (start == NSNotFound || end > text.length) return range;
+    NSRange first = UDPlaceholderRangeAtIndex(text, start);         // the one the start is in
+    if (first.location != NSNotFound && first.location < start) start = first.location;
+    NSRange last = end > 0 ? UDPlaceholderRangeAtIndex(text, end - 1) : NSMakeRange(NSNotFound, 0);
+    if (last.location != NSNotFound && end < NSMaxRange(last)) end = NSMaxRange(last);
+    return NSMakeRange(start, end - start);
+}
+
 /// Called by NSTextView when the user moves the cursor via keyboard or
 /// single-click (the non-option case, handled by super above).
 - (void)setSelectedRanges:(NSArray<NSValue *> *)ranges
                  affinity:(NSSelectionAffinity)affinity
            stillSelecting:(BOOL)stillSelecting {
 
-    [super setSelectedRanges:ranges affinity:affinity stillSelecting:stillSelecting];
+    NSMutableArray<NSValue *> *whole = [NSMutableArray arrayWithCapacity:ranges.count];
+    for (NSValue *range in ranges) {
+        [whole addObject:[NSValue valueWithRange:UDRangeTakingWholePlaceholders(self.string, range.rangeValue)]];
+    }
+    [super setSelectedRanges:whole affinity:affinity stillSelecting:stillSelecting];
 
     // When the system moves the primary cursor (keyboard navigation,
     // single-click), keep the controller's primary selection in sync.
@@ -783,6 +818,14 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         [self _syncSelectionsToController];
     }
 }
+
+#ifndef __APPLE__
+// GNUstep's own selecting (a click, the arrows) comes here, not always
+// through -setSelectedRanges:affinity:stillSelecting:.
+- (void)setSelectedRange:(NSRange)range affinity:(NSSelectionAffinity)affinity stillSelecting:(BOOL)stillSelecting {
+    [super setSelectedRange:UDRangeTakingWholePlaceholders(self.string, range) affinity:affinity stillSelecting:stillSelecting];
+}
+#endif
 
 // MARK: - Sync helpers
 

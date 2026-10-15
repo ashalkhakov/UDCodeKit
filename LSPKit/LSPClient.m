@@ -15,6 +15,7 @@
 #import "LSPCommon.h"
 
 #include <sys/wait.h>
+#include <signal.h>
 
 NSNotificationName const LSPDocumentDidChangeNotification = @"LSPDocumentDidChange";
 NSString * const LSPDocumentUserInfoKey = @"Document";
@@ -420,6 +421,9 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
 }
 
 - (void)_launch {
+    // A server that has ended must not end the app with it: writing to its
+    // pipe then fails (and -writeData: says so) instead of raising SIGPIPE.
+    signal(SIGPIPE, SIG_IGN);
     _pipeline = [[LSPPipeline alloc] init];
     _pipeline.delegate = self;
     _task = [[NSTask alloc] init];
@@ -445,6 +449,9 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
 - (void)terminate {
     if ([_task isRunning]) {
         _shouldTerminate = YES;
+        // Nothing more is sent: the documents' closing, say, before the
+        // task's end is noticed on the run loop.
+        _initialized = NO;
         [_task terminate];
     }
 }

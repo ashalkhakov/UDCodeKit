@@ -55,6 +55,7 @@
 				Find/UDFindModel.h,
 				Tabs/UDTabBarView.h,
 				Workbench/UDEditorTabsController.h,
+				Workbench/UDCompletionListController.h,
 				Workbench/UDHoverViewController.h,
 				Workbench/UDPaneSplitController.h,
 				Tabs/UDTabItemView.h,

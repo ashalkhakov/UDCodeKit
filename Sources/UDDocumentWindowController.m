@@ -448,6 +448,11 @@ static const NSInteger UDInspectorPane = 2;
                                                 target:self action:@selector(_didReceiveHover:)];
 }
 
+- (void)textViewHoverDidEnd:(UDDiagnosticTextView *)textView {
+    _hoverTextView = nil;     // a reply still on its way finds no one
+    [_hover close];
+}
+
 - (void)_didReceiveHover:(LSPResponse *)response {
     NSDictionary *contents = [response.result objectForKey:@"contents"];
     NSString *text = [contents isKindOfClass:[NSDictionary class]] ? contents[@"value"] : [contents description];

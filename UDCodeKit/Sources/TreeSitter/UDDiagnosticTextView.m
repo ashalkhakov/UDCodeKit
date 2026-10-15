@@ -10,6 +10,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDDiagnosticTextView.h"
+#import "UDCompletionListController.h"
 #import "UDCodeEditorLayoutManager.h"
 
 // Horizontal gap between the end of line content and the label.
@@ -72,6 +73,17 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 @property (nonatomic) NSUInteger lastCursorCharOffset;
 /// Whether lastCursorCharOffset has been set yet.
 @property (nonatomic) BOOL       hasLastCursorCharOffset;
+/// Where the mouse rests (waiting out hoverDelay), and the word the
+/// delegate was last asked about (NSNotFound: none).
+@property (nonatomic) NSUInteger hoverIndex;
+@property (nonatomic) NSPoint    hoverPoint;
+@property (nonatomic) NSRange    hoverWordRange;
+#ifdef __APPLE__
+@property (nonatomic, strong, nullable) NSTrackingArea *hoverTrackingArea;
+#endif
+/// The completions showing, and the word they complete.
+@property (nonatomic, strong, nullable) UDCompletionListController *completionList;
+@property (nonatomic) NSRange completionRange;
 @end
 
 // ---------------------------------------------------------------------------
@@ -122,6 +134,8 @@ static const unsigned short kKeyCodeRightArrow = 124;
            selector:@selector(_selectionDidChange:)
                name:NSTextViewDidChangeSelectionNotification
              object:self];
+    _hoverDelay = 0.5;
+    _hoverWordRange = NSMakeRange(NSNotFound, 0);
 }
 
 - (void)dealloc {
@@ -145,8 +159,26 @@ static const unsigned short kKeyCodeRightArrow = 124;
 /// dispatched to the structured navigator, and everything else falls through
 /// to -[super keyDown:] for NSTextView's normal key-binding pipeline.
 - (void)keyDown:(NSEvent *)event {
+    [self _endHover];
+    // The completion list's keys (arrows, Return, Tab, Escape) are its.
+    if ([self.completionList handleKeyEvent:event]) return;
     // 1. Smart key handling (indentation, electric pairs, language-specific).
-    if ([_autoIndenter handleKeyEvent:event]) return;
+    // It edits the model itself; the delegate hears of what was typed as it
+    // would have from NSTextView (-textView:shouldChangeTextInRange:…, then
+    // NSTextDidChangeNotification), so what follows typing ('(' showing a
+    // function's parameters, the document's change count) still does.
+    NSRange typedRange = self.selectedRange;
+    NSString *typed = event.characters;
+    if ([_autoIndenter handleKeyEvent:event]) {
+        if (typed.length > 0) {
+            id delegate = self.delegate;
+            if ([delegate respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementString:)]) {
+                [delegate textView:self shouldChangeTextInRange:typedRange replacementString:typed];
+            }
+            [self didChangeText];
+        }
+        return;
+    }
 
     // 2. Option + Arrow: tree-structured navigation.
     NSEventModifierFlags mods =
@@ -229,6 +261,15 @@ static const unsigned short kKeyCodeRightArrow = 124;
 }
 
 - (void)_selectionDidChange:(NSNotification *)note {
+    // The cursors follow every move of a single caret: on GNUstep typing,
+    // deleting and the arrows move it through -setSelectedRange:, which
+    // never reaches -setSelectedRanges:affinity:stillSelecting:, and Return
+    // (the auto-indenter's, through the cursors) went in where the caret
+    // had been before.
+    if (_cursorsController && _cursorsController.selections.count <= 1) {
+        [self _syncSelectionsToController];
+    }
+
     NSLayoutManager *lm = self.layoutManager;
     if (!lm) return;
 
@@ -518,9 +559,86 @@ static const unsigned short kKeyCodeRightArrow = 124;
     return [super validateUserInterfaceItem:item];
 }
 
+// MARK: - Hover: the mouse resting on a word
+
+// GNUstep sends mouse movements to the view under the mouse once its window
+// accepts them; macOS, through a tracking area.
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    self.window.acceptsMouseMovedEvents = YES;
+}
+
+#ifdef __APPLE__
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    if (self.hoverTrackingArea) [self removeTrackingArea:self.hoverTrackingArea];
+    self.hoverTrackingArea = [[NSTrackingArea alloc]
+        initWithRect:NSZeroRect
+             options:NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited |
+                     NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect
+               owner:self userInfo:nil];
+    [self addTrackingArea:self.hoverTrackingArea];
+}
+#endif
+
+/// The character under @a point (in the view), when there is text there.
+- (NSUInteger)_characterIndexUnderPoint:(NSPoint)point {
+    NSLayoutManager *lm = self.layoutManager;
+    NSTextContainer *tc = self.textContainer;
+    if (!lm || !tc || self.string.length == 0) return NSNotFound;
+    NSPoint inContainer = NSMakePoint(point.x - self.textContainerOrigin.x, point.y - self.textContainerOrigin.y);
+    CGFloat fraction = 0;
+    NSUInteger glyph = [lm glyphIndexForPoint:inContainer inTextContainer:tc fractionOfDistanceThroughGlyph:&fraction];
+    NSRect glyphRect = [lm boundingRectForGlyphRange:NSMakeRange(glyph, 1) inTextContainer:tc];
+    if (!NSPointInRect(inContainer, glyphRect)) return NSNotFound;
+    return [lm characterIndexForGlyphAtIndex:glyph];
+}
+
+- (void)mouseMoved:(NSEvent *)event {
+    [super mouseMoved:event];
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    NSUInteger index = [self _characterIndexUnderPoint:point];
+
+    // Off the word the tooltip is about: it goes.
+    if (self.hoverWordRange.location != NSNotFound &&
+        (index == NSNotFound || !NSLocationInRange(index, self.hoverWordRange))) {
+        [self _endHover];
+    }
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_hoverRested) object:nil];
+    if (index == NSNotFound || self.hoverWordRange.location != NSNotFound) return;
+    self.hoverIndex = index;
+    self.hoverPoint = point;
+    [self performSelector:@selector(_hoverRested) withObject:nil afterDelay:self.hoverDelay];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+    [super mouseExited:event];
+    [self _endHover];
+}
+
+- (void)_hoverRested {
+    if (self.hoverIndex >= self.string.length) return;
+    if (![self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)]) return;
+    NSRange word = [self selectionRangeForProposedRange:NSMakeRange(self.hoverIndex, 0)
+                                            granularity:NSSelectByWord];
+    self.hoverWordRange = word.length > 0 ? word : NSMakeRange(self.hoverIndex, 1);
+    [(id)self.delegate textView:self requestTooltipAtIndex:self.hoverIndex point:self.hoverPoint];
+}
+
+- (void)_endHover {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_hoverRested) object:nil];
+    if (self.hoverWordRange.location == NSNotFound) return;
+    self.hoverWordRange = NSMakeRange(NSNotFound, 0);
+    if ([self.delegate respondsToSelector:@selector(textViewHoverDidEnd:)]) {
+        [(id)self.delegate textViewHoverDidEnd:self];
+    }
+}
+
 // MARK: - Mouse: option-click adds a cursor
 
 - (void)mouseDown:(NSEvent *)event {
+    [self _endHover];
+    [self.completionList close];
     BOOL addCursor = (event.modifierFlags & NSEventModifierFlagOption) != 0;
 
     if (!addCursor || !_cursorsController) {
@@ -538,11 +656,6 @@ static const unsigned short kKeyCodeRightArrow = 124;
     NSTextContainer *tc = self.textContainer;
     NSPoint inContainer = NSMakePoint(pt.x - self.textContainerOrigin.x, pt.y - self.textContainerOrigin.y);
     NSUInteger charIdx  = [lm characterIndexForGlyphAtIndex:[lm glyphIndexForPoint:inContainer inTextContainer:tc]];
-
-    // TODO: use a different key?
-    if ([self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)]) {
-        [(id)self.delegate textView:self requestTooltipAtIndex:charIdx point:pt];
-    }
 
     UDPosition pos = [self.textModel getPositionAt:(NSInteger)charIdx];
 
@@ -669,12 +782,81 @@ static const unsigned short kKeyCodeRightArrow = 124;
     if ([delegate respondsToSelector:@selector(textViewRequestCompletion:)]) {
         [(id)delegate textViewRequestCompletion:self];
     } else {
-        [super complete:sender];
+        [self showCompleteList:sender];
     }
 }
 
+// MARK: - Completion list
+//
+// UDCodeKit's own, at the word (UDCompletionListController): not
+// NSTextView's, whose window GNUstep places away from the text and makes key.
+
+/// The word being typed before the caret: letters, digits and '_'.
+- (NSRange)_partialWordRange {
+    NSString *text = self.string;
+    NSUInteger end = MIN(self.selectedRange.location, text.length), start = end;
+    NSCharacterSet *word = [NSCharacterSet alphanumericCharacterSet];
+    while (start > 0) {
+        unichar c = [text characterAtIndex:start - 1];
+        if (c != '_' && ![word characterIsMember:c]) break;
+        start--;
+    }
+    return NSMakeRange(start, end - start);
+}
+
 - (void)showCompleteList:(id)sender {
-    [super complete:sender];   // shows NSTextView's built-in completion popup
+    NSRange range = [self _partialWordRange];
+    // The delegate's, asked even with nothing typed yet (GNUstep's NSTextView
+    // does not ask it for an empty word).
+    NSInteger index = 0;
+    id delegate = self.delegate;
+    NSArray<NSString *> *items =
+        [delegate respondsToSelector:@selector(textView:completions:forPartialWordRange:indexOfSelectedItem:)]
+        ? [delegate textView:self completions:@[] forPartialWordRange:range indexOfSelectedItem:&index]
+        : [self completionsForPartialWordRange:range indexOfSelectedItem:&index];
+    if (items.count == 0) {
+        [self.completionList close];
+        return;
+    }
+    if (self.completionList == nil) {
+        self.completionList = [[UDCompletionListController alloc] init];
+        self.completionList.target = self;
+        self.completionList.action = @selector(_acceptCompletion:);
+    }
+    self.completionRange = range;
+    [self.completionList showItems:items atRange:range ofTextView:self];
+}
+
+- (BOOL)isShowingCompletions {
+    return self.completionList.isShown;
+}
+
+/// The chosen item replaces the word typed so far.
+- (void)_acceptCompletion:(UDCompletionListController *)list {
+    NSString *item = list.selectedItem;
+    if (item == nil) return;
+    [self insertText:item replacementRange:[self _partialWordRange]];
+}
+
+/// Typing on narrows the list; leaving the word closes it.
+- (void)didChangeText {
+    [super didChangeText];
+    if (!self.completionList.isShown) return;
+    NSRange range = [self _partialWordRange];
+    if (range.location != self.completionRange.location) {
+        [self.completionList close];
+        return;
+    }
+    [self showCompleteList:nil];
+}
+
+- (BOOL)resignFirstResponder {
+    BOOL resigned = [super resignFirstResponder];
+    if (resigned) {
+        [self.completionList close];
+        [self _endHover];
+    }
+    return resigned;
 }
 
 // ---------------------------------------------------------------------------

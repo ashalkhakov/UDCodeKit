@@ -37,6 +37,7 @@ UDCodeKit_HEADER_FILES = \
     UDFindModel.h \
     UDFindResultsGutterView.h \
     UDFoldingController.h \
+    UDCompletionListController.h \
     UDHoverViewController.h \
     UDLSPCoordinator.h \
     UDLSPDiagnosticHighlighter.h \

@@ -34,10 +34,15 @@ NS_ASSUME_NONNULL_BEGIN
 /// Called when the user triggers autocomplete (Escape key).
 - (void)textViewRequestCompletion:(UDDiagnosticTextView *)textView;
 
-/// Called when the user Option+clicks for a hover tooltip.
+/// The mouse has rested over the text at @a characterIndex: what is there,
+/// a hover tooltip, say.
 - (void)textView:(UDDiagnosticTextView *)textView
     requestTooltipAtIndex:(NSUInteger)characterIndex
                     point:(NSPoint)point;
+
+/// The mouse has left the word it rested on (or the view), or a key was
+/// pressed: the hover tooltip goes.
+- (void)textViewHoverDidEnd:(UDDiagnosticTextView *)textView;
 @end
 
 /// Who handles the Find menu for the text view: its editor's find bar.
@@ -49,6 +54,17 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @interface UDDiagnosticTextView : NSTextView
+
+/// How long the mouse rests on a word before the delegate is asked what is
+/// there (-textView:requestTooltipAtIndex:point:): half a second.
+@property (nonatomic) NSTimeInterval hoverDelay;
+
+/// Shows the completions for the word before the caret
+/// (-completionsForPartialWordRange:…, so the delegate's) in UDCodeKit's
+/// list below it: arrows to choose, Return or Tab to accept, Escape to
+/// close; typing on narrows it.
+- (void)showCompleteList:(nullable id)sender;
+@property (nonatomic, readonly, getter=isShowingCompletions) BOOL showingCompletions;
 
 @property (atomic, weak) id<UDDiagnosticTextViewDelegate> delegate;
 
@@ -79,9 +95,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// The Find menu's actions; GNUstep's NSTextView has no find bar of its own.
 - (IBAction)performTextFinderAction:(nullable id)sender;
-
-- (void)showCompleteList:(id)sender;
-
 @end
 
 NS_ASSUME_NONNULL_END

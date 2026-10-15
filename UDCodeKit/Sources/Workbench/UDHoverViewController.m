@@ -3,10 +3,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDHoverViewController.h"
+#import "UDEditorPopup.h"
 
-@implementation UDHoverViewController {
-    NSPopover *_popover;
-}
+/// The widest and tallest a hover grows to fit its text.
+static const CGFloat UDHoverMaxWidth = 480, UDHoverMaxHeight = 240;
+
+@implementation UDHoverViewController
 
 - (instancetype)init {
     return [super initWithNibName:@"UDHoverView" bundle:[NSBundle bundleForClass:[UDHoverViewController class]]];
@@ -15,27 +17,28 @@
 - (void)showText:(NSString *)text atCharacterIndex:(NSUInteger)characterIndex ofTextView:(NSTextView *)textView {
     (void)self.view;
     _textView.string = text;
-    // A fresh popover unless this one is showing: GNUstep's NSPopover frees
-    // its panel when it closes (a click elsewhere, or -close) and would show
-    // the freed one again.
-    if (!_popover.isShown) {
-        _popover = [[NSPopover alloc] init];
-        _popover.behavior = NSPopoverBehaviorSemitransient;
-        _popover.contentViewController = self;
-    }
-    NSLayoutManager *lm = textView.layoutManager;
-    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(characterIndex, 1) actualCharacterRange:NULL];
-    NSRect rect = [lm boundingRectForGlyphRange:glyphs inTextContainer:textView.textContainer];
-    rect = NSOffsetRect(rect, textView.textContainerOrigin.x, textView.textContainerOrigin.y);
-    [_popover showRelativeToRect:rect ofView:textView preferredEdge:NSMaxYEdge];
+
+    // As big as the text, up to a limit.
+    NSLayoutManager *lm = _textView.layoutManager;
+    NSTextContainer *tc = _textView.textContainer;
+    tc.widthTracksTextView = NO;
+    tc.containerSize = NSMakeSize(UDHoverMaxWidth - 12, 1.0e7);
+    [lm ensureLayoutForTextContainer:tc];
+    NSSize used = [lm usedRectForTextContainer:tc].size;
+    NSSize size = NSMakeSize(MIN(MAX(used.width + 14, 80), UDHoverMaxWidth),
+                             MIN(used.height + 2 * _textView.textContainerInset.height + 6, UDHoverMaxHeight));
+    [_panel setContentSize:size];
+    tc.widthTracksTextView = YES;
+
+    UDShowEditorPopup(_panel, textView, NSMakeRange(characterIndex, 1));
 }
 
 - (BOOL)isShown {
-    return _popover.isShown;
+    return _panel.isVisible;
 }
 
 - (void)close {
-    if (_popover.isShown) [_popover close];
+    if (_panel.isVisible) UDHideEditorPopup(_panel);
 }
 
 @end

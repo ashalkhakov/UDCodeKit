@@ -20,6 +20,14 @@ static double UDTime(void (^block)(void)) {
     return -[start timeIntervalSinceNow];
 }
 
+/// The best of three: each measure builds what it times afresh, and a busy
+/// machine (a CI runner) slows one run, not all three.
+static double UDBest(double (^measure)(void)) {
+    double best = measure();
+    for (int i = 0; i < 2; i++) best = MIN(best, measure());
+    return best;
+}
+
 static UDRange UDCaret(UDPosition p) {
     return PTRangeMake(p.line, p.column, p.line, p.column);
 }
@@ -48,8 +56,8 @@ static UDRange UDCaret(UDPosition p) {
 
 - (void)testTypingCostsTheKeystrokeNotTheChangeBuffer {
     [self typeAfterPasting:10000];
-    double small = [self typeAfterPasting:1 << 20];
-    double large = [self typeAfterPasting:8 << 20];
+    double small = UDBest(^double{ return [self typeAfterPasting:1 << 20]; });
+    double large = UDBest(^double{ return [self typeAfterPasting:8 << 20]; });
     XCTAssertLessThan(large / small, 2.5, @"after an 8× larger paste, typing took %.1f× the time (%.3fs → %.3fs)", large / small, small, large);
 }
 
@@ -71,8 +79,8 @@ static UDRange UDCaret(UDPosition p) {
 
 - (void)testPositionLookupsDoNotScaleWithTheDocument {
     [self positionLookupsInDocumentOfLines:1000];
-    double small = [self positionLookupsInDocumentOfLines:20000];
-    double large = [self positionLookupsInDocumentOfLines:320000];   // 16× the text
+    double small = UDBest(^double{ return [self positionLookupsInDocumentOfLines:20000]; });
+    double large = UDBest(^double{ return [self positionLookupsInDocumentOfLines:320000]; });   // 16× the text
     XCTAssertLessThan(large / small, 4.0, @"16× the document made lookups %.1f× slower", large / small);
 }
 
@@ -107,8 +115,8 @@ static UDRange UDCaret(UDPosition p) {
 
 - (void)testEditsDoNotVisitEveryDecoration {
     [self editsWithDecorations:1000];
-    double small = [self editsWithDecorations:20000];
-    double large = [self editsWithDecorations:80000];
+    double small = UDBest(^double{ return [self editsWithDecorations:20000]; });
+    double large = UDBest(^double{ return [self editsWithDecorations:80000]; });
     XCTAssertLessThan(large / small, 2.5, @"4× the decorations made edits %.1f× slower", large / small);
 }
 
@@ -126,8 +134,8 @@ static UDRange UDCaret(UDPosition p) {
 
 - (void)testRangeQueriesCostTheResult {
     [self queriesWithDecorations:1000];
-    double small = [self queriesWithDecorations:20000];
-    double large = [self queriesWithDecorations:80000];
+    double small = UDBest(^double{ return [self queriesWithDecorations:20000]; });
+    double large = UDBest(^double{ return [self queriesWithDecorations:80000]; });
     XCTAssertLessThan(large / small, 2.5, @"4× the decorations made queries %.1f× slower", large / small);
 }
 
@@ -143,8 +151,8 @@ static UDRange UDCaret(UDPosition p) {
 
 - (void)testRemovingDecorationsCostsWhatIsRemoved {
     [self replaceDecorationsOfModelWith:4000];
-    double small = [self replaceDecorationsOfModelWith:20000];
-    double large = [self replaceDecorationsOfModelWith:80000];
+    double small = UDBest(^double{ return [self replaceDecorationsOfModelWith:20000]; });
+    double large = UDBest(^double{ return [self replaceDecorationsOfModelWith:80000]; });
     XCTAssertLessThan(large / small, 2.5, @"removing 2000 of 4× the decorations took %.1f× longer (%.4fs → %.4fs)", large / small, small, large);
 }
 
@@ -167,8 +175,8 @@ static UDRange UDCaret(UDPosition p) {
 
 - (void)testMultiCursorEditsAreNotQuadratic {
     [self multiCursorEdits:500];
-    double small = [self multiCursorEdits:5000];
-    double large = [self multiCursorEdits:20000];
+    double small = UDBest(^double{ return [self multiCursorEdits:5000]; });
+    double large = UDBest(^double{ return [self multiCursorEdits:20000]; });
     XCTAssertLessThan(large / small, 9.0, @"4× the cursors took %.1f× the time", large / small);
 }
 

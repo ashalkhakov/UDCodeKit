@@ -84,6 +84,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// LSP support for this mode.
 @property (nonatomic, copy, readonly, nullable) NSString *lspLanguageID;
 
+/// Whether tree-sitter's parse errors (and missing tokens) are reported, as
+/// labels and issues: LanguageInfo.plist's reportsParseErrors, NO when it
+/// says nothing. As VS Code, which reports a language's errors only from its
+/// language service: JSON's are, C's are not (its macros make tree-sitter's
+/// parse wrong where the code is right), XML's come from its server.
+@property (nonatomic, assign) BOOL reportsParseErrors;
+
 /// The command used to launch the language server for this mode.  The first
 /// element is the executable path; subsequent elements are the command-line
 /// arguments.  @c nil when no language server is configured for this mode.

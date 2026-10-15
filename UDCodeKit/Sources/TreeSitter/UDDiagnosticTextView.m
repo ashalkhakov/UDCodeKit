@@ -12,6 +12,7 @@
 #import "UDDiagnosticTextView.h"
 #import "UDCompletionListController.h"
 #import "UDPlaceholderHighlighter.h"
+#import "UDHoverViewController.h"
 #import "UDCodeEditorLayoutManager.h"
 
 // Horizontal gap between the end of line content and the label.
@@ -56,6 +57,10 @@ static NSColor *PillColorForNode(UDIntervalNode *node) {
     if ([cls isEqualToString:@"ts.error"]) {
         return [NSColor colorWithRed:0.85 green:0.40 blue:0.00 alpha:0.85];
     }
+    // LSP information → blue
+    if ([cls isEqualToString:@"lsp.info"]) {
+        return [NSColor colorWithRed:0.20 green:0.45 blue:0.85 alpha:0.85];
+    }
     // LSP errors and any unknown → red
     return [NSColor colorWithRed:0.80 green:0.12 blue:0.12 alpha:0.85];
 }
@@ -91,6 +96,9 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 #ifdef __APPLE__
 @property (nonatomic, strong, nullable) NSTrackingArea *hoverTrackingArea;
 #endif
+/// A diagnostic label's whole message, when the mouse rests on the label.
+@property (nonatomic, strong, nullable) UDHoverViewController *labelHover;
+@property (nonatomic, strong, nullable) UDIntervalNode *labelHoverNode;   // its, or the one waited on
 /// The completions showing, and the word they complete.
 @property (nonatomic, strong, nullable) UDCompletionListController *completionList;
 @property (nonatomic) NSRange completionRange;
@@ -101,7 +109,11 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 // ---------------------------------------------------------------------------
 
-@implementation UDDiagnosticTextView
+@implementation UDDiagnosticTextView {
+#ifndef __APPLE__
+    NSTrackingRectTag _hoverTrackingTag;
+#endif
+}
 
 @dynamic delegate; // tells the compiler to use NSTextView's existing delegate ivar
 
@@ -163,6 +175,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 /// to -[super keyDown:] for NSTextView's normal key-binding pipeline.
 - (void)keyDown:(NSEvent *)event {
     [self _endHover];
+    [self _acceptMouseMoved];
     // The completion list's keys (arrows, Return, Tab, Escape) are its.
     if ([self.completionList handleKeyEvent:event]) return;
 
@@ -220,6 +233,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     } else {
         [super keyDown:event];
     }
+
 }
 
 // ---------------------------------------------------------------------------
@@ -345,6 +359,41 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 // MARK: - Drawing — pill labels for each diagnostic decoration
 // ---------------------------------------------------------------------------
 
+/// Where @a node's label is drawn, right of its line's text, in the view;
+/// NSZeroRect when there is no room for one.
+- (NSRect)_labelRectForNode:(UDIntervalNode *)node message:(NSString *)msg {
+    NSLayoutManager *lm = self.layoutManager;
+    NSInteger docLen = [_textModel getLength];
+    NSUInteger charOffset = (NSUInteger)MAX(0LL, node.start);
+    if (lm == nil || charOffset >= (NSUInteger)docLen) return NSZeroRect;
+    NSRect usedRect = [lm lineFragmentUsedRectForGlyphAtIndex:UDGlyphIndex(lm, charOffset) effectiveRange:nil];
+    if (NSIsEmptyRect(usedRect)) return NSZeroRect;
+    NSPoint origin = self.textContainerOrigin;
+    NSRect viewRect = NSOffsetRect(usedRect, origin.x, origin.y);
+    CGFloat labelX = NSMaxX(viewRect) + kLabelGap;
+    CGFloat labelY = NSMinY(viewRect) + (NSHeight(viewRect) - kLabelHeight) / 2.0;
+    CGFloat labelW = MIN(UDDiagnosticLabelWidth(msg), self.bounds.size.width - labelX - 4.0);
+    if (labelW < 20.0) return NSZeroRect;
+    return NSMakeRect(labelX, labelY, labelW, kLabelHeight);
+}
+
+/// The diagnostic whose label is at @a point (in the view), or nil.
+- (UDIntervalNode *)_diagnosticLabelNodeAtPoint:(NSPoint)point {
+    NSLayoutManager *lm = self.layoutManager;
+    if (lm == nil || _textModel == nil) return nil;
+    NSPoint origin = self.textContainerOrigin;
+    NSRect row = NSMakeRect(0, point.y - origin.y, self.textContainer.containerSize.width, 1);
+    NSRange glyphs = [lm glyphRangeForBoundingRect:row inTextContainer:self.textContainer];
+    if (glyphs.length == 0) return nil;
+    NSRange chars = [lm characterRangeForGlyphRange:glyphs actualGlyphRange:NULL];
+    for (UDIntervalNode *node in [_textModel decorationNodesInOffsetRange:(NSInteger)chars.location end:(NSInteger)NSMaxRange(chars)]) {
+        if (!IsDiagnosticNode(node)) continue;
+        NSRect label = [self _labelRectForNode:node message:[self _truncatedMessage:node.options.userInfo]];
+        if (NSPointInRect(point, label)) return node;
+    }
+    return nil;
+}
+
 - (void)drawViewBackgroundInRect:(NSRect)rect {
     [super drawViewBackgroundInRect:rect];
     // What shows of it: GNUstep asks for the whole view's background.
@@ -384,30 +433,11 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         NSUInteger charOffset = (NSUInteger)MAX(0LL, node.start);
         if (charOffset >= (NSUInteger)docLen) continue;
 
-        // Glyph location for the start of this decoration.
-        NSUInteger glyphIdx = UDGlyphIndex(lm, charOffset);
-
-        NSRect usedRect =
-        [lm lineFragmentUsedRectForGlyphAtIndex:glyphIdx effectiveRange:nil];
-        if (NSIsEmptyRect(usedRect)) continue;
-
-        // Convert to view coordinates.
-        NSRect viewRect = usedRect;
-        viewRect.origin.x += origin.x;
-        viewRect.origin.y += origin.y;
-
-        // Skip if this line is outside the dirty rect.
-        if (!NSIntersectsRect(viewRect, rect)) continue;
-
-        NSColor  *bgColor = PillColorForNode(node);
-        NSString *msg     = [self _truncatedMessage:node.options.userInfo];
-        CGFloat   labelX  = viewRect.origin.x + viewRect.size.width + kLabelGap;
-        CGFloat   labelY  = viewRect.origin.y +
-                            (viewRect.size.height - kLabelHeight) / 2.0;
-        CGFloat   labelW  = MIN(UDDiagnosticLabelWidth(msg), self.bounds.size.width - labelX - 4.0);
-        if (labelW < 20.0) continue;
-
-        NSRect labelRect = NSMakeRect(labelX, labelY, labelW, kLabelHeight);
+        NSString *msg       = [self _truncatedMessage:node.options.userInfo];
+        NSRect    labelRect = [self _labelRectForNode:node message:msg];
+        // Not in the dirty rect's rows: not drawn now.
+        if (NSIsEmptyRect(labelRect) || NSMaxY(labelRect) < NSMinY(rect) || NSMinY(labelRect) > NSMaxY(rect)) continue;
+        NSColor  *bgColor   = PillColorForNode(node);
 
         // Draw pill background.
         NSBezierPath *pill =
@@ -572,10 +602,44 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 // MARK: - Hover: the mouse resting on a word
 
 // GNUstep sends mouse movements to the view under the mouse once its window
-// accepts them; macOS, through a tracking area.
+// accepts them; macOS, through a tracking area. GNUstep's tooltips turn the
+// window's acceptance off again when one is done (if it was off when it
+// began), so it is turned on again whenever the mouse comes back (a tracking
+// rect's mouse-entered comes regardless), and at a click or a key
+// (gnustep-patches#27).
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
-    self.window.acceptsMouseMovedEvents = YES;
+    [self _acceptMouseMoved];
+#ifndef __APPLE__
+    [self _trackBounds];
+#endif
+}
+
+- (void)_acceptMouseMoved {
+    if (self.window != nil && !self.window.acceptsMouseMovedEvents) self.window.acceptsMouseMovedEvents = YES;
+}
+
+#ifndef __APPLE__
+- (void)_trackBounds {
+    if (_hoverTrackingTag != 0) [self removeTrackingRect:_hoverTrackingTag];
+    _hoverTrackingTag = self.window != nil ? [self addTrackingRect:self.bounds owner:self userData:NULL assumeInside:NO] : 0;
+}
+
+- (void)setFrameSize:(NSSize)size {
+    [super setFrameSize:size];
+    [self _trackBounds];
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+    [super mouseEntered:event];
+    [self _acceptMouseMoved];
+}
+#endif
+
+- (BOOL)becomeFirstResponder {
+    BOOL became = [super becomeFirstResponder];
+    if (became) [self _acceptMouseMoved];
+    return became;
 }
 
 #ifdef __APPLE__
@@ -609,6 +673,16 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSUInteger index = [self _characterIndexUnderPoint:point];
 
+    // On a diagnostic's label (right of its line, no text there): its whole
+    // message, which the label may cut short.
+    UDIntervalNode *label = index == NSNotFound ? [self _diagnosticLabelNodeAtPoint:point] : nil;
+    if (label != self.labelHoverNode) {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_labelRested) object:nil];
+        [self.labelHover close];
+        self.labelHoverNode = label;
+        if (label != nil) [self performSelector:@selector(_labelRested) withObject:nil afterDelay:self.hoverDelay];
+    }
+
     // Off the word the tooltip is about: it goes.
     if (self.hoverWordRange.location != NSNotFound &&
         (index == NSNotFound || !NSLocationInRange(index, self.hoverWordRange))) {
@@ -635,7 +709,18 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     [(id)self.delegate textView:self requestTooltipAtIndex:self.hoverIndex point:self.hoverPoint];
 }
 
+- (void)_labelRested {
+    UDIntervalNode *node = self.labelHoverNode;
+    NSString *message = [node.options.userInfo isKindOfClass:[NSString class]] ? node.options.userInfo : nil;
+    if (message.length == 0) return;
+    if (self.labelHover == nil) self.labelHover = [[UDHoverViewController alloc] init];
+    [self.labelHover showText:message atCharacterIndex:(NSUInteger)MAX(0LL, node.start) ofTextView:self];
+}
+
 - (void)_endHover {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_labelRested) object:nil];
+    [self.labelHover close];
+    self.labelHoverNode = nil;
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_hoverRested) object:nil];
     if (self.hoverWordRange.location == NSNotFound) return;
     self.hoverWordRange = NSMakeRange(NSNotFound, 0);
@@ -648,6 +733,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 - (void)mouseDown:(NSEvent *)event {
     [self _endHover];
+    [self _acceptMouseMoved];
     [self.completionList close];
     BOOL addCursor = (event.modifierFlags & NSEventModifierFlagOption) != 0;
 

@@ -317,6 +317,16 @@ typedef struct _LSPTextDocumentSyncOptions {
 - (NSInteger)documentSymbol:(NSURL *)url target:(nullable id)target action:(nullable SEL)action;
 - (NSInteger)documentHighlight:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(nullable id)target action:(nullable SEL)action;
 - (NSInteger)documentHover:(NSURL *)url atPosition:(LSPPosition *)position target:(nullable id)target action:(nullable SEL)action;
+/// textDocument/definition; @a action gets an LSPResponse whose result is
+/// the server's reply as JSON: a Location, an array of them, or nil.
+- (NSInteger)documentDefinition:(NSURL *)url atPosition:(LSPPosition *)position target:(nullable id)target action:(nullable SEL)action;
+
+/// Any request the methods above do not cover; @a action gets an
+/// LSPResponse whose result is the reply's, as JSON. Returns the request's
+/// identifier (0 when the server is not ready).
+- (NSInteger)sendRequest:(NSString *)method params:(nullable NSDictionary *)params target:(nullable id)target action:(nullable SEL)action;
+/// Any notification (workspace/didChangeWatchedFiles, ...).
+- (void)sendNotification:(NSString *)method params:(nullable NSDictionary *)params;
 - (NSInteger)documentHover:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(nullable id)target action:(nullable SEL)action;
 
 @end

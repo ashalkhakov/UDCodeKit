@@ -49,6 +49,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// one and it is installed. Returns whether one started.
 - (BOOL)startLanguageServer;
 
+/// The document, as @a url, on a language server the app started itself:
+/// one it shares between documents (a workspace's), or one it starts with
+/// arguments of its own. Does nothing when a server is already started.
+- (void)startLanguageServerWithClient:(LSPClient *)client documentURL:(NSURL *)url;
+
 /// Tells the language server the document closed.
 - (void)close;
 

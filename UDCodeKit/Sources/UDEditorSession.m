@@ -103,6 +103,12 @@
                               arguments:serverArgs
                    currentDirectoryPath:docURL.URLByDeletingLastPathComponent.path
                              languageID:mode.lspLanguageID];
+    [self startLanguageServerWithClient:client documentURL:docURL];
+    return YES;
+}
+
+- (void)startLanguageServerWithClient:(LSPClient *)client documentURL:(NSURL *)docURL {
+    if (_lspCoordinator) return;
     UDLSPDiagnosticHighlighter *lspHL =
         [[UDLSPDiagnosticHighlighter alloc] initWithTextStorage:_textStorage
                                                     highlighter:_textStorage.highlighter
@@ -113,7 +119,6 @@
                                           documentURL:docURL
                                 diagnosticHighlighter:lspHL];
     [_lspCoordinator documentDidOpenWithContent:_textStorage.textModel];
-    return YES;
 }
 
 - (void)_languageServerDidBecomeReady:(NSNotification *)note {

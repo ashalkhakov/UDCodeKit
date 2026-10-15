@@ -896,6 +896,22 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
                      kind:LSPReplyHover target:target action:action text:nil];
 }
 
+- (NSInteger)documentDefinition:(NSURL *)url atPosition:(LSPPosition *)position target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
+    return [self _request:@"textDocument/definition" params:[self _paramsForDocument:url position:position]
+                     kind:LSPReplyRaw target:target action:action text:nil];
+}
+
+- (NSInteger)sendRequest:(NSString *)method params:(NSDictionary *)params target:(id)target action:(SEL)action {
+    if (_initialized == NO) return 0;
+    return [self _request:method params:params kind:LSPReplyRaw target:target action:action text:nil];
+}
+
+- (void)sendNotification:(NSString *)method params:(NSDictionary *)params {
+    if (_initialized == NO) return;
+    [_pipeline sendNotification:method params:params];
+}
+
 - (NSInteger)documentHover:(NSURL *)url inText:(NSString *)string forCharacterAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action {
     return [self documentHover:url atPosition:[LSPPosition positionForCharacterAtIndex:characterIndex inText:string]
                         target:target action:action];

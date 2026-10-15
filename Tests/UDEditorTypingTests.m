@@ -333,4 +333,25 @@
     XCTAssertEqualObjects([_storage.textModel getValue], @"\tone(\"Reload\")\n\ttwo\n", @"the closing quote types over");
 }
 
+/// A quote typed over a selected placeholder opens a string, and the one that
+/// closes it goes in alone, whether or not a parse knows the string yet
+/// (idScript's does not: an unclosed string is an error to it, not a string).
+- (void)testAQuoteClosesTheStringItOpenedOverAPlaceholder {
+    UDLanguageMode *c = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"c"];
+    XCTAssertNotNil(c);
+    if (c == nil) return;
+    [_editor configureForLanguageMode:c];                      // its pairs, and no parse
+    UDDiagnosticTextView *textView = _editor.textView;
+    [textView setSelectedRange:NSMakeRange(4, 0)];
+    [textView insertText:@"(<#string s#>, <#float f#>)"];
+    [textView setSelectedRange:NSMakeRange(5, 12)];          // the first placeholder
+    NSEvent *quote = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:NSEventModifierFlagShift
+                                     timestamp:0 windowNumber:_window.windowNumber context:nil
+                                    characters:@"\"" charactersIgnoringModifiers:@"\"" isARepeat:NO keyCode:48];
+    [textView keyDown:quote];
+    [textView insertText:@"Reload"];
+    [textView keyDown:quote];
+    XCTAssertEqualObjects([_storage.textModel getValue], @"\tone(\"Reload\", <#float f#>)\n\ttwo\n");
+}
+
 @end

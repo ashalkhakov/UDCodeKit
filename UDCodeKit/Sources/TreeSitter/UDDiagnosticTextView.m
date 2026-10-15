@@ -11,6 +11,7 @@
 
 #import "UDDiagnosticTextView.h"
 #import "UDCompletionListController.h"
+#import "UDPlaceholderHighlighter.h"
 #import "UDCodeEditorLayoutManager.h"
 
 // Horizontal gap between the end of line content and the label.
@@ -162,6 +163,15 @@ static const unsigned short kKeyCodeRightArrow = 124;
     [self _endHover];
     // The completion list's keys (arrows, Return, Tab, Escape) are its.
     if ([self.completionList handleKeyEvent:event]) return;
+
+    // Tab and Shift-Tab go from placeholder to placeholder, when there are any.
+    NSString *keys = event.charactersIgnoringModifiers;
+    unichar key = keys.length ? [keys characterAtIndex:0] : 0;
+    NSEventModifierFlags flags = event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption);
+    if (flags == 0 && (key == '\t' || key == 0x19)) {
+        BOOL back = key == 0x19 || (event.modifierFlags & NSEventModifierFlagShift);
+        if ([self selectPlaceholderForward:!back]) return;
+    }
     // 1. Smart key handling (indentation, electric pairs, language-specific).
     // It edits the model itself; the delegate hears of what was typed as it
     // would have from NSTextView (-textView:shouldChangeTextInRange:…, then
@@ -645,6 +655,11 @@ static const unsigned short kKeyCodeRightArrow = 124;
         // Plain click: remove secondary cursors, let NSTextView place primary.
         [_cursorsController removeSecondaryCursors];
         [super mouseDown:event];
+        // A click in a placeholder takes the whole of it, as typing will.
+        if (self.selectedRange.length == 0) {
+            NSRange placeholder = UDPlaceholderRangeAtIndex(self.string, self.selectedRange.location);
+            if (placeholder.location != NSNotFound) [self setSelectedRange:placeholder];
+        }
         // After NSTextView updates selectedRanges, sync back to controller.
         [self _syncSelectionsToController];
         return;
@@ -831,11 +846,31 @@ static const unsigned short kKeyCodeRightArrow = 124;
     return self.completionList.isShown;
 }
 
-/// The chosen item replaces the word typed so far.
+/// The chosen item replaces the word typed so far: what the delegate says
+/// it inserts, its first placeholder then selected.
 - (void)_acceptCompletion:(UDCompletionListController *)list {
     NSString *item = list.selectedItem;
     if (item == nil) return;
-    [self insertText:item replacementRange:[self _partialWordRange]];
+    NSString *text = item;
+    id delegate = self.delegate;
+    if ([delegate respondsToSelector:@selector(textView:insertTextForCompletion:)]) {
+        text = [delegate textView:self insertTextForCompletion:item] ?: item;
+    }
+    NSRange word = [self _partialWordRange];
+    [self insertText:text replacementRange:word];
+    NSRange inserted = NSMakeRange(word.location, text.length);
+    NSRange first = UDPlaceholderRangeAfter(self.string, NSMakeRange(inserted.location, 0), YES);
+    if (first.location != NSNotFound && NSMaxRange(first) <= NSMaxRange(inserted)) {
+        [self setSelectedRange:first];
+    }
+}
+
+- (BOOL)selectPlaceholderForward:(BOOL)forward {
+    NSRange next = UDPlaceholderRangeAfter(self.string, self.selectedRange, forward);
+    if (next.location == NSNotFound) return NO;
+    [self setSelectedRange:next];
+    [self scrollRangeToVisible:next];
+    return YES;
 }
 
 /// Typing on narrows the list; leaving the word closes it.

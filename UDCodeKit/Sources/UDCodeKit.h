@@ -50,4 +50,6 @@
 #import <UDCodeKit/UDEditorTabsController.h>
 #import <UDCodeKit/UDPaneSplitController.h>
 #import <UDCodeKit/UDCompletionListController.h>
+#import <UDCodeKit/UDErrorsViewController.h>
 #import <UDCodeKit/UDHoverViewController.h>
+#import <UDCodeKit/UDPlaceholderHighlighter.h>

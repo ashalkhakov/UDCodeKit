@@ -10,6 +10,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDDiagnosticTextView.h"
+#import <objc/runtime.h>
 #import "UDCompletionListController.h"
 #import "UDPlaceholderHighlighter.h"
 #import "UDHoverViewController.h"
@@ -609,16 +610,36 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     [self.textModel.undoManager redo];
 }
 
+// sel_isEqual, not ==: on GNUstep a menu item's selector and this
+// library's for the same name can be different values.
 - (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
-    if (_findActionHandler && (item.action == @selector(performFindPanelAction:) ||
-                               item.action == @selector(performTextFinderAction:))) {
+    SEL action = item.action;
+    if (_findActionHandler && (sel_isEqual(action, @selector(performFindPanelAction:)) ||
+                               sel_isEqual(action, @selector(performTextFinderAction:)))) {
         return [_findActionHandler canPerformFindAction:item.tag];
     }
-    if (item.action == @selector(undo:))
+    if (sel_isEqual(action, @selector(jumpToLine:)))
+        return [_findActionHandler respondsToSelector:@selector(showJumpToLine)];
+    if (sel_isEqual(action, @selector(undo:)))
         return [self.textModel.undoManager canUndo];
-    if (item.action == @selector(redo:))
+    if (sel_isEqual(action, @selector(redo:)))
         return [self.textModel.undoManager canRedo];
     return [super validateUserInterfaceItem:item];
+}
+
+// GNUstep's NSTextView answers menu items itself, never asking
+// -validateUserInterfaceItem:; these are this view's to answer.
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    SEL action = item.action;
+    if (sel_isEqual(action, @selector(performFindPanelAction:)) || sel_isEqual(action, @selector(performTextFinderAction:)) ||
+        sel_isEqual(action, @selector(jumpToLine:)) || sel_isEqual(action, @selector(undo:)) || sel_isEqual(action, @selector(redo:))) {
+        return [self validateUserInterfaceItem:item];
+    }
+    return [super validateMenuItem:item];
+}
+
+- (IBAction)jumpToLine:(id)sender {
+    if ([_findActionHandler respondsToSelector:@selector(showJumpToLine)]) [_findActionHandler showJumpToLine];
 }
 
 // MARK: - Hover: the mouse resting on a word

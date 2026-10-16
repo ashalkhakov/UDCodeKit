@@ -14,6 +14,11 @@
 - (NSRect)_labelRectForNode:(UDIntervalNode *)node message:(NSString *)message;
 @end
 
+/// UDJumpToLineViewController's, which is private to UDCodeKit.
+@protocol UDJumpToLineForTests <NSTextFieldDelegate>
+- (IBAction)jump:(nullable id)sender;
+@end
+
 @interface UDEditorTypingTests : UDCodeTestCase <UDDiagnosticTextViewDelegate>
 @property (nonatomic) NSInteger hoverAskedAt;     // -1: not asked
 @property (nonatomic) NSInteger hoverEnded;
@@ -366,6 +371,52 @@
     XCTAssertFalse(NSIsEmptyRect(first));
     XCTAssertFalse(NSIsEmptyRect(second));
     XCTAssertFalse(NSIntersectsRect(first, second), @"%@ and %@", NSStringFromRect(first), NSStringFromRect(second));
+}
+
+#pragma mark - Find and Jump to Line
+
+/// A menu item as a XIB makes it: its selector by name (on GNUstep not
+/// always == to the one compiled into UDCodeKit).
+static NSMenuItem *UDMenuItem(NSString *action, NSInteger tag) {
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:action action:NSSelectorFromString(action) keyEquivalent:@""];
+    item.tag = tag;
+    return item;
+}
+
+/// Find, from the menu: on, and the find bar shows.
+- (void)testFindFromTheMenuShowsTheFindBar {
+    UDDiagnosticTextView *textView = _editor.textView;
+    NSMenuItem *find = UDMenuItem(@"performFindPanelAction:", 1);
+    XCTAssertTrue([textView validateMenuItem:find], @"Find is on");
+    XCTAssertTrue([textView validateMenuItem:UDMenuItem(@"performFindPanelAction:", 12)], @"Find and Replace too");
+    [textView performFindPanelAction:find];
+    XCTAssertTrue(_editor.isFindBarVisible);
+}
+
+/// Jump to Line, from the menu: a field over the editor; Return there
+/// selects the line, Escape puts it away.
+- (void)testJumpToLine {
+    UDDiagnosticTextView *textView = _editor.textView;
+    XCTAssertTrue([textView validateMenuItem:UDMenuItem(@"jumpToLine:", 0)], @"Jump to Line is on");
+    [textView jumpToLine:nil];
+    XCTAssertTrue(_editor.isJumpToLineVisible);
+    id<UDJumpToLineForTests> jump = [_editor valueForKey:@"jumpToLine"];
+    NSTextField *field = [(id)jump valueForKey:@"lineField"];
+    XCTAssertEqual(_window.firstResponder, field.currentEditor ?: (id)field, @"the keyboard goes to its field");
+    field.stringValue = @"2";
+    [jump jump:nil];
+    XCTAssertFalse(_editor.isJumpToLineVisible, @"Return puts it away");
+    XCTAssertEqualObjects([_storage.string substringWithRange:textView.selectedRange], @"\ttwo", @"and selects the line");
+    XCTAssertEqual(_window.firstResponder, textView, @"the keyboard back in the text");
+
+    [textView jumpToLine:nil];
+    field.stringValue = @"99";
+    [jump jump:nil];
+    XCTAssertEqual(textView.selectedRange.location, _storage.string.length, @"past the end: the last line");
+
+    [textView jumpToLine:nil];
+    [jump control:field textView:(NSTextView *)field.currentEditor doCommandBySelector:@selector(cancelOperation:)];
+    XCTAssertFalse(_editor.isJumpToLineVisible, @"Escape puts it away");
 }
 
 #pragma mark - Quotes

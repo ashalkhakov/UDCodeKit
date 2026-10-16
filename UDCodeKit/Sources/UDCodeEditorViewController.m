@@ -8,13 +8,14 @@
 #import "UDTreeSitterHighlighter.h"
 #import "UDTextModelTextStorage.h"
 #import "UDFindBarViewController.h"
+#import "UDJumpToLineViewController.h"
 #import <UDPieceTable/UDPieceTable.h>
 
 // ---------------------------------------------------------------------------
 // MARK: - Private interface
 // ---------------------------------------------------------------------------
 
-@interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDFindBarDelegate, UDFindActionHandler>
+@interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDFindBarDelegate, UDFindActionHandler, UDJumpToLineDelegate>
 
 // IBOutlets wired from UDCodeEditorViewController.xib.
 @property (nonatomic, weak) IBOutlet NSScrollView            *scrollView;
@@ -25,6 +26,8 @@
 @property (nonatomic, weak) IBOutlet UDFindResultsGutterView *gutterView;
 
 @property (nonatomic, strong, nullable) UDFindBarViewController *findBar;
+@property (nonatomic) CGFloat findBarHeight;
+@property (nonatomic, strong, nullable) UDJumpToLineViewController *jumpToLine;
 @property (nonatomic, strong) UDFoldingController      *foldingController;
 @property (nonatomic, strong) UDBracketMatchHighlighter *bracketMatchHighlighter;
 @property (nonatomic, strong) UDPlaceholderHighlighter *placeholderHighlighter;
@@ -200,16 +203,80 @@
 }
 
 - (void)findBar:(UDFindBarViewController *)findBar wantsHeight:(CGFloat)height {
-    NSRect bounds = self.view.bounds;
-    _findBarHost.frame = NSMakeRect(0, NSMaxY(bounds) - height, NSWidth(bounds), height);
-    _editorArea.frame  = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - height);
+    _findBarHeight = height;
+    [self _layoutBars];
 }
 
 - (void)findBarDidClose:(UDFindBarViewController *)findBar {
     [_findModel clear];
     _findBarHost.hidden = YES;
-    _editorArea.frame = self.view.bounds;
+    [self _layoutBars];
     [self.view.window makeFirstResponder:_textView];
+}
+
+/// The bars over the editor, top down: Jump to Line, then Find; the text
+/// takes the rest.
+- (void)_layoutBars {
+    NSRect bounds = self.view.bounds;
+    CGFloat top = NSMaxY(bounds), width = NSWidth(bounds);
+    NSView *jump = _jumpToLine.view;
+    if (jump.superview != nil && !jump.isHidden) {
+        jump.frame = NSMakeRect(0, top - UDJumpToLineHeight, width, UDJumpToLineHeight);
+        top -= UDJumpToLineHeight;
+    }
+    if (self.isFindBarVisible) {
+        _findBarHost.frame = NSMakeRect(0, top - _findBarHeight, width, _findBarHeight);
+        top -= _findBarHeight;
+    }
+    _editorArea.frame = NSMakeRect(0, 0, width, top);
+    [self.view setNeedsDisplay:YES];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Jump to Line
+// ---------------------------------------------------------------------------
+
+- (BOOL)isJumpToLineVisible {
+    return _jumpToLine.view.superview != nil && !_jumpToLine.view.isHidden;
+}
+
+- (void)showJumpToLine {
+    (void)self.view;
+    if (!_jumpToLine) {
+        _jumpToLine = [[UDJumpToLineViewController alloc] init];
+        _jumpToLine.delegate = self;
+        _jumpToLine.view.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
+        [self.view addSubview:_jumpToLine.view];
+    }
+    _jumpToLine.view.hidden = NO;
+    [self _layoutBars];
+    [_jumpToLine focusWithLineCount:[_textStorage.textModel getLineCount]];
+}
+
+- (void)_hideJumpToLine {
+    _jumpToLine.view.hidden = YES;
+    [self _layoutBars];
+    [self.view.window makeFirstResponder:_textView];
+}
+
+- (void)jumpToLine:(UDJumpToLineViewController *)controller didChooseLine:(NSInteger)line {
+    [self _hideJumpToLine];
+    [self selectLine:line];
+}
+
+- (void)jumpToLineDidCancel:(UDJumpToLineViewController *)controller {
+    [self _hideJumpToLine];
+}
+
+- (void)selectLine:(NSInteger)line {
+    UDTextModel *model = _textStorage.textModel;
+    line = MAX(1, MIN(line, [model getLineCount]));
+    NSUInteger start = (NSUInteger)[model getOffsetAt:line column:1];
+    NSUInteger end = (NSUInteger)[model getOffsetAt:line column:[model getLineMaxColumn:line]];
+    NSRange range = NSMakeRange(start, end - start);
+    [_textView setSelectedRange:range];
+    [_textView scrollRangeToVisible:range];
+    [_textView centerSelectionInVisibleArea:nil];
 }
 
 /// The matches changed: their highlights, and their marks in the gutter.

@@ -48,6 +48,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// for the selection when it is a short single line.
 - (void)showFindBarReplacing:(BOOL)replacing;
 
+/// Jump to Line (⌘L): a field over the editor; Return selects that line.
+@property (nonatomic, readonly, getter=isJumpToLineVisible) BOOL jumpToLineVisible;
+- (void)showJumpToLine;
+/// Selects line @a line (1-based; clamped to the text's) and scrolls to it.
+- (void)selectLine:(NSInteger)line;
+
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;
 

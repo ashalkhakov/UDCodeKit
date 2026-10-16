@@ -57,6 +57,9 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol UDFindActionHandler <NSObject>
 - (void)performFindAction:(NSInteger)action;
 - (BOOL)canPerformFindAction:(NSInteger)action;
+@optional
+/// Jump to Line (-jumpToLine:, ⌘L).
+- (void)showJumpToLine;
 @end
 
 @interface UDDiagnosticTextView : NSTextView
@@ -105,6 +108,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// The Find menu's actions; GNUstep's NSTextView has no find bar of its own.
 - (IBAction)performTextFinderAction:(nullable id)sender;
+/// Jump to Line… (⌘L, as Xcode has it), handed to the find action handler.
+- (IBAction)jumpToLine:(nullable id)sender;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -8,19 +8,14 @@
 /// How far below the top of the editor the box floats.
 static const CGFloat UDJumpToLineInset = 8.0;
 
-@implementation UDJumpToLinePanel
-- (BOOL)canBecomeKeyWindow { return YES; }
-- (BOOL)canBecomeMainWindow { return NO; }
-@end
-
-/// The box: a rounded panel of the window's colour, outlined.
+/// The box: a rounded panel of the window's colour, outlined; what is
+/// around its corners is the text's.
 @interface UDJumpToLineBox : NSView
 @end
 
 @implementation UDJumpToLineBox
+- (BOOL)isOpaque { return NO; }
 - (void)drawRect:(NSRect)dirtyRect {
-    [[NSColor clearColor] setFill];
-    NSRectFill(dirtyRect);
     NSRect box = NSInsetRect(self.bounds, 0.5, 0.5);
     NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:box xRadius:8 yRadius:8];
     [[NSColor windowBackgroundColor] setFill];
@@ -36,60 +31,31 @@ static const CGFloat UDJumpToLineInset = 8.0;
     return [super initWithNibName:@"UDJumpToLine" bundle:[NSBundle bundleForClass:[UDJumpToLineViewController class]]];
 }
 
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    UDJumpToLinePanel *panel = self.panel;
-    panel.opaque = NO;
-    panel.backgroundColor = [NSColor clearColor];
-    panel.hasShadow = YES;
-    // the keyboard gone elsewhere (a click in the text, another window):
-    // put away, as Xcode's
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_panelDidResignKey:)
-                                                 name:NSWindowDidResignKeyNotification object:panel];
-}
-
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-}
-
 - (BOOL)isShown {
-    return self.panel.parentWindow != nil;
+    return self.isViewLoaded && self.view.superview != nil;
 }
 
 - (void)showOverView:(NSView *)view lineCount:(NSInteger)lineCount {
-    (void)self.view;
-    NSWindow *window = view.window;
-    UDJumpToLinePanel *panel = self.panel;
-    if (window == nil || panel == nil) return;
+    NSView *box = self.view;
+    NSView *host = view.superview;
+    if (host == nil) return;
     self.lineField.stringValue = @"";
     self.rangeLabel.stringValue = [NSString stringWithFormat:@"1–%ld", (long)lineCount];
 
-    NSRect area = [window convertRectToScreen:[view convertRect:view.bounds toView:nil]];
-    NSRect frame = panel.frame;
-    frame.origin.x = NSMidX(area) - NSWidth(frame) / 2;
-    frame.origin.y = NSMaxY(area) - UDJumpToLineInset - NSHeight(frame);
-    [panel setFrame:frame display:NO];
-    if (panel.parentWindow != window) {
-        [panel.parentWindow removeChildWindow:panel];
-        [window addChildWindow:panel ordered:NSWindowAbove];
-    }
-    [panel makeKeyAndOrderFront:nil];
-    [panel makeFirstResponder:self.lineField];
+    NSRect area = view.frame;
+    NSRect frame = box.frame;
+    frame.origin.x = round(NSMidX(area) - NSWidth(frame) / 2);
+    frame.origin.y = host.isFlipped ? NSMinY(area) + UDJumpToLineInset : NSMaxY(area) - UDJumpToLineInset - NSHeight(frame);
+    box.frame = frame;
+    // above the editor: last of its siblings
+    [box removeFromSuperview];
+    [host addSubview:box positioned:NSWindowAbove relativeTo:nil];
+    [box.window makeFirstResponder:self.lineField];
 }
 
 - (void)close {
-    UDJumpToLinePanel *panel = self.panel;
-    NSWindow *parent = panel.parentWindow;
-    if (parent == nil) return;
-    [parent removeChildWindow:panel];
-    [panel orderOut:nil];
-    [parent makeKeyWindow];
-}
-
-- (void)_panelDidResignKey:(NSNotification *)notification {
-    if (self.isShown) {
-        [self.delegate jumpToLineDidCancel:self];
-    }
+    if (!self.isShown) return;
+    [self.view removeFromSuperview];
 }
 
 - (IBAction)jump:(nullable id)sender {
@@ -108,6 +74,14 @@ static const CGFloat UDJumpToLineInset = 8.0;
         return YES;
     }
     return NO;
+}
+
+// The field no longer has the keyboard (a click in the text, say): put
+// away, as Xcode's is. (After Return or Escape it is away already.)
+- (void)controlTextDidEndEditing:(NSNotification *)notification {
+    if (self.isShown) {
+        [self.delegate jumpToLineDidCancel:self];
+    }
 }
 
 @end

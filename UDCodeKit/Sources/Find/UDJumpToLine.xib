@@ -8,55 +8,48 @@
         <customObject id="-2" userLabel="File's Owner" customClass="UDJumpToLineViewController">
             <connections>
                 <outlet property="view" destination="JL-root" id="JL-o-view"/>
-                <outlet property="panel" destination="JL-panel" id="JL-o-panel"/>
                 <outlet property="lineField" destination="JL-field" id="JL-o-field"/>
                 <outlet property="rangeLabel" destination="JL-range" id="JL-o-range"/>
             </connections>
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
-        <window title="Jump to Line" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" hidesOnDeactivate="YES" releasedWhenClosed="NO" visibleAtLaunch="NO" animationBehavior="none" id="JL-panel" customClass="UDJumpToLinePanel">
-            <windowStyleMask key="styleMask"/>
-            <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
-            <rect key="contentRect" x="0.0" y="0.0" width="340" height="40"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1055"/>
-            <view key="contentView" id="JL-root" userLabel="Jump to Line" customClass="UDJumpToLineBox">
-                <rect key="frame" x="0.0" y="0.0" width="340" height="40"/>
-                <autoresizingMask key="autoresizingMask"/>
-                <subviews>
-                    <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" id="JL-label">
-                        <rect key="frame" x="12" y="12" width="84" height="16"/>
-                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
-                        <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="Jump to Line" id="JL-label-cell">
-                            <font key="font" metaFont="system"/>
-                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                        </textFieldCell>
-                    </textField>
-                    <textField focusRingType="none" verticalHuggingPriority="750" id="JL-field">
-                        <rect key="frame" x="102" y="9" width="120" height="22"/>
-                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
-                        <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="NO" borderStyle="bezel" placeholderString="Line" drawsBackground="YES" id="JL-field-cell">
-                            <font key="font" metaFont="system"/>
-                            <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
-                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                        </textFieldCell>
-                        <connections>
-                            <action selector="jump:" target="-2" id="JL-a-jump"/>
-                            <outlet property="delegate" destination="-2" id="JL-o-delegate"/>
-                        </connections>
-                    </textField>
-                    <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" id="JL-range">
-                        <rect key="frame" x="228" y="12" width="100" height="16"/>
-                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
-                        <textFieldCell key="cell" lineBreakMode="clipping" title="1–1" id="JL-range-cell">
-                            <font key="font" metaFont="system"/>
-                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
-                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                        </textFieldCell>
-                    </textField>
-                </subviews>
-            </view>
-        </window>
+        <customView id="JL-root" userLabel="Jump to Line" customClass="UDJumpToLineBox">
+            <rect key="frame" x="0.0" y="0.0" width="340" height="40"/>
+            <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxX="YES" flexibleMinY="YES"/>
+            <subviews>
+                <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" id="JL-label">
+                    <rect key="frame" x="12" y="12" width="84" height="16"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
+                    <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="Jump to Line" id="JL-label-cell">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <textField focusRingType="none" verticalHuggingPriority="750" id="JL-field">
+                    <rect key="frame" x="102" y="9" width="120" height="22"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
+                    <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="NO" borderStyle="bezel" placeholderString="Line" drawsBackground="YES" id="JL-field-cell">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                    <connections>
+                        <action selector="jump:" target="-2" id="JL-a-jump"/>
+                        <outlet property="delegate" destination="-2" id="JL-o-delegate"/>
+                    </connections>
+                </textField>
+                <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" id="JL-range">
+                    <rect key="frame" x="228" y="12" width="100" height="16"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
+                    <textFieldCell key="cell" lineBreakMode="clipping" title="1–1" id="JL-range-cell">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+            </subviews>
+        </customView>
     </objects>
 </document>

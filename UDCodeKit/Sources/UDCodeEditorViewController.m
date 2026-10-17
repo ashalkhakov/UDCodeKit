@@ -234,7 +234,7 @@
     return _jumpToLine.isShown;
 }
 
-/// The box over the top of the text (Xcode's).
+/// The box over the top of the text (Xcode's), laid over it.
 - (void)showJumpToLine {
     (void)self.view;
     if (!_jumpToLine) {

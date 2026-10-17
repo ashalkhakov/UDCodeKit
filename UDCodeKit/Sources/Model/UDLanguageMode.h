@@ -102,6 +102,20 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, readonly, nullable) NSArray<NSString *> *languageServerCommand;
 
 // ---------------------------------------------------------------------------
+// MARK: - Debugging
+// ---------------------------------------------------------------------------
+
+/// The command that starts this mode's debug adapter (the executable's path,
+/// then its arguments), asked of the extension each time
+/// (-debugAdapterCommandForIdentifier:); nil when it gives none.
+@property (nonatomic, copy, readonly, nullable) NSArray<NSString *> *debugAdapterCommand;
+
+/// The launch request's arguments for debugging @a fileURL, as the extension
+/// gives them (-debugLaunchArgumentsForIdentifier:fileURL:); without one,
+/// { "program": the file's path }.
+- (NSDictionary *)debugLaunchArgumentsForFileURL:(NSURL *)fileURL;
+
+// ---------------------------------------------------------------------------
 // MARK: - Language configuration
 // ---------------------------------------------------------------------------
 

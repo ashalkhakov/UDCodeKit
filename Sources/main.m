@@ -6,10 +6,15 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "UDDemoDebugAdapter.h"
 
 int main(int argc, const char * argv[]) {
-    @autoreleasepool {
-        // Setup code that might create autoreleased objects goes here.
+    // Started as the demo's debug adapter (Debug > Run starts UDCode so):
+    // no application, its standard input and output.
+    if (argc > 1 && [UDDemoDebugAdapterOption isEqualToString:[NSString stringWithUTF8String:argv[1]]]) {
+        @autoreleasepool {
+            return [UDDemoDebugAdapter runOnStandardStreams];
+        }
     }
     return NSApplicationMain(argc, argv);
 }

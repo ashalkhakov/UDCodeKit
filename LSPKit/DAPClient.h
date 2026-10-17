@@ -101,7 +101,6 @@ typedef NS_ENUM(NSInteger, DAPErrorCode) {
 - (instancetype)initWithReadHandle:(NSFileHandle *)readHandle
                        writeHandle:(NSFileHandle *)writeHandle;
 
-
 @property (nonatomic, weak, nullable) id<DAPClientDelegate> delegate;
 
 /// Why the adapter's process did not start.

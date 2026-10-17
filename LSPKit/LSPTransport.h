@@ -44,7 +44,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithReadHandle:(NSFileHandle *)readHandle
                        writeHandle:(NSFileHandle *)writeHandle;
 
-
 @property (nonatomic, weak, nullable) id<LSPTransportDelegate> delegate;
 
 /// The process, when the transport started one.

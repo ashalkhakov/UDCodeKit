@@ -22,7 +22,7 @@ UDCodeTests_OBJC_FILES = $(wildcard *.m) \
 UDCodeTests_RESOURCE_FILES = $(filter-out %/MainMenu.xib,$(shell find $(APP_DIR) -name '*.xib' | sort))
 UDCodeTests_NEEDS_GUI = yes
 
-UDCodeTests_INCLUDE_DIRS = -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit -I$(APP_DIR) -I$(APP_DIR)/Model \
+UDCodeTests_INCLUDE_DIRS = -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit -I$(APP_DIR) -I$(APP_DIR)/Model -I$(APP_DIR)/Debug \
     -I../tree-sitter/include
 UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
           $(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \

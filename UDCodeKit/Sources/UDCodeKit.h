@@ -53,3 +53,6 @@
 #import <UDCodeKit/UDErrorsViewController.h>
 #import <UDCodeKit/UDHoverViewController.h>
 #import <UDCodeKit/UDPlaceholderHighlighter.h>
+
+#import <UDCodeKit/UDBreakpointStore.h>
+#import <UDCodeKit/UDDebugSession.h>

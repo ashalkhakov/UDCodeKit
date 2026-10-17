@@ -122,6 +122,8 @@ NSErrorDomain const DAPErrorDomain = @"DAPErrorDomain";
     id<DAPClientDelegate> delegate = _delegate;
     if ([delegate respondsToSelector:@selector(debugAdapter:didWriteErrorOutput:)]) {
         [delegate debugAdapter:self didWriteErrorOutput:text];
+    } else {
+        NSLog(@"debug adapter: %@", text);
     }
 }
 

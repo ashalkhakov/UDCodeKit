@@ -21,10 +21,12 @@ UDCodeKit_HEADER_FILES = \
     TreeSitterTheme.h \
     UDAutoIndenter.h \
     UDBracketMatchHighlighter.h \
+    UDBreakpointStore.h \
     UDCodeDocument.h \
     UDCodeEditorLayoutManager.h \
     UDCodeEditorViewController.h \
     UDCodeKit.h \
+    UDDebugSession.h \
     UDDecorationHighlighter.h \
     UDDecorationLayerRegistry.h \
     UDDiagnosticItem.h \

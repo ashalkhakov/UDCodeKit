@@ -187,6 +187,12 @@ static NSString * const UDProgram =
     [_controller toggleDebugArea:nil];
     XCTAssertTrue([_controller.debugSplit isPaneVisible:1]);
     XCTAssertEqualWithAccuracy(NSHeight([(NSView *)_controller.debugSplit.splitView.subviews[1] frame]), 220, 1);
+    // Shown again after being nothing high: the bar on top, the area under it.
+    NSRect barFrame = _controller.debugBarHost.frame, areaFrame = _controller.debugAreaHost.frame;
+    XCTAssertEqualWithAccuracy(NSMaxY(barFrame), 220, 0.5);
+    XCTAssertEqualWithAccuracy(NSHeight(barFrame), 26, 0.5);
+    XCTAssertEqualWithAccuracy(NSMaxY(areaFrame), NSMinY(barFrame), 0.5, @"the area does not run under the bar");
+    XCTAssertEqualWithAccuracy(NSHeight(areaFrame), 194, 0.5);
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@"" action:@selector(toggleDebugArea:) keyEquivalent:@""];
     [_controller validateMenuItem:item];
     XCTAssertEqualObjects(item.title, @"Hide Debug Area");

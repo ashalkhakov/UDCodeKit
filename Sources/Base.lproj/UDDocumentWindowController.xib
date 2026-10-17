@@ -178,7 +178,7 @@
                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                 <font key="font" metaFont="system"/>
                                             </tabView>
-                                            <customView id="WS-debug-pane" userLabel="Debug Area">
+                                            <customView autoresizesSubviews="NO" id="WS-debug-pane" userLabel="Debug Area">
                                                 <rect key="frame" x="0.0" y="492" width="698" height="240"/>
                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES"/>
                                                 <subviews>

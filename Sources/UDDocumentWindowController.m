@@ -123,6 +123,11 @@ static const NSInteger UDDebugNavigatorSegment = 2;
     _debugSplit.autosaveName = @"UDCode Debug Area";
     [_debugSplit restoreLayout];
     if (!debugAreaSaved) [_debugSplit setPane:UDDebugAreaPane visible:NO];
+    NSView *debugPane = _debugBarHost.superview;
+    debugPane.postsFrameChangedNotifications = YES;
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_debugPaneDidResize:)
+                                                 name:NSViewFrameDidChangeNotification object:debugPane];
+    [self _layoutDebugPane];
 
     // The documents to show.
     NSArray<UDCodeDocument *> *preloaded = workspace.workspaceModel.documents;
@@ -154,6 +159,21 @@ static const NSInteger UDDebugNavigatorSegment = 2;
     view.frame = host.bounds;
     view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [host addSubview:view];
+}
+
+/// The debug bar on top of the debug pane, the area under it: laid out
+/// here rather than by autoresizing, as the pane is nothing high while it is
+/// hidden, and what autoresizing loses then it does not get back.
+- (void)_layoutDebugPane {
+    NSRect bounds = _debugBarHost.superview.bounds;
+    CGFloat bar = NSHeight(_debugBarHost.frame);
+    if (NSHeight(bounds) < bar + 20) return;
+    _debugBarHost.frame = NSMakeRect(0, NSMaxY(bounds) - bar, NSWidth(bounds), bar);
+    _debugAreaHost.frame = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - bar);
+}
+
+- (void)_debugPaneDidResize:(NSNotification *)note {
+    [self _layoutDebugPane];
 }
 
 // ---------------------------------------------------------------------------
@@ -629,6 +649,7 @@ static const NSInteger UDDebugNavigatorSegment = 2;
 
 - (void)close {
     [_debugSession stop];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewFrameDidChangeNotification object:nil];
     // Only what this class observes: NSWindowController (GNUstep's) learns
     // that its window closes by a notification of its own.
     for (UDCodeDocument *doc in _workspaceModel.documents) {

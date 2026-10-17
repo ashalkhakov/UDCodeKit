@@ -393,19 +393,41 @@ static NSMenuItem *UDMenuItem(NSString *action, NSInteger tag) {
     XCTAssertTrue(_editor.isFindBarVisible);
 }
 
-/// Jump to Line, from the menu: a field over the editor; Return there
-/// selects the line, Escape puts it away.
+/// Jump to Line, from the menu: a box laid over the top of the editor (a
+/// view above it, in its window), its field with the keyboard; Return
+/// there selects the line, Escape or the field losing the keyboard puts it
+/// away.
 - (void)testJumpToLine {
     UDDiagnosticTextView *textView = _editor.textView;
     XCTAssertTrue([textView validateMenuItem:UDMenuItem(@"jumpToLine:", 0)], @"Jump to Line is on");
+    NSRect textBefore = [textView.enclosingScrollView convertRect:textView.enclosingScrollView.bounds toView:nil];
     [textView jumpToLine:nil];
     XCTAssertTrue(_editor.isJumpToLineVisible);
     id<UDJumpToLineForTests> jump = [_editor valueForKey:@"jumpToLine"];
     NSTextField *field = [(id)jump valueForKey:@"lineField"];
+    NSView *box = [(NSViewController *)jump view];
+    XCTAssertEqual(box.window, _window, @"in the editor's own window");
+    XCTAssertEqual(box.superview.subviews.lastObject, box, @"above the editor");
+    XCTAssertTrue(NSEqualRects([textView.enclosingScrollView convertRect:textView.enclosingScrollView.bounds toView:nil], textBefore),
+                  @"laid over: the text not pushed down");
+    NSRect editor = [_editor.view convertRect:_editor.view.bounds toView:nil];
+    NSRect boxRect = [box convertRect:box.bounds toView:nil];
+    XCTAssertTrue(NSContainsRect(editor, boxRect), @"over the editor: %@ in %@", NSStringFromRect(boxRect), NSStringFromRect(editor));
+    XCTAssertGreaterThan(NSMidY(boxRect), NSMidY(editor), @"at its top");
     XCTAssertEqual(_window.firstResponder, field.currentEditor ?: (id)field, @"the keyboard goes to its field");
+#ifndef __APPLE__
+    // GNUstep draws the window in one backing store: the text redrawn
+    // under the box, the box is to be drawn again over it
+    // (gnustep-patches' view-overlapping-siblings). macOS composites
+    // each view's layer, and needs no such thing.
+    [_window displayIfNeeded];
+    [textView setNeedsDisplay:YES];
+    XCTAssertTrue(box.needsDisplay, @"drawn again over the text redrawn under it");
+#endif
     field.stringValue = @"2";
     [jump jump:nil];
     XCTAssertFalse(_editor.isJumpToLineVisible, @"Return puts it away");
+    XCTAssertNil(box.superview);
     XCTAssertEqualObjects([_storage.string substringWithRange:textView.selectedRange], @"\ttwo", @"and selects the line");
     XCTAssertEqual(_window.firstResponder, textView, @"the keyboard back in the text");
 
@@ -417,6 +439,11 @@ static NSMenuItem *UDMenuItem(NSString *action, NSInteger tag) {
     [textView jumpToLine:nil];
     [jump control:field textView:(NSTextView *)field.currentEditor doCommandBySelector:@selector(cancelOperation:)];
     XCTAssertFalse(_editor.isJumpToLineVisible, @"Escape puts it away");
+    XCTAssertEqual(_window.firstResponder, textView);
+
+    [textView jumpToLine:nil];
+    [_window makeFirstResponder:textView];
+    XCTAssertFalse(_editor.isJumpToLineVisible, @"a click in the text puts it away");
 }
 
 #pragma mark - Quotes

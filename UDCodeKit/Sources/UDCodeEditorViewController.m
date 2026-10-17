@@ -214,16 +214,10 @@
     [self.view.window makeFirstResponder:_textView];
 }
 
-/// The bars over the editor, top down: Jump to Line, then Find; the text
-/// takes the rest.
+/// The Find bar over the editor; the text takes the rest.
 - (void)_layoutBars {
     NSRect bounds = self.view.bounds;
     CGFloat top = NSMaxY(bounds), width = NSWidth(bounds);
-    NSView *jump = _jumpToLine.view;
-    if (jump.superview != nil && !jump.isHidden) {
-        jump.frame = NSMakeRect(0, top - UDJumpToLineHeight, width, UDJumpToLineHeight);
-        top -= UDJumpToLineHeight;
-    }
     if (self.isFindBarVisible) {
         _findBarHost.frame = NSMakeRect(0, top - _findBarHeight, width, _findBarHeight);
         top -= _findBarHeight;
@@ -237,25 +231,21 @@
 // ---------------------------------------------------------------------------
 
 - (BOOL)isJumpToLineVisible {
-    return _jumpToLine.view.superview != nil && !_jumpToLine.view.isHidden;
+    return _jumpToLine.isShown;
 }
 
+/// The box over the top of the text (Xcode's), laid over it.
 - (void)showJumpToLine {
     (void)self.view;
     if (!_jumpToLine) {
         _jumpToLine = [[UDJumpToLineViewController alloc] init];
         _jumpToLine.delegate = self;
-        _jumpToLine.view.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
-        [self.view addSubview:_jumpToLine.view];
     }
-    _jumpToLine.view.hidden = NO;
-    [self _layoutBars];
-    [_jumpToLine focusWithLineCount:[_textStorage.textModel getLineCount]];
+    [_jumpToLine showOverView:_editorArea lineCount:[_textStorage.textModel getLineCount]];
 }
 
 - (void)_hideJumpToLine {
-    _jumpToLine.view.hidden = YES;
-    [self _layoutBars];
+    [_jumpToLine close];
     [self.view.window makeFirstResponder:_textView];
 }
 

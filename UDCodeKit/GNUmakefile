@@ -26,6 +26,9 @@ UDCodeKit_HEADER_FILES = \
     UDCodeEditorLayoutManager.h \
     UDCodeEditorViewController.h \
     UDCodeKit.h \
+    UDDebugAreaViewController.h \
+    UDDebugBarViewController.h \
+    UDDebugNavigatorViewController.h \
     UDDebugSession.h \
     UDDecorationHighlighter.h \
     UDDecorationLayerRegistry.h \

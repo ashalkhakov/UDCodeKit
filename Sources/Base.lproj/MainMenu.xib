@@ -126,7 +126,7 @@
                                     <action selector="saveDocumentAs:" target="-1" id="mDf-zr-I0C"/>
                                 </connections>
                             </menuItem>
-                            <menuItem title="Revert to Saved" keyEquivalent="r" id="KaW-ft-85H">
+                            <menuItem title="Revert to Saved" id="KaW-ft-85H">
                                 <connections>
                                     <action selector="revertDocumentToSaved:" target="-1" id="iJ3-Pv-kwq"/>
                                 </connections>
@@ -658,11 +658,71 @@
                                     <action selector="showIssuesNavigator:" target="-1" id="UDM-issues-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Debug" keyEquivalent="7" id="UDM-debugnav">
+                                <connections>
+                                    <action selector="showDebugNavigator:" target="-1" id="UDM-debugnav-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="UDM-view-sep3"/>
+                            <menuItem title="Show Debug Area" keyEquivalent="y" id="UDM-debugarea">
+                                <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
+                                <connections>
+                                    <action selector="toggleDebugArea:" target="-1" id="UDM-debugarea-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="UDM-view-sep2"/>
                             <menuItem title="Enter Full Screen" keyEquivalent="f" id="4J7-dP-txa">
                                 <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
                                 <connections>
                                     <action selector="toggleFullScreen:" target="-1" id="dU3-MA-1Rq"/>
+                                </connections>
+                            </menuItem>
+                        </items>
+                    </menu>
+                </menuItem>
+                <menuItem title="Debug" id="UDM-debug">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <menu key="submenu" title="Debug" id="UDM-debug-menu">
+                        <items>
+                            <menuItem title="Run" keyEquivalent="r" id="UDM-run">
+                                <connections>
+                                    <action selector="startDebugging:" target="-1" id="UDM-run-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Stop" keyEquivalent="." id="UDM-stop">
+                                <connections>
+                                    <action selector="stopDebugging:" target="-1" id="UDM-stop-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="UDM-debug-sep1"/>
+                            <menuItem title="Continue" keyEquivalent="y" id="UDM-continue">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
+                                <connections>
+                                    <action selector="debugContinueOrPause:" target="-1" id="UDM-continue-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Step Over" keyEquivalent="&#xF709;" id="UDM-stepover">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="debugStepOver:" target="-1" id="UDM-stepover-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Step Into" keyEquivalent="&#xF70A;" id="UDM-stepinto">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="debugStepInto:" target="-1" id="UDM-stepinto-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Step Out" keyEquivalent="&#xF70B;" id="UDM-stepout">
+                                <modifierMask key="keyEquivalentModifierMask"/>
+                                <connections>
+                                    <action selector="debugStepOut:" target="-1" id="UDM-stepout-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="UDM-debug-sep2"/>
+                            <menuItem title="Toggle Breakpoint" keyEquivalent="\" id="UDM-breakpoint">
+                                <connections>
+                                    <action selector="toggleBreakpoint:" target="-1" id="UDM-breakpoint-a"/>
                                 </connections>
                             </menuItem>
                         </items>

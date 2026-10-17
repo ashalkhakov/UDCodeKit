@@ -2,8 +2,9 @@
 
 A code editor in Objective-C (ARC) on AppKit: VS Code's text model ported
 (piece tree, decorations, undo, search, multiple cursors), tree-sitter for
-syntax highlighting, folding, auto-indent and parse errors, and an LSP client
-for diagnostics, completion and hover.
+syntax highlighting, folding, auto-indent and parse errors, an LSP client
+for diagnostics, completion and hover, and a debugger with Xcode's UI over
+any Debug Adapter Protocol adapter.
 
 It is being restructured into **UDCodeKit**: an editor library other
 applications embed, and a VS Code-like application built on it, on macOS and
@@ -23,12 +24,16 @@ on GNUstep (Linux).
   names are public. It also has what an Xcode-like window is made of:
   `UDPaneSplitController` (navigator | editors | inspector, panes that keep
   their size, hide, and are remembered), `UDEditorTabsController` with
-  `UDTabBarView` (editor tabs), and the find and replace bar. Every view is
-  in a XIB.
+  `UDTabBarView` (editor tabs), and the find and replace bar. And the
+  debugger (`Debug/`): `UDBreakpointStore`, `UDDebugSession`, the debug bar,
+  navigator and area; see [docs/debugging.md](docs/debugging.md). Every view
+  is in a XIB.
 - `Sources/` — the test application on top of it: documents, workspaces,
-  tabs, the issues pane.
+  tabs, the issues pane, the debugger, and a demo debug adapter (`UDCode
+  --debug-adapter`, `Sources/Debug/`).
 - `LSPKit/` — the Language Server Protocol client (`LSPKit.framework`), after
-  Christopher Atlan's LSPKit.
+  Christopher Atlan's LSPKit; the Debug Adapter Protocol client
+  (`DAPClient`); and the Content-Length transport both use (`LSPTransport`).
 - `tree-sitter-<lang>/` — grammar bundles (bash, c, html, json, make,
   markdown, objc, xml, yaml), loaded by the application as plug-ins; see
   [docs/grammar-bundles.md](docs/grammar-bundles.md). `tree-sitter-sql/` is
@@ -65,8 +70,10 @@ tables load their prototype cells from a XIB there).
 - `UDCode` scheme, `UDCodeTests` — the editor (`Tests/`): text storage,
   incremental parsing and highlighting, parse errors, folding, find and
   replace, auto-indent, language modes, documents; `UDEditorComplexityTests`
-  for the editor's hot paths; and the find bar and the workspace window
-  driven in-process.
+  for the editor's hot paths; the find bar and the workspace window driven
+  in-process; and the debugger: the transport and `DAPClient`, the
+  breakpoint store and the session against the demo adapter (in-process
+  over pipes, and as a process), and its UI in the workspace window.
 
 ```bash
 xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDPieceTable -destination 'platform=macOS' test

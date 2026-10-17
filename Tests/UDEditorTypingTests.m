@@ -393,16 +393,28 @@ static NSMenuItem *UDMenuItem(NSString *action, NSInteger tag) {
     XCTAssertTrue(_editor.isFindBarVisible);
 }
 
-/// Jump to Line, from the menu: a field over the editor; Return there
-/// selects the line, Escape puts it away.
+/// Jump to Line, from the menu: a box floating over the top of the
+/// editor, a child of its window, its field with the keyboard; Return
+/// there selects the line, Escape or the keyboard going elsewhere puts it
+/// away.
 - (void)testJumpToLine {
     UDDiagnosticTextView *textView = _editor.textView;
     XCTAssertTrue([textView validateMenuItem:UDMenuItem(@"jumpToLine:", 0)], @"Jump to Line is on");
+    NSRect textBefore = [textView.enclosingScrollView convertRect:textView.enclosingScrollView.bounds toView:nil];
     [textView jumpToLine:nil];
     XCTAssertTrue(_editor.isJumpToLineVisible);
     id<UDJumpToLineForTests> jump = [_editor valueForKey:@"jumpToLine"];
     NSTextField *field = [(id)jump valueForKey:@"lineField"];
-    XCTAssertEqual(_window.firstResponder, field.currentEditor ?: (id)field, @"the keyboard goes to its field");
+    NSWindow *box = field.window;
+    XCTAssertNotEqual(box, _window, @"a window of its own");
+    XCTAssertEqual(box.parentWindow, _window, @"over the editor's, moving with it");
+    XCTAssertTrue(box.canBecomeKeyWindow, @"borderless, and yet it takes the keyboard");
+    XCTAssertTrue(NSEqualRects([textView.enclosingScrollView convertRect:textView.enclosingScrollView.bounds toView:nil], textBefore),
+                  @"floating: the text not pushed down");
+    NSRect editor = [_window convertRectToScreen:[_editor.view convertRect:_editor.view.bounds toView:nil]];
+    XCTAssertTrue(NSContainsRect(editor, box.frame), @"over the top of the editor: %@ in %@",
+                  NSStringFromRect(box.frame), NSStringFromRect(editor));
+    XCTAssertEqual(box.firstResponder, field.currentEditor ?: (id)field, @"the keyboard goes to its field");
     field.stringValue = @"2";
     [jump jump:nil];
     XCTAssertFalse(_editor.isJumpToLineVisible, @"Return puts it away");
@@ -417,6 +429,12 @@ static NSMenuItem *UDMenuItem(NSString *action, NSInteger tag) {
     [textView jumpToLine:nil];
     [jump control:field textView:(NSTextView *)field.currentEditor doCommandBySelector:@selector(cancelOperation:)];
     XCTAssertFalse(_editor.isJumpToLineVisible, @"Escape puts it away");
+    XCTAssertFalse(box.isVisible);
+    XCTAssertEqual(_window.firstResponder, textView);
+
+    [textView jumpToLine:nil];
+    [[NSNotificationCenter defaultCenter] postNotificationName:NSWindowDidResignKeyNotification object:box];
+    XCTAssertFalse(_editor.isJumpToLineVisible, @"a click elsewhere puts it away");
 }
 
 #pragma mark - Quotes

@@ -3,6 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDProject.h"
+#include <limits.h>
+#include <stdlib.h>
 
 NSNotificationName const UDProjectSettingsDidChangeNotification = @"UDProjectSettingsDidChangeNotification";
 
@@ -18,7 +20,14 @@ NSString * const UDProjectPlatformKey = @"macos";
 
 - (instancetype)initWithFolderURL:(NSURL *)folderURL {
     if (!(self = [super init])) return nil;
-    _folderURL = [folderURL.URLByStandardizingPath copy];
+    // its real path: what a compiler records in its debug information, and
+    // so what a debugger's breakpoints are matched against (a folder opened
+    // through a link, or macOS's /var, would match nothing)
+    char resolved[PATH_MAX];
+    _folderURL = realpath(folderURL.path.fileSystemRepresentation, resolved)
+        ? [NSURL fileURLWithPath:[[NSFileManager defaultManager] stringWithFileSystemRepresentation:resolved length:strlen(resolved)]
+                     isDirectory:YES]
+        : [folderURL.URLByStandardizingPath copy];
     _settingsURL = [[_folderURL URLByAppendingPathComponent:@".udcode"] URLByAppendingPathComponent:@"settings.json"];
     [self _readSettings];
     return self;
@@ -294,6 +303,49 @@ static NSString *UDStringOrNil(id value) {
     return nil;
 }
 #endif
+
+- (NSArray<NSString *> *)fallbackCompileFlags {
+    NSMutableArray<NSString *> *flags = [NSMutableArray array];
+#ifdef GNUSTEP
+    NSString *config = nil;
+    for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
+        NSString *candidate = [tools stringByAppendingPathComponent:@"gnustep-config"];
+        if ([[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) { config = candidate; break; }
+    }
+    NSString *objcFlags = config ? [UDProject _outputOf:config arguments:@[ @"--objc-flags" ]] : nil;
+    for (NSString *flag in [UDProject argumentsOfCommandLine:objcFlags ?: @""]) {
+        // what makes dependency files is make's business, not an index's
+        if ([flag hasPrefix:@"-M"]) continue;
+        [flags addObject:flag];
+    }
+#else
+    NSString *sdk = [UDProject _outputOf:@"/usr/bin/xcrun" arguments:@[ @"--show-sdk-path" ]];
+    if (sdk.length) [flags addObjectsFromArray:@[ @"-isysroot", sdk ]];
+#endif
+    [flags addObject:[@"-I" stringByAppendingString:_folderURL.path]];
+    return flags;
+}
+
+/// What a command prints, trimmed; nil when it can't run.
++ (nullable NSString *)_outputOf:(NSString *)launchPath arguments:(NSArray<NSString *> *)arguments {
+    if (![[NSFileManager defaultManager] isExecutableFileAtPath:launchPath]) return nil;
+    NSTask *task = [[NSTask alloc] init];
+    NSPipe *pipe = [NSPipe pipe];
+    task.launchPath = launchPath;
+    task.arguments = arguments;
+    task.standardOutput = pipe;
+    task.standardError = [NSFileHandle fileHandleWithNullDevice];
+    @try {
+        [task launch];
+    } @catch (NSException *exception) {
+        return nil;
+    }
+    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    if (task.terminationStatus != 0) return nil;
+    return [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]
+            stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
 
 + (NSArray<NSString *> *)argumentsOfCommandLine:(NSString *)line {
     NSMutableArray<NSString *> *words = [NSMutableArray array];

@@ -673,6 +673,11 @@
                                     <action selector="showBreakpointNavigator:" target="-1" id="UDM-breakpointnav-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Build Log" keyEquivalent="9" id="UDM-buildnav">
+                                <connections>
+                                    <action selector="showBuildNavigator:" target="-1" id="UDM-buildnav-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="UDM-view-sep3"/>
                             <menuItem title="Show Debug Area" keyEquivalent="y" id="UDM-debugarea">
                                 <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
@@ -694,9 +699,26 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Debug" id="UDM-debug-menu">
                         <items>
+                            <menuItem title="Build" keyEquivalent="b" id="UDM-build">
+                                <connections>
+                                    <action selector="build:" target="-1" id="UDM-build-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Clean" keyEquivalent="K" id="UDM-clean">
+                                <connections>
+                                    <action selector="clean:" target="-1" id="UDM-clean-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="UDM-debug-sep0"/>
                             <menuItem title="Run" keyEquivalent="r" id="UDM-run">
                                 <connections>
                                     <action selector="startDebugging:" target="-1" id="UDM-run-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Run Without Debugging" keyEquivalent="r" id="UDM-runplain">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
+                                <connections>
+                                    <action selector="runWithoutDebugging:" target="-1" id="UDM-runplain-a"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Stop" keyEquivalent="." id="UDM-stop">

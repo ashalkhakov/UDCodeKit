@@ -243,6 +243,15 @@ typedef struct _LSPTextDocumentSyncOptions {
 
 @property (readonly, nullable) NSString *languageID;
 
+/**
+ * Set before initializing: the workspace's folder (initialize's rootUri,
+ * rootPath and its one workspaceFolder), where a server like clangd looks for
+ * the project's compile commands and indexes; and its initializationOptions
+ * (clangd's fallbackFlags, say). Neither, when not set.
+ */
+@property (copy, nullable) NSURL *rootURL;
+@property (copy, nullable) NSDictionary *initializationOptions;
+
 #pragma mark Observers
 
 - (void)addObserver:(id<LSPClientObserver>)observer;

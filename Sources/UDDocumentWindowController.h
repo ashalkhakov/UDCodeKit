@@ -18,7 +18,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController;
+@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -56,6 +56,19 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, readonly, nullable) UDProject *project;
 /// Its files, in the navigator's Files tab (nil without a project).
 @property (nonatomic, strong, readonly, nullable) UDFileNavigatorViewController *fileNavigator;
+/// Its build (Debug > Build), whose log is the navigator's Build tab.
+@property (nonatomic, strong, readonly, nullable) UDBuildRunner *buildRunner;
+
+/// Debug > Build (⌘B) and Clean (⇧⌘K): the project's own commands, the
+/// edited files saved first; the build's errors in the Issues navigator.
+- (IBAction)build:(nullable id)sender;
+- (IBAction)clean:(nullable id)sender;
+/// Debug > Run Without Debugging (⌃⌘R): built, then run, its output in the console.
+- (IBAction)runWithoutDebugging:(nullable id)sender;
+- (IBAction)showBuildNavigator:(nullable id)sender;
+/// File > Save in a project: the selected tab's file (and every edited one, Save All).
+- (IBAction)saveDocument:(nullable id)sender;
+- (IBAction)saveAllDocuments:(nullable id)sender;
 
 // MARK: - Debugging
 

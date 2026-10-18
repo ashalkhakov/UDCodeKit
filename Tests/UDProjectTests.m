@@ -32,6 +32,8 @@
     _folder = [NSTemporaryDirectory() stringByAppendingPathComponent:[[NSUUID UUID] UUIDString]];
     [[NSFileManager defaultManager] createDirectoryAtPath:[_folder stringByAppendingPathComponent:@"Sources/Model"]
                               withIntermediateDirectories:YES attributes:nil error:NULL];
+    // as the project names it: its real path (macOS's /var is /private/var)
+    _folder = [[UDProject alloc] initWithFolderURL:[NSURL fileURLWithPath:_folder]].folderURL.path;
 }
 
 - (void)tearDown {
@@ -91,7 +93,7 @@
 #endif
     XCTAssertEqualObjects(project.runArguments, (@[ @"-v", @"two words" ]), @"run's other keys kept");
     XCTAssertEqualObjects(project.cleanCommand, @"make clean", @"what the folder doesn't say, guessed");
-    XCTAssertEqualObjects(project.runDirectory, _folder.stringByStandardizingPath);
+    XCTAssertEqualObjects(project.runDirectory, _folder);
 
     // written back as set
     NSMutableDictionary *settings = [project.settings mutableCopy];
@@ -129,8 +131,8 @@
     XCTAssertNotNil(workspace.project);
     UDDocumentWindowController *controller = workspace.windowControllers.firstObject;
     XCTAssertNotNil(controller.fileNavigator, @"the project's files in the navigator");
-    XCTAssertFalse(controller.projectHost.hidden);
-    XCTAssertTrue(controller.filesTable.enclosingScrollView.hidden, @"instead of the open files");
+    XCTAssertFalse([controller.projectHost isHidden]);
+    XCTAssertTrue([controller.filesTable.enclosingScrollView isHidden], @"instead of the open files");
     XCTAssertEqualObjects(controller.window.title, _folder.lastPathComponent);
     XCTAssertEqual(controller.editorTabs.items.count, 0u, @"no untitled tab in a project");
 
@@ -144,7 +146,7 @@
     // a file deep in it, revealed, and chosen: its tab
     NSURL *model = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"Sources/Model/model.json"]];
     [controller.fileNavigator revealURL:model];
-    XCTAssertEqualObjects([controller.fileNavigator URLOfRow:outline.selectedRow].path, model.URLByStandardizingPath.path);
+    XCTAssertEqualObjects([controller.fileNavigator URLOfRow:outline.selectedRow].path, model.path);
     XCTAssertEqual(controller.editorTabs.items.count, 1u, @"a file selected is opened, as VS Code's Explorer does");
     UDCodeDocument *opened = controller.editorTabs.selectedItem.representedObject;
     XCTAssertEqualObjects(opened.fileURL.lastPathComponent, @"model.json");
@@ -160,6 +162,162 @@
 
     // the same folder again: the window it has
     XCTAssertEqual([delegate openFolderAtURL:[NSURL fileURLWithPath:_folder]], workspace);
+    [controller close];
+    [workspace close];
+}
+
+/// The diagnostics' messages of @a document.
+- (NSString *)messagesOf:(UDCodeDocument *)document {
+    return [[document.diagnosticStore.allDiagnostics valueForKey:@"message"] componentsJoinedByString:@" | "];
+}
+
+/// clangd, the existing language server, for the project's C and
+/// Objective-C: one process for the project, its errors in the editor, a
+/// GNUstep or Cocoa header found without compile commands (its fallback flags).
+- (void)testClangdIsTheProjectsLanguageServer {
+    if (![UDToolLocator clangdPath]) {
+        NSLog(@"UDProjectTests: no clangd here; its case checks nothing");
+        return;
+    }
+    [self write:@"int main(void) {\n    return undefined_name;\n}\n" to:@"main.c"];
+    [self write:@"#import <Foundation/Foundation.h>\n\nint twice(int n) {\n    NSString *s = @\"x\";\n    return n * 2 + (int)s.length + undefined_in_m;\n}\n"
+             to:@"Sources/twice.m"];
+    AppDelegate *delegate = [[AppDelegate alloc] init];
+    UDWorkspace *workspace = [delegate openFolderAtURL:[NSURL fileURLWithPath:_folder]];
+    UDDocumentWindowController *controller = workspace.windowControllers.firstObject;
+
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"main.c"]]];
+    UDCodeDocument *c = controller.editorTabs.selectedItem.representedObject;
+    UDRunUntil([[self messagesOf:c] containsString:@"undefined_name"], 30);
+    XCTAssertTrue([[self messagesOf:c] containsString:@"undefined_name"], @"clangd's error: %@", [self messagesOf:c]);
+
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"Sources/twice.m"]]];
+    UDCodeDocument *m = controller.editorTabs.selectedItem.representedObject;
+    // its own error said: clangd has parsed it, with Foundation found
+    UDRunUntil([[self messagesOf:m] containsString:@"undefined_in_m"], 30);
+    XCTAssertTrue([[self messagesOf:m] containsString:@"undefined_in_m"], @"clangd's error: %@", [self messagesOf:m]);
+    XCTAssertFalse([[self messagesOf:m] containsString:@"not found"], @"Foundation found: %@", [self messagesOf:m]);
+    XCTAssertEqual([[controller valueForKey:@"projectServers"] count], 1u, @"one clangd for the project");
+
+    [controller close];
+    [workspace close];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Building, running, debugging
+// ---------------------------------------------------------------------------
+
+/// A C project make builds: hello.c, its program "hello".
+- (void)writeCProjectWith:(NSString *)source {
+    [self write:@"hello: hello.c\n\tcc -g -O0 -o hello hello.c\n\nclean:\n\trm -f hello\n" to:@"Makefile"];
+    [self write:source to:@"hello.c"];
+    NSString *debugger = NSProcessInfo.processInfo.environment[@"UD_TEST_DEBUGGER"];
+    // a debugger by name ("gdb", "lldb"), or an adapter's path
+    NSString *named = !debugger.length ? @""
+                    : [@[ @"gdb", @"lldb" ] containsObject:debugger] ? [NSString stringWithFormat:@", \"debugger\": \"%@\"", debugger]
+                    : [NSString stringWithFormat:@", \"debugger\": [\"%@\"]", debugger];
+    [self write:[NSString stringWithFormat:@"{ \"run\": { \"program\": \"hello\", \"arguments\": \"one \\\"two words\\\"\" }%@ }", named]
+             to:@".udcode/settings.json"];
+}
+
+- (UDDocumentWindowController *)openProject:(UDWorkspace * __strong *)workspace {
+    AppDelegate *delegate = [[AppDelegate alloc] init];
+    *workspace = [delegate openFolderAtURL:[NSURL fileURLWithPath:_folder]];
+    UDDocumentWindowController *controller = (*workspace).windowControllers.firstObject;
+    [controller.breakpoints removeAllBreakpoints];
+    return controller;
+}
+
+- (void)testABuildsErrorsAreIssuesOfTheirFiles {
+    NSString *path = nil;
+    UDDiagnosticItem *item = [UDBuildRunner diagnosticOfLine:@"src/a.c:12:5: error: use of undeclared identifier 'x'"
+                                                    inFolder:@"/p" path:&path];
+    XCTAssertEqualObjects(path, @"/p/src/a.c");
+    XCTAssertEqual(item.line, 12);
+    XCTAssertEqual(item.column, 4);
+    XCTAssertEqual(item.severity, UDDiagnosticSeverityError);
+    XCTAssertEqualObjects(item.message, @"use of undeclared identifier 'x'");
+    XCTAssertEqual([UDBuildRunner diagnosticOfLine:@"b.m:3: warning: unused" inFolder:@"/p" path:&path].severity,
+                   UDDiagnosticSeverityWarning);
+    XCTAssertNil([UDBuildRunner diagnosticOfLine:@"make: *** [all] Error 1" inFolder:@"/p" path:&path]);
+
+    [self writeCProjectWith:@"int main(void) {\n    return undefined_here;\n}\n"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller build:nil];
+    XCTAssertTrue(controller.buildRunner.running || controller.buildRunner.command != nil);
+    UDRunUntil(!controller.buildRunner.running, 60);
+    XCTAssertFalse(controller.buildRunner.succeeded, @"%@", controller.buildRunner.output);
+    XCTAssertEqual(controller.buildRunner.errorCount, 1u, @"%@", controller.buildRunner.output);
+    UDDiagnosticStore *store = controller.buildRunner.diagnostics[[_folder stringByAppendingPathComponent:@"hello.c"].stringByStandardizingPath];
+    XCTAssertEqual(store.allDiagnostics.firstObject.line, 2, @"the error, in hello.c's store: %@", controller.buildRunner.diagnostics);
+
+    // opened, the file has it as its own
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"hello.c"]]];
+    [controller build:nil];
+    UDRunUntil(!controller.buildRunner.running, 60);
+    UDCodeDocument *hello = controller.editorTabs.selectedItem.representedObject;
+    BOOL built = NO;
+    for (UDDiagnosticItem *issue in hello.diagnosticStore.allDiagnostics) built = built || [issue.source isEqual:UDDiagnosticSourceBuild];
+    XCTAssertTrue(built, @"the build's error in the editor's store: %@", hello.diagnosticStore.allDiagnostics);
+    [controller close];
+    [workspace close];
+}
+
+- (void)testRunBuildsThenDebugsTheProgramStoppingAtABreakpoint {
+    if (![UDToolLocator debugAdapterCommandForDebugger:nil]) {
+        NSLog(@"UDProjectTests: neither lldb-dap nor gdb here; the debugging case checks nothing");
+        return;
+    }
+    [self writeCProjectWith:@"#include <stdio.h>\n"
+                            @"int main(int argc, char **argv) {\n"
+                            @"    int count = argc;\n"
+                            @"    printf(\"hello %d\\n\", count);\n"
+                            @"    return 0;\n"
+                            @"}\n"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    NSString *hello = [_folder stringByAppendingPathComponent:@"hello.c"];
+    [controller.breakpoints addBreakpointAtLine:4 inFile:hello];
+
+    [controller startDebugging:nil];
+    UDRunUntil(controller.debugSession.state == UDDebugSessionStateStopped && controller.debugSession.scopes.count > 0, 90);
+    XCTAssertTrue(controller.buildRunner.succeeded, @"built first: %@", controller.buildRunner.output);
+    UDDebugSession *session = controller.debugSession;
+    UDBreakpoint *set = [controller.breakpoints breakpointAtLine:4 inFile:hello];
+    XCTAssertEqual(session.state, UDDebugSessionStateStopped, @"stopped at the breakpoint (%@, verified %d: %@): %@",
+                   set.path, set.verified, set.message, session.consoleText);
+    XCTAssertEqual(session.selectedFrame.line, 4);
+    // in whichever scope the debugger has it (lldb: Locals first; gdb: Arguments, then Locals)
+    UDDebugVariable *count = nil;
+    for (UDDebugVariable *scope in session.scopes) {
+        if (scope.expensive) continue;
+        [session loadChildrenOfVariable:scope];
+        UDRunUntil(scope.children != nil, 20);
+        for (UDDebugVariable *variable in scope.children) if ([variable.name isEqualToString:@"count"]) count = variable;
+    }
+    XCTAssertEqualObjects(count.value, @"3", @"the program and its two arguments: %@", [session.scopes valueForKey:@"children"]);
+
+    [session continueExecution];
+    UDRunUntil(session.state == UDDebugSessionStateEnded, 30);
+    XCTAssertEqual(session.state, UDDebugSessionStateEnded);
+    XCTAssertTrue([session.consoleText containsString:@"hello 3"], @"its output in the console: %@", session.consoleText);
+    [controller.breakpoints removeAllBreakpoints];
+    [controller close];
+    [workspace close];
+}
+
+- (void)testRunWithoutDebuggingRunsItItsOutputInTheConsole {
+    if (![UDToolLocator debugAdapterCommandForDebugger:nil]) return;
+    [self writeCProjectWith:@"#include <stdio.h>\nint main(int argc, char **argv) {\n    printf(\"plain %d\\n\", argc);\n    return 0;\n}\n"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller.breakpoints addBreakpointAtLine:3 inFile:[_folder stringByAppendingPathComponent:@"hello.c"]];
+    [controller runWithoutDebugging:nil];
+    UDRunUntil(controller.debugSession.state == UDDebugSessionStateEnded, 90);
+    XCTAssertEqual(controller.debugSession.state, UDDebugSessionStateEnded, @"ran to its end, its breakpoint not stopping it");
+    XCTAssertTrue([controller.debugSession.consoleText containsString:@"plain 3"], @"%@", controller.debugSession.consoleText);
+    [controller.breakpoints removeAllBreakpoints];
     [controller close];
     [workspace close];
 }

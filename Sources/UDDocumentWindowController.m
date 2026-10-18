@@ -17,6 +17,11 @@ static const NSInteger UDDebugAreaPane = 1;
 // The navigator's segments.
 static const NSInteger UDDebugNavigatorSegment = 2;
 static const NSInteger UDBreakpointNavigatorSegment = 3;
+static const NSInteger UDBuildNavigatorSegment = 4;
+// What follows a build.
+static const NSInteger UDAfterBuildNothing = 0;
+static const NSInteger UDAfterBuildRun = 1;
+static const NSInteger UDAfterBuildDebug = 2;
 
 // ---------------------------------------------------------------------------
 // MARK: - UDDocumentWindowController  (private extension)
@@ -24,7 +29,7 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
-                                          UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate,
+                                          UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -34,8 +39,18 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 @property (nonatomic, weak) IBOutlet NSTabView          *navigatorTabView;
 @property (nonatomic, weak) IBOutlet NSTableView        *filesTable;
 @property (nonatomic, weak) IBOutlet NSView             *projectHost;
+@property (nonatomic, weak) IBOutlet NSView             *buildLogHost;
+@property (nonatomic, strong, readwrite, nullable) UDBuildRunner *buildRunner;
+@property (nonatomic, strong) UDBuildLogViewController *buildLog;
+/// What follows the build: nothing, running the program, or debugging it.
+@property (nonatomic) NSInteger afterBuild;
+/// The build's diagnostics' stores for files no tab has, listed in Issues.
+@property (nonatomic, copy) NSArray<NSString *> *buildIssuePaths;
 @property (nonatomic, strong, readwrite, nullable) UDProject *project;
 @property (nonatomic, strong, readwrite, nullable) UDFileNavigatorViewController *fileNavigator;
+/// The project's language servers, one per command, which its documents share
+/// (one clangd for the project, as VS Code has it).
+@property (nonatomic, strong) NSMutableDictionary<NSArray<NSString *> *, LSPClient *> *projectServers;
 @property (nonatomic, weak) IBOutlet NSView             *issuesHost;
 @property (nonatomic, weak) IBOutlet NSView             *debugNavigatorHost;
 @property (nonatomic, weak) IBOutlet NSView             *breakpointNavigatorHost;
@@ -154,7 +169,12 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
         _projectHost.hidden = NO;
         _filesTable.enclosingScrollView.hidden = YES;
         _breakpoints.autosaveName = [@"UDCode Debugger " stringByAppendingString:_project.folderURL.path];
+        _buildRunner = [[UDBuildRunner alloc] initWithProject:_project];
     }
+    _buildLog = [[UDBuildLogViewController alloc] init];
+    [self _putView:_buildLog.view inHost:_buildLogHost];
+    _buildLog.forward = self;
+    _buildLog.runner = _buildRunner;
 
     // The documents to show.
     NSArray<UDCodeDocument *> *preloaded = workspace.workspaceModel.documents;
@@ -180,12 +200,153 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 
     self.window.title = _project ? _project.name
                       : workspace.fileURL ? workspace.fileURL.lastPathComponent : @"Untitled Workspace";
+#ifdef __APPLE__
     if (_project) self.window.representedURL = _project.folderURL;
+#endif
 }
 
 /// The project's window is named for it, not for an untitled document.
 - (NSString *)windowTitleForDocumentDisplayName:(NSString *)displayName {
     return _project ? _project.name : displayName;
+}
+
+/// A document of the project's: the language server the project (or the
+/// language's bundle) names, one process for all the project's documents,
+/// rooted at its folder; clangd told how to compile a file the project has
+/// no compile commands for. NO for a document outside a project.
+- (BOOL)_startProjectLanguageServerOf:(UDEditorSession *)session document:(UDCodeDocument *)document {
+    UDLanguageMode *mode = document.languageMode;
+    NSString *folder = [_project.folderURL.path stringByAppendingString:@"/"];
+    if (!_project || !document.fileURL || !mode.lspLanguageID || ![document.fileURL.path hasPrefix:folder]) return NO;
+    NSArray<NSString *> *command = [_project languageServerCommandForIdentifier:mode.identifier] ?: mode.languageServerCommand;
+    if (!command.count) return NO;
+    if (!_projectServers) _projectServers = [NSMutableDictionary dictionary];
+    LSPClient *client = _projectServers[command];
+    if (!client) {
+        NSString *path = command.firstObject.isAbsolutePath ? command.firstObject
+                                                            : [UDToolLocator pathOfTool:command.firstObject];
+        if (!path) return NO;
+        client = [[LSPClient alloc] initWithPath:path
+                                       arguments:[command subarrayWithRange:NSMakeRange(1, command.count - 1)]
+                            currentDirectoryPath:_project.folderURL.path
+                                      languageID:mode.lspLanguageID];
+        client.rootURL = _project.folderURL;
+        if ([path.lastPathComponent hasPrefix:@"clangd"]) {
+            client.initializationOptions = @{ @"fallbackFlags": _project.fallbackCompileFlags };
+        }
+        _projectServers[command] = client;
+    }
+    [session startLanguageServerWithClient:client documentURL:document.fileURL];
+    return YES;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Saving, building
+// ---------------------------------------------------------------------------
+
+/// A project's tabs are files of its own, each saved as itself; a window of
+/// files alone saves as its document does.
+- (IBAction)saveDocument:(nullable id)sender {
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    if (!_project) {
+        [self.document saveDocument:sender];
+        return;
+    }
+    if (document.fileURL) [self _save:document];
+}
+
+- (IBAction)saveAllDocuments:(nullable id)sender {
+    for (UDCodeDocument *document in _workspaceModel.documents) {
+        if (document.fileURL && document.isModified) [self _save:document];
+    }
+}
+
+- (void)_save:(UDCodeDocument *)document {
+    UDEditorSession *session = [self _sessionForDocument:document];
+    [session.lspCoordinator documentWillSave];
+    NSError *error = nil;
+    BOOL saved = [document saveToURL:document.fileURL error:&error];
+    [session.lspCoordinator documentDidSave];
+    if (!saved && error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
+    [self _documentsChanged];
+}
+
+- (IBAction)build:(nullable id)sender {
+    [self _build:_project.buildCommand then:UDAfterBuildNothing];
+}
+
+- (IBAction)clean:(nullable id)sender {
+    [self _build:_project.cleanCommand then:UDAfterBuildNothing];
+}
+
+- (IBAction)runWithoutDebugging:(nullable id)sender {
+    [self _build:_project.buildCommand then:UDAfterBuildRun];
+}
+
+/// Saved, then built (when there is a build command), then run or debugged
+/// (@a then). Without a command, that at once.
+- (void)_build:(nullable NSString *)command then:(NSInteger)then {
+    if (!_buildRunner || _buildRunner.running) {
+        NSBeep();
+        return;
+    }
+    [self saveAllDocuments:nil];
+    _afterBuild = then;
+    if (!command.length) {
+        if (then != UDAfterBuildNothing) [self _afterBuildSucceeded];
+        else NSBeep();
+        return;
+    }
+    if (![_buildRunner runCommand:command]) {
+        NSBeep();
+        return;
+    }
+    _buildLog.runner = _buildRunner;
+    [self showBuildNavigator:nil];
+    [self _showBuildIssues];
+}
+
+- (void)buildRunner:(UDBuildRunner *)runner didOutput:(NSString *)text {
+    [self _showBuildIssues];
+}
+
+- (void)buildRunnerDidFinish:(UDBuildRunner *)runner {
+    [self _showBuildIssues];
+    [_fileNavigator reload];
+    if (runner.errorCount > 0 || !runner.succeeded) {
+        _afterBuild = UDAfterBuildNothing;
+        if (runner.errorCount > 0) [self showIssuesNavigator:nil];
+        return;
+    }
+    if (_afterBuild != UDAfterBuildNothing) [self _afterBuildSucceeded];
+}
+
+- (void)_afterBuildSucceeded {
+    NSInteger then = _afterBuild;
+    _afterBuild = UDAfterBuildNothing;
+    if (then == UDAfterBuildRun) [self _runProgramDebugging:NO];
+    else if (then == UDAfterBuildDebug) [self _runProgramDebugging:YES];
+}
+
+/// The build's diagnostics: an open file's in its own store (where its
+/// editor shows them), the others' listed in Issues as they are.
+- (void)_showBuildIssues {
+    NSDictionary<NSString *, UDDiagnosticStore *> *found = _buildRunner.diagnostics;
+    NSMutableArray<NSString *> *notOpen = [NSMutableArray array];
+    for (UDCodeDocument *document in _workspaceModel.documents) {
+        NSString *path = document.fileURL.path.stringByStandardizingPath;
+        UDDiagnosticStore *built = path ? found[path] : nil;
+        NSArray *items = [built.allDiagnostics filteredArrayUsingPredicate:
+                          [NSPredicate predicateWithFormat:@"source == %@", UDDiagnosticSourceBuild]];
+        [document.diagnosticStore setDiagnostics:items ?: @[] forSource:UDDiagnosticSourceBuild];
+    }
+    for (NSString *path in [found.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+        if (![_workspaceModel documentForFileURL:[NSURL fileURLWithPath:path]] && found[path].allDiagnostics.count) {
+            [notOpen addObject:path];
+        }
+    }
+    _buildIssuePaths = notOpen;
+    [self _documentsChanged];
 }
 
 /// A file chosen in the project's files: its tab.
@@ -249,6 +410,12 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
     [self navigatorChanged:nil];
 }
 
+- (IBAction)showBuildNavigator:(nullable id)sender {
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = UDBuildNavigatorSegment;
+    [self navigatorChanged:nil];
+}
+
 - (IBAction)showBreakpointNavigator:(nullable id)sender {
     [_paneSplit setPane:UDNavigatorPane visible:YES];
     _navigatorControl.selectedSegment = UDBreakpointNavigatorSegment;
@@ -263,11 +430,19 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
     // sel_isEqual: a menu item's selector, from its XIB, is untyped on
     // GNUstep's runtime, and not the same pointer as a typed @selector.
     SEL action = item.action;
-    if (sel_isEqual(action, @selector(startDebugging:))) {
+    if (sel_isEqual(action, @selector(build:)) || sel_isEqual(action, @selector(clean:))) {
+        return _buildRunner != nil && !_buildRunner.running;
+    } else if (sel_isEqual(action, @selector(runWithoutDebugging:))) {
+        return _buildRunner != nil && !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
+    } else if (sel_isEqual(action, @selector(saveAllDocuments:))) {
+        return _project != nil;
+    } else if (sel_isEqual(action, @selector(startDebugging:)) && _project) {
+        return !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
+    } else if (sel_isEqual(action, @selector(startDebugging:))) {
         UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
         return document.fileURL && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
     } else if (sel_isEqual(action, @selector(stopDebugging:))) {
-        return _debugSession.canStop;
+        return _debugSession.canStop || _buildRunner.running;
     } else if (sel_isEqual(action, @selector(debugContinueOrPause:))) {
         item.title = _debugSession.canPause ? @"Pause" : @"Continue";
         return [_debugBar canPerformAction:@selector(continueOrPause:)];
@@ -377,7 +552,7 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 
     if (first) {
         [session activateWithTheme:_currentTheme];
-        [session startLanguageServer];
+        if (![self _startProjectLanguageServerOf:session document:document]) [session startLanguageServer];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
                                                      name:UDDiagnosticsDidChangeNotification
                                                    object:document.diagnosticStore];
@@ -419,6 +594,14 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
     for (UDCodeDocument *doc in _workspaceModel.documents) {
         [stores addObject:doc.diagnosticStore];
         [names addObject:doc.displayName];
+    }
+    // the build's, for files no tab has
+    NSString *folder = [_project.folderURL.path stringByAppendingString:@"/"];
+    for (NSString *path in _buildIssuePaths) {
+        UDDiagnosticStore *store = _buildRunner.diagnostics[path];
+        if (!store) continue;
+        [stores addObject:store];
+        [names addObject:[path hasPrefix:folder] ? [path substringFromIndex:folder.length] : path];
     }
     [_errorsViewController setStores:stores displayNames:names];
 }
@@ -539,6 +722,13 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
          didSelectDiagnostic:(UDDiagnosticItem *)diagnostic
                      inStore:(UDDiagnosticStore *)store {
     UDCodeDocument *doc = [_workspaceModel documentForDiagnosticStore:store];
+    if (!doc) {
+        // the build's, of a file no tab has: its tab
+        NSString *path = [_buildRunner.diagnostics allKeysForObject:store].firstObject;
+        if (!path) return;
+        [self _showFile:path];
+        doc = [_workspaceModel documentForFileURL:[NSURL fileURLWithPath:path]];
+    }
     UDTabBarItem *item = doc ? [self _itemsForDocument:doc].firstObject : nil;
     if (!item) return;
     [_editorTabs selectItem:item];
@@ -645,6 +835,15 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 }
 
 - (IBAction)startDebugging:(nullable id)sender {
+    // a project: built, then its program debugged
+    if (_project) {
+        if (_debugSession && _debugSession.state != UDDebugSessionStateEnded) {
+            NSBeep();
+            return;
+        }
+        [self _build:_project.buildCommand then:UDAfterBuildDebug];
+        return;
+    }
     UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
     if (!document.fileURL || (_debugSession && _debugSession.state != UDDebugSessionStateEnded)) {
         NSBeep();
@@ -671,7 +870,59 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
     [session launchWithArguments:arguments];
 }
 
-- (IBAction)stopDebugging:(nullable id)sender      { [_debugSession stop]; }
+/// The project's program, under its debugger (lldb-dap, else gdb's own,
+/// or what the project names), debugged or (@a debugging NO) run as VS Code
+/// runs without debugging: the same launch, with noDebug.
+- (void)_runProgramDebugging:(BOOL)debugging {
+    NSString *program = _project.runProgram;
+    if (!program) {
+        [self _tell:@"Nothing to run" detail:@"The project doesn't say what program it makes. "
+                                              @"Set it in .udcode/settings.json: { \"run\": { \"program\": \"path/to/it\" } }."];
+        return;
+    }
+    if (![[NSFileManager defaultManager] isExecutableFileAtPath:program]) {
+        [self _tell:@"The program isn't there" detail:[NSString stringWithFormat:@"%@ wasn't made by the build.", program]];
+        return;
+    }
+    NSArray<NSString *> *command = [UDToolLocator debugAdapterCommandForDebugger:_project.debugger];
+    if (!command) {
+        [self _tell:@"No debugger" detail:@"Neither lldb-dap nor gdb (14 or later) was found. Install LLVM's lldb, or gdb, "
+                                          @"or name a debug adapter in the project's settings (\"debugger\")."];
+        return;
+    }
+    NSString *kind = [UDToolLocator kindOfDebugAdapterCommand:command];
+    NSMutableDictionary *arguments = [[UDToolLocator launchArgumentsForDebugger:kind program:program
+                                                                      arguments:_project.runArguments
+                                                                      directory:_project.runDirectory
+                                                                    environment:_project.buildEnvironment] mutableCopy];
+    if (!debugging) arguments[@"noDebug"] = @YES;
+    // run alone: no breakpoints for it to stop at (not every adapter honours noDebug)
+    UDDebugSession *session = [[UDDebugSession alloc] initWithAdapterCommand:command
+                                                        currentDirectoryPath:_project.folderURL.path
+                                                                 breakpoints:debugging ? _breakpoints : [[UDBreakpointStore alloc] init]];
+    session.adapterID = kind ?: @"udcode";
+    self.debugSession = session;
+    [_debugSplit setPane:UDDebugAreaPane visible:YES];
+    if (debugging) [self showDebugNavigator:nil];
+    [session launchWithArguments:arguments];
+}
+
+/// A sheet saying what went wrong.
+- (void)_tell:(NSString *)message detail:(NSString *)detail {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = message;
+    alert.informativeText = detail;
+    [alert beginSheetModalForWindow:self.window modalDelegate:nil didEndSelector:NULL contextInfo:NULL];
+}
+
+- (IBAction)stopDebugging:(nullable id)sender {
+    if (_buildRunner.running) {
+        _afterBuild = UDAfterBuildNothing;
+        [_buildRunner stop];
+        return;
+    }
+    [_debugSession stop];
+}
 - (IBAction)debugContinueOrPause:(nullable id)sender { [_debugBar continueOrPause:sender]; }
 - (IBAction)debugStepOver:(nullable id)sender      { [_debugBar stepOver:sender]; }
 - (IBAction)debugStepInto:(nullable id)sender      { [_debugBar stepInto:sender]; }
@@ -725,6 +976,8 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 
 - (void)close {
     [_debugSession stop];
+    // the project's language servers go with its window
+    for (LSPClient *client in _projectServers.allValues) [client terminate];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewFrameDidChangeNotification object:nil];
     // Only what this class observes: NSWindowController (GNUstep's) learns
     // that its window closes by a notification of its own.

@@ -32,8 +32,9 @@ extern NSString * const UDDebuggerGDB;    // "gdb": gdb -i dap
 + (nullable NSString *)gdbPath;
 
 /// The command that starts @a debugger's adapter: "lldb", "gdb", a command
-/// (an array), or nil for the first found of lldb-dap and gdb. Nil when
-/// that debugger isn't there.
+/// (an array), or nil for the system's: lldb-dap on macOS (Xcode's), else
+/// gdb (lldb can't launch in a container), each falling back on the
+/// other. Nil when that debugger isn't there.
 + (nullable NSArray<NSString *> *)debugAdapterCommandForDebugger:(nullable id)debugger;
 /// Which kind @a command is ("lldb", "gdb", or nil for another adapter).
 + (nullable NSString *)kindOfDebugAdapterCommand:(NSArray<NSString *> *)command;

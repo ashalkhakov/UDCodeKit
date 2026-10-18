@@ -62,6 +62,7 @@ extern NSString * const UDProjectPlatformKey;
 - (instancetype)initWithFolderURL:(NSURL *)folderURL;
 - (instancetype)init NS_UNAVAILABLE;
 
+/// The folder, by its real path (links resolved).
 @property (nonatomic, readonly, copy) NSURL *folderURL;
 /// The folder's name.
 @property (nonatomic, readonly, copy) NSString *name;
@@ -97,7 +98,7 @@ extern NSString * const UDProjectPlatformKey;
 @property (nonatomic, readonly, copy) NSString *runDirectory;
 /// What its environment adds.
 @property (nonatomic, readonly, copy) NSDictionary<NSString *, NSString *> *runEnvironment;
-/// "lldb", "gdb", or the adapter's command; nil: the first found of lldb's and gdb's.
+/// "lldb", "gdb", or the adapter's command; nil: the system's (UDToolLocator).
 @property (nonatomic, readonly, nullable) id debugger;
 /// A language server's command set for language mode @a identifier, nil when none is.
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier;
@@ -106,6 +107,12 @@ extern NSString * const UDProjectPlatformKey;
 /// GNUstep's for a GNUstep make project (GNUSTEP_MAKEFILES and the rest,
 /// as GNUstep.sh sets them, which an app started from a desktop lacks).
 - (NSDictionary<NSString *, NSString *> *)buildEnvironment;
+
+/// What a language server like clangd compiles a file with when the project
+/// has no compile_commands.json for it (clangd's fallbackFlags): GNUstep's
+/// Objective-C flags on GNUstep (gnustep-config --objc-flags), the SDK on
+/// macOS; and the folder's own headers.
+- (NSArray<NSString *> *)fallbackCompileFlags;
 
 /// A command line's words: split at white space, a quoted one kept whole.
 + (NSArray<NSString *> *)argumentsOfCommandLine:(NSString *)line;

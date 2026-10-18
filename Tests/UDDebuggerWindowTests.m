@@ -205,7 +205,7 @@ static NSString * const UDProgram =
     XCTAssertEqual(_controller.debugBarHost.subviews.count, 1u);
     XCTAssertEqual(_controller.debugAreaHost.subviews.count, 1u);
     XCTAssertNotNil(_controller.debugSplit.splitView);
-    XCTAssertEqual(_controller.navigatorControl.segmentCount, 4);
+    XCTAssertEqual(_controller.navigatorControl.segmentCount, 5);
     UDDebugBarViewController *bar = _controller.debugBar;
     for (NSString *outlet in @[ @"continueButton", @"stepOverButton", @"stepIntoButton", @"stepOutButton", @"stopButton", @"statusLabel" ]) {
         XCTAssertNotNil([bar valueForKey:outlet], @"%@ is connected in UDDebugBar.xib", outlet);

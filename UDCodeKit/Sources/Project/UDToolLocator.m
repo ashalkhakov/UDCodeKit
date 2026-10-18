@@ -108,7 +108,14 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
         NSString *gdb = [self gdbPath];
         return gdb ? @[ gdb, @"-i", @"dap" ] : nil;
     }
+#ifdef __APPLE__
+    // Xcode's lldb-dap
     return [self debugAdapterCommandForDebugger:UDDebuggerLLDB] ?: [self debugAdapterCommandForDebugger:UDDebuggerGDB];
+#else
+    // gdb, which a distribution has, and which goes on where address
+    // randomization can't be turned off (a container): lldb doesn't launch there
+    return [self debugAdapterCommandForDebugger:UDDebuggerGDB] ?: [self debugAdapterCommandForDebugger:UDDebuggerLLDB];
+#endif
 }
 
 + (NSString *)kindOfDebugAdapterCommand:(NSArray<NSString *> *)command {
@@ -129,6 +136,12 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
         NSMutableArray *env = [NSMutableArray array];
         for (NSString *name in environment) [env addObject:[NSString stringWithFormat:@"%@=%@", name, environment[name]]];
         launch[@"env"] = env;
+#ifndef __APPLE__
+        // lldb turns address randomization off with personality(2), which a
+        // container (Docker's seccomp profile) or a sandbox refuses: the
+        // launch would fail
+        launch[@"disableASLR"] = @NO;
+#endif
     } else {
         launch[@"env"] = environment ?: @{};
     }

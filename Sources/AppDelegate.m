@@ -45,7 +45,8 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
 
 - (nullable UDWorkspace *)openFolderAtURL:(NSURL *)url {
     NSDocumentController *documents = [NSDocumentController sharedDocumentController];
-    NSString *path = url.URLByStandardizingPath.path;
+    UDProject *project = [[UDProject alloc] initWithFolderURL:url];
+    NSString *path = project.folderURL.path;
     for (NSDocument *document in documents.documents) {
         if ([document isKindOfClass:[UDWorkspace class]] &&
             [((UDWorkspace *)document).project.folderURL.path isEqualToString:path]) {
@@ -53,13 +54,9 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
             return (UDWorkspace *)document;
         }
     }
-    NSError *error = nil;
-    UDWorkspace *workspace = [documents makeUntitledDocumentOfType:documents.defaultType error:&error];
-    if (!workspace) {
-        [NSApp presentError:error];
-        return nil;
-    }
-    workspace.project = [[UDProject alloc] initWithFolderURL:url];
+    // no type: a project is a folder, not a file of any of the app's types
+    UDWorkspace *workspace = [[UDWorkspace alloc] init];
+    workspace.project = project;
     [documents addDocument:workspace];
     [workspace makeWindowControllers];
     [workspace showWindows];

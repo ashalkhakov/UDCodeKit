@@ -532,12 +532,23 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
                                   [NSNull null], @"experimental",
                                   nil];
     [params setObject:pid forKey:@"processId"];
-    [params setObject:[NSNull null] forKey:@"rootPath"];
-    [params setObject:[NSNull null] forKey:@"rootURI"];
-    [params setObject:[NSNull null] forKey:@"initializationOptions"];
+    NSURL *root = [self rootURL];
+    if (root) {
+        [params setObject:[root path] forKey:@"rootPath"];
+        [params setObject:[root absoluteString] forKey:@"rootUri"];
+        [params setObject:[NSArray arrayWithObject:[NSDictionary dictionaryWithObjectsAndKeys:
+                                                    [root absoluteString], @"uri",
+                                                    [root lastPathComponent], @"name", nil]]
+                   forKey:@"workspaceFolders"];
+    } else {
+        [params setObject:[NSNull null] forKey:@"rootPath"];
+        [params setObject:[NSNull null] forKey:@"rootUri"];
+        [params setObject:[NSNull null] forKey:@"workspaceFolders"];
+    }
+    NSDictionary *options = [self initializationOptions];
+    [params setObject:options ? (id)options : (id)[NSNull null] forKey:@"initializationOptions"];
     [params setObject:capabilities forKey:@"capabilities"];
     [params setObject:@"verbose" forKey:@"trace"];
-    [params setObject:[NSNull null] forKey:@"workspaceFolders"];
     [self _request:@"initialize" params:params kind:LSPReplyInitialize target:nil action:NULL text:nil];
 }
 

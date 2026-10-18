@@ -11,6 +11,26 @@ that already exist for each of those, and adds no project format:
 - **Debugging** is the debugger's own Debug Adapter Protocol: `lldb-dap` (LLVM's,
   and Xcode's on macOS) or gdb's (`gdb -i dap`, gdb 14 and later).
 
+## The window
+
+Xcode's, so that whoever knows Xcode knows where everything is:
+
+- **The toolbar**:
+  - the Navigator's button;
+  - Run (⌘R) and Stop (⌘.);
+  - the scheme: launch.json's configurations, or the project;
+  - the activity view, saying what goes on: "hello | Building hello…", "hello | Build Succeeded | 2 warnings", "hello | Running hello";
+  - the Inspector's button.
+- **The navigator**: on the left, its bar of icons (Files, Find, Issues, Debug, Breakpoints, Build log, ⌘1–⌘9).
+- **The editors**: in the middle, in tabs.
+- **The debug area**: below the editors (⇧⌘Y).
+- **The inspector**: on the right.
+
+On macOS the icons are SF Symbols. GNUstep has none, so it gets drawings of
+our own under the same names, from `scripts/draw-gnustep-images.swift` into
+`Images/GNUstep/`. A segment's image in a XIB needs the gnustep-patches stack
+with `xib-segment-image`.
+
 ## Opening a project
 
 File › Open Folder… (⌥⌘O) opens a folder as a project. Its files are in the

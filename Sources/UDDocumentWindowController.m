@@ -44,6 +44,8 @@ static const NSInteger UDAfterBuildDebug = 2;
 @property (nonatomic, weak) IBOutlet NSView             *projectHost;
 @property (nonatomic, weak) IBOutlet NSView             *buildLogHost;
 @property (nonatomic, weak) IBOutlet NSView             *findHost;
+@property (nonatomic, weak) IBOutlet NSPopUpButton      *schemePopUp;
+@property (nonatomic, weak) IBOutlet NSTextField        *activityLabel;
 @property (nonatomic, strong, readwrite) UDSearchResultsViewController *searchResults;
 @property (nonatomic, strong, readwrite, nullable) UDOpenQuicklyController *openQuickly;
 @property (nonatomic, strong, readwrite, nullable) UDTextPromptController *renamePrompt;
@@ -230,6 +232,8 @@ static const NSInteger UDAfterBuildDebug = 2;
 #ifdef __APPLE__
     if (_project) self.window.representedURL = _project.folderURL;
 #endif
+    [self _updateSchemePopUp];
+    [self _updateActivity];
 }
 
 /// The project's window is named for it, not for an untitled document.
@@ -335,8 +339,79 @@ static const NSInteger UDAfterBuildDebug = 2;
 }
 
 - (IBAction)selectLaunchConfiguration:(nullable id)sender {
+    if ([sender isKindOfClass:[NSPopUpButton class]]) sender = [sender selectedItem];
     id name = [sender respondsToSelector:@selector(representedObject)] ? [sender representedObject] : nil;
     if ([name isKindOfClass:[NSString class]]) self.selectedLaunchConfiguration = name;
+    [self _updateSchemePopUp];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - The toolbar: the scheme, and what is going on (Xcode's activity view)
+// ---------------------------------------------------------------------------
+
+/// The scheme pop-up: launch.json's configurations, the chosen one shown;
+/// without them, the project; without a project, the window's documents.
+- (void)_updateSchemePopUp {
+    if (!_schemePopUp) return;
+    [_schemePopUp removeAllItems];
+    NSArray<UDLaunchConfiguration *> *configurations = [self tasks].configurations;
+    if (configurations.count) {
+        for (UDLaunchConfiguration *configuration in configurations) {
+            [_schemePopUp addItemWithTitle:configuration.name];
+            _schemePopUp.lastItem.representedObject = configuration.name;
+        }
+        [_schemePopUp selectItemWithTitle:self.selectedLaunchConfiguration];
+    } else {
+        [_schemePopUp addItemWithTitle:_project ? _project.name : self.window.title];
+    }
+    _schemePopUp.enabled = configurations.count > 1;
+    _schemePopUp.target = self;
+    _schemePopUp.action = @selector(selectLaunchConfiguration:);
+}
+
+/// What the program run is called: the configuration's, else the project's program.
+- (NSString *)_programName {
+    UDLaunchConfiguration *configuration = [self _launchConfiguration];
+    NSString *program = configuration.program ?: _project.runProgram;
+    return program.lastPathComponent.length ? program.lastPathComponent : (_project.name ?: @"the program");
+}
+
+- (NSString *)activityText {
+    NSString *name = _project.name ?: self.window.title;
+    NSString *status = @"Ready";
+    UDDebugSessionState state = _debugSession.state;
+    if (_buildRunner.running) {
+        status = [NSString stringWithFormat:@"Building %@…", name];
+    } else if (_debugSession && state != UDDebugSessionStateEnded) {
+        status = state == UDDebugSessionStateStopped ? [NSString stringWithFormat:@"Paused %@", [self _programName]]
+                                                     : [NSString stringWithFormat:@"Running %@", [self _programName]];
+    } else if (_debugSession) {
+        status = [NSString stringWithFormat:@"Finished running %@", [self _programName]];
+    } else if (_buildRunner.command) {
+        status = _buildRunner.succeeded && !_buildRunner.errorCount ? @"Build Succeeded" : @"Build Failed";
+    }
+    NSMutableArray<NSString *> *counts = [NSMutableArray array];
+    if (_buildRunner.command && !_buildRunner.running) {
+        NSUInteger errors = _buildRunner.errorCount, warnings = _buildRunner.warningCount;
+        if (errors) [counts addObject:[NSString stringWithFormat:@"%lu error%@", (unsigned long)errors, errors == 1 ? @"" : @"s"]];
+        if (warnings) [counts addObject:[NSString stringWithFormat:@"%lu warning%@", (unsigned long)warnings, warnings == 1 ? @"" : @"s"]];
+    }
+    NSString *text = [NSString stringWithFormat:@"%@ | %@", name, status];
+    return counts.count ? [text stringByAppendingFormat:@" | %@", [counts componentsJoinedByString:@", "]] : text;
+}
+
+- (void)_updateActivity {
+    _activityLabel.stringValue = self.activityText;
+}
+
+- (void)_debugSessionDidChangeState:(NSNotification *)note {
+    if (note.object == _debugSession) [self _updateActivity];
+}
+
+/// The toolbar's buttons enabled as their menu items are.
+- (BOOL)validateToolbarItem:(NSToolbarItem *)toolbarItem {
+    NSMenuItem *probe = [[NSMenuItem alloc] initWithTitle:@"" action:toolbarItem.action keyEquivalent:@""];
+    return [self validateMenuItem:probe];
 }
 
 - (IBAction)runTask:(nullable id)sender {
@@ -402,6 +477,7 @@ static const NSInteger UDAfterBuildDebug = 2;
     _buildLog.runner = _buildRunner;
     [self showBuildNavigator:nil];
     [self _showBuildIssues];
+    [self _updateActivity];
 }
 
 - (void)buildRunner:(UDBuildRunner *)runner didOutput:(NSString *)text {
@@ -410,6 +486,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 
 - (void)buildRunnerDidFinish:(UDBuildRunner *)runner {
     [self _showBuildIssues];
+    [self _updateActivity];
     [_fileNavigator reload];
     if (runner.errorCount > 0 || !runner.succeeded) {
         _afterBuild = UDAfterBuildNothing;
@@ -452,6 +529,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 /// VS Code does; with edits, its edits stay); the language servers are told.
 - (void)fileWatcher:(UDFileWatcher *)watcher didSeeChangesAtPaths:(NSSet<NSString *> *)paths {
     [_fileNavigator reload];
+    [self _updateSchemePopUp];      // launch.json may have changed
     NSMutableSet<NSString *> *changed = [NSMutableSet set];
     for (NSString *path in paths) [changed addObject:path.stringByStandardizingPath];
     for (UDCodeDocument *document in _workspaceModel.documents) {
@@ -1335,6 +1413,12 @@ static const NSInteger UDAfterBuildDebug = 2;
     _debugBar.session = session;
     _debugNavigator.session = session;
     _debugArea.session = session;
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UDDebugSessionDidChangeStateNotification object:nil];
+    if (session) {
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_debugSessionDidChangeState:)
+                                                     name:UDDebugSessionDidChangeStateNotification object:session];
+    }
+    [self _updateActivity];
 }
 
 - (IBAction)startDebugging:(nullable id)sender {

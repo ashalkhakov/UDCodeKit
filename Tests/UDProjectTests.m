@@ -21,6 +21,7 @@
 @property (nonatomic, weak) NSView *projectHost;
 - (void)searchResults:(UDSearchResultsViewController *)controller showResult:(UDSearchResult *)result;
 - (void)textViewDidChangeSelection:(NSNotification *)note;
+@property (nonatomic, weak) NSPopUpButton *schemePopUp;
 @end
 
 @interface UDProjectTests : UDCodeTestCase
@@ -704,6 +705,57 @@
     UDRunUntil([controller.signatureHelpText containsString:@"int by"], 10);
     XCTAssertTrue([controller.signatureHelpText containsString:@"increase(int by)"], @"%@", controller.signatureHelpText);
 
+    [controller close];
+    [workspace close];
+}
+
+
+// ---------------------------------------------------------------------------
+// MARK: - Xcode's window: its toolbar
+// ---------------------------------------------------------------------------
+
+/// The toolbar, as Xcode's: the navigator's button, Run and Stop, the scheme
+/// (launch.json's configurations), the activity view saying what goes on,
+/// the inspector's button; Run and Stop enabled as their menu items are.
+- (void)testTheToolbarIsXcodes {
+    [self writeCProjectWith:@"#include <stdio.h>\nint main(void) {\n    return 0;\n}\n"];
+    [self write:@"{ \"configurations\": [\n"
+                @"  { \"name\": \"First\", \"type\": \"lldb\", \"request\": \"launch\", \"program\": \"${workspaceFolder}/hello\" },\n"
+                @"  { \"name\": \"Second\", \"type\": \"lldb\", \"request\": \"launch\", \"program\": \"${workspaceFolder}/hello\" } ] }\n"
+             to:@".vscode/launch.json"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    controller.selectedLaunchConfiguration = nil;
+    NSToolbar *toolbar = controller.window.toolbar;
+    XCTAssertNotNil(toolbar);
+    NSArray *labels = [[toolbar.items valueForKey:@"label"] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]];
+    XCTAssertEqualObjects(labels, (@[ @"Navigator", @"Run", @"Stop", @"Scheme", @"Activity", @"Inspector" ]));
+
+    NSPopUpButton *scheme = controller.schemePopUp;
+    XCTAssertEqualObjects(scheme.itemTitles, (@[ @"First", @"Second" ]));
+    XCTAssertEqualObjects(scheme.titleOfSelectedItem, @"First");
+    [scheme selectItemAtIndex:1];
+    [controller selectLaunchConfiguration:scheme];
+    XCTAssertEqualObjects(controller.selectedLaunchConfiguration, @"Second", @"chosen in the toolbar");
+    XCTAssertEqualObjects(scheme.titleOfSelectedItem, @"Second");
+
+    NSString *name = controller.project.name;
+    XCTAssertEqualObjects(controller.activityText, ([NSString stringWithFormat:@"%@ | Ready", name]));
+    NSToolbarItem *stop = nil, *run = nil;
+    for (NSToolbarItem *item in toolbar.items) {
+        if ([item.label isEqual:@"Stop"]) stop = item;
+        if ([item.label isEqual:@"Run"]) run = item;
+    }
+    XCTAssertTrue([controller validateToolbarItem:run]);
+    XCTAssertFalse([controller validateToolbarItem:stop], @"nothing to stop");
+
+    [controller build:nil];
+    XCTAssertEqualObjects(controller.activityText, ([NSString stringWithFormat:@"%@ | Building %@…", name, name]));
+    XCTAssertTrue([controller validateToolbarItem:stop], @"the build can be stopped");
+    UDRunUntil(!controller.buildRunner.running, 60);
+    UDRunUntil(NO, 0.1);
+    XCTAssertEqualObjects(controller.activityText, ([NSString stringWithFormat:@"%@ | Build Succeeded", name]));
+    controller.selectedLaunchConfiguration = nil;
     [controller close];
     [workspace close];
 }

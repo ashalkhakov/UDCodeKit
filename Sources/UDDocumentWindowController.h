@@ -76,6 +76,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// The Debug menu's Launch Configuration and Run Task items: a menu item's
 /// representedObject is the configuration's name, the task's label.
 - (IBAction)selectLaunchConfiguration:(nullable id)sender;
+/// The toolbar's activity view: the project, and what is going on ("Building",
+/// "Running hello", "Build Succeeded | 2 warnings").
+@property (nonatomic, readonly, copy) NSString *activityText;
+- (BOOL)validateToolbarItem:(NSToolbarItem *)toolbarItem;
 - (IBAction)runTask:(nullable id)sender;
 
 /// Debug > Project Settings…: what can't be guessed, for this system (a sheet).

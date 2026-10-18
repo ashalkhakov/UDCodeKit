@@ -171,6 +171,9 @@ static const NSInteger UDLinesPerTurn = 20;
     _lines = lines;
     _stopOnEntry = [arguments[@"stopOnEntry"] boolValue];
     [self _respond:request body:nil];
+    // the program runs here: this process is the debuggee's
+    [self _event:@"process" body:@{ @"name": _program.lastPathComponent, @"systemProcessId": @(getpid()),
+                                    @"isLocalProcess": @YES, @"startMethod": @"launch" }];
 }
 
 - (void)_attach:(NSDictionary *)request arguments:(NSDictionary *)arguments {

@@ -32,6 +32,10 @@
  *
  *  What was expanded is expanded again at the next stop (by the names on
  *  the way to it), as Xcode keeps it. The first scope opens by itself.
+ *  A value that changed since the last stop (the same frame's, the same
+ *  name's) shows blue, as Xcode shows it. The filter field, under the
+ *  variables as Xcode's, leaves the watches and variables whose name has
+ *  its text (or that have such a child loaded); the scopes stay.
  *
  *  Laid out in UDDebugArea.xib; the split between the two keeps the
  *  variables' width (UDPaneSplitController), remembered under
@@ -61,6 +65,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *evaluateField;
 @property (nonatomic, weak, readonly) IBOutlet NSButton *addExpressionButton;
 @property (nonatomic, weak, readonly) IBOutlet NSButton *removeExpressionButton;
+@property (nonatomic, weak, readonly) IBOutlet NSSearchField *filterField;
 /// Variables | console.
 @property (nonatomic, strong, readonly) IBOutlet UDPaneSplitController *paneSplit;
 
@@ -74,6 +79,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)evaluate:(nullable id)sender;
 /// Empties the console view (the session keeps what it had).
 - (IBAction)clearConsole:(nullable id)sender;
+/// The filter field's text: the variables shown.
+- (IBAction)filterVariables:(nullable id)sender;
+/// Whether @a variable's value changed since the last stop (as shown).
+- (BOOL)valueChanged:(UDDebugVariable *)variable;
 
 /// The watch expressions: a new one, edited in place; the clicked (or
 /// selected) one edited, removed; all removed.

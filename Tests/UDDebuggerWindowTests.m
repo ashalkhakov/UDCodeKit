@@ -384,6 +384,47 @@ static NSString * const UDProgram =
     XCTAssertTrue([_controller validateMenuItem:run], @"it can run again");
 }
 
+/// A value that changed since the last stop shows blue, as Xcode's; the
+/// filter field leaves the variables whose name (or a loaded child's) has
+/// its text, the scopes staying; the debuggee's process is the adapter's.
+- (void)testChangedValuesTheFilterAndTheProcess {
+    [self runToTheBreakpointAtLine:3];
+    UDDebugSession *session = _controller.debugSession;
+    UDDebugAreaViewController *area = _controller.debugArea;
+    NSOutlineView *variables = area.variablesView;
+    XCTAssertNotEqual(session.processID, 0, @"the demo adapter's process event");
+
+    UDRunUntil([self rowOfVariable:@"info"] >= 0, 5);
+    [variables expandItem:[variables itemAtRow:[self rowOfVariable:@"info"]]];
+    UDRunUntil([self rowOfVariable:@"length"] >= 0, 5);
+    UDDebugVariable *length = [area variableOfRow:[self rowOfVariable:@"length"]];
+    XCTAssertFalse([area valueChanged:length], @"nothing to tell it from at the first stop");
+
+    [_controller.debugBar.stepOverButton performClick:nil];
+    [self waitForStopAtLine:4];
+    UDRunUntil([[self textOfRow:[self rowOfVariable:@"length"] in:variables column:@"value"] isEqual:@"6"], 5);
+    NSInteger row = [self rowOfVariable:@"length"];
+    XCTAssertTrue([area valueChanged:[area variableOfRow:row]], @"5, then 6");
+    NSTextFieldCell *cell = [[NSTextFieldCell alloc] initTextCell:@""];
+    [variables.delegate outlineView:variables willDisplayCell:cell forTableColumn:[variables tableColumnWithIdentifier:@"value"]
+                               item:[variables itemAtRow:row]];
+    XCTAssertTrue([self isBlue:[cell.textColor colorUsingColorSpace:[NSColorSpace genericRGBColorSpace]]], @"%@", cell.textColor);
+    XCTAssertFalse([area valueChanged:[area variableOfRow:[self rowOfVariable:@"blank"]]], @"false, then false");
+
+    // the filter
+    NSInteger all = variables.numberOfRows;
+    area.filterField.stringValue = @"LEN";
+    [area filterVariables:area.filterField];
+    XCTAssertGreaterThanOrEqual([self rowOfVariable:@"length"], 0);
+    XCTAssertGreaterThanOrEqual([self rowOfVariable:@"info"], 0, @"its child has the text");
+    XCTAssertGreaterThanOrEqual([self rowOfVariable:@"Locals"], 0, @"the scopes stay");
+    XCTAssertLessThan(variables.numberOfRows, all);
+    area.filterField.stringValue = @"";
+    [area filterVariables:area.filterField];
+    XCTAssertEqual(variables.numberOfRows, all);
+    [self stopDebugging];
+}
+
 - (void)testAFrameInAFileNotOpenOpensIt {
     [self runToTheBreakpointAtLine:3];
     UDEditorTabsController *tabs = _controller.editorTabs;

@@ -883,6 +883,11 @@ static NSArray<UDDebugVariable *> *UDVariablesFromList(id list, UDDebugVariable 
          category:@"console"];
 }
 
+/// The debuggee's process (DAP's process event).
+- (void)debugAdapter:(DAPClient *)client didReceiveEvent:(NSString *)event body:(NSDictionary *)body {
+    if ([event isEqualToString:@"process"]) _processID = (pid_t)UDInteger(body[@"systemProcessId"]);
+}
+
 - (void)debugAdapterDidEnd:(DAPClient *)client {
     [self _end];
 }

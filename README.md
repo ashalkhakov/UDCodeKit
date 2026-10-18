@@ -10,6 +10,11 @@ It is being restructured into **UDCodeKit**: an editor library other
 applications embed, and a VS Code-like application built on it, on macOS and
 on GNUstep (Linux).
 
+UDCode, the application, is also a C and Objective-C IDE: File › Open
+Folder…, then Build (⌘B), Run (⌘R) and debug, with the project's own build
+command, clangd, and lldb-dap or gdb. See [docs/ide.md](docs/ide.md), and how
+the design compares with VS Code's in [docs/architecture.md](docs/architecture.md).
+
 ## Layout
 
 - `UDPieceTable/` — the text model, `UDPieceTable.framework` (Foundation

@@ -8,9 +8,11 @@
  *  foldable region; click events on those triangles are forwarded via the
  *  delegate protocol.
  *  And, as Xcode's, the breakpoints, blue tags over the line numbers (pale
- *  when disabled, outlined when the debugger could not bind them), and the
- *  debugger's instruction pointer, a green one; a click on a line number,
- *  or a breakpoint dragged off the gutter, goes to the delegate.
+ *  when disabled, outlined when the debugger could not bind them; marked
+ *  "=" when conditional and with a diamond when a logpoint, as VS Code
+ *  marks them), and the debugger's instruction pointer, a green one; a
+ *  click on a line number, or a breakpoint dragged off the gutter, goes to
+ *  the delegate, which also gives the context menu of a line.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -29,14 +31,23 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)lineNumberGutterView:(UDLineNumberGutterView *)view didClickLine:(NSInteger)lineNumber;
 /// Line @a lineNumber's breakpoint was dragged off the gutter and let go.
 - (void)lineNumberGutterView:(UDLineNumberGutterView *)view didDragBreakpointOffLine:(NSInteger)lineNumber;
+/// The context menu of line @a lineNumber (a right click, or a control
+/// click), nil for none.
+- (nullable NSMenu *)lineNumberGutterView:(UDLineNumberGutterView *)view menuForLine:(NSInteger)lineNumber;
 @end
 
-/// How a line's breakpoint is drawn.
+/// How a line's breakpoint is drawn: one of the first three, and what it
+/// does marked with one of the last two.
 typedef NS_ENUM(NSInteger, UDGutterBreakpoint) {
     UDGutterBreakpointEnabled = 1,
     UDGutterBreakpointDisabled,
     /// Enabled, and the debugger could not bind it.
     UDGutterBreakpointUnverified,
+    UDGutterBreakpointStateMask = 0x0F,
+    /// With a condition or a hit count: marked "=".
+    UDGutterBreakpointConditional = 0x10,
+    /// A logpoint: marked with a diamond.
+    UDGutterBreakpointLogpoint = 0x20,
 };
 
 /// What the gutter asks about breakpoints, for the lines it draws.

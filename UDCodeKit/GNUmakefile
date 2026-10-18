@@ -21,6 +21,8 @@ UDCodeKit_HEADER_FILES = \
     TreeSitterTheme.h \
     UDAutoIndenter.h \
     UDBracketMatchHighlighter.h \
+    UDBreakpointEditorViewController.h \
+    UDBreakpointNavigatorViewController.h \
     UDBreakpointStore.h \
     UDCodeDocument.h \
     UDCodeEditorLayoutManager.h \
@@ -28,6 +30,7 @@ UDCodeKit_HEADER_FILES = \
     UDCodeKit.h \
     UDDebugAreaViewController.h \
     UDDebugBarViewController.h \
+    UDDebugHoverViewController.h \
     UDDebugNavigatorViewController.h \
     UDDebugSession.h \
     UDDecorationHighlighter.h \

@@ -253,8 +253,12 @@
     _store.exceptionFilters = @[ @{ @"filter": @"throw", @"label": @"Errors", @"default": @YES } ];
     [_store setExceptionFilter:@"throw" enabled:NO];
 
-    NSDictionary *plist = [_store propertyList];
-    XCTAssertTrue([NSPropertyListSerialization propertyList:plist isValidForFormat:NSPropertyListXMLFormat_v1_0]);
+    // As it comes back from a file.
+    NSData *data = [NSPropertyListSerialization dataWithPropertyList:[_store propertyList]
+                                                              format:NSPropertyListXMLFormat_v1_0 options:0 error:NULL];
+    XCTAssertNotNil(data);
+    NSDictionary *plist = [NSPropertyListSerialization propertyListWithData:data options:NSPropertyListImmutable
+                                                                     format:NULL error:NULL];
     UDBreakpointStore *other = [[UDBreakpointStore alloc] init];
     [other addBreakpointAtLine:9 inFile:@"/w/c.script"];
     [other restorePropertyList:plist];

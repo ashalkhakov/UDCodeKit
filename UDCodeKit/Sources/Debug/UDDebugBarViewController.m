@@ -10,11 +10,15 @@
 @property (nonatomic, weak) IBOutlet NSButton *stepOverButton;
 @property (nonatomic, weak) IBOutlet NSButton *stepIntoButton;
 @property (nonatomic, weak) IBOutlet NSButton *stepOutButton;
+@property (nonatomic, weak) IBOutlet NSButton *stepBackButton;
+@property (nonatomic, weak) IBOutlet NSButton *reverseContinueButton;
 @property (nonatomic, weak) IBOutlet NSButton *stopButton;
 @property (nonatomic, weak) IBOutlet NSTextField *statusLabel;
 @end
 
-@implementation UDDebugBarViewController
+@implementation UDDebugBarViewController {
+    CGFloat _stopX, _statusX;      // where the XIB has them, the step back buttons showing
+}
 
 - (instancetype)init {
     return [super initWithNibName:@"UDDebugBar" bundle:[NSBundle bundleForClass:[UDDebugBarViewController class]]];
@@ -26,6 +30,8 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    _stopX = NSMinX(_stopButton.frame);
+    _statusX = NSMinX(_statusLabel.frame);
     [self _update];
 }
 
@@ -60,6 +66,25 @@
     _stepOutButton.enabled = session.canStep;
     _stopButton.enabled = session.canStop;
     _statusLabel.stringValue = [self _status];
+    [self _showStepBack:session.client.supportsStepBack && session.state != UDDebugSessionStateEnded];
+}
+
+/// Step back and reverse continue, between step out and stop, or not
+/// there at all (stop and the status closing up).
+- (void)_showStepBack:(BOOL)shown {
+    _stepBackButton.hidden = !shown;
+    _reverseContinueButton.hidden = !shown;
+    _stepBackButton.enabled = _session.canStepBack;
+    _reverseContinueButton.enabled = _session.canStepBack;
+    // Stop where step back is.
+    CGFloat shift = shown ? 0.0 : _stopX - NSMinX(_stepBackButton.frame);
+    NSRect stop = _stopButton.frame, status = _statusLabel.frame;
+    stop.origin.x = _stopX - shift;
+    CGFloat right = NSMaxX(status);
+    status.origin.x = _statusX - shift;
+    status.size.width = right - status.origin.x;
+    _stopButton.frame = stop;
+    _statusLabel.frame = status;
 }
 
 - (NSString *)_status {
@@ -76,7 +101,8 @@
     if (!frame) return thread.stopReason ? [NSString stringWithFormat:@"Paused (%@)", thread.stopReason] : @"Paused";
     NSMutableString *status = [NSMutableString stringWithFormat:@"%@ › %@", thread.name, frame.name];
     if (frame.path) [status appendFormat:@" — %@:%ld", frame.path.lastPathComponent, (long)frame.line];
-    if (thread.stopReason) [status appendFormat:@" (%@)", thread.stopReason];
+    if (thread.stopReason && thread.stopDescription) [status appendFormat:@" (%@: %@)", thread.stopReason, thread.stopDescription];
+    else if (thread.stopReason) [status appendFormat:@" (%@)", thread.stopReason];
     return status;
 }
 
@@ -91,6 +117,7 @@
     if (sel_isEqual(action, @selector(continueOrPause:))) return session.canContinue || session.canPause;
     if (sel_isEqual(action, @selector(stepOver:)) || sel_isEqual(action, @selector(stepInto:)) ||
         sel_isEqual(action, @selector(stepOut:))) return session.canStep;
+    if (sel_isEqual(action, @selector(stepBack:)) || sel_isEqual(action, @selector(reverseContinue:))) return session.canStepBack;
     if (sel_isEqual(action, @selector(stop:))) return session.canStop;
     return NO;
 }
@@ -103,6 +130,8 @@
 - (IBAction)stepOver:(id)sender { [_session stepOver]; }
 - (IBAction)stepInto:(id)sender { [_session stepInto]; }
 - (IBAction)stepOut:(id)sender  { [_session stepOut]; }
+- (IBAction)stepBack:(id)sender { [_session stepBack]; }
+- (IBAction)reverseContinue:(id)sender { [_session reverseContinue]; }
 - (IBAction)stop:(id)sender     { [_session stop]; }
 
 @end

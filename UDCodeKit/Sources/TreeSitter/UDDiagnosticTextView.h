@@ -62,6 +62,26 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showJumpToLine;
 @end
 
+/// What the debugger adds to the text: its editor (UDCodeEditorViewController)
+/// is this, and answers for the session that is stopped in the file.
+@protocol UDDebugTextHandler <NSObject>
+/// The mouse has rested at @a characterIndex: whether the debugger shows
+/// what is there (a debug hover), and the delegate is not asked.
+- (BOOL)textView:(UDDiagnosticTextView *)textView showsDebugHoverAtIndex:(NSUInteger)characterIndex;
+/// The mouse has left the word (or a key was pressed): the debug hover goes,
+/// unless the mouse went into it.
+- (void)textViewDebugHoverDidEnd:(UDDiagnosticTextView *)textView;
+/// Items for the top of the context menu while debugging (Run to Cursor,
+/// ...); copies of them go there.
+- (nullable NSArray<NSMenuItem *> *)debugMenuItemsForTextView:(UDDiagnosticTextView *)textView;
+/// Run to Cursor, Jump to Cursor and Add to Watch, at the caret, and
+/// whether they may be sent now.
+- (IBAction)runToCursor:(nullable id)sender;
+- (IBAction)jumpToCursor:(nullable id)sender;
+- (IBAction)addToWatch:(nullable id)sender;
+- (BOOL)canPerformDebugAction:(SEL)action;
+@end
+
 @interface UDDiagnosticTextView : NSTextView
 
 /// How long the mouse rests on a word before the delegate is asked what is
@@ -105,6 +125,17 @@ NS_ASSUME_NONNULL_BEGIN
 /// Takes the Find menu (performFindPanelAction: and performTextFinderAction:)
 /// instead of AppKit's find panel or find bar.
 @property (nonatomic, weak, nullable) id<UDFindActionHandler> findActionHandler;
+
+/// The debugger's hover, context menu items and actions; set by
+/// UDCodeEditorViewController.
+@property (nonatomic, weak, nullable) id<UDDebugTextHandler> debugHandler;
+
+/// Debug menu items a host has (Run to Cursor, ...), first responder's:
+/// handed to the debug handler, as on GNUstep the editor's controller is
+/// not in the responder chain.
+- (IBAction)runToCursor:(nullable id)sender;
+- (IBAction)jumpToCursor:(nullable id)sender;
+- (IBAction)addToWatch:(nullable id)sender;
 
 /// The Find menu's actions; GNUstep's NSTextView has no find bar of its own.
 - (IBAction)performTextFinderAction:(nullable id)sender;

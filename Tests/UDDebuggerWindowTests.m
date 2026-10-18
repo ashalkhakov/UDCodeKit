@@ -8,7 +8,13 @@
 //  shown in the navigator, the bar, the gutter, the variables and the
 //  console; stepping from the bar, choosing a frame in the navigator,
 //  evaluating in the console, stopping; and a frame in a file that is not
-//  open, opened.
+//  open, opened. And VS Code's features: the gutter's menus and the
+//  breakpoint box (conditions, hit counts, log messages, greyed when the
+//  adapter has not got them), conditional breakpoints and logpoints drawn;
+//  the breakpoint navigator (enabling, disabling, removing, going to,
+//  editing, the exception filters); the watch expressions in the variables
+//  view and the variables' menu; the debug hover; Run to Cursor and Jump to
+//  Cursor from the text's menu and the Debug menu; and stepping back.
 //
 
 #import <XCTest/XCTest.h>
@@ -17,6 +23,7 @@
 #import "UDDocument.h"
 #import "UDDocumentWindowController.h"
 #import "UDDemoDebugAdapter.h"
+#import <objc/runtime.h>
 
 static NSString * const UDProgram =
     @"start\n"            // 1
@@ -33,6 +40,8 @@ static NSString * const UDProgram =
 @property (nonatomic, weak) NSSegmentedControl *navigatorControl;
 @property (nonatomic, weak) NSTabView          *navigatorTabView;
 @property (nonatomic, weak) NSView             *debugNavigatorHost;
+@property (nonatomic, weak) NSView             *breakpointNavigatorHost;
+@property (nonatomic, strong) UDBreakpointNavigatorViewController *breakpointNavigator;
 @property (nonatomic, weak) NSView             *debugBarHost;
 @property (nonatomic, weak) NSView             *debugAreaHost;
 @property (nonatomic, strong) UDPaneSplitController *debugSplit;
@@ -42,6 +51,19 @@ static NSString * const UDProgram =
 - (IBAction)closeEditorTab:(id)sender;
 - (IBAction)toggleBreakpoint:(id)sender;
 - (IBAction)debugStepOver:(id)sender;
+- (IBAction)debugStepBack:(id)sender;
+- (IBAction)runToCursor:(id)sender;
+- (IBAction)jumpToCursor:(id)sender;
+@end
+
+/// The controllers' own, which the tests call as their menus' items do.
+@interface UDCodeEditorViewController (DebuggerTesting)
+- (IBAction)addConditionalBreakpoint:(id)sender;
+- (IBAction)addLogpoint:(id)sender;
+@end
+
+@interface UDDebugAreaViewController (DebuggerTesting)
+- (IBAction)editClickedCell:(id)sender;
 @end
 
 @interface UDDebuggerWindowTests : UDCodeTestCase
@@ -56,6 +78,8 @@ static NSString * const UDProgram =
     for (NSString *name in @[ @"UDCode Workspace", @"UDCode Debug Area", @"UDCodeKit Debug Area" ]) {
         [[NSUserDefaults standardUserDefaults] removeObjectForKey:[@"UDPaneSplit " stringByAppendingString:name]];
     }
+    // And the breakpoints and watches an untitled workspace keeps.
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"UDCode Debugger Untitled"];
 }
 
 - (void)setUp {
@@ -140,6 +164,18 @@ static NSString * const UDProgram =
     return [outline.dataSource outlineView:outline objectValueForTableColumn:column byItem:[outline itemAtRow:row]];
 }
 
+/// The row of Locals' variable named @a name (not a watch's), -1 when none shows.
+- (NSInteger)rowOfLocal:(NSString *)name {
+    NSOutlineView *outline = _controller.debugArea.variablesView;
+    BOOL locals = NO;
+    for (NSInteger row = 0; row < outline.numberOfRows; row++) {
+        NSString *text = [self textOfRow:row in:outline column:@"name"];
+        if (locals && [text isEqualToString:name]) return row;
+        locals = locals || [text isEqualToString:@"Locals"];
+    }
+    return -1;
+}
+
 /// The row of the variable named @a name, -1 when none shows.
 - (NSInteger)rowOfVariable:(NSString *)name {
     NSOutlineView *outline = _controller.debugArea.variablesView;
@@ -169,7 +205,7 @@ static NSString * const UDProgram =
     XCTAssertEqual(_controller.debugBarHost.subviews.count, 1u);
     XCTAssertEqual(_controller.debugAreaHost.subviews.count, 1u);
     XCTAssertNotNil(_controller.debugSplit.splitView);
-    XCTAssertEqual(_controller.navigatorControl.segmentCount, 3);
+    XCTAssertEqual(_controller.navigatorControl.segmentCount, 4);
     UDDebugBarViewController *bar = _controller.debugBar;
     for (NSString *outlet in @[ @"continueButton", @"stepOverButton", @"stepIntoButton", @"stepOutButton", @"stopButton", @"statusLabel" ]) {
         XCTAssertNotNil([bar valueForKey:outlet], @"%@ is connected in UDDebugBar.xib", outlet);
@@ -364,6 +400,539 @@ static NSString * const UDProgram =
     XCTAssertEqual([(id<UDLineNumberGutterBreakpointSource>)[self editor] instructionPointerLine], 4,
                    @"its gutter shows where the debugger is");
     XCTAssertNotNil([_controller.breakpoints breakpointAtLine:3 inFile:_program], @"and its breakpoints");
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - VS Code's features
+// ---------------------------------------------------------------------------
+
+/// A right click on line @a line's number.
+- (NSEvent *)rightClickAtLine:(NSInteger)line {
+    return [NSEvent mouseEventWithType:NSEventTypeRightMouseDown location:[self pointOfLine:line] modifierFlags:0 timestamp:0
+                          windowNumber:_controller.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:1];
+}
+
+/// A right click on character @a index of the editor's text.
+- (NSEvent *)rightClickAtIndex:(NSUInteger)index {
+    UDDiagnosticTextView *textView = [self editor].textView;
+    NSPoint point = [self pointOfIndex:index];
+    return [NSEvent mouseEventWithType:NSEventTypeRightMouseDown location:[textView convertPoint:point toView:nil]
+                         modifierFlags:0 timestamp:0 windowNumber:_controller.window.windowNumber context:nil
+                           eventNumber:0 clickCount:1 pressure:1];
+}
+
+/// The middle of character @a index, in the text view.
+- (NSPoint)pointOfIndex:(NSUInteger)index {
+    UDDiagnosticTextView *textView = [self editor].textView;
+    NSLayoutManager *lm = textView.layoutManager;
+    [lm ensureLayoutForTextContainer:textView.textContainer];
+    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(index, 1) actualCharacterRange:NULL];
+    NSRect rect = [lm boundingRectForGlyphRange:glyphs inTextContainer:textView.textContainer];
+    return NSMakePoint(NSMidX(rect) + textView.textContainerOrigin.x, NSMidY(rect) + textView.textContainerOrigin.y);
+}
+
+/// The mouse moved over the editor's text to character @a index, or off it.
+- (void)moveMouseTo:(NSUInteger)index {
+    UDDiagnosticTextView *textView = [self editor].textView;
+    NSPoint point = index == NSNotFound ? NSMakePoint(NSMaxX(textView.bounds) - 5, NSMaxY(textView.bounds) - 5)
+                                        : [self pointOfIndex:index];
+    NSEvent *event = [NSEvent mouseEventWithType:NSEventTypeMouseMoved location:[textView convertPoint:point toView:nil]
+                                   modifierFlags:0 timestamp:0 windowNumber:_controller.window.windowNumber
+                                         context:nil eventNumber:0 clickCount:0 pressure:0];
+    [textView mouseMoved:event];
+}
+
+- (nullable NSMenuItem *)item:(SEL)action in:(NSMenu *)menu {
+    for (NSMenuItem *item in menu.itemArray) if (sel_isEqual(item.action, action)) return item;
+    return nil;
+}
+
+/// What the menu does with @a item: asks its target, then sends it. NO
+/// when it is disabled.
+- (BOOL)perform:(NSMenuItem *)item {
+    id target = item.target;
+    if ([target respondsToSelector:@selector(validateMenuItem:)] && ![target validateMenuItem:item]) return NO;
+    [NSApp sendAction:item.action to:target from:item];
+    return YES;
+}
+
+/// Typed into @a field, which has the keyboard; Return pressed when @a enter.
+- (void)type:(NSString *)text into:(NSTextField *)field enter:(BOOL)enter {
+    if (!field.currentEditor) [field.window makeFirstResponder:field];
+    NSTextView *editor = (NSTextView *)field.currentEditor;
+    XCTAssertNotNil(editor, @"%@ is being edited", field);
+    [editor selectAll:nil];
+    [editor insertText:text];
+    if (enter) [editor insertNewline:nil];
+}
+
+/// The cell being edited in @a outline: typed into, and Return.
+- (void)typeInOutline:(NSOutlineView *)outline text:(NSString *)text {
+    NSTextView *editor = (NSTextView *)outline.currentEditor;
+    XCTAssertNotNil(editor, @"a cell is being edited");
+    [editor selectAll:nil];
+    [editor insertText:text];
+    [editor insertNewline:nil];
+    UDRunUntil(NO, 0.05);                  // what is written is written on the next turn
+}
+
+- (NSInteger)gutterKindAtLine:(NSInteger)line {
+    id<UDLineNumberGutterBreakpointSource> source = (id<UDLineNumberGutterBreakpointSource>)[self editor];
+    return [[source breakpointsInLines:NSMakeRange((NSUInteger)line, 1)][@(line)] integerValue];
+}
+
+/// The colour the gutter draws at @a x, @a dy below the middle of line
+/// @a line (in the gutter's points).
+- (NSColor *)gutterColorAtLine:(NSInteger)line x:(CGFloat)x dy:(CGFloat)dy {
+    UDLineNumberGutterView *gutter = [self gutter];
+    NSPoint inGutter = [gutter convertPoint:[self pointOfLine:line] fromView:nil];
+    [gutter display];
+    NSBitmapImageRep *bitmap = [gutter bitmapImageRepForCachingDisplayInRect:gutter.bounds];
+    [gutter cacheDisplayInRect:gutter.bounds toBitmapImageRep:bitmap];
+    CGFloat y = gutter.isFlipped ? inGutter.y + dy : NSHeight(gutter.bounds) - inGutter.y + dy;
+    NSInteger py = (NSInteger)(y * (CGFloat)bitmap.pixelsHigh / NSHeight(gutter.bounds));
+    NSInteger px = (NSInteger)(x * (CGFloat)bitmap.pixelsWide / NSWidth(gutter.bounds));
+    return [[bitmap colorAtX:px y:py] colorUsingColorSpace:[NSColorSpace genericRGBColorSpace]];
+}
+
+- (BOOL)isWhite:(NSColor *)color {
+    return color.redComponent > 0.75 && color.greenComponent > 0.75 && color.blueComponent > 0.75;
+}
+
+- (void)startDebuggingAndWait {
+    [_controller startDebugging:nil];
+    UDRunUntil(_controller.debugSession.state == UDDebugSessionStateStopped && _controller.debugSession.selectedFrame, 20);
+    XCTAssertEqual(_controller.debugSession.state, UDDebugSessionStateStopped);
+}
+
+- (void)stopDebugging {
+    [_controller.debugSession stop];
+    UDRunUntil(_controller.debugSession.state == UDDebugSessionStateEnded, 10);
+}
+
+// ---------------------------------------------------------------------------
+
+- (void)testTheNewViewsLoadFromTheirXIBs {
+    XCTAssertEqual(_controller.breakpointNavigatorHost.subviews.count, 1u);
+    UDBreakpointNavigatorViewController *navigator = _controller.breakpointNavigator;
+    XCTAssertNotNil(navigator.outlineView);
+    XCTAssertNotNil(navigator.removeButton);
+    XCTAssertNotNil(navigator.outlineView.menu, @"its menu, in UDBreakpointNavigator.xib");
+    XCTAssertEqual(navigator.breakpoints, _controller.breakpoints);
+    [_controller showBreakpointNavigator:nil];
+    XCTAssertEqual(_controller.navigatorControl.selectedSegment, 3);
+    XCTAssertEqualObjects(_controller.navigatorTabView.selectedTabViewItem.identifier, @"breakpoints");
+
+    UDDebugAreaViewController *area = _controller.debugArea;
+    XCTAssertNotNil(area.addExpressionButton);
+    XCTAssertNotNil(area.removeExpressionButton);
+    XCTAssertNotNil(area.variablesView.menu);
+    XCTAssertTrue([area.addExpressionButton isEnabled], @"watches can be added before a session");
+    XCTAssertFalse([area.removeExpressionButton isEnabled]);
+
+    UDDebugBarViewController *bar = _controller.debugBar;
+    XCTAssertNotNil(bar.stepBackButton);
+    XCTAssertNotNil(bar.reverseContinueButton);
+    XCTAssertTrue([bar.stepBackButton isHidden], @"no session, no stepping back");
+
+    UDCodeEditorViewController *editor = [self editor];
+    for (NSString *outlet in @[ @"breakpointMenu", @"lineMenu", @"debugTextMenu" ]) {
+        XCTAssertNotNil([editor valueForKey:outlet], @"%@ is connected in UDCodeEditorViewController.xib", outlet);
+    }
+    UDBreakpointEditorViewController *box = [[UDBreakpointEditorViewController alloc] init];
+    (void)box.view;
+    XCTAssertEqual(box.kindPopUp.numberOfItems, 3);
+    XCTAssertNotNil(box.field);
+    UDDebugHoverViewController *hover = [[UDDebugHoverViewController alloc] init];
+    (void)hover.view;
+    XCTAssertNotNil(hover.panel);
+    XCTAssertNotNil(hover.titleField);
+    XCTAssertNotNil(hover.outlineView);
+}
+
+- (void)testTheGutterMenusEditBreakpoints {
+    UDCodeEditorViewController *editor = [self editor];
+    UDLineNumberGutterView *gutter = [self gutter];
+    UDBreakpointStore *store = _controller.breakpoints;
+
+    // A line without one: Add Conditional Breakpoint….
+    NSMenu *menu = [gutter menuForEvent:[self rightClickAtLine:3]];
+    XCTAssertEqual(menu, [editor valueForKey:@"lineMenu"]);
+    XCTAssertTrue([self perform:[self item:@selector(addConditionalBreakpoint:) in:menu]]);
+    UDBreakpointEditorViewController *box = editor.breakpointEditor;
+    XCTAssertTrue(box.isShown);
+    XCTAssertEqual(box.line, 3);
+    XCTAssertEqual(box.kind, UDBreakpointEditorCondition);
+    XCTAssertNotNil(box.field.currentEditor, @"the keyboard in its field");
+    NSRect boxInWindow = [box.view convertRect:box.view.bounds toView:nil];
+    XCTAssertLessThan(NSMaxY(boxInWindow), [self pointOfLine:3].y, @"below its line");
+    XCTAssertGreaterThan(NSMaxY(boxInWindow), [self pointOfLine:5].y, @"just below");
+    XCTAssertNil([store breakpointAtLine:3 inFile:_program], @"not before it is kept");
+    [self type:@"line == 3" into:box.field enter:YES];
+    UDBreakpoint *breakpoint = [store breakpointAtLine:3 inFile:_program];
+    XCTAssertEqualObjects(breakpoint.condition, @"line == 3");
+    XCTAssertFalse(box.isShown);
+    XCTAssertEqual([self gutterKindAtLine:3], UDGutterBreakpointEnabled | UDGutterBreakpointConditional);
+    XCTAssertTrue([self isWhite:[self gutterColorAtLine:3 x:7 dy:-1.75]], @"its '='");
+    XCTAssertTrue([self isBlue:[self gutterColorAtLine:3 x:7 dy:0]], @"blue between the bars");
+
+    // Its menu: Edit Breakpoint…, the log message added.
+    menu = [gutter menuForEvent:[self rightClickAtLine:3]];
+    XCTAssertEqual(menu, [editor valueForKey:@"breakpointMenu"]);
+    NSMenuItem *toggle = [self item:@selector(toggleBreakpointEnabled:) in:menu];
+    XCTAssertTrue([editor validateMenuItem:toggle]);
+    XCTAssertEqualObjects(toggle.title, @"Disable Breakpoint");
+    XCTAssertTrue([self perform:[self item:@selector(editBreakpoint:) in:menu]]);
+    XCTAssertTrue(box.isShown);
+    XCTAssertEqualObjects(box.field.stringValue, @"line == 3");
+    [box.kindPopUp selectItemWithTag:UDBreakpointEditorLogMessage];
+    [box.kindPopUp sendAction:box.kindPopUp.action to:box.kindPopUp.target];
+    XCTAssertEqualObjects(box.field.stringValue, @"", @"the log message, none yet");
+    [self type:@"at {line}" into:box.field enter:YES];
+    XCTAssertEqualObjects(breakpoint.logMessage, @"at {line}");
+    XCTAssertEqualObjects(breakpoint.condition, @"line == 3", @"the condition kept");
+    XCTAssertEqual([self gutterKindAtLine:3], UDGutterBreakpointEnabled | UDGutterBreakpointLogpoint);
+    XCTAssertTrue([self isWhite:[self gutterColorAtLine:3 x:7.5 dy:0]], @"its diamond");
+
+    // Escape keeps nothing.
+    [editor editBreakpointAtLine:3];
+    XCTAssertEqual(box.kind, UDBreakpointEditorLogMessage, @"a logpoint opens on its message");
+    [self type:@"changed" into:box.field enter:NO];
+    NSTextView *fieldEditor = (NSTextView *)box.field.currentEditor;
+    [box control:box.field textView:fieldEditor doCommandBySelector:@selector(cancelOperation:)];
+    XCTAssertFalse(box.isShown);
+    XCTAssertEqualObjects(breakpoint.logMessage, @"at {line}");
+
+    // Disabled, enabled, from its menu.
+    menu = [gutter menuForEvent:[self rightClickAtLine:3]];
+    XCTAssertTrue([self perform:[self item:@selector(toggleBreakpointEnabled:) in:menu]]);
+    XCTAssertFalse(breakpoint.enabled);
+    XCTAssertTrue([editor validateMenuItem:toggle]);
+    XCTAssertEqualObjects(toggle.title, @"Enable Breakpoint");
+
+    // Add Logpoint… on another line; Delete Breakpoint.
+    XCTAssertTrue([self perform:[self item:@selector(addLogpoint:) in:[gutter menuForEvent:[self rightClickAtLine:5]]]]);
+    XCTAssertEqual(box.kind, UDBreakpointEditorLogMessage);
+    [self type:@"five" into:box.field enter:YES];
+    XCTAssertTrue([store breakpointAtLine:5 inFile:_program].logpoint);
+    XCTAssertTrue([self perform:[self item:@selector(deleteBreakpoint:) in:[gutter menuForEvent:[self rightClickAtLine:5]]]]);
+    XCTAssertNil([store breakpointAtLine:5 inFile:_program]);
+}
+
+- (void)testWhatTheAdapterHasNotGotIsGreyed {
+    _controller.debugAdapterCommand = @[ [UDCodeTestCase udcodeExecutablePath], UDDemoDebugAdapterOption,
+                                         @"--without=supportsLogPoints,supportsHitConditionalBreakpoints,supportsEvaluateForHovers" ];
+    UDBreakpointStore *store = _controller.breakpoints;
+    UDBreakpoint *logpoint = [store addBreakpointAtLine:2 inFile:_program];
+    [store setBreakpoint:logpoint condition:nil hitCondition:nil logMessage:@"two"];
+    [self startDebuggingAndWait];
+    XCTAssertEqual(_controller.debugSession.selectedFrame.line, 2, @"sent as a breakpoint");
+    UDRunUntil(!logpoint.verified, 5);
+    XCTAssertFalse(logpoint.verified);
+    XCTAssertEqualObjects(logpoint.message, @"Logpoints are not supported by this debugger.");
+    XCTAssertEqual([self gutterKindAtLine:2], UDGutterBreakpointUnverified | UDGutterBreakpointLogpoint);
+
+    UDCodeEditorViewController *editor = [self editor];
+    [editor editBreakpointAtLine:4];
+    UDBreakpointEditorViewController *box = editor.breakpointEditor;
+    XCTAssertTrue([box isKindEnabled:UDBreakpointEditorCondition]);
+    XCTAssertFalse([box isKindEnabled:UDBreakpointEditorHitCondition], @"greyed, as VS Code warns");
+    XCTAssertFalse([box isKindEnabled:UDBreakpointEditorLogMessage]);
+    [box control:box.field textView:(NSTextView *)box.field.currentEditor doCommandBySelector:@selector(cancelOperation:)];
+
+    // No hover from the debugger: the language server's is asked, as ever.
+    id<UDDebugTextHandler> handler = editor.textView.debugHandler;
+    XCTAssertEqual(handler, (id)editor);
+    XCTAssertFalse([handler textView:editor.textView showsDebugHoverAtIndex:[UDProgram rangeOfString:@"hello"].location]);
+}
+
+- (void)testTheBreakpointNavigator {
+    UDBreakpointStore *store = _controller.breakpoints;
+    NSString *other = [UDCodeTestCase temporaryFileNamed:@"other.demo" text:@"one\ntwo\nthree\n"];
+    UDBreakpoint *three = [store addBreakpointAtLine:3 inFile:_program];
+    [store setBreakpoint:[store addBreakpointAtLine:5 inFile:_program] condition:@"line == 5" hitCondition:nil logMessage:nil];
+    [store setBreakpoint:[store addBreakpointAtLine:2 inFile:other] condition:nil hitCondition:nil logMessage:@"two"];
+    [_controller showBreakpointNavigator:nil];
+    UDBreakpointNavigatorViewController *navigator = _controller.breakpointNavigator;
+    NSOutlineView *outline = navigator.outlineView;
+    XCTAssertEqual(outline.numberOfRows, 5);
+    NSArray *titles = @[ @"debugged.demo", @"Line 3", @"Line 5  ·  Condition: line == 5", @"other.demo", @"Line 2  ·  Log: two" ];
+    for (NSInteger row = 0; row < 5; row++) {
+        XCTAssertEqualObjects([self textOfRow:row in:outline column:@"breakpoint"], titles[(NSUInteger)row]);
+    }
+    XCTAssertEqual([navigator breakpointOfRow:1], three);
+    XCTAssertNil([navigator breakpointOfRow:0], @"a file");
+
+    // Its check box.
+    NSTableColumn *enabled = [outline tableColumnWithIdentifier:@"enabled"];
+    XCTAssertEqualObjects([outline.dataSource outlineView:outline objectValueForTableColumn:enabled byItem:three], @YES);
+    [outline.dataSource outlineView:outline setObjectValue:@NO forTableColumn:enabled byItem:three];
+    XCTAssertFalse(three.enabled);
+    XCTAssertEqual([self gutterKindAtLine:3], UDGutterBreakpointDisabled, @"the gutter shows it");
+    [outline.dataSource outlineView:outline setObjectValue:@YES forTableColumn:enabled byItem:three];
+    XCTAssertTrue(three.enabled);
+
+    // Chosen: its line; edited: its editor's box.
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:2] byExtendingSelection:NO];
+    XCTAssertTrue([navigator.removeButton isEnabled]);
+    [navigator showBreakpoint:nil];
+    UDTextModel *model = [(UDTextModelTextStorage *)[self editor].textView.textStorage textModel];
+    XCTAssertEqual([model getPositionAt:(NSInteger)[self editor].textView.selectedRange.location].line, 5);
+    [navigator editBreakpoint:nil];
+    XCTAssertTrue([self editor].breakpointEditor.isShown);
+    XCTAssertEqual([self editor].breakpointEditor.line, 5);
+    XCTAssertEqualObjects([self editor].breakpointEditor.field.stringValue, @"line == 5");
+    UDBreakpointEditorViewController *box = [self editor].breakpointEditor;
+    [box control:box.field textView:(NSTextView *)box.field.currentEditor doCommandBySelector:@selector(cancelOperation:)];
+
+    // Another file's: opened.
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:4] byExtendingSelection:NO];
+    [navigator showBreakpoint:nil];
+    XCTAssertEqualObjects([_controller.editorTabs.selectedItem.representedObject displayName], @"other.demo");
+
+    // − deletes the selected one.
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:4] byExtendingSelection:NO];
+    [navigator.removeButton performClick:nil];
+    XCTAssertNil([store breakpointAtLine:2 inFile:other]);
+    XCTAssertEqual(outline.numberOfRows, 3, @"its file goes with it");
+
+    // Every one at once, from its menu.
+    NSMenu *menu = outline.menu;
+    XCTAssertTrue([self perform:[self item:@selector(disableAllBreakpoints:) in:menu]]);
+    for (UDBreakpoint *breakpoint in store.allBreakpoints) XCTAssertFalse(breakpoint.enabled);
+    XCTAssertTrue([self perform:[self item:@selector(enableAllBreakpoints:) in:menu]]);
+    for (UDBreakpoint *breakpoint in store.allBreakpoints) XCTAssertTrue(breakpoint.enabled);
+    XCTAssertTrue([self perform:[self item:@selector(deleteAllBreakpoints:) in:menu]]);
+    XCTAssertEqual(store.allBreakpoints.count, 0u);
+    XCTAssertEqual(outline.numberOfRows, 0);
+    XCTAssertFalse([self perform:[self item:@selector(deleteAllBreakpoints:) in:menu]], @"nothing left to delete");
+}
+
+- (void)testTheExceptionFiltersInTheNavigator {
+    NSString *raising = [UDCodeTestCase temporaryFileNamed:@"raising.demo" text:@"start\nwarn careful\nthrow boom\nlast\n"];
+    [_controller openURLInNewTab:[NSURL fileURLWithPath:raising]];
+    [self startDebuggingAndWait];
+    UDDebugSession *session = _controller.debugSession;
+    XCTAssertEqual(session.selectedFrame.line, 3, @"Errors is on by default");
+    XCTAssertEqualObjects(_controller.debugBar.statusLabel.stringValue, @"main › main — raising.demo:3 (exception: Error: boom)");
+
+    NSOutlineView *outline = _controller.breakpointNavigator.outlineView;
+    UDRunUntil(outline.numberOfRows == 2, 5);
+    XCTAssertEqualObjects([self textOfRow:0 in:outline column:@"breakpoint"], @"Errors");
+    XCTAssertEqualObjects([self textOfRow:1 in:outline column:@"breakpoint"], @"Warnings");
+    XCTAssertEqualObjects([self textOfRow:0 in:outline column:@"enabled"], @YES);
+    XCTAssertEqualObjects([self textOfRow:1 in:outline column:@"enabled"], @NO);
+    XCTAssertEqualObjects([_controller.breakpointNavigator exceptionFilterOfRow:1], @"warn");
+
+    // Warnings on: the next run stops at the warning.
+    [outline.dataSource outlineView:outline setObjectValue:@YES forTableColumn:[outline tableColumnWithIdentifier:@"enabled"]
+                             byItem:[outline itemAtRow:1]];
+    XCTAssertTrue([_controller.breakpoints isExceptionFilterEnabled:@"warn"]);
+    [self stopDebugging];
+    XCTAssertEqual(outline.numberOfRows, 2, @"kept when the session ends");
+    [self startDebuggingAndWait];
+    XCTAssertEqual(_controller.debugSession.selectedFrame.line, 2);
+    XCTAssertEqualObjects(_controller.debugSession.selectedThread.stopDescription, @"Warning: careful");
+}
+
+- (void)testWatchExpressionsInTheVariablesView {
+    UDDebugAreaViewController *area = _controller.debugArea;
+    NSOutlineView *variables = area.variablesView;
+    [_controller toggleDebugArea:nil];
+
+    // Added before running: written in place.
+    [area.addExpressionButton performClick:nil];
+    XCTAssertEqual(variables.numberOfRows, 1, @"a new row, being written");
+    [self typeInOutline:variables text:@"text"];
+    XCTAssertEqualObjects(_controller.breakpoints.watchExpressions, @[ @"text" ]);
+    XCTAssertEqualObjects([self textOfRow:0 in:variables column:@"name"], @"text");
+    XCTAssertEqualObjects([self textOfRow:0 in:variables column:@"value"], @"", @"nothing to evaluate it in yet");
+
+    [self runToTheBreakpointAtLine:3];
+    UDRunUntil([[self textOfRow:0 in:variables column:@"value"] isEqual:@"\"third\""], 5);
+    XCTAssertEqualObjects([self textOfRow:0 in:variables column:@"value"], @"\"third\"");
+    XCTAssertEqual([area watchIndexOfRow:0], 0u);
+    XCTAssertEqualObjects([self textOfRow:1 in:variables column:@"name"], @"Locals", @"the scopes under the watches");
+
+    // A structured one opens; it stays open at the next stop.
+    [_controller.breakpoints addWatchExpression:@"info"];
+    UDRunUntil([[self textOfRow:1 in:variables column:@"value"] isEqual:@"{length=5}"], 5);
+    [variables expandItem:[variables itemAtRow:1]];
+    UDRunUntil([[self textOfRow:2 in:variables column:@"name"] isEqual:@"length"], 5);
+    XCTAssertEqualObjects([self textOfRow:2 in:variables column:@"value"], @"5");
+    [_controller.debugBar.stepOverButton performClick:nil];
+    [self waitForStopAtLine:4];
+    UDRunUntil([[self textOfRow:2 in:variables column:@"value"] isEqual:@"6"], 5);
+    XCTAssertEqualObjects([self textOfRow:2 in:variables column:@"value"], @"6", @"info.length at line 4, open again");
+
+    // Edited in place: a double click on it.
+    [variables selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
+    [area editExpression:nil];
+    [self typeInOutline:variables text:@"line"];
+    XCTAssertEqualObjects(_controller.breakpoints.watchExpressions, (@[ @"line", @"info" ]));
+    UDRunUntil([[self textOfRow:0 in:variables column:@"value"] isEqual:@"4"], 5);
+    XCTAssertEqualObjects([self textOfRow:0 in:variables column:@"value"], @"4");
+
+    // One that does not evaluate says why.
+    [_controller.breakpoints addWatchExpression:@"nope"];
+    NSInteger nope = 4;   // line, info, its two children, nope
+    UDRunUntil([[self textOfRow:nope in:variables column:@"value"] hasPrefix:@"error:"], 5);
+    XCTAssertEqualObjects([self textOfRow:nope in:variables column:@"value"], @"error: use of undeclared identifier 'nope'");
+    XCTAssertTrue([area variableOfRow:nope].failed);
+
+    // − removes the selected one.
+    [variables selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)nope] byExtendingSelection:NO];
+    XCTAssertTrue([area.removeExpressionButton isEnabled]);
+    [area.removeExpressionButton performClick:nil];
+    XCTAssertEqualObjects(_controller.breakpoints.watchExpressions, (@[ @"line", @"info" ]));
+
+    // The variables' menu: a variable's value and expression copied, watched.
+    NSInteger textRow = [self rowOfLocal:@"text"];
+    XCTAssertGreaterThan(textRow, 0);
+    [variables selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)textRow] byExtendingSelection:NO];
+    NSMenu *menu = variables.menu;
+    XCTAssertTrue([self perform:[self item:@selector(copyAsExpression:) in:menu]]);
+    XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString], @"text");
+    XCTAssertTrue([self perform:[self item:@selector(copyValue:) in:menu]]);
+    UDRunUntil([[[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString] isEqual:@"fourth"], 5);
+    XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString], @"fourth",
+                          @"the adapter's clipboard value: no quotes");
+    // (Selected again: GNUstep's table forgets it when the rows reload.)
+    [variables selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)[self rowOfLocal:@"text"]] byExtendingSelection:NO];
+    XCTAssertFalse([area validateMenuItem:[self item:@selector(editExpression:) in:menu]], @"not a watch");
+    XCTAssertTrue([self perform:[self item:@selector(addToWatch:) in:menu]]);
+    XCTAssertEqualObjects(_controller.breakpoints.watchExpressions, (@[ @"line", @"info", @"text" ]));
+
+    // Set Value…: the value edited in place.
+    textRow = [self rowOfLocal:@"text"];
+    [variables selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)textRow] byExtendingSelection:NO];
+    XCTAssertTrue([self perform:[self item:@selector(setValue:) in:menu]]);
+    [self typeInOutline:variables text:@"\"changed\""];
+    UDRunUntil([[self textOfRow:[self rowOfLocal:@"text"] in:variables column:@"value"] isEqual:@"\"changed\""], 5);
+    XCTAssertEqualObjects([self textOfRow:[self rowOfLocal:@"text"] in:variables column:@"value"], @"\"changed\"");
+
+    // All of them, gone.
+    XCTAssertTrue([self perform:[self item:@selector(removeAllExpressions:) in:menu]]);
+    XCTAssertEqualObjects(_controller.breakpoints.watchExpressions, @[]);
+    XCTAssertEqualObjects([self textOfRow:0 in:variables column:@"name"], @"Locals");
+}
+
+- (void)testTheDebugHover {
+    NSString *hovered = [UDCodeTestCase temporaryFileNamed:@"hovered.demo" text:@"start\nprint hello\nshow info.length and text\nlast\n"];
+    [_controller openURLInNewTab:[NSURL fileURLWithPath:hovered]];
+    [self clickLine:3];
+    [self startDebuggingAndWait];
+    XCTAssertEqual(_controller.debugSession.selectedFrame.line, 3);
+    UDCodeEditorViewController *editor = [self editor];
+    UDDiagnosticTextView *textView = editor.textView;
+    textView.hoverDelay = 0.05;
+    NSString *text = textView.string;
+
+    // "length" of "info.length": the expression up to it.
+    [self moveMouseTo:[text rangeOfString:@"length"].location + 2];
+    UDRunUntil(editor.debugHover.isShown, 5);
+    UDDebugHoverViewController *hover = editor.debugHover;
+    XCTAssertTrue(hover.isShown);
+    XCTAssertEqualObjects(hover.titleField.stringValue, @"info.length = 25");
+    XCTAssertEqual(hover.panel.parentWindow, _controller.window, @"at the text, in its window");
+    XCTAssertTrue([hover.outlineView.enclosingScrollView isHidden], @"nothing to open");
+
+    // Off it: gone.
+    [self moveMouseTo:NSNotFound];
+    XCTAssertFalse(hover.isShown);
+
+    // A structured value: its children, below.
+    [self moveMouseTo:[text rangeOfString:@"info"].location + 1];
+    UDRunUntil(hover.isShown && hover.outlineView.numberOfRows == 2, 5);
+    XCTAssertEqualObjects(hover.titleField.stringValue, @"info = {length=25}");
+    XCTAssertEqual(hover.outlineView.numberOfRows, 2);
+    XCTAssertFalse([hover.outlineView.enclosingScrollView isHidden]);
+    [self moveMouseTo:NSNotFound];
+
+    // What does not evaluate shows nothing.
+    [self moveMouseTo:[text rangeOfString:@"and"].location + 1];
+    UDRunUntil(NO, 0.3);
+    XCTAssertFalse(hover.isShown);
+    [self moveMouseTo:NSNotFound];
+
+    // Running: none.
+    [self moveMouseTo:[text rangeOfString:@" text"].location + 2];
+    UDRunUntil(hover.isShown, 5);
+    XCTAssertEqualObjects(hover.titleField.stringValue, @"text = \"show info.length and text\"");
+    [_controller.debugBar.stepOverButton performClick:nil];
+    XCTAssertFalse(hover.isShown, @"what it showed is gone");
+}
+
+- (void)testRunToCursorAndJumpToCursor {
+    [self runToTheBreakpointAtLine:1];
+    UDCodeEditorViewController *editor = [self editor];
+    UDDiagnosticTextView *textView = editor.textView;
+
+    // The text's menu: the debugger's items on top, the caret where it was clicked.
+    NSUInteger fifth = [UDProgram rangeOfString:@"fifth"].location;
+    NSMenu *menu = [textView menuForEvent:[self rightClickAtIndex:fifth + 1]];
+    XCTAssertEqualObjects([menu itemAtIndex:0].title, @"Run to Cursor");
+    XCTAssertEqualObjects([menu itemAtIndex:1].title, @"Jump to Cursor");
+    XCTAssertEqualObjects([menu itemAtIndex:2].title, @"Add to Watch");
+    UDTextModel *model = [(UDTextModelTextStorage *)textView.textStorage textModel];
+    XCTAssertEqual([model getPositionAt:(NSInteger)textView.selectedRange.location].line, 5,
+                   @"the caret moved to the click (macOS selects the word clicked)");
+    XCTAssertTrue([self perform:[menu itemAtIndex:0]]);
+    [self waitForStopAtLine:5];
+    UDRunUntil([_controller.debugArea.consoleView.string containsString:@"hello"], 5);
+    XCTAssertTrue([_controller.debugArea.consoleView.string containsString:@"hello\n"], @"what was before ran");
+    XCTAssertEqual(_controller.breakpoints.allBreakpoints.count, 1u, @"no breakpoint left behind");
+
+    // The Debug menu's Jump to Cursor: back to line 2, which is not run.
+    textView.selectedRange = NSMakeRange([UDProgram rangeOfString:@"print hello"].location, 0);
+    NSMenuItem *jump = [[NSMenuItem alloc] initWithTitle:@"" action:@selector(jumpToCursor:) keyEquivalent:@""];
+    XCTAssertTrue([_controller validateMenuItem:jump]);
+    [_controller jumpToCursor:nil];
+    [self waitForStopAtLine:2];
+    XCTAssertEqualObjects(_controller.debugSession.selectedThread.stopReason, @"goto");
+
+    // Add to Watch: the selection.
+    textView.selectedRange = [UDProgram rangeOfString:@"hello"];
+    menu = [textView menuForEvent:[self rightClickAtIndex:textView.selectedRange.location + 1]];
+    XCTAssertEqual(textView.selectedRange.length, 5u, @"a click in the selection keeps it");
+    XCTAssertTrue([self perform:[menu itemAtIndex:2]]);
+    XCTAssertEqualObjects(_controller.breakpoints.watchExpressions, @[ @"hello" ]);
+
+    // Not debugging: none of it.
+    [self stopDebugging];
+    menu = [textView menuForEvent:[self rightClickAtIndex:fifth]];
+    XCTAssertNil([self item:@selector(runToCursor:) in:menu]);
+    NSMenuItem *run = [[NSMenuItem alloc] initWithTitle:@"" action:@selector(runToCursor:) keyEquivalent:@""];
+    XCTAssertFalse([_controller validateMenuItem:run]);
+}
+
+- (void)testSteppingBack {
+    [self runToTheBreakpointAtLine:3];
+    UDDebugBarViewController *bar = _controller.debugBar;
+    XCTAssertFalse([bar.stepBackButton isHidden], @"the demo adapter steps back");
+    XCTAssertTrue([bar.stepBackButton isEnabled]);
+    [bar.stepBackButton performClick:nil];
+    [self waitForStopAtLine:2];
+    NSMenuItem *back = [[NSMenuItem alloc] initWithTitle:@"" action:@selector(debugStepBack:) keyEquivalent:@""];
+    XCTAssertTrue([_controller validateMenuItem:back]);
+#ifdef __APPLE__
+    XCTAssertFalse([back isHidden]);
+#endif
+    [bar.reverseContinueButton performClick:nil];
+    [self waitForStopAtLine:1];
+    [self stopDebugging];
+
+    // An adapter that cannot: no buttons, stop where step back was.
+    _controller.debugAdapterCommand = @[ [UDCodeTestCase udcodeExecutablePath], UDDemoDebugAdapterOption,
+                                         @"--without=supportsStepBack" ];
+    [self startDebuggingAndWait];
+    XCTAssertTrue([bar.stepBackButton isHidden]);
+    XCTAssertTrue([bar.reverseContinueButton isHidden]);
+    XCTAssertEqualWithAccuracy(NSMinX(bar.stopButton.frame), NSMinX(bar.stepBackButton.frame), 0.5);
+    XCTAssertFalse([_controller validateMenuItem:back]);
+#ifdef __APPLE__
+    XCTAssertTrue([back isHidden], @"GNUstep's menu items do not hide");
+#endif
 }
 
 @end

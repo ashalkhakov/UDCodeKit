@@ -10,14 +10,19 @@
 #import "UDFindBarViewController.h"
 #import "UDJumpToLineViewController.h"
 #import "UDBreakpointStore.h"
+#import "UDDebugSession.h"
+#import "UDBreakpointEditorViewController.h"
+#import "UDDebugHoverViewController.h"
 #import <UDPieceTable/UDPieceTable.h>
+#import <objc/runtime.h>
 
 // ---------------------------------------------------------------------------
 // MARK: - Private interface
 // ---------------------------------------------------------------------------
 
 @interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDLineNumberGutterBreakpointSource,
-                                          UDFindBarDelegate, UDFindActionHandler, UDJumpToLineDelegate>
+                                          UDFindBarDelegate, UDFindActionHandler, UDJumpToLineDelegate,
+                                          UDDebugTextHandler, UDBreakpointEditorDelegate>
 
 // IBOutlets wired from UDCodeEditorViewController.xib.
 @property (nonatomic, weak) IBOutlet NSScrollView            *scrollView;
@@ -43,6 +48,16 @@
 // Breakpoints.
 @property (nonatomic, strong, nullable) UDBreakpointStore *breakpointStore;
 @property (nonatomic, copy, nullable)   NSString          *breakpointFile;
+@property (nonatomic, strong, nullable) UDBreakpointEditorViewController *breakpointEditor;
+
+// The debugger's: the gutter's menus (a breakpoint's, a line's), the text's
+// items, from the XIB; the hover.
+@property (nonatomic, strong) IBOutlet NSMenu *breakpointMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *lineMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *debugTextMenu;
+@property (nonatomic) NSInteger menuLine;
+@property (nonatomic, strong, nullable) UDDebugHoverViewController *debugHover;
+@property (nonatomic) NSRange debugHoverRange;
 
 @end
 
@@ -90,6 +105,7 @@
                                      textView:_textView
                                     textModel:_textStorage.textModel];
     _textView.findActionHandler = self;
+    _textView.debugHandler = self;
 
     // 8. Folding controller.
     _foldingController =
@@ -183,6 +199,14 @@
     if (breakpoint) [_breakpointStore removeBreakpoint:breakpoint];
 }
 
+/// A breakpoint's menu (Edit, Disable, Delete), or a line's (Add, Add
+/// Conditional, Add Logpoint, Run to Line), as VS Code's gutter has them.
+- (NSMenu *)lineNumberGutterView:(UDLineNumberGutterView *)view menuForLine:(NSInteger)lineNumber {
+    if (!_breakpointFile) return nil;
+    _menuLine = lineNumber;
+    return [_breakpointStore breakpointAtLine:lineNumber inFile:_breakpointFile] ? _breakpointMenu : _lineMenu;
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - Breakpoints
 // ---------------------------------------------------------------------------
@@ -219,8 +243,10 @@
     NSMutableDictionary *found = [NSMutableDictionary dictionary];
     for (UDBreakpoint *breakpoint in [_breakpointStore breakpointsInFile:_breakpointFile]) {
         if (!NSLocationInRange((NSUInteger)breakpoint.line, lines)) continue;
-        UDGutterBreakpoint kind = !breakpoint.enabled ? UDGutterBreakpointDisabled
-                                : !breakpoint.verified ? UDGutterBreakpointUnverified : UDGutterBreakpointEnabled;
+        NSInteger kind = !breakpoint.enabled ? UDGutterBreakpointDisabled
+                       : !breakpoint.verified ? UDGutterBreakpointUnverified : UDGutterBreakpointEnabled;
+        if (breakpoint.logpoint) kind |= UDGutterBreakpointLogpoint;
+        else if (breakpoint.conditional) kind |= UDGutterBreakpointConditional;
         found[@(breakpoint.line)] = @(kind);
     }
     return found;
@@ -235,8 +261,257 @@
         NSBeep();
         return;
     }
-    NSInteger line = [_textStorage.textModel getPositionAt:(NSInteger)_textView.selectedRange.location].line;
-    [_breakpointStore toggleBreakpointAtLine:line inFile:_breakpointFile];
+    [_breakpointStore toggleBreakpointAtLine:[self _caretLine] inFile:_breakpointFile];
+}
+
+- (NSInteger)_caretLine {
+    return [_textStorage.textModel getPositionAt:(NSInteger)_textView.selectedRange.location].line;
+}
+
+// The gutter's menus: about the line they were opened on.
+
+- (IBAction)addBreakpoint:(id)sender {
+    if (_breakpointFile && _menuLine > 0) [_breakpointStore addBreakpointAtLine:_menuLine inFile:_breakpointFile];
+}
+
+- (IBAction)addConditionalBreakpoint:(id)sender {
+    if (_menuLine > 0) [self _editBreakpointAtLine:_menuLine kind:UDBreakpointEditorCondition];
+}
+
+- (IBAction)addLogpoint:(id)sender {
+    if (_menuLine > 0) [self _editBreakpointAtLine:_menuLine kind:UDBreakpointEditorLogMessage];
+}
+
+- (IBAction)editBreakpoint:(id)sender {
+    if (_menuLine > 0) [self editBreakpointAtLine:_menuLine];
+}
+
+- (IBAction)toggleBreakpointEnabled:(id)sender {
+    UDBreakpoint *breakpoint = [self _menuBreakpoint];
+    if (breakpoint) [_breakpointStore setBreakpoint:breakpoint enabled:!breakpoint.enabled];
+}
+
+- (IBAction)deleteBreakpoint:(id)sender {
+    UDBreakpoint *breakpoint = [self _menuBreakpoint];
+    if (breakpoint) [_breakpointStore removeBreakpoint:breakpoint];
+}
+
+- (IBAction)runToLine:(id)sender {
+    UDDebugSession *session = [self _session];
+    if (session.canContinue && _menuLine > 0) [session runToLine:_menuLine inFile:_breakpointFile];
+}
+
+- (nullable UDBreakpoint *)_menuBreakpoint {
+    return _breakpointFile && _menuLine > 0 ? [_breakpointStore breakpointAtLine:_menuLine inFile:_breakpointFile] : nil;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Editing a breakpoint: its condition, hit count, log message
+// ---------------------------------------------------------------------------
+
+- (void)editBreakpointAtLine:(NSInteger)line {
+    [self _editBreakpointAtLine:line kind:UDBreakpointEditorCondition];
+}
+
+/// The box below @a line, showing @a kind (or what the breakpoint has);
+/// what the session's adapter cannot do greyed.
+- (void)_editBreakpointAtLine:(NSInteger)line kind:(UDBreakpointEditorKind)kind {
+    (void)self.view;
+    if (!_breakpointFile || line < 1) return;
+    if (!_breakpointEditor) {
+        _breakpointEditor = [[UDBreakpointEditorViewController alloc] init];
+        _breakpointEditor.delegate = self;
+    }
+    [_breakpointEditor close];
+    DAPClient *adapter = [self _liveSession].client;
+    [_breakpointEditor setKind:UDBreakpointEditorCondition enabled:!adapter || adapter.supportsConditionalBreakpoints];
+    [_breakpointEditor setKind:UDBreakpointEditorHitCondition enabled:!adapter || adapter.supportsHitConditionalBreakpoints];
+    [_breakpointEditor setKind:UDBreakpointEditorLogMessage enabled:!adapter || adapter.supportsLogPoints];
+    UDBreakpoint *breakpoint = [_breakpointStore breakpointAtLine:line inFile:_breakpointFile];
+    _breakpointEditor.line = line;
+    [_breakpointEditor beginWithCondition:breakpoint.condition hitCondition:breakpoint.hitCondition
+                               logMessage:breakpoint.logMessage kind:kind];
+    [self revealLine:line];
+    [self _placeBreakpointEditor];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_editorAreaScrolled:)
+                                                 name:NSViewBoundsDidChangeNotification object:_scrollView.contentView];
+}
+
+/// Just below its line (above it, at the bottom of the editor), from the
+/// text's left edge.
+- (void)_placeBreakpointEditor {
+    UDTextModel *model = _textStorage.textModel;
+    NSInteger line = MAX(1, MIN(_breakpointEditor.line, [model getLineCount]));
+    NSLayoutManager *lm = _textView.layoutManager;
+    NSUInteger offset = (NSUInteger)[model getOffsetAt:line column:1];
+    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(offset, 0) actualCharacterRange:NULL];
+    NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:MIN(glyphs.location, MAX([lm numberOfGlyphs], 1) - 1)
+                                           effectiveRange:NULL];
+    lineRect.origin.y += _textView.textContainerOrigin.y;
+    NSRect inArea = [_textView convertRect:lineRect toView:_editorArea];
+    CGFloat height = NSHeight(_breakpointEditor.view.frame);
+    BOOL flipped = _editorArea.isFlipped;
+    CGFloat below = flipped ? NSMaxY(inArea) : NSMinY(inArea);
+    CGFloat top = flipped ? below + 2.0 : below - 2.0;
+    BOOL fits = flipped ? top + height <= NSHeight(_editorArea.bounds) : top - height >= 0.0;
+    if (!fits) top = flipped ? NSMinY(inArea) - 2.0 - height : NSMaxY(inArea) + 2.0 + height;
+    // In the editor area's superview, where the box goes.
+    NSPoint origin = [_editorArea convertPoint:NSMakePoint(NSMinX(_scrollView.frame) + 4.0, top)
+                                        toView:_editorArea.superview];
+    [_breakpointEditor showOverView:_editorArea top:origin.y left:origin.x];
+}
+
+- (void)_editorAreaScrolled:(NSNotification *)note {
+    if (_breakpointEditor.isShown) [self _placeBreakpointEditor];
+}
+
+- (void)_closeBreakpointEditor {
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewBoundsDidChangeNotification
+                                                  object:_scrollView.contentView];
+    BOOL hadKeyboard = _breakpointEditor.isShown;
+    [_breakpointEditor close];
+    if (hadKeyboard) [self.view.window makeFirstResponder:_textView];
+}
+
+/// Kept: the breakpoint's (added, when there was none, as VS Code adds it).
+- (void)breakpointEditorDidAccept:(UDBreakpointEditorViewController *)editor {
+    NSString *condition = editor.condition, *hitCondition = editor.hitCondition, *logMessage = editor.logMessage;
+    [self _closeBreakpointEditor];
+    if (!_breakpointFile) return;
+    UDBreakpoint *breakpoint = [_breakpointStore breakpointAtLine:editor.line inFile:_breakpointFile]
+                            ?: [_breakpointStore addBreakpointAtLine:editor.line inFile:_breakpointFile];
+    [_breakpointStore setBreakpoint:breakpoint condition:condition hitCondition:hitCondition logMessage:logMessage];
+}
+
+- (void)breakpointEditorDidCancel:(UDBreakpointEditorViewController *)editor {
+    [self _closeBreakpointEditor];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - The debugger in the text: hover, Run to Cursor, Add to Watch
+// ---------------------------------------------------------------------------
+
+/// The store's session, while it has not ended.
+- (nullable UDDebugSession *)_liveSession {
+    UDDebugSession *session = _breakpointStore.debugSession;
+    return session.state == UDDebugSessionStateEnded ? nil : session;
+}
+
+- (nullable UDDebugSession *)_session {
+    return _breakpointFile ? [self _liveSession] : nil;
+}
+
+/// The session, when it is stopped in this file.
+- (nullable UDDebugSession *)_sessionStoppedHere {
+    UDDebugSession *session = [self _session];
+    if (session.state != UDDebugSessionStateStopped) return nil;
+    return [session.selectedFrame.path.stringByStandardizingPath isEqualToString:_breakpointFile] ? session : nil;
+}
+
+/// What to evaluate at @a index: the selection, when @a index is in it and
+/// it is one line, else the expression there (VS Code's); its range.
+- (NSRange)_expressionRangeAtIndex:(NSUInteger)index {
+    NSString *text = _textStorage.string;
+    NSRange selection = _textView.selectedRange;
+    if (selection.length && NSLocationInRange(index, selection) &&
+        [[text substringWithRange:selection] rangeOfCharacterFromSet:[NSCharacterSet newlineCharacterSet]].location == NSNotFound) {
+        return selection;
+    }
+    if (index >= text.length) return NSMakeRange(NSNotFound, 0);
+    NSRange line = [text lineRangeForRange:NSMakeRange(index, 0)];
+    NSCharacterSet *word = [NSCharacterSet alphanumericCharacterSet];
+    NSUInteger start = index, end = index;
+    while (start > line.location && ([word characterIsMember:[text characterAtIndex:start - 1]] || [text characterAtIndex:start - 1] == '_')) start--;
+    while (end < NSMaxRange(line) && ([word characterIsMember:[text characterAtIndex:end]] || [text characterAtIndex:end] == '_')) end++;
+    if (end == start) return NSMakeRange(NSNotFound, 0);
+    NSRange found = UDEvaluatableExpressionRange([text substringWithRange:line], NSMakeRange(start - line.location, end - start));
+    return found.location == NSNotFound ? found : NSMakeRange(line.location + found.location, found.length);
+}
+
+- (BOOL)textView:(UDDiagnosticTextView *)textView showsDebugHoverAtIndex:(NSUInteger)characterIndex {
+    UDDebugSession *session = [self _sessionStoppedHere];
+    if (!session.client.supportsEvaluateForHovers) return NO;
+    NSRange range = [self _expressionRangeAtIndex:characterIndex];
+    if (range.location == NSNotFound) return NO;
+    _debugHoverRange = range;
+    [session evaluate:[_textStorage.string substringWithRange:range] context:@"hover"
+               target:self action:@selector(_didEvaluateHover:)];
+    return YES;
+}
+
+/// Shown, unless it did not evaluate (VS Code shows nothing then).
+- (void)_didEvaluateHover:(UDDebugVariable *)variable {
+    if (variable.failed || _debugHoverRange.location == NSNotFound) return;
+    if (!_debugHover) _debugHover = [[UDDebugHoverViewController alloc] init];
+    [_debugHover showVariable:variable ofSession:[self _sessionStoppedHere] atCharacterRange:_debugHoverRange
+                   ofTextView:_textView];
+}
+
+/// Off the word: the hover goes, unless the mouse went into it (to open
+/// what it shows); it goes when the mouse leaves it.
+- (void)textViewDebugHoverDidEnd:(UDDiagnosticTextView *)textView {
+    _debugHoverRange = NSMakeRange(NSNotFound, 0);
+    if (!_debugHover.containsMouse) [_debugHover close];
+}
+
+- (NSArray<NSMenuItem *> *)debugMenuItemsForTextView:(UDDiagnosticTextView *)textView {
+    if (![self _session]) return nil;
+    return _debugTextMenu.itemArray;
+}
+
+- (IBAction)runToCursor:(id)sender {
+    UDDebugSession *session = [self _session];
+    if (session.canContinue) [session runToLine:[self _caretLine] inFile:_breakpointFile];
+    else NSBeep();
+}
+
+- (IBAction)jumpToCursor:(id)sender {
+    UDDebugSession *session = [self _session];
+    if (session.canJump) [session jumpToLine:[self _caretLine] inFile:_breakpointFile];
+    else NSBeep();
+}
+
+- (IBAction)addToWatch:(id)sender {
+    NSRange range = [self _expressionRangeAtIndex:_textView.selectedRange.location];
+    if (range.location == NSNotFound || !_breakpointStore) {
+        NSBeep();
+        return;
+    }
+    [_breakpointStore addWatchExpression:[_textStorage.string substringWithRange:range]];
+}
+
+- (BOOL)canPerformDebugAction:(SEL)action {
+    UDDebugSession *session = [self _session];
+    if (sel_isEqual(action, @selector(runToCursor:))) return session.canContinue;
+    if (sel_isEqual(action, @selector(jumpToCursor:))) return session.canJump;
+    if (sel_isEqual(action, @selector(addToWatch:))) {
+        return _breakpointStore && [self _expressionRangeAtIndex:_textView.selectedRange.location].location != NSNotFound;
+    }
+    return NO;
+}
+
+/// The menus' items: theirs are this controller's (sel_isEqual: a XIB's
+/// selector is another pointer on GNUstep).
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    SEL action = item.action;
+    if (sel_isEqual(action, @selector(runToCursor:)) || sel_isEqual(action, @selector(jumpToCursor:)) ||
+        sel_isEqual(action, @selector(addToWatch:))) {
+        return [self canPerformDebugAction:action];
+    }
+    if (sel_isEqual(action, @selector(runToLine:))) return [self _session].canContinue;
+    if (sel_isEqual(action, @selector(toggleBreakpointEnabled:))) {
+        UDBreakpoint *breakpoint = [self _menuBreakpoint];
+        item.title = breakpoint.enabled ? @"Disable Breakpoint" : @"Enable Breakpoint";
+        return breakpoint != nil;
+    }
+    if (sel_isEqual(action, @selector(editBreakpoint:)) || sel_isEqual(action, @selector(deleteBreakpoint:))) {
+        return [self _menuBreakpoint] != nil;
+    }
+    if (sel_isEqual(action, @selector(addBreakpoint:)) || sel_isEqual(action, @selector(addConditionalBreakpoint:)) ||
+        sel_isEqual(action, @selector(addLogpoint:))) {
+        return _breakpointFile != nil && _menuLine > 0;
+    }
+    return YES;
 }
 
 // ---------------------------------------------------------------------------

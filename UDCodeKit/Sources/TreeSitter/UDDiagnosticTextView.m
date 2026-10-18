@@ -640,6 +640,8 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     }
     if (sel_isEqual(action, @selector(jumpToLine:)))
         return [_findActionHandler respondsToSelector:@selector(showJumpToLine)];
+    if ([self _isDebugAction:action])
+        return [_debugHandler canPerformDebugAction:action];
     if (sel_isEqual(action, @selector(undo:)))
         return [self.textModel.undoManager canUndo];
     if (sel_isEqual(action, @selector(redo:)))
@@ -651,6 +653,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 // -validateUserInterfaceItem:; these are this view's to answer.
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     SEL action = item.action;
+    if ([self _isDebugAction:action]) return [_debugHandler canPerformDebugAction:action];
     if (sel_isEqual(action, @selector(performFindPanelAction:)) || sel_isEqual(action, @selector(performTextFinderAction:)) ||
         sel_isEqual(action, @selector(jumpToLine:)) || sel_isEqual(action, @selector(undo:)) || sel_isEqual(action, @selector(redo:))) {
         return [self validateUserInterfaceItem:item];
@@ -660,6 +663,33 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 - (IBAction)jumpToLine:(id)sender {
     if ([_findActionHandler respondsToSelector:@selector(showJumpToLine)]) [_findActionHandler showJumpToLine];
+}
+
+// MARK: - The debugger's
+
+- (BOOL)_isDebugAction:(SEL)action {
+    return sel_isEqual(action, @selector(runToCursor:)) || sel_isEqual(action, @selector(jumpToCursor:)) ||
+           sel_isEqual(action, @selector(addToWatch:));
+}
+
+- (IBAction)runToCursor:(id)sender  { [_debugHandler runToCursor:sender]; }
+- (IBAction)jumpToCursor:(id)sender { [_debugHandler jumpToCursor:sender]; }
+- (IBAction)addToWatch:(id)sender   { [_debugHandler addToWatch:sender]; }
+
+/// The debugger's items on top while it debugs; the caret moves to the
+/// click first, unless it is in the selection (VS Code's), so that they
+/// act where the click was.
+- (NSMenu *)menuForEvent:(NSEvent *)event {
+    NSMenu *menu = [super menuForEvent:event];
+    NSArray<NSMenuItem *> *items = [_debugHandler debugMenuItemsForTextView:self];
+    if (!items.count) return menu;
+    NSUInteger index = [self _characterIndexUnderPoint:[self convertPoint:event.locationInWindow fromView:nil]];
+    if (index != NSNotFound && !NSLocationInRange(index, self.selectedRange)) self.selectedRange = NSMakeRange(index, 0);
+    menu = menu ? [menu copy] : [[NSMenu alloc] initWithTitle:@""];
+    NSInteger at = 0;
+    for (NSMenuItem *item in items) [menu insertItem:[item copy] atIndex:at++];
+    if (menu.numberOfItems > at) [menu insertItem:[NSMenuItem separatorItem] atIndex:at];
+    return menu;
 }
 
 // MARK: - Hover: the mouse resting on a word
@@ -765,11 +795,14 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 - (void)_hoverRested {
     if (self.hoverIndex >= self.string.length) return;
-    if (![self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)]) return;
+    if (![self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)] && !_debugHandler) return;
     NSRange word = [self selectionRangeForProposedRange:NSMakeRange(self.hoverIndex, 0)
                                             granularity:NSSelectByWord];
     self.hoverWordRange = word.length > 0 ? word : NSMakeRange(self.hoverIndex, 1);
-    [(id)self.delegate textView:self requestTooltipAtIndex:self.hoverIndex point:self.hoverPoint];
+    if ([_debugHandler textView:self showsDebugHoverAtIndex:self.hoverIndex]) return;
+    if ([self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)]) {
+        [(id)self.delegate textView:self requestTooltipAtIndex:self.hoverIndex point:self.hoverPoint];
+    }
 }
 
 - (void)_labelRested {
@@ -787,6 +820,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_hoverRested) object:nil];
     if (self.hoverWordRange.location == NSNotFound) return;
     self.hoverWordRange = NSMakeRange(NSNotFound, 0);
+    [_debugHandler textViewDebugHoverDidEnd:self];
     if ([self.delegate respondsToSelector:@selector(textViewHoverDidEnd:)]) {
         [(id)self.delegate textViewHoverDidEnd:self];
     }

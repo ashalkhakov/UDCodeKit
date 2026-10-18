@@ -12,6 +12,8 @@
                 <outlet property="stepOverButton" destination="DB-over" id="DB-o-over"/>
                 <outlet property="stepIntoButton" destination="DB-into" id="DB-o-into"/>
                 <outlet property="stepOutButton" destination="DB-out" id="DB-o-out"/>
+                <outlet property="stepBackButton" destination="DB-back" id="DB-o-back"/>
+                <outlet property="reverseContinueButton" destination="DB-reverse" id="DB-o-reverse"/>
                 <outlet property="stopButton" destination="DB-stop" id="DB-o-stop"/>
                 <outlet property="statusLabel" destination="DB-status" id="DB-o-status"/>
             </connections>
@@ -70,8 +72,30 @@
                         <action selector="stepOut:" target="-2" id="DB-out-action"/>
                     </connections>
                 </button>
-                <button toolTip="Stop" verticalHuggingPriority="750" id="DB-stop" userLabel="Stop">
+                <button toolTip="Step Back" verticalHuggingPriority="750" id="DB-back" userLabel="Step Back">
                     <rect key="frame" x="124" y="3" width="26" height="20"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
+                    <buttonCell key="cell" type="smallSquare" title="↶" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="DB-back-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="stepBack:" target="-2" id="DB-back-action"/>
+                    </connections>
+                </button>
+                <button toolTip="Reverse Continue" verticalHuggingPriority="750" id="DB-reverse" userLabel="Reverse Continue">
+                    <rect key="frame" x="152" y="3" width="26" height="20"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
+                    <buttonCell key="cell" type="smallSquare" title="◀" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="DB-reverse-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="reverseContinue:" target="-2" id="DB-reverse-action"/>
+                    </connections>
+                </button>
+                <button toolTip="Stop" verticalHuggingPriority="750" id="DB-stop" userLabel="Stop">
+                    <rect key="frame" x="186" y="3" width="26" height="20"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
                     <buttonCell key="cell" type="smallSquare" title="■" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="DB-stop-cell">
                         <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -82,7 +106,7 @@
                     </connections>
                 </button>
                 <textField focusRingType="none" verticalHuggingPriority="750" id="DB-status" userLabel="Where It Is">
-                    <rect key="frame" x="160" y="5" width="472" height="16"/>
+                    <rect key="frame" x="222" y="5" width="410" height="16"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES"/>
                     <textFieldCell key="cell" lineBreakMode="truncatingMiddle" title="" id="DB-status-cell">
                         <font key="font" metaFont="smallSystem"/>

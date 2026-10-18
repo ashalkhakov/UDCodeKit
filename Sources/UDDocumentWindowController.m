@@ -16,6 +16,7 @@ static const NSInteger UDInspectorPane = 2;
 static const NSInteger UDDebugAreaPane = 1;
 // The navigator's segments.
 static const NSInteger UDDebugNavigatorSegment = 2;
+static const NSInteger UDBreakpointNavigatorSegment = 3;
 
 // ---------------------------------------------------------------------------
 // MARK: - UDDocumentWindowController  (private extension)
@@ -23,6 +24,7 @@ static const NSInteger UDDebugNavigatorSegment = 2;
 
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
+                                          UDBreakpointNavigatorDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -33,6 +35,7 @@ static const NSInteger UDDebugNavigatorSegment = 2;
 @property (nonatomic, weak) IBOutlet NSTableView        *filesTable;
 @property (nonatomic, weak) IBOutlet NSView             *issuesHost;
 @property (nonatomic, weak) IBOutlet NSView             *debugNavigatorHost;
+@property (nonatomic, weak) IBOutlet NSView             *breakpointNavigatorHost;
 @property (nonatomic, strong) IBOutlet UDPaneSplitController *debugSplit;
 @property (nonatomic, weak) IBOutlet NSView             *debugBarHost;
 @property (nonatomic, weak) IBOutlet NSView             *debugAreaHost;
@@ -45,6 +48,7 @@ static const NSInteger UDDebugNavigatorSegment = 2;
 @property (nonatomic, strong) UDErrorsViewController *errorsViewController;
 @property (nonatomic, strong) UDHoverViewController  *hover;
 @property (nonatomic, strong) UDDebugNavigatorViewController *debugNavigator;
+@property (nonatomic, strong) UDBreakpointNavigatorViewController *breakpointNavigator;
 @property (nonatomic, strong) UDDebugBarViewController       *debugBar;
 @property (nonatomic, strong) UDDebugAreaViewController      *debugArea;
 @property (nonatomic, strong) UDBreakpointStore              *breakpoints;
@@ -109,12 +113,20 @@ static const NSInteger UDDebugNavigatorSegment = 2;
     // The debugger: its navigator, and below the editors its bar and area,
     // each from its XIB. The area shows when a session starts (and as it
     // was left, after the first).
+    // The breakpoints, the watch expressions and the exception filters are
+    // the workspace's, kept in the user defaults by its file's path.
     _breakpoints = [[UDBreakpointStore alloc] init];
+    _breakpoints.autosaveName = [@"UDCode Debugger " stringByAppendingString:workspace.fileURL.path ?: @"Untitled"];
     _debugNavigator = [[UDDebugNavigatorViewController alloc] init];
     [self _putView:_debugNavigator.view inHost:_debugNavigatorHost];
+    _breakpointNavigator = [[UDBreakpointNavigatorViewController alloc] init];
+    _breakpointNavigator.breakpoints = _breakpoints;
+    _breakpointNavigator.delegate = self;
+    [self _putView:_breakpointNavigator.view inHost:_breakpointNavigatorHost];
     _debugBar = [[UDDebugBarViewController alloc] init];
     [self _putView:_debugBar.view inHost:_debugBarHost];
     _debugArea = [[UDDebugAreaViewController alloc] init];
+    _debugArea.breakpoints = _breakpoints;
     [self _putView:_debugArea.view inHost:_debugAreaHost];
     _debugSplit.flexiblePaneIndex = 0;
     _debugSplit.minimumThicknesses = @[@200, @120];
@@ -210,6 +222,12 @@ static const NSInteger UDDebugNavigatorSegment = 2;
     [self navigatorChanged:nil];
 }
 
+- (IBAction)showBreakpointNavigator:(nullable id)sender {
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = UDBreakpointNavigatorSegment;
+    [self navigatorChanged:nil];
+}
+
 - (IBAction)toggleDebugArea:(nullable id)sender {
     [_debugSplit setPane:UDDebugAreaPane visible:![_debugSplit isPaneVisible:UDDebugAreaPane]];
 }
@@ -229,6 +247,13 @@ static const NSInteger UDDebugNavigatorSegment = 2;
     } else if (sel_isEqual(action, @selector(debugStepOver:)) || sel_isEqual(action, @selector(debugStepInto:)) ||
                sel_isEqual(action, @selector(debugStepOut:))) {
         return [_debugBar canPerformAction:@selector(stepOver:)];
+    } else if (sel_isEqual(action, @selector(debugStepBack:))) {
+        // Hidden but for an adapter that steps back (as VS Code's); GNUstep's
+        // menu items do not hide, and are only disabled.
+        if ([item respondsToSelector:@selector(setHidden:)]) [(id)item setHidden:!_debugSession.client.supportsStepBack];
+        return [_debugBar canPerformAction:@selector(stepBack:)];
+    } else if (sel_isEqual(action, @selector(runToCursor:)) || sel_isEqual(action, @selector(jumpToCursor:))) {
+        return [[self _selectedEditor] validateMenuItem:item];
     } else if (sel_isEqual(action, @selector(toggleBreakpoint:))) {
         return [self _selectedEditor].breakpointFile != nil;
     } else if (sel_isEqual(action, @selector(toggleDebugArea:))) {
@@ -624,6 +649,12 @@ static const NSInteger UDDebugNavigatorSegment = 2;
 - (IBAction)debugStepOver:(nullable id)sender      { [_debugBar stepOver:sender]; }
 - (IBAction)debugStepInto:(nullable id)sender      { [_debugBar stepInto:sender]; }
 - (IBAction)debugStepOut:(nullable id)sender       { [_debugBar stepOut:sender]; }
+- (IBAction)debugStepBack:(nullable id)sender      { [_debugBar stepBack:sender]; }
+
+/// Run to Cursor and Jump to Cursor, when the text is not first responder:
+/// the selected editor's.
+- (IBAction)runToCursor:(nullable id)sender  { [[self _selectedEditor] runToCursor:sender]; }
+- (IBAction)jumpToCursor:(nullable id)sender { [[self _selectedEditor] jumpToCursor:sender]; }
 
 /// Toggle Breakpoint (⌘\): the selected editor's, at its caret.
 - (IBAction)toggleBreakpoint:(nullable id)sender {
@@ -632,6 +663,25 @@ static const NSInteger UDDebugNavigatorSegment = 2;
 
 /// The selected frame's file: its tab, opened when it has none, at the line.
 - (void)debugSession:(UDDebugSession *)session showFile:(NSString *)path line:(NSInteger)line {
+    [self _showFile:path];
+    [[self _selectedEditor] revealLine:line];
+}
+
+/// A breakpoint chosen in the breakpoint navigator: its line, selected.
+- (void)breakpointNavigator:(UDBreakpointNavigatorViewController *)navigator showBreakpoint:(UDBreakpoint *)breakpoint {
+    [self _showFile:breakpoint.path];
+    [[self _selectedEditor] selectLine:breakpoint.line];
+    [self.window makeFirstResponder:[self _selectedEditor].textView];
+}
+
+/// Its editor's breakpoint box.
+- (void)breakpointNavigator:(UDBreakpointNavigatorViewController *)navigator editBreakpoint:(UDBreakpoint *)breakpoint {
+    [self _showFile:breakpoint.path];
+    [[self _selectedEditor] editBreakpointAtLine:breakpoint.line];
+}
+
+/// @a path's tab selected, opened when it has none.
+- (void)_showFile:(NSString *)path {
     NSString *wanted = [path stringByStandardizingPath];
     UDTabBarItem *item = nil;
     for (UDCodeDocument *document in _workspaceModel.documents) {
@@ -644,7 +694,6 @@ static const NSInteger UDDebugNavigatorSegment = 2;
     } else {
         [self openURLInNewTab:[NSURL fileURLWithPath:wanted]];
     }
-    [[self _selectedEditor] revealLine:line];
 }
 
 - (void)close {

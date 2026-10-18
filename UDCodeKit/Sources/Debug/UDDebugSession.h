@@ -161,6 +161,10 @@ extern NSString * const UDDebugSessionOutputCategoryKey;
 - (void)attachWithArguments:(NSDictionary *)arguments;
 
 @property (nonatomic, readonly) UDDebugSessionState state;
+/// The debuggee's process, as the adapter's process event says it (its
+/// systemProcessId); 0 until it says, or when it does not: what a host
+/// brings forward when the debuggee runs.
+@property (nonatomic, readonly) pid_t processID;
 
 @property (nonatomic, readonly, copy) NSArray<UDDebugThread *> *threads;
 @property (nonatomic, readonly, nullable) UDDebugThread *selectedThread;

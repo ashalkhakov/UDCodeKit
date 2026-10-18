@@ -87,6 +87,16 @@ Add to Watch (its `evaluateName`), Set Value… (`setVariable`, when the
 adapter `supportsSetVariable`; a double click on a value too). After a value
 is set, the watches are evaluated again.
 
+**The variables view, as Xcode's.** What was expanded is expanded again at
+the next stop. A value that changed since the last stop (the same frame's,
+the same name's) shows blue. The filter field under the variables leaves the
+watches and variables whose name has its text, or that have such a child
+loaded; the scopes stay.
+
+**The debuggee's process.** The adapter's `process` event gives the session
+its `processID`, which a host brings forward as the debuggee runs (Xcode's
+behaviors); the demo adapter says its own.
+
 **The debug hover.** While the session is stopped in the file, and the
 adapter `supportsEvaluateForHovers`, the mouse resting on an identifier
 evaluates the expression VS Code would there (its

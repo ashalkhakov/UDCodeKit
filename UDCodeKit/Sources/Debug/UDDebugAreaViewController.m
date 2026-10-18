@@ -22,6 +22,7 @@
 @property (nonatomic, weak) IBOutlet NSTextField *evaluateField;
 @property (nonatomic, weak) IBOutlet NSButton *addExpressionButton;
 @property (nonatomic, weak) IBOutlet NSButton *removeExpressionButton;
+@property (nonatomic, weak) IBOutlet NSSearchField *filterField;
 @property (nonatomic, strong) IBOutlet UDPaneSplitController *paneSplit;
 @end
 
@@ -34,6 +35,11 @@
     id _editingItem;          // what an edit this controller began is of: the only one
     id _menuItem;             // what the context menu is about
     NSString *_copyFallback;  // Copy Value's, when the clipboard evaluation fails
+    NSString *_filter;        // the filter field's, when it has any
+    // The values this stop has (by frame and path), and the stops' before
+    // it: what a changed one is told by.
+    NSMutableDictionary<NSString *, NSString *> *_values;
+    NSMutableDictionary<NSString *, NSString *> *_previousValues;
 }
 
 - (instancetype)init {
@@ -41,6 +47,8 @@
     if (self) {
         _expandedPaths = [NSMutableSet set];
         _watchRows = @[];
+        _values = [NSMutableDictionary dictionary];
+        _previousValues = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -86,6 +94,8 @@
                        name:UDDebugSessionDidChangeStateNotification object:session];
         self.breakpoints = session.breakpoints;
     }
+    [_values removeAllObjects];
+    [_previousValues removeAllObjects];
     // What it has printed so far.
     [_consoleView.textStorage setAttributedString:[[NSAttributedString alloc] initWithString:session.consoleText ?: @""
                                                                                     attributes:[self _attributesFor:@"console"]]];
@@ -107,6 +117,11 @@
 
 - (void)_stateDidChange:(NSNotification *)note {
     _evaluateField.enabled = _session && _session.state != UDDebugSessionStateEnded;
+    // going on: this stop's values are what the next one's are told from
+    if (_session.state == UDDebugSessionStateRunning && _values.count) {
+        [_previousValues addEntriesFromDictionary:_values];
+        [_values removeAllObjects];
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +160,70 @@
 
 - (IBAction)clearConsole:(id)sender {
     [_consoleView.textStorage setAttributedString:[[NSAttributedString alloc] initWithString:@""]];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Filtering, and the values that changed
+// ---------------------------------------------------------------------------
+
+- (IBAction)filterVariables:(id)sender {
+    NSString *text = [_filterField.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    _filter = text.length ? text : nil;
+    [self _reload];
+}
+
+/// Whether @a item is shown under the filter: its name has the text, or a
+/// loaded child's does.
+- (BOOL)_passesFilter:(id)item {
+    if (item == _newRow) return YES;
+    UDDebugVariable *variable = [item isKindOfClass:[UDWatchRow class]] ? ((UDWatchRow *)item).value : item;
+    NSString *name = [item isKindOfClass:[UDWatchRow class]] ? ((UDWatchRow *)item).expression : variable.name;
+    if ([name rangeOfString:_filter options:NSCaseInsensitiveSearch].location != NSNotFound) return YES;
+    for (UDDebugVariable *child in variable.children) {
+        if ([self _passesFilter:child]) return YES;
+    }
+    return NO;
+}
+
+/// What the outline shows under @a item (nil: the watches, then the
+/// scopes), the filter's.
+- (NSArray *)_childrenOf:(id)item {
+    NSArray *children;
+    if (item == nil) {
+        children = [_watchRows arrayByAddingObjectsFromArray:_session.scopes ?: @[]];
+    } else {
+        UDDebugVariable *variable = [item isKindOfClass:[UDWatchRow class]] ? ((UDWatchRow *)item).value : item;
+        children = variable.children ?: @[];
+    }
+    if (!_filter) return children;
+    NSMutableArray *shown = [NSMutableArray array];
+    for (id child in children) {
+        BOOL scope = item == nil && [child isKindOfClass:[UDDebugVariable class]];
+        if (scope || [self _passesFilter:child]) [shown addObject:child];
+    }
+    return shown;
+}
+
+/// A value's key: the selected frame's name, and its path.
+- (NSString *)_valueKeyOf:(id)item {
+    return [NSString stringWithFormat:@"%@|%@", _session.selectedFrame.name ?: @"", [self _pathOf:item]];
+}
+
+/// The values of @a items and their loaded children, as this stop has them.
+- (void)_noteValues:(NSArray *)items {
+    if (_session.state != UDDebugSessionStateStopped) return;
+    for (id item in items) {
+        UDDebugVariable *variable = [item isKindOfClass:[UDWatchRow class]] ? ((UDWatchRow *)item).value : item;
+        if (!variable) continue;
+        if (variable.value.length && !variable.failed) _values[[self _valueKeyOf:item]] = variable.value;
+        [self _noteValues:variable.children];
+    }
+}
+
+- (BOOL)valueChanged:(UDDebugVariable *)variable {
+    id item = [self _itemFor:variable];
+    NSString *before = _previousValues[[self _valueKeyOf:item]];
+    return before != nil && variable.value != nil && !variable.failed && ![before isEqualToString:variable.value];
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +290,8 @@
     [self _expandAgain:_watchRows];
     [self _expandAgain:scopes];
     _restoring = NO;
+    [self _noteValues:_watchRows];
+    [self _noteValues:scopes];
     [self _updateButtons];
 }
 
@@ -226,6 +307,7 @@
     if ([_variablesView rowForItem:item] < 0) return;
     _restoring = YES;
     [_variablesView reloadItem:item reloadChildren:YES];
+    [self _noteValues:variable.children];
     if ([_expandedPaths containsObject:[self _pathOf:item]]) {
         [_variablesView expandItem:item];
         [self _expandAgain:variable.children];
@@ -266,18 +348,11 @@
 // ---------------------------------------------------------------------------
 
 - (NSInteger)outlineView:(NSOutlineView *)outlineView numberOfChildrenOfItem:(id)item {
-    if (item == nil) return (NSInteger)(_watchRows.count + _session.scopes.count);
-    if ([item isKindOfClass:[UDWatchRow class]]) return (NSInteger)((UDWatchRow *)item).value.children.count;
-    return (NSInteger)((UDDebugVariable *)item).children.count;
+    return (NSInteger)[self _childrenOf:item].count;
 }
 
 - (id)outlineView:(NSOutlineView *)outlineView child:(NSInteger)index ofItem:(id)item {
-    if (item == nil) {
-        NSUInteger watches = _watchRows.count;
-        return (NSUInteger)index < watches ? _watchRows[(NSUInteger)index] : _session.scopes[(NSUInteger)index - watches];
-    }
-    if ([item isKindOfClass:[UDWatchRow class]]) return ((UDWatchRow *)item).value.children[(NSUInteger)index];
-    return ((UDDebugVariable *)item).children[(NSUInteger)index];
+    return [self _childrenOf:item][(NSUInteger)index];
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item {
@@ -366,10 +441,17 @@
 // MARK: - NSOutlineViewDelegate
 // ---------------------------------------------------------------------------
 
-/// Scopes bold; a watch that did not evaluate grey.
+/// Scopes bold; a watch that did not evaluate grey; a value that changed
+/// since the last stop blue (each value shown kept, for the next stop's).
 - (void)outlineView:(NSOutlineView *)outlineView willDisplayCell:(id)cell
      forTableColumn:(NSTableColumn *)tableColumn item:(id)item {
     if (![cell isKindOfClass:[NSTextFieldCell class]]) return;
+    UDDebugVariable *variable = [item isKindOfClass:[UDWatchRow class]] ? ((UDWatchRow *)item).value : item;
+    BOOL changed = NO;
+    if ([tableColumn.identifier isEqualToString:@"value"] && variable && !variable.failed && variable.value.length &&
+        _session.state == UDDebugSessionStateStopped) {
+        changed = [self valueChanged:variable];
+    }
     NSTextFieldCell *text = cell;
     BOOL scope = [item isKindOfClass:[UDDebugVariable class]] && ((UDDebugVariable *)item).parent == nil &&
                  [_session.scopes containsObject:item];
@@ -377,7 +459,7 @@
                       : [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
     BOOL failed = [item isKindOfClass:[UDWatchRow class]] && ((UDWatchRow *)item).value.failed &&
                   [tableColumn.identifier isEqualToString:@"value"];
-    text.textColor = failed ? [NSColor secondaryLabelColor] : [NSColor controlTextColor];
+    text.textColor = failed ? [NSColor secondaryLabelColor] : changed ? [NSColor systemBlueColor] : [NSColor controlTextColor];
 }
 
 - (NSString *)outlineView:(NSOutlineView *)outlineView toolTipForCell:(NSCell *)cell rect:(NSRectPointer)rect

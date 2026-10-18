@@ -20,11 +20,34 @@ static const CGFloat kFoldColumnWidth = 14.0;
 
 const CGFloat UDLineNumberGutterWidth = 48.0;
 
+/// Xcode's breakpoint blue and instruction-pointer green.
+static NSColor *UDBreakpointColor(void) {
+    return [NSColor colorWithCalibratedRed:0.24 green:0.49 blue:0.91 alpha:1.0];
+}
+
+static NSColor *UDInstructionPointerColor(void) {
+    return [NSColor colorWithCalibratedRed:0.33 green:0.68 blue:0.31 alpha:1.0];
+}
+
+/// A breakpoint's tag: a box over the line number, its right end a point.
+static NSBezierPath *UDTagPath(NSRect rect) {
+    CGFloat tip = MIN(NSHeight(rect) * 0.5, 6.0);
+    NSBezierPath *path = [NSBezierPath bezierPath];
+    [path moveToPoint:NSMakePoint(NSMinX(rect), NSMinY(rect))];
+    [path lineToPoint:NSMakePoint(NSMaxX(rect) - tip, NSMinY(rect))];
+    [path lineToPoint:NSMakePoint(NSMaxX(rect), NSMidY(rect))];
+    [path lineToPoint:NSMakePoint(NSMaxX(rect) - tip, NSMaxY(rect))];
+    [path lineToPoint:NSMakePoint(NSMinX(rect), NSMaxY(rect))];
+    [path closePath];
+    return path;
+}
+
 @implementation UDLineNumberGutterView {
     NSScrollView  *_scrollView;
     NSTextView    *_textView;
     UDTextModel   *_textModel;
     BOOL           _layoutRedrawScheduled; // guards against repeated deferrals
+    NSInteger      _pressedLine;           // the line a click in the numbers began on
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +104,11 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 
 - (void)setFoldingSource:(id<UDLineNumberGutterFoldingSource>)foldingSource {
     _foldingSource = foldingSource;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)setBreakpointSource:(id<UDLineNumberGutterBreakpointSource>)breakpointSource {
+    _breakpointSource = breakpointSource;
     [self setNeedsDisplay:YES];
 }
 
@@ -146,8 +174,12 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
     NSRange visibleLines = NSMakeRange((NSUInteger)firstLine, (NSUInteger)(lastLine - firstLine + 1));
     NSIndexSet *foldable = [_foldingSource foldableLinesInRange:visibleLines] ?: [NSIndexSet indexSet];
     NSIndexSet *folded   = [_foldingSource foldedLinesInRange:visibleLines] ?: [NSIndexSet indexSet];
+    NSDictionary<NSNumber *, NSNumber *> *breakpoints = [_breakpointSource breakpointsInLines:visibleLines];
+    NSInteger pointerLine = [_breakpointSource instructionPointerLine];
 
     NSDictionary *attrs = [self _lineNumberAttributes];
+    NSMutableDictionary *onTag = [attrs mutableCopy];
+    onTag[NSForegroundColorAttributeName] = [NSColor whiteColor];
     CGFloat numberColumnRight = NSWidth(self.bounds) - kFoldColumnWidth - 2.0;
     NSInteger lastDrawnLine   = -1;
 
@@ -186,13 +218,21 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
                 NSHeight(fragInContainer) > kMinimumVisibleFragmentHeight) {
             lastDrawnLine = lineNumber;
 
+            // -- Breakpoint and instruction pointer, under the number --
+            UDGutterBreakpoint breakpoint = [breakpoints[@(lineNumber)] integerValue];
+            BOOL here = lineNumber == pointerLine;
+            NSRect tag = NSMakeRect(1.0, NSMinY(fragInGutter) + 0.5,
+                                    numberColumnRight + 8.0, NSHeight(fragInContainer) - 1.0);
+            [self _drawBreakpoint:breakpoint instructionPointer:here inRect:tag];
+
             // -- Line number --
+            NSDictionary *numberAttrs = (breakpoint == UDGutterBreakpointEnabled || here) ? onTag : attrs;
             NSString *lineStr = [NSString stringWithFormat:@"%ld", (long)lineNumber];
-            NSSize   strSize  = [lineStr sizeWithAttributes:attrs];
+            NSSize   strSize  = [lineStr sizeWithAttributes:numberAttrs];
             CGFloat  numX     = numberColumnRight - strSize.width;
             CGFloat  numY     = NSMinY(fragInGutter) +
                                 (NSHeight(fragInContainer) - strSize.height) * 0.5;
-            [lineStr drawAtPoint:NSMakePoint(numX, numY) withAttributes:attrs];
+            [lineStr drawAtPoint:NSMakePoint(numX, numY) withAttributes:numberAttrs];
 
             // -- Fold indicator --
             BOOL isFoldable = [foldable containsIndex:(NSUInteger)lineNumber];
@@ -210,6 +250,35 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
         // Guard: if the range was zero-length, advance manually to prevent an
         // infinite loop (shouldn't normally happen with valid layout).
         if (fragGlyphRange.length == 0) glyphIdx++;
+    }
+}
+
+/// A breakpoint's tag (pale when disabled, outlined when not bound) and the
+/// instruction pointer's, inside it when both are on the line.
+- (void)_drawBreakpoint:(UDGutterBreakpoint)breakpoint instructionPointer:(BOOL)here inRect:(NSRect)rect {
+    if (breakpoint) {
+        NSBezierPath *path = UDTagPath(rect);
+        NSColor *blue = UDBreakpointColor();
+        if (breakpoint == UDGutterBreakpointUnverified) {
+            [[blue colorWithAlphaComponent:0.15] setFill];
+            [path fill];
+            [blue setStroke];
+            [path setLineWidth:1.0];
+            [path stroke];
+        } else {
+            [(breakpoint == UDGutterBreakpointDisabled ? [blue colorWithAlphaComponent:0.35] : blue) setFill];
+            [path fill];
+        }
+    }
+    if (here) {
+        NSRect inner = rect;
+        if (breakpoint) {
+            inner = NSInsetRect(rect, 0.0, 2.0);
+            inner.origin.x += 6.0;
+            inner.size.width -= 6.0;
+        }
+        [UDInstructionPointerColor() setFill];
+        [UDTagPath(inner) fill];
     }
 }
 
@@ -248,35 +317,70 @@ const CGFloat UDLineNumberGutterWidth = 48.0;
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Mouse handling (fold indicator clicks)
+// MARK: - Mouse handling (fold indicators, line numbers and breakpoints)
 // ---------------------------------------------------------------------------
+
+- (NSInteger)lineAtPoint:(NSPoint)point {
+    NSLayoutManager *lm = _textView.layoutManager;
+    NSTextContainer *tc  = _textView.textContainer;
+    if (!lm || !tc) return 0;
+
+    // The point in the text view (both views are in the same window).
+    NSPoint ptInTV = [_textView convertPoint:[self convertPoint:point toView:nil] fromView:nil];
+    NSPoint inContainer = NSMakePoint(ptInTV.x - _textView.textContainerOrigin.x,
+                                      ptInTV.y - _textView.textContainerOrigin.y);
+    NSUInteger glyphIdx = [lm glyphIndexForPoint:inContainer inTextContainer:tc];
+    if (glyphIdx == NSNotFound) return 0;
+
+    NSRange fragRange;
+    NSRect frag = [lm lineFragmentRectForGlyphAtIndex:glyphIdx effectiveRange:&fragRange];
+    // Below the last line: no line.
+    if (inContainer.y < NSMinY(frag) || inContainer.y > NSMaxY(frag)) return 0;
+    NSUInteger charIdx = [lm characterIndexForGlyphAtIndex:fragRange.location];
+    return [_textModel getPositionAt:(NSInteger)charIdx].line;
+}
 
 - (void)mouseDown:(NSEvent *)event {
     NSPoint ptInSelf = [self convertPoint:event.locationInWindow fromView:nil];
+    NSInteger lineNumber = [self lineAtPoint:ptInSelf];
+    _pressedLine = 0;
+    if (lineNumber < 1) return;
 
-    // Only respond to clicks in the fold-indicator column.
+    // Left of the fold column: the line number, and its breakpoint.
     CGFloat foldColLeft = NSWidth(self.bounds) - kFoldColumnWidth;
-    if (ptInSelf.x < foldColLeft) return;
-
-    NSLayoutManager *lm = _textView.layoutManager;
-    NSTextContainer *tc  = _textView.textContainer;
-
-    // Convert click y back into text-view coordinates.
-    NSPoint ptInTV = [_textView convertPoint:
-                          [self convertPoint:ptInSelf toView:nil]
-                                    fromView:nil];
-
-    NSUInteger glyphIdx = [lm glyphIndexForPoint:ptInTV inTextContainer:tc];
-    if (glyphIdx == NSNotFound) return;
-
-    NSRange fragRange;
-    [lm lineFragmentRectForGlyphAtIndex:glyphIdx effectiveRange:&fragRange];
-    NSUInteger charIdx = [lm characterIndexForGlyphAtIndex:fragRange.location];
-    NSInteger lineNumber = [_textModel getPositionAt:(NSInteger)charIdx].line;
+    if (ptInSelf.x < foldColLeft) {
+        _pressedLine = lineNumber;
+        return;
+    }
 
     if ([[_foldingSource foldableLinesInRange:NSMakeRange((NSUInteger)lineNumber, 1)] containsIndex:(NSUInteger)lineNumber]) {
-        [_delegate lineNumberGutterView:self
-              didClickFoldIndicatorAtLine:lineNumber];
+        if ([_delegate respondsToSelector:@selector(lineNumberGutterView:didClickFoldIndicatorAtLine:)]) {
+            [_delegate lineNumberGutterView:self didClickFoldIndicatorAtLine:lineNumber];
+        }
+    }
+}
+
+- (void)mouseDragged:(NSEvent *)event {
+    // Mouse-up decides: in the gutter a click, off it a breakpoint let go.
+}
+
+/// Let go in the gutter: a click on the line it was pressed on. Off it,
+/// with a breakpoint there: that breakpoint dragged away (Xcode's way of
+/// removing one).
+- (void)mouseUp:(NSEvent *)event {
+    NSInteger lineNumber = _pressedLine;
+    _pressedLine = 0;
+    if (lineNumber < 1) return;
+    NSPoint ptInSelf = [self convertPoint:event.locationInWindow fromView:nil];
+    if (NSPointInRect(ptInSelf, self.bounds)) {
+        if ([_delegate respondsToSelector:@selector(lineNumberGutterView:didClickLine:)]) {
+            [_delegate lineNumberGutterView:self didClickLine:lineNumber];
+        }
+        return;
+    }
+    NSDictionary *breakpoints = [_breakpointSource breakpointsInLines:NSMakeRange((NSUInteger)lineNumber, 1)];
+    if (breakpoints[@(lineNumber)] && [_delegate respondsToSelector:@selector(lineNumberGutterView:didDragBreakpointOffLine:)]) {
+        [_delegate lineNumberGutterView:self didDragBreakpointOffLine:lineNumber];
     }
 }
 

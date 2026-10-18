@@ -13,7 +13,7 @@ UDCode_OBJC_FILES = $(shell find . -name '*.m' | sort)
 UDCode_RESOURCE_FILES = $(shell find . -name '*.xib' | sort) ../scripts/appimage/udcode.png
 UDCode_MAIN_MODEL_FILE = MainMenu
 
-UDCode_INCLUDE_DIRS = -I$(UD_INCLUDE) -I. -IModel
+UDCode_INCLUDE_DIRS = -I$(UD_INCLUDE) -I. -IModel -IDebug
 UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
           $(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \
           $(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)

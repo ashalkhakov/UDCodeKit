@@ -7,6 +7,8 @@
  *    – find-results / error-marks gutter (right)
  *    – the find and replace bar (top, on Find), UDFindBar.xib
  *    – folding, bracket-match, structured-navigation, auto-indentation
+ *    – breakpoints in the gutter and the debugger's line, once given a
+ *      UDBreakpointStore (-showBreakpointsOfStore:forFile:)
  *
  *  Loaded from UDCodeEditorViewController.xib, in the UDCodeKit bundle.
  *  Initialise with -initWithTextStorage: before accessing .view so that the
@@ -21,7 +23,7 @@
 #import "UDLanguageMode.h"
 #import "UDFindModel.h"
 
-@class UDFindBarViewController;
+@class UDFindBarViewController, UDBreakpointStore;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -53,6 +55,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showJumpToLine;
 /// Selects line @a line (1-based; clamped to the text's) and scrolls to it.
 - (void)selectLine:(NSInteger)line;
+/// Scrolls line @a line into view (centred, when it was out of it), the
+/// selection left as it is: where the debugger stopped, say.
+- (void)revealLine:(NSInteger)line;
+
+/// Shows @a store's breakpoints of the file at @a path in the gutter, and
+/// the debugger's line when it is in this file; from now on the file's
+/// breakpoints follow this editor's edits. A click on a line number adds a
+/// breakpoint, or disables or enables the one there; dragging one off the
+/// gutter removes it. nil: none shown.
+- (void)showBreakpointsOfStore:(nullable UDBreakpointStore *)store forFile:(nullable NSString *)path;
+@property (nonatomic, strong, readonly, nullable) UDBreakpointStore *breakpointStore;
+@property (nonatomic, copy, readonly, nullable) NSString *breakpointFile;
+
+/// Debug > Toggle Breakpoint (⌘\): a breakpoint at the caret's line, added
+/// or removed.
+- (IBAction)toggleBreakpoint:(nullable id)sender;
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;

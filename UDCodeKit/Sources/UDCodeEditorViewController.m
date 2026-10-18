@@ -9,13 +9,15 @@
 #import "UDTextModelTextStorage.h"
 #import "UDFindBarViewController.h"
 #import "UDJumpToLineViewController.h"
+#import "UDBreakpointStore.h"
 #import <UDPieceTable/UDPieceTable.h>
 
 // ---------------------------------------------------------------------------
 // MARK: - Private interface
 // ---------------------------------------------------------------------------
 
-@interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDFindBarDelegate, UDFindActionHandler, UDJumpToLineDelegate>
+@interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDLineNumberGutterBreakpointSource,
+                                          UDFindBarDelegate, UDFindActionHandler, UDJumpToLineDelegate>
 
 // IBOutlets wired from UDCodeEditorViewController.xib.
 @property (nonatomic, weak) IBOutlet NSScrollView            *scrollView;
@@ -37,6 +39,10 @@
 // Text-model state.
 @property (nonatomic, strong) UDTextModelTextStorage   *textStorage;
 @property (nonatomic, strong, nullable) UDFindModel    *findModel;
+
+// Breakpoints.
+@property (nonatomic, strong, nullable) UDBreakpointStore *breakpointStore;
+@property (nonatomic, copy, nullable)   NSString          *breakpointFile;
 
 @end
 
@@ -168,6 +174,71 @@
     [_foldingController toggleFoldAtLine:lineNumber];
 }
 
+- (void)lineNumberGutterView:(UDLineNumberGutterView *)view didClickLine:(NSInteger)lineNumber {
+    if (_breakpointFile) [_breakpointStore clickBreakpointAtLine:lineNumber inFile:_breakpointFile];
+}
+
+- (void)lineNumberGutterView:(UDLineNumberGutterView *)view didDragBreakpointOffLine:(NSInteger)lineNumber {
+    UDBreakpoint *breakpoint = _breakpointFile ? [_breakpointStore breakpointAtLine:lineNumber inFile:_breakpointFile] : nil;
+    if (breakpoint) [_breakpointStore removeBreakpoint:breakpoint];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Breakpoints
+// ---------------------------------------------------------------------------
+
+- (void)showBreakpointsOfStore:(UDBreakpointStore *)store forFile:(NSString *)path {
+    (void)self.view;
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    if (_breakpointStore) {
+        [center removeObserver:self name:UDBreakpointStoreDidChangeNotification object:_breakpointStore];
+        [center removeObserver:self name:UDBreakpointStoreDidMoveInstructionPointerNotification object:_breakpointStore];
+    }
+    _breakpointStore = path ? store : nil;
+    _breakpointFile = _breakpointStore ? [path stringByStandardizingPath] : nil;
+    if (_breakpointStore) {
+        [_breakpointStore attachTextModel:_textStorage.textModel toFile:_breakpointFile];
+        [center addObserver:self selector:@selector(_breakpointsDidChange:)
+                       name:UDBreakpointStoreDidChangeNotification object:_breakpointStore];
+        [center addObserver:self selector:@selector(_breakpointsDidChange:)
+                       name:UDBreakpointStoreDidMoveInstructionPointerNotification object:_breakpointStore];
+    }
+    _lineNumberGutterView.breakpointSource = _breakpointStore ? self : nil;
+    [_textView setNeedsDisplay:YES];
+}
+
+- (void)_breakpointsDidChange:(NSNotification *)note {
+    id files = note.userInfo[UDBreakpointStoreFileKey];
+    if (![files isKindOfClass:[NSArray class]]) files = files ? @[ files ] : @[];
+    if (![files containsObject:_breakpointFile]) return;
+    [_lineNumberGutterView setNeedsDisplay:YES];
+    if (note.name == UDBreakpointStoreDidMoveInstructionPointerNotification) [_textView setNeedsDisplay:YES];
+}
+
+- (NSDictionary<NSNumber *, NSNumber *> *)breakpointsInLines:(NSRange)lines {
+    NSMutableDictionary *found = [NSMutableDictionary dictionary];
+    for (UDBreakpoint *breakpoint in [_breakpointStore breakpointsInFile:_breakpointFile]) {
+        if (!NSLocationInRange((NSUInteger)breakpoint.line, lines)) continue;
+        UDGutterBreakpoint kind = !breakpoint.enabled ? UDGutterBreakpointDisabled
+                                : !breakpoint.verified ? UDGutterBreakpointUnverified : UDGutterBreakpointEnabled;
+        found[@(breakpoint.line)] = @(kind);
+    }
+    return found;
+}
+
+- (NSInteger)instructionPointerLine {
+    return [_breakpointStore.instructionPointerFile isEqualToString:_breakpointFile] ? _breakpointStore.instructionPointerLine : 0;
+}
+
+- (IBAction)toggleBreakpoint:(id)sender {
+    if (!_breakpointFile) {
+        NSBeep();
+        return;
+    }
+    NSInteger line = [_textStorage.textModel getPositionAt:(NSInteger)_textView.selectedRange.location].line;
+    [_breakpointStore toggleBreakpointAtLine:line inFile:_breakpointFile];
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - Find
 // ---------------------------------------------------------------------------
@@ -267,6 +338,23 @@
     [_textView setSelectedRange:range];
     [_textView scrollRangeToVisible:range];
     [_textView centerSelectionInVisibleArea:nil];
+}
+
+- (void)revealLine:(NSInteger)line {
+    (void)self.view;
+    UDTextModel *model = _textStorage.textModel;
+    line = MAX(1, MIN(line, [model getLineCount]));
+    NSLayoutManager *lm = _textView.layoutManager;
+    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange((NSUInteger)[model getOffsetAt:line column:1], 0)
+                                actualCharacterRange:NULL];
+    NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:MIN(glyphs.location, MAX([lm numberOfGlyphs], 1) - 1)
+                                           effectiveRange:NULL];
+    lineRect.origin.y += _textView.textContainerOrigin.y;
+    NSRect visible = _textView.visibleRect;
+    if (NSMinY(lineRect) >= NSMinY(visible) && NSMaxY(lineRect) <= NSMaxY(visible)) return;
+    // Out of view: in the middle of it.
+    NSPoint origin = NSMakePoint(NSMinX(visible), MAX(0.0, NSMidY(lineRect) - NSHeight(visible) / 2.0));
+    [_textView scrollPoint:origin];
 }
 
 /// The matches changed: their highlights, and their marks in the gutter.

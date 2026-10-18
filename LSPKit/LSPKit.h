@@ -16,3 +16,5 @@ FOUNDATION_EXPORT const unsigned char LSPClientVersionString[];
 
 #import <LSPKit/LSPClient.h>
 #import <LSPKit/LSPCommon.h>
+#import <LSPKit/LSPTransport.h>
+#import <LSPKit/DAPClient.h>

@@ -931,6 +931,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/Sources",
 					"$(SRCROOT)/Sources/Model",
+					"$(SRCROOT)/Sources/Debug",
 					"$(SRCROOT)/tree-sitter/include",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.7;
@@ -953,6 +954,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/Sources",
 					"$(SRCROOT)/Sources/Model",
+					"$(SRCROOT)/Sources/Debug",
 					"$(SRCROOT)/tree-sitter/include",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.7;

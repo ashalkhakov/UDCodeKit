@@ -12,6 +12,10 @@
 		D13EB17D21EA5CE500E56DC9 /* LSPClient.m in Sources */ = {isa = PBXBuildFile; fileRef = D13EB17B21EA5CE500E56DC9 /* LSPClient.m */; };
 		D14C4CE921EDDE7000278697 /* LSPCommon.h in Headers */ = {isa = PBXBuildFile; fileRef = D14C4CE721EDDE7000278697 /* LSPCommon.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		D14C4CEA21EDDE7000278697 /* LSPCommon.m in Sources */ = {isa = PBXBuildFile; fileRef = D14C4CE821EDDE7000278697 /* LSPCommon.m */; };
+		DA0000000000000000000003 /* LSPTransport.h in Headers */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000001 /* LSPTransport.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		DA0000000000000000000004 /* LSPTransport.m in Sources */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000002 /* LSPTransport.m */; };
+		DA0000000000000000000013 /* DAPClient.h in Headers */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000011 /* DAPClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		DA0000000000000000000014 /* DAPClient.m in Sources */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000012 /* DAPClient.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +25,10 @@
 		D13EB17B21EA5CE500E56DC9 /* LSPClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LSPClient.m; sourceTree = "<group>"; };
 		D14C4CE721EDDE7000278697 /* LSPCommon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LSPCommon.h; sourceTree = "<group>"; };
 		D14C4CE821EDDE7000278697 /* LSPCommon.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LSPCommon.m; sourceTree = "<group>"; };
+		DA0000000000000000000001 /* LSPTransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LSPTransport.h; sourceTree = "<group>"; };
+		DA0000000000000000000002 /* LSPTransport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LSPTransport.m; sourceTree = "<group>"; };
+		DA0000000000000000000011 /* DAPClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DAPClient.h; sourceTree = "<group>"; };
+		DA0000000000000000000012 /* DAPClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DAPClient.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +66,10 @@
 				D13EB17B21EA5CE500E56DC9 /* LSPClient.m */,
 				D14C4CE721EDDE7000278697 /* LSPCommon.h */,
 				D14C4CE821EDDE7000278697 /* LSPCommon.m */,
+				DA0000000000000000000001 /* LSPTransport.h */,
+				DA0000000000000000000002 /* LSPTransport.m */,
+				DA0000000000000000000011 /* DAPClient.h */,
+				DA0000000000000000000012 /* DAPClient.m */,
 			);
 			name = LSPKit;
 			sourceTree = "<group>";
@@ -72,6 +84,8 @@
 				D13EB16221EA5B1600E56DC9 /* LSPKit.h in Headers */,
 				D14C4CE921EDDE7000278697 /* LSPCommon.h in Headers */,
 				D13EB17C21EA5CE500E56DC9 /* LSPClient.h in Headers */,
+				DA0000000000000000000003 /* LSPTransport.h in Headers */,
+				DA0000000000000000000013 /* DAPClient.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,6 +158,8 @@
 			files = (
 				D14C4CEA21EDDE7000278697 /* LSPCommon.m in Sources */,
 				D13EB17D21EA5CE500E56DC9 /* LSPClient.m in Sources */,
+				DA0000000000000000000004 /* LSPTransport.m in Sources */,
+				DA0000000000000000000014 /* DAPClient.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

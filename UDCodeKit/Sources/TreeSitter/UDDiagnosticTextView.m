@@ -10,6 +10,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDDiagnosticTextView.h"
+#import "UDBreakpointStore.h"
 #import <objc/runtime.h>
 #import "UDCompletionListController.h"
 #import "UDPlaceholderHighlighter.h"
@@ -413,7 +414,8 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     rect = NSIntersectionRect(rect, self.visibleRect);
     if (NSIsEmptyRect(rect)) return;
 
-    // --- Current-line highlight
+    // --- The debugger's line (Xcode's green), then the current line
+    [self _drawInstructionPointerLineInRect:rect];
     [self _drawCurrentLineHighlightInRect:rect];
     
     // --- Secondary Cursors
@@ -475,6 +477,24 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 // ---------------------------------------------------------------------------
 // MARK: - Private helpers
 // ---------------------------------------------------------------------------
+
+/// The line the debugger stands at (UDBreakpointStore's instruction pointer,
+/// a decoration in the model), across the view's width, in Xcode's green.
+- (void)_drawInstructionPointerLineInRect:(NSRect)rect {
+    NSLayoutManager *lm = self.layoutManager;
+    if (!lm || !_textModel) return;
+    for (UDIntervalNode *node in [_textModel decorationNodesForOwner:UDInstructionPointerDecorationOwner]) {
+        NSUInteger glyphIdx = UDGlyphIndex(lm, (NSUInteger)MAX(0LL, node.start));
+        if (glyphIdx == NSNotFound) continue;
+        NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:glyphIdx effectiveRange:NULL];
+        lineRect.origin.y += self.textContainerOrigin.y;
+        lineRect.origin.x = 0;
+        lineRect.size.width = NSWidth(self.bounds);
+        if (!NSIntersectsRect(lineRect, rect)) continue;
+        [[NSColor colorWithCalibratedRed:0.33 green:0.68 blue:0.31 alpha:0.22] setFill];
+        NSRectFillUsingOperation(NSIntersectionRect(lineRect, rect), UDCompositeSourceOver);
+    }
+}
 
 /// Draws a full-width background highlight behind the line that contains the
 /// insertion point.  Called from drawViewBackgroundInRect: before diagnostic

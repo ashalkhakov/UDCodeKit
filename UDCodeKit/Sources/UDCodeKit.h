@@ -4,7 +4,9 @@
 //  A code editor for AppKit and GNUstep: the text storage over UDPieceTable's
 //  text model, the editor view controller with its gutters, folding and
 //  auto-indentation, tree-sitter highlighting, language modes loaded from
-//  grammar bundles, and the language server client.
+//  grammar bundles, the language server client, and the debugger (a debug
+//  adapter's client, with Xcode's breakpoints, debug bar, debug navigator
+//  and debug area).
 //
 
 #import <Cocoa/Cocoa.h>
@@ -53,3 +55,9 @@
 #import <UDCodeKit/UDErrorsViewController.h>
 #import <UDCodeKit/UDHoverViewController.h>
 #import <UDCodeKit/UDPlaceholderHighlighter.h>
+
+#import <UDCodeKit/UDBreakpointStore.h>
+#import <UDCodeKit/UDDebugSession.h>
+#import <UDCodeKit/UDDebugBarViewController.h>
+#import <UDCodeKit/UDDebugNavigatorViewController.h>
+#import <UDCodeKit/UDDebugAreaViewController.h>

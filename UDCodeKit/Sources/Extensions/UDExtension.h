@@ -121,4 +121,23 @@ FOUNDATION_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 /// Implement this method only for modes that need custom key handling.
 - (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier;
 
+/// Returns the command that starts the debug adapter for the given language
+/// mode identifier, or @c nil when this extension has none for it.
+///
+/// As -languageServerCommandForIdentifier:: the first element is the absolute
+/// path of the adapter's executable, the rest its arguments. The adapter
+/// speaks the Debug Adapter Protocol
+/// (https://microsoft.github.io/debug-adapter-protocol/specification) on its
+/// standard input and output, each message a Content-Length header and JSON,
+/// as LSP's. The host starts one per debugging session
+/// (UDDebugSession +sessionForLanguageMode:breakpoints:), and asks each time,
+/// so an adapter installed later is found.
+- (nullable NSArray<NSString *> *)debugAdapterCommandForIdentifier:(NSString *)identifier;
+
+/// Returns the arguments of the adapter's launch request for debugging the
+/// file at @a fileURL (the adapter's own: "program", and whatever else it
+/// takes), or @c nil for { "program": the file's path }. A host that knows
+/// better (the game to start, say) builds its own.
+- (nullable NSDictionary *)debugLaunchArgumentsForIdentifier:(NSString *)identifier fileURL:(NSURL *)fileURL;
+
 @end

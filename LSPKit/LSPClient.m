@@ -4,18 +4,17 @@
 //  Created by Christopher Atlan on 12.01.19.
 //  Copyright © 2019 Letter Opener GmbH. All rights reserved.
 //
-//  Portable since: the server's output is read with readInBackgroundAndNotify
-//  and its end seen with NSTaskDidTerminateNotification — both delivered on
-//  the main run loop — and the messages' Content-Length framing is parsed
-//  here (no CFHTTPMessage). Replies go to a target and an action.
+//  Portable since: the server's process and its messages' Content-Length
+//  framing are LSPTransport's (no CFHTTPMessage), which delivers everything
+//  on the main run loop. Replies go to a target and an action.
 //
 
 #import "LSPClient.h"
 
 #import "LSPCommon.h"
+#import "LSPTransport.h"
 
 #include <sys/wait.h>
-#include <signal.h>
 
 NSNotificationName const LSPDocumentDidChangeNotification = @"LSPDocumentDidChange";
 NSString * const LSPDocumentUserInfoKey = @"Document";
@@ -62,126 +61,43 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
 
 @protocol LSPPipelineDelegate <NSObject>
 - (void)pipeline:(LSPPipeline *)pipeline didReceiveMessage:(NSDictionary *)message;
+/// The server's process ended (or never started).
+- (void)pipelineDidClose:(LSPPipeline *)pipeline;
 @end
 
-@interface LSPPipeline : NSObject {
+/// JSON-RPC over the server's process, its messages framed by LSPTransport.
+@interface LSPPipeline : NSObject <LSPTransportDelegate> {
     NSUInteger _messageID;
-    NSMutableData *_buffer;
 }
-@property NSPipe *stdinPipe;
-@property NSPipe *stdoutPipe;
-@property NSPipe *stderrPipe;
+@property (readonly) LSPTransport *transport;
 @property (weak) id<LSPPipelineDelegate> delegate;
 @property NSMutableString *log;
 @end
 
 @implementation LSPPipeline
 
-- (instancetype)init {
+- (instancetype)initWithTransport:(LSPTransport *)transport {
     self = [super init];
     if (self) {
-        _buffer = [NSMutableData data];
-        _stdinPipe = [NSPipe pipe];
-        _stdoutPipe = [NSPipe pipe];
-        _stderrPipe = [NSPipe pipe];
-        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-        [center addObserver:self selector:@selector(_stdoutRead:)
-                       name:NSFileHandleReadCompletionNotification object:[_stdoutPipe fileHandleForReading]];
-        [center addObserver:self selector:@selector(_stderrRead:)
-                       name:NSFileHandleReadCompletionNotification object:[_stderrPipe fileHandleForReading]];
-        [[_stdoutPipe fileHandleForReading] readInBackgroundAndNotify];
-        [[_stderrPipe fileHandleForReading] readInBackgroundAndNotify];
+        _transport = transport;
+        _transport.delegate = self;
     }
     return self;
 }
 
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-}
-
-- (void)_stdoutRead:(NSNotification *)note {
-    NSData *data = [[note userInfo] objectForKey:NSFileHandleNotificationDataItem];
-    if ([data length] == 0) return;                     // the end: no more reading
-    [self didReceiveData:data];
-    [[note object] readInBackgroundAndNotify];
-}
-
-- (void)_stderrRead:(NSNotification *)note {
-    NSData *data = [[note userInfo] objectForKey:NSFileHandleNotificationDataItem];
-    if ([data length] == 0) return;
-    NSLog(@"stderr: %@", [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]);
-    [[note object] readInBackgroundAndNotify];
-}
-
-- (void)writeData:(NSData *)data {
-    @try {
-        [[_stdinPipe fileHandleForWriting] writeData:data];
-    } @catch (NSException *e) {
-        NSLog(@"LSPKit: the server is not reading: %@", e.reason);
-    }
-}
-
 - (void)close {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-    [[_stdinPipe fileHandleForWriting] closeFile];
-    [[_stdoutPipe fileHandleForReading] closeFile];
-    [[_stderrPipe fileHandleForReading] closeFile];
+    [_transport close];
 }
 
-/// The header fields of an LSP message ("Name: value" lines), by name.
-static NSDictionary *LSPParseHeaders(NSData *header) {
-    NSString *text = [[NSString alloc] initWithData:header encoding:NSASCIIStringEncoding];
-    NSMutableDictionary *fields = [NSMutableDictionary dictionary];
-    for (NSString *line in [text componentsSeparatedByString:@"\r\n"]) {
-        NSRange colon = [line rangeOfString:@":"];
-        if (colon.location == NSNotFound) continue;
-        NSString *name = [[line substringToIndex:colon.location]
-                          stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-        NSString *value = [[line substringFromIndex:NSMaxRange(colon)]
-                           stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-        [fields setObject:value forKey:[name lowercaseString]];
-    }
-    return fields;
-}
-
-/// Messages as they arrive: a header ending in a blank line, then
-/// Content-Length bytes of JSON. Data may hold part of one, or several.
-- (void)didReceiveData:(NSData *)data {
-    [_buffer appendData:data];
-    NSData *separator = [@"\r\n\r\n" dataUsingEncoding:NSASCIIStringEncoding];
-    for (;;) {
-        NSRange end = [_buffer rangeOfData:separator options:0 range:NSMakeRange(0, [_buffer length])];
-        if (end.location == NSNotFound) return;
-        NSDictionary *headers = LSPParseHeaders([_buffer subdataWithRange:NSMakeRange(0, end.location)]);
-        NSUInteger length = (NSUInteger)[[headers objectForKey:@"content-length"] integerValue];
-        NSUInteger bodyStart = NSMaxRange(end);
-        if ([_buffer length] < bodyStart + length) return;   // the rest is still coming
-        NSData *body = [_buffer subdataWithRange:NSMakeRange(bodyStart, length)];
-        [_buffer replaceBytesInRange:NSMakeRange(0, bodyStart + length) withBytes:NULL length:0];
-        [self handlePipelineMessage:body];
-    }
-}
-
-- (void)sendMessage:(NSData *)data {
-    NSString *contentLength = [NSString stringWithFormat:@"Content-Length: %lu\r\n\r\n",
-                               (unsigned long)[data length]];
-    NSMutableData *messageData = [NSMutableData data];
-    [messageData appendData:[contentLength dataUsingEncoding:NSUTF8StringEncoding]];
-    [messageData appendData:data];
-    [self writeData:messageData];
-}
-
-- (void)handlePipelineMessage:(NSData *)data {
-    NSError *error = nil;
-    NSDictionary *message = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
-    if (![message isKindOfClass:[NSDictionary class]]) {
-        NSLog(@"%s error %@", __PRETTY_FUNCTION__, error);
-        return;
-    }
+- (void)transport:(LSPTransport *)transport didReceiveMessage:(NSDictionary *)message {
     if (_log) {
         [self logMessage:message type:[message objectForKey:@"id"] ? @"recv-request" : @"recv-notification"];
     }
     [_delegate pipeline:self didReceiveMessage:message];
+}
+
+- (void)transportDidClose:(LSPTransport *)transport {
+    [_delegate pipelineDidClose:self];
 }
 
 /// Sends a request; returns its identifier.
@@ -194,10 +110,7 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
                              method, @"method",
                              params ?: [NSNull null], @"params",
                              nil];
-    NSData *data = [NSJSONSerialization dataWithJSONObject:request options:0 error:NULL];
-    if (data) {
-        [self sendMessage:data];
-    }
+    [_transport sendMessage:request];
     if (_log) {
         [self logMessage:request type:@"send-request"];
     }
@@ -210,10 +123,7 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
                              method, @"method",
                              params ?: [NSNull null], @"params",
                              nil];
-    NSData *data = [NSJSONSerialization dataWithJSONObject:request options:0 error:NULL];
-    if (data) {
-        [self sendMessage:data];
-    }
+    [_transport sendMessage:request];
     if (_log) {
         [self logMessage:request type:@"send-notification"];
     }
@@ -336,7 +246,6 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
     NSString *_currentDirectoryPath;
 }
 @property LSPPipeline *pipeline;
-@property NSTask *task;
 @end
 
 @implementation LSPClient
@@ -421,44 +330,29 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
 }
 
 - (void)_launch {
-    // A server that has ended must not end the app with it: writing to its
-    // pipe then fails (and -writeData: says so) instead of raising SIGPIPE.
-    signal(SIGPIPE, SIG_IGN);
-    _pipeline = [[LSPPipeline alloc] init];
+    LSPTransport *transport = [[LSPTransport alloc] initWithLaunchPath:_path arguments:_arguments
+                                                  currentDirectoryPath:_currentDirectoryPath];
+    if (transport.launchError) {
+        NSLog(@"LSPKit: %@", [transport.launchError localizedDescription]);
+        _shouldTerminate = YES;       // not again and again
+    }
+    _pipeline = [[LSPPipeline alloc] initWithTransport:transport];
     _pipeline.delegate = self;
-    _task = [[NSTask alloc] init];
-    [_task setStandardInput:[_pipeline stdinPipe]];
-    [_task setStandardOutput:[_pipeline stdoutPipe]];
-    [_task setStandardError:[_pipeline stderrPipe]];
-    if (_currentDirectoryPath) {
-        [_task setCurrentDirectoryPath:_currentDirectoryPath];
-    }
-    [_task setLaunchPath:_path];
-    [_task setArguments:_arguments];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_taskDidTerminate:)
-                                                 name:NSTaskDidTerminateNotification object:_task];
-    @try {
-        [_task launch];
-    } @catch (NSException *e) {
-        NSLog(@"LSPKit: could not start %@: %@", _path, e.reason);
-    }
 }
 
 #pragma mark Termination
 
 - (void)terminate {
-    if ([_task isRunning]) {
+    if ([_pipeline.transport.task isRunning]) {
         _shouldTerminate = YES;
         // Nothing more is sent: the documents' closing, say, before the
         // task's end is noticed on the run loop.
         _initialized = NO;
-        [_task terminate];
+        [_pipeline.transport terminate];
     }
 }
 
-- (void)_taskDidTerminate:(NSNotification *)note {
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:NSTaskDidTerminateNotification object:_task];
-    [_pipeline close];
+- (void)pipelineDidClose:(LSPPipeline *)pipeline {
     _initialized = NO;
     _initializing = NO;
     _initializeWaiters = nil;
@@ -740,7 +634,7 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
     // The one notification where we don't check for if (_initialize == NO) return;
     // This will allow the exit of a server without an initialize request.
     _shouldTerminate = YES;
-    pid_t pid = [_task processIdentifier];
+    pid_t pid = [_pipeline.transport.task processIdentifier];
     [_pipeline sendNotification:@"exit" params:nil];
     waitpid(pid, NULL, 0);
 }

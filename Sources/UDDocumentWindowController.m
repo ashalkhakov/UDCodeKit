@@ -2,6 +2,8 @@
 #import "UDDocument.h"
 #import <UDCodeKit/UDErrorsViewController.h>
 #import "UDWorkspaceModel.h"
+#import "UDDemoDebugAdapter.h"
+#import <objc/runtime.h>
 #import <UDCodeKit/UDCodeKit.h>
 #ifdef __APPLE__
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -10,14 +12,18 @@
 // The panes of the window's split view (UDDocumentWindowController.xib).
 static const NSInteger UDNavigatorPane = 0;
 static const NSInteger UDInspectorPane = 2;
+// The editors' split: the debug area below them.
+static const NSInteger UDDebugAreaPane = 1;
+// The navigator's segments.
+static const NSInteger UDDebugNavigatorSegment = 2;
 
 // ---------------------------------------------------------------------------
 // MARK: - UDDocumentWindowController  (private extension)
 // ---------------------------------------------------------------------------
 
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
-                                          UDEditorTabsControllerDelegate, NSTableViewDataSource,
-                                          NSTableViewDelegate, NSWindowDelegate>
+                                          UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
+                                          NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
 @property (nonatomic, strong) IBOutlet UDPaneSplitController  *paneSplit;
@@ -26,6 +32,10 @@ static const NSInteger UDInspectorPane = 2;
 @property (nonatomic, weak) IBOutlet NSTabView          *navigatorTabView;
 @property (nonatomic, weak) IBOutlet NSTableView        *filesTable;
 @property (nonatomic, weak) IBOutlet NSView             *issuesHost;
+@property (nonatomic, weak) IBOutlet NSView             *debugNavigatorHost;
+@property (nonatomic, strong) IBOutlet UDPaneSplitController *debugSplit;
+@property (nonatomic, weak) IBOutlet NSView             *debugBarHost;
+@property (nonatomic, weak) IBOutlet NSView             *debugAreaHost;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorName;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorPath;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorLanguage;
@@ -34,6 +44,11 @@ static const NSInteger UDInspectorPane = 2;
 
 @property (nonatomic, strong) UDErrorsViewController *errorsViewController;
 @property (nonatomic, strong) UDHoverViewController  *hover;
+@property (nonatomic, strong) UDDebugNavigatorViewController *debugNavigator;
+@property (nonatomic, strong) UDDebugBarViewController       *debugBar;
+@property (nonatomic, strong) UDDebugAreaViewController      *debugArea;
+@property (nonatomic, strong) UDBreakpointStore              *breakpoints;
+@property (nonatomic, strong, nullable) UDDebugSession       *debugSession;
 // Where the language server's replies go: the text view that asked.
 @property (nonatomic, weak) UDDiagnosticTextView *completionTextView;
 @property (nonatomic, weak) UDDiagnosticTextView *hoverTextView;
@@ -89,10 +104,30 @@ static const NSInteger UDInspectorPane = 2;
     // The issues navigator, from its own XIB, in its host.
     _errorsViewController = [[UDErrorsViewController alloc] init];
     _errorsViewController.delegate = self;
-    NSView *issues = _errorsViewController.view;
-    issues.frame = _issuesHost.bounds;
-    issues.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [_issuesHost addSubview:issues];
+    [self _putView:_errorsViewController.view inHost:_issuesHost];
+
+    // The debugger: its navigator, and below the editors its bar and area,
+    // each from its XIB. The area shows when a session starts (and as it
+    // was left, after the first).
+    _breakpoints = [[UDBreakpointStore alloc] init];
+    _debugNavigator = [[UDDebugNavigatorViewController alloc] init];
+    [self _putView:_debugNavigator.view inHost:_debugNavigatorHost];
+    _debugBar = [[UDDebugBarViewController alloc] init];
+    [self _putView:_debugBar.view inHost:_debugBarHost];
+    _debugArea = [[UDDebugAreaViewController alloc] init];
+    [self _putView:_debugArea.view inHost:_debugAreaHost];
+    _debugSplit.flexiblePaneIndex = 0;
+    _debugSplit.minimumThicknesses = @[@200, @120];
+    _debugSplit.defaultThicknesses = @[@0, @220];
+    BOOL debugAreaSaved = [[NSUserDefaults standardUserDefaults] objectForKey:@"UDPaneSplit UDCode Debug Area"] != nil;
+    _debugSplit.autosaveName = @"UDCode Debug Area";
+    [_debugSplit restoreLayout];
+    if (!debugAreaSaved) [_debugSplit setPane:UDDebugAreaPane visible:NO];
+    NSView *debugPane = _debugBarHost.superview;
+    debugPane.postsFrameChangedNotifications = YES;
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_debugPaneDidResize:)
+                                                 name:NSViewFrameDidChangeNotification object:debugPane];
+    [self _layoutDebugPane];
 
     // The documents to show.
     NSArray<UDCodeDocument *> *preloaded = workspace.workspaceModel.documents;
@@ -117,6 +152,28 @@ static const NSInteger UDInspectorPane = 2;
     workspace.primaryTextStorage = [self _sessionForDocument:_workspaceModel.documents.firstObject].textStorage;
 
     self.window.title = workspace.fileURL ? workspace.fileURL.lastPathComponent : @"Untitled Workspace";
+}
+
+/// A view from its own XIB, filling the host the window's XIB has for it.
+- (void)_putView:(NSView *)view inHost:(NSView *)host {
+    view.frame = host.bounds;
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [host addSubview:view];
+}
+
+/// The debug bar on top of the debug pane, the area under it: laid out
+/// here rather than by autoresizing, as the pane is nothing high while it is
+/// hidden, and what autoresizing loses then it does not get back.
+- (void)_layoutDebugPane {
+    NSRect bounds = _debugBarHost.superview.bounds;
+    CGFloat bar = NSHeight(_debugBarHost.frame);
+    if (NSHeight(bounds) < bar + 20) return;
+    _debugBarHost.frame = NSMakeRect(0, NSMaxY(bounds) - bar, NSWidth(bounds), bar);
+    _debugAreaHost.frame = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - bar);
+}
+
+- (void)_debugPaneDidResize:(NSNotification *)note {
+    [self _layoutDebugPane];
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +204,36 @@ static const NSInteger UDInspectorPane = 2;
     [self navigatorChanged:nil];
 }
 
+- (IBAction)showDebugNavigator:(nullable id)sender {
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = UDDebugNavigatorSegment;
+    [self navigatorChanged:nil];
+}
+
+- (IBAction)toggleDebugArea:(nullable id)sender {
+    [_debugSplit setPane:UDDebugAreaPane visible:![_debugSplit isPaneVisible:UDDebugAreaPane]];
+}
+
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
+    // sel_isEqual: a menu item's selector, from its XIB, is untyped on
+    // GNUstep's runtime, and not the same pointer as a typed @selector.
+    SEL action = item.action;
+    if (sel_isEqual(action, @selector(startDebugging:))) {
+        UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+        return document.fileURL && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
+    } else if (sel_isEqual(action, @selector(stopDebugging:))) {
+        return _debugSession.canStop;
+    } else if (sel_isEqual(action, @selector(debugContinueOrPause:))) {
+        item.title = _debugSession.canPause ? @"Pause" : @"Continue";
+        return [_debugBar canPerformAction:@selector(continueOrPause:)];
+    } else if (sel_isEqual(action, @selector(debugStepOver:)) || sel_isEqual(action, @selector(debugStepInto:)) ||
+               sel_isEqual(action, @selector(debugStepOut:))) {
+        return [_debugBar canPerformAction:@selector(stepOver:)];
+    } else if (sel_isEqual(action, @selector(toggleBreakpoint:))) {
+        return [self _selectedEditor].breakpointFile != nil;
+    } else if (sel_isEqual(action, @selector(toggleDebugArea:))) {
+        item.title = [_debugSplit isPaneVisible:UDDebugAreaPane] ? @"Hide Debug Area" : @"Show Debug Area";
+    }
     if (item.action == @selector(toggleNavigator:)) {
         item.title = [_paneSplit isPaneVisible:UDNavigatorPane] ? @"Hide Navigator" : @"Show Navigator";
     } else if (item.action == @selector(toggleInspector:)) {
@@ -235,6 +321,7 @@ static const NSInteger UDInspectorPane = 2;
     UDCodeEditorViewController *editor = [[UDCodeEditorViewController alloc] initWithTextStorage:session.textStorage];
     [editor configureForLanguageMode:document.languageMode];
     editor.textView.delegate = self;
+    if (document.fileURL) [editor showBreakpointsOfStore:_breakpoints forFile:document.fileURL.path];
 
     if (first) {
         [session activateWithTheme:_currentTheme];
@@ -484,7 +571,85 @@ static const NSInteger UDInspectorPane = 2;
     }
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - Debugging (Debug menu)
+// ---------------------------------------------------------------------------
+
+- (NSArray<NSString *> *)debugAdapterCommand {
+    if (!_debugAdapterCommand) {
+        NSString *udcode = [[NSBundle mainBundle] executablePath];
+        _debugAdapterCommand = udcode ? @[ udcode, UDDemoDebugAdapterOption ] : @[];
+    }
+    return _debugAdapterCommand;
+}
+
+- (void)setDebugSession:(UDDebugSession *)session {
+    _debugSession.delegate = nil;
+    _debugSession = session;
+    session.delegate = self;
+    _debugBar.session = session;
+    _debugNavigator.session = session;
+    _debugArea.session = session;
+}
+
+- (IBAction)startDebugging:(nullable id)sender {
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    if (!document.fileURL || (_debugSession && _debugSession.state != UDDebugSessionStateEnded)) {
+        NSBeep();
+        return;
+    }
+    // The adapter the language's bundle gives, or the demo's.
+    UDLanguageMode *mode = document.languageMode;
+    NSArray<NSString *> *command = mode.debugAdapterCommand;
+    NSDictionary *arguments = [mode debugLaunchArgumentsForFileURL:document.fileURL];
+    NSString *adapterID = mode.identifier;
+    if (!command.count) {
+        command = self.debugAdapterCommand;
+        arguments = @{ @"program": document.fileURL.path };
+        adapterID = @"udcode-demo";
+    }
+    UDDebugSession *session =
+        [[UDDebugSession alloc] initWithAdapterCommand:command
+                                  currentDirectoryPath:document.fileURL.URLByDeletingLastPathComponent.path
+                                           breakpoints:_breakpoints];
+    session.adapterID = adapterID;
+    self.debugSession = session;
+    [_debugSplit setPane:UDDebugAreaPane visible:YES];
+    [self showDebugNavigator:nil];
+    [session launchWithArguments:arguments];
+}
+
+- (IBAction)stopDebugging:(nullable id)sender      { [_debugSession stop]; }
+- (IBAction)debugContinueOrPause:(nullable id)sender { [_debugBar continueOrPause:sender]; }
+- (IBAction)debugStepOver:(nullable id)sender      { [_debugBar stepOver:sender]; }
+- (IBAction)debugStepInto:(nullable id)sender      { [_debugBar stepInto:sender]; }
+- (IBAction)debugStepOut:(nullable id)sender       { [_debugBar stepOut:sender]; }
+
+/// Toggle Breakpoint (⌘\): the selected editor's, at its caret.
+- (IBAction)toggleBreakpoint:(nullable id)sender {
+    [[self _selectedEditor] toggleBreakpoint:sender];
+}
+
+/// The selected frame's file: its tab, opened when it has none, at the line.
+- (void)debugSession:(UDDebugSession *)session showFile:(NSString *)path line:(NSInteger)line {
+    NSString *wanted = [path stringByStandardizingPath];
+    UDTabBarItem *item = nil;
+    for (UDCodeDocument *document in _workspaceModel.documents) {
+        if (![[document.fileURL.path stringByStandardizingPath] isEqualToString:wanted]) continue;
+        item = [self _itemsForDocument:document].firstObject;
+        break;
+    }
+    if (item) {
+        if (item != _editorTabs.selectedItem) [_editorTabs selectItem:item];
+    } else {
+        [self openURLInNewTab:[NSURL fileURLWithPath:wanted]];
+    }
+    [[self _selectedEditor] revealLine:line];
+}
+
 - (void)close {
+    [_debugSession stop];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewFrameDidChangeNotification object:nil];
     // Only what this class observes: NSWindowController (GNUstep's) learns
     // that its window closes by a notification of its own.
     for (UDCodeDocument *doc in _workspaceModel.documents) {

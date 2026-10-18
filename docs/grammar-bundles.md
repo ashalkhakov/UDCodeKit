@@ -93,6 +93,20 @@ empty `languageModes` array and always return `NULL` from
 | `-extensionDidLoad:`    | After the bundle is loaded; perform initialisation |
 | `-extensionWillUnload:` | Before the app terminates; release resources       |
 
+### Optional services: language server, key handler, debug adapter
+
+| Method | Gives |
+|--------|-------|
+| `-languageServerCommandForIdentifier:` | the language server's command line (argv) |
+| `-languageServerWantedForIdentifier:` | the moment to offer to install one |
+| `-keyHandlerForIdentifier:` | language-aware typing (auto-close tags, ...) |
+| `-debugAdapterCommandForIdentifier:` | the debug adapter's command line (argv) |
+| `-debugLaunchArgumentsForIdentifier:fileURL:` | the adapter's launch arguments for a file |
+
+A debug adapter speaks the Debug Adapter Protocol on its standard input and
+output, framed as LSP is; the host starts one per debugging session. See
+[debugging.md](debugging.md).
+
 **Non-deterministic teardown:** The host calls `-extensionWillUnload:` and
 then releases its strong reference to the extension instance.  Because
 Objective-C uses reference counting, other retain cycles or autorelease pools

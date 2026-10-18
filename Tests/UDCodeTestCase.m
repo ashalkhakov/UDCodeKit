@@ -4,6 +4,7 @@
 
 #import <Cocoa/Cocoa.h>
 #import "UDCodeTestCase.h"
+#import "UDDemoDebugAdapter.h"
 
 @implementation UDCodeTestCase
 
@@ -12,6 +13,30 @@
 - (void)setUp {
     [super setUp];
     [NSApplication sharedApplication];
+}
+
++ (DAPClient *)clientOfAdapter:(UDDemoDebugAdapter * __strong *)adapter {
+    NSPipe *toAdapter = [NSPipe pipe], *toClient = [NSPipe pipe];
+    *adapter = [[UDDemoDebugAdapter alloc] initWithReadHandle:[toAdapter fileHandleForReading]
+                                                  writeHandle:[toClient fileHandleForWriting]];
+    return [[DAPClient alloc] initWithReadHandle:[toClient fileHandleForReading]
+                                     writeHandle:[toAdapter fileHandleForWriting]];
+}
+
++ (NSString *)udcodeExecutablePath {
+#ifdef __APPLE__
+    return [[NSBundle mainBundle] executablePath];
+#else
+    NSString *plugIns = [[[NSProcessInfo processInfo] environment] objectForKey:@"UD_PLUGINS_PATH"];
+    return [[[plugIns componentsSeparatedByString:@":"].firstObject stringByDeletingLastPathComponent]
+            stringByAppendingPathComponent:@"UDCode"];
+#endif
+}
+
++ (NSString *)temporaryFileNamed:(NSString *)name text:(NSString *)text {
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:name];
+    [text writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    return [path stringByStandardizingPath];
 }
 
 @end

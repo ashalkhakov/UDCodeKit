@@ -14,6 +14,10 @@
                 <outlet property="navigatorTabView" destination="WS-nav-tabs" id="WS-o-nav-tabs"/>
                 <outlet property="filesTable" destination="WS-files-table" id="WS-o-files"/>
                 <outlet property="issuesHost" destination="WS-issues-host" id="WS-o-issues"/>
+                <outlet property="debugNavigatorHost" destination="WS-debug-nav-host" id="WS-o-debug-nav"/>
+                <outlet property="debugSplit" destination="WS-debug-split-controller" id="WS-o-debug-split"/>
+                <outlet property="debugBarHost" destination="WS-debug-bar-host" id="WS-o-debug-bar"/>
+                <outlet property="debugAreaHost" destination="WS-debug-area-host" id="WS-o-debug-area"/>
                 <outlet property="inspectorName" destination="WS-insp-name" id="WS-o-insp-name"/>
                 <outlet property="inspectorPath" destination="WS-insp-path" id="WS-o-insp-path"/>
                 <outlet property="inspectorLanguage" destination="WS-insp-language" id="WS-o-insp-language"/>
@@ -33,6 +37,11 @@
                 <outlet property="tabBar" destination="WS-tab-bar" id="WS-o-tab-bar"/>
                 <outlet property="tabView" destination="WS-editor-tabs" id="WS-o-editor-tabs"/>
                 <outlet property="delegate" destination="-2" id="WS-o-tabs-delegate"/>
+            </connections>
+        </customObject>
+        <customObject id="WS-debug-split-controller" userLabel="Editors | Debug Area" customClass="UDPaneSplitController">
+            <connections>
+                <outlet property="splitView" destination="WS-editor-split" id="WS-o-editor-split"/>
             </connections>
         </customObject>
         <window title="Document" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" animationBehavior="default" id="UDW-01-window">
@@ -59,8 +68,9 @@
                                         <segmentedCell key="cell" borderStyle="border" alignment="left" style="rounded" trackingMode="selectOne" id="WS-nav-control-cell">
                                             <font key="font" metaFont="system"/>
                                             <segments>
-                                                <segment label="Files" width="110" selected="YES"/>
-                                                <segment label="Issues" width="110" tag="1"/>
+                                                <segment label="Files" width="73" selected="YES"/>
+                                                <segment label="Issues" width="73" tag="1"/>
+                                                <segment label="Debug" width="73" tag="2"/>
                                             </segments>
                                         </segmentedCell>
                                         <connections>
@@ -135,6 +145,18 @@
                                                     </subviews>
                                                 </view>
                                             </tabViewItem>
+                                            <tabViewItem label="Debug" identifier="debug" id="WS-nav-debug">
+                                                <view key="view" id="WS-nav-debug-view">
+                                                    <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    <subviews>
+                                                        <customView id="WS-debug-nav-host" userLabel="Debug Navigator Host">
+                                                            <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                        </customView>
+                                                    </subviews>
+                                                </view>
+                                            </tabViewItem>
                                         </tabViewItems>
                                     </tabView>
                                 </subviews>
@@ -147,11 +169,35 @@
                                         <rect key="frame" x="0.0" y="732" width="698" height="28"/>
                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                     </customView>
-                                    <tabView type="noTabsNoBorder" id="WS-editor-tabs" userLabel="Editor Pages">
+                                    <splitView dividerStyle="thin" id="WS-editor-split" userLabel="Editors | Debug Area">
                                         <rect key="frame" x="0.0" y="0.0" width="698" height="732"/>
                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                        <font key="font" metaFont="system"/>
-                                    </tabView>
+                                        <subviews>
+                                            <tabView type="noTabsNoBorder" id="WS-editor-tabs" userLabel="Editor Pages">
+                                                <rect key="frame" x="0.0" y="0.0" width="698" height="491"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                <font key="font" metaFont="system"/>
+                                            </tabView>
+                                            <customView autoresizesSubviews="NO" id="WS-debug-pane" userLabel="Debug Area">
+                                                <rect key="frame" x="0.0" y="492" width="698" height="240"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES"/>
+                                                <subviews>
+                                                    <customView id="WS-debug-bar-host" userLabel="Debug Bar Host">
+                                                        <rect key="frame" x="0.0" y="214" width="698" height="26"/>
+                                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                                    </customView>
+                                                    <customView id="WS-debug-area-host" userLabel="Debug Area Host">
+                                                        <rect key="frame" x="0.0" y="0.0" width="698" height="214"/>
+                                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    </customView>
+                                                </subviews>
+                                            </customView>
+                                        </subviews>
+                                        <holdingPriorities>
+                                            <real value="250"/>
+                                            <real value="260"/>
+                                        </holdingPriorities>
+                                    </splitView>
                                 </subviews>
                             </customView>
                             <customView id="WS-inspector" userLabel="Inspector">

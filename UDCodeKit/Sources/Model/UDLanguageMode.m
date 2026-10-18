@@ -81,4 +81,19 @@
     return _languageServerCommand;
 }
 
+- (NSArray<NSString *> *)debugAdapterCommand {
+    if ([_extension respondsToSelector:@selector(debugAdapterCommandForIdentifier:)]) {
+        return [_extension debugAdapterCommandForIdentifier:_identifier];
+    }
+    return nil;
+}
+
+- (NSDictionary *)debugLaunchArgumentsForFileURL:(NSURL *)fileURL {
+    if ([_extension respondsToSelector:@selector(debugLaunchArgumentsForIdentifier:fileURL:)]) {
+        NSDictionary *arguments = [_extension debugLaunchArgumentsForIdentifier:_identifier fileURL:fileURL];
+        if (arguments) return arguments;
+    }
+    return fileURL.path ? @{ @"program": fileURL.path } : @{};
+}
+
 @end

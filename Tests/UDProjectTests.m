@@ -375,4 +375,39 @@
     [workspace close];
 }
 
+/// Files changed by another program: an open file with no edits of its own
+/// takes the new text (only what differs replaced); one with edits keeps them;
+/// a new file is listed.
+- (void)testChangesMadeElsewhereShow {
+    [self write:@"first line\nsecond line\n" to:@"notes.txt"];
+    [self write:@"mine\n" to:@"edited.txt"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    XCTAssertTrue([[controller valueForKey:@"fileWatcher"] isWatching], @"the system's watching started");
+
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"notes.txt"]]];
+    UDCodeDocument *notes = controller.editorTabs.selectedItem.representedObject;
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"edited.txt"]]];
+    UDCodeDocument *edited = controller.editorTabs.selectedItem.representedObject;
+    UDPosition end = [edited.textModel getPositionAt:[edited.textModel getLength]];
+    [edited.textModel applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:PTRangeMake(end.line, end.column, end.line, end.column)
+                                                                      text:@"typed\n"] ]];
+    XCTAssertTrue(edited.isModified);
+
+    // another program writes
+    [self write:@"first line\nchanged line\n" to:@"notes.txt"];
+    [self write:@"theirs\n" to:@"edited.txt"];
+    [self write:@"new\n" to:@"Sources/added.txt"];
+    UDRunUntil([[notes.textModel getValue] isEqualToString:@"first line\nchanged line\n"], 10);
+    XCTAssertEqualObjects([notes.textModel getValue], @"first line\nchanged line\n", @"read again");
+    XCTAssertFalse(notes.isModified, @"as on disk");
+    XCTAssertEqualObjects([edited.textModel getValue], @"mine\ntyped\n", @"its own edits kept");
+
+    NSOutlineView *outline = controller.fileNavigator.outlineView;
+    [controller.fileNavigator revealURL:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"Sources/added.txt"]]];
+    XCTAssertEqualObjects([controller.fileNavigator URLOfRow:outline.selectedRow].lastPathComponent, @"added.txt", @"listed");
+    [controller close];
+    [workspace close];
+}
+
 @end

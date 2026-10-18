@@ -30,6 +30,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
+                                          UDFileWatcherDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -42,6 +43,8 @@ static const NSInteger UDAfterBuildDebug = 2;
 @property (nonatomic, weak) IBOutlet NSView             *buildLogHost;
 @property (nonatomic, strong, readwrite, nullable) UDBuildRunner *buildRunner;
 @property (nonatomic, strong) UDBuildLogViewController *buildLog;
+/// The project's files, watched: what changes elsewhere shows here.
+@property (nonatomic, strong, nullable) UDFileWatcher *fileWatcher;
 @property (nonatomic, strong, readwrite, nullable) UDProjectSettingsController *projectSettings;
 /// Run waits for the settings sheet that names its program.
 @property (nonatomic) NSInteger afterSettings;
@@ -173,6 +176,8 @@ static const NSInteger UDAfterBuildDebug = 2;
         _filesTable.enclosingScrollView.hidden = YES;
         _breakpoints.autosaveName = [@"UDCode Debugger " stringByAppendingString:_project.folderURL.path];
         _buildRunner = [[UDBuildRunner alloc] initWithProject:_project];
+        _fileWatcher = [[UDFileWatcher alloc] initWithFolderURL:_project.folderURL ignoredNames:nil];
+        _fileWatcher.delegate = self;
     }
     _buildLog = [[UDBuildLogViewController alloc] init];
     [self _putView:_buildLog.view inHost:_buildLogHost];
@@ -349,6 +354,29 @@ static const NSInteger UDAfterBuildDebug = 2;
         }
     }
     _buildIssuePaths = notOpen;
+    [self _documentsChanged];
+}
+
+/// Files changed elsewhere (a build, git, another editor): the navigator
+/// lists them again; an open file with no edits of its own is read again (as
+/// VS Code does; with edits, its edits stay); the language servers are told.
+- (void)fileWatcher:(UDFileWatcher *)watcher didSeeChangesAtPaths:(NSSet<NSString *> *)paths {
+    [_fileNavigator reload];
+    NSMutableSet<NSString *> *changed = [NSMutableSet set];
+    for (NSString *path in paths) [changed addObject:path.stringByStandardizingPath];
+    for (UDCodeDocument *document in _workspaceModel.documents) {
+        if (document.fileURL && [changed containsObject:document.fileURL.path.stringByStandardizingPath]) {
+            [document reloadFromFileIfUnmodified];
+        }
+    }
+    NSMutableArray *changes = [NSMutableArray array];
+    for (NSString *path in paths) {
+        BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:path];
+        [changes addObject:@{ @"uri": [NSURL fileURLWithPath:path].absoluteString, @"type": exists ? @2 : @3 }];
+    }
+    for (LSPClient *client in _projectServers.allValues) {
+        [client sendNotification:@"workspace/didChangeWatchedFiles" params:@{ @"changes": changes }];
+    }
     [self _documentsChanged];
 }
 
@@ -1001,6 +1029,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 
 - (void)close {
     [_debugSession stop];
+    [_fileWatcher stop];
     // the project's language servers go with its window
     for (LSPClient *client in _projectServers.allValues) [client terminate];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:NSViewFrameDidChangeNotification object:nil];

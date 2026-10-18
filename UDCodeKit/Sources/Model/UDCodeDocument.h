@@ -87,6 +87,13 @@ extern NSNotificationName const UDCodeDocumentTextDidChangeNotification;
 /// Clears the modified flag on success.
 - (BOOL)saveToURL:(NSURL *)url error:(NSError *__autoreleasing *)outError;
 
+/// The file changed on disk (another program wrote it): its text read again,
+/// when the document has no changes of its own. One edit, of the part that
+/// differs (what is before and after it, and so the caret and decorations
+/// there, stay); the document then is as saved. NO when it has changes of its
+/// own, the file can't be read, or the text is the same (a save of our own).
+- (BOOL)reloadFromFileIfUnmodified;
+
 @end
 
 NS_ASSUME_NONNULL_END

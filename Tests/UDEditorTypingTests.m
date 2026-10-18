@@ -301,6 +301,15 @@
     UDDiagnosticTextView *textView = _editor.textView;
     [textView setSelectedRange:NSMakeRange(4, 0)];
     [textView insertText:@" f(<#x#>)"];
+    // What the edit leaves for later (the placeholder's pill, which changes
+    // its width) done first: done in the click's tracking loop, it moved the
+    // text under the mouse, and the click became a selection past the
+    // placeholder. And no mouse event left from before: the loop takes the
+    // first one queued, which is to be the click's mouse-up.
+    [self spin:0.1];
+    while ([NSApp nextEventMatchingMask:NSUIntegerMax untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode
+                                dequeue:YES]) {
+    }
     [textView.layoutManager ensureLayoutForTextContainer:textView.textContainer];
     NSUInteger x = [_storage.string rangeOfString:@"x#>"].location;
     NSLayoutManager *lm = textView.layoutManager;

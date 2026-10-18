@@ -6,7 +6,9 @@
 //  DAPClient against the demo adapter, in this process and as a process of
 //  its own: requests matched to their responses, the capabilities, the
 //  events in order, failures, requests from the adapter refused, and what
-//  happens when the adapter ends.
+//  happens when the adapter ends; and the requests VS Code's features take
+//  (setExceptionBreakpoints, setVariable, gotoTargets and goto, stepBack,
+//  reverseContinue), sent only as the capabilities allow.
 //
 
 #import <XCTest/XCTest.h>
@@ -212,15 +214,102 @@
     XCTAssertEqual([client threadsWithTarget:self action:respond], 0, @"nothing is sent once it has ended");
 }
 
+/// The adapter stopped at line @a line of a program, for the requests after.
+- (DAPClient *)clientStoppedAt:(NSInteger)line of:(NSString *)program adapter:(UDDemoDebugAdapter * __strong *)adapter {
+    DAPClient *client = [UDCodeTestCase clientOfAdapter:adapter];
+    client.delegate = self;
+    SEL respond = @selector(didRespond:);
+    [client initializeWithAdapterID:@"demo" clientName:@"UDCodeTests" target:self action:respond];
+    [client launchWithArguments:@{ @"program": program } target:self action:respond];
+    [client setBreakpointsInFile:program breakpoints:@[ @{ @"line": @(line) } ] target:self action:respond];
+    UDRunUntil(_responses[@"initialize"], 5);           // configurationDone is sent when it is supported
+    [client configurationDoneWithTarget:self action:respond];
+    UDRunUntil([self countOf:@"stopped"] == 1, 5);
+    XCTAssertEqual([self countOf:@"stopped"], 1u);
+    return client;
+}
+
+- (NSDictionary *)lastBodyOf:(NSString *)event {
+    for (NSUInteger i = _events.count; i > 0; i--) {
+        if ([_events[i - 1] isEqualToString:event]) return _eventBodies[i - 1];
+    }
+    return nil;
+}
+
+- (void)testTheRequestsOfVSCodesFeatures {
+    NSString *program = [UDCodeTestCase temporaryFileNamed:@"features.demo" text:@"one\ntwo\nthrow up\nfour\nfive\n"];
+    UDDemoDebugAdapter *adapter = nil;
+    DAPClient *client = [self clientStoppedAt:2 of:program adapter:&adapter];
+    SEL respond = @selector(didRespond:);
+    XCTAssertTrue(client.supportsConditionalBreakpoints && client.supportsHitConditionalBreakpoints && client.supportsLogPoints);
+    XCTAssertTrue(client.supportsSetVariable && client.supportsGotoTargetsRequest && client.supportsStepBack);
+    XCTAssertEqualObjects([client.exceptionBreakpointFilters valueForKey:@"filter"], (@[ @"throw", @"warn" ]));
+
+    // setVariable: line 2's text, in main's Locals (frame 1000's: 10001).
+    [client setVariable:@"text" inReference:10001 value:@"\"changed\"" target:self action:respond];
+    UDRunUntil(_responses[@"setVariable"], 5);
+    XCTAssertTrue(_responses[@"setVariable"].success);
+    XCTAssertEqualObjects([_responses[@"setVariable"].body objectForKey:@"value"], @"\"changed\"");
+    XCTAssertEqualObjects(adapter.requests.lastObject[@"arguments"],
+                          (@{ @"variablesReference": @10001, @"name": @"text", @"value": @"\"changed\"" }));
+
+    // gotoTargets and goto: on to line 4, which has not run.
+    [client gotoTargetsInFile:program line:4 target:self action:respond];
+    UDRunUntil(_responses[@"gotoTargets"], 5);
+    NSDictionary *target = [[_responses[@"gotoTargets"].body objectForKey:@"targets"] firstObject];
+    XCTAssertEqualObjects(target[@"line"], @4);
+    XCTAssertEqualObjects(adapter.requests.lastObject[@"arguments"][@"source"][@"path"], program);
+    [client gotoTarget:[target[@"id"] integerValue] inThread:1 target:self action:respond];
+    UDRunUntil([self countOf:@"stopped"] == 2, 5);
+    XCTAssertEqualObjects([self lastBodyOf:@"stopped"][@"reason"], @"goto");
+    XCTAssertEqualObjects(adapter.requests.lastObject[@"arguments"], (@{ @"threadId": @1, @"targetId": @4 }));
+
+    // Back a line, back to the start.
+    XCTAssertGreaterThan([client stepBackInThread:1 target:self action:respond], 0);
+    UDRunUntil([self countOf:@"stopped"] == 3, 5);
+    XCTAssertEqualObjects(adapter.requests.lastObject[@"command"], @"stepBack");
+    XCTAssertGreaterThan([client reverseContinueThread:1 target:self action:respond], 0);
+    UDRunUntil([self countOf:@"stopped"] == 4, 5);
+    XCTAssertEqualObjects(adapter.requests.lastObject[@"command"], @"reverseContinue");
+
+    // The exception filters: none on, the throw is printed and it runs to the end.
+    [client setExceptionBreakpoints:@[] target:self action:respond];
+    UDRunUntil(_responses[@"setExceptionBreakpoints"], 5);
+    XCTAssertEqualObjects(adapter.requests.lastObject[@"arguments"], (@{ @"filters": @[] }));
+    [client setExceptionBreakpoints:@[ @"throw" ] target:self action:respond];
+    [client continueThread:1 target:self action:respond];
+    UDRunUntil([self countOf:@"stopped"] == 5, 5);
+    XCTAssertEqualObjects([self lastBodyOf:@"stopped"][@"reason"], @"exception", @"the throw, with its filter on");
+    XCTAssertEqualObjects([self lastBodyOf:@"stopped"][@"description"], @"Error: up");
+    [client disconnectTerminatingDebuggee:YES target:nil action:NULL];
+    UDRunUntil(_ended, 5);
+}
+
+- (void)testWhatTheAdapterDoesNotSupportIsNotSent {
+    UDDemoDebugAdapter *adapter = nil;
+    DAPClient *client = [UDCodeTestCase clientOfAdapter:&adapter];
+    adapter.withheldCapabilities = @[ @"supportsStepBack", @"exceptionBreakpointFilters", @"supportsLogPoints" ];
+    [client initializeWithAdapterID:@"demo" clientName:@"UDCodeTests" target:self action:@selector(didRespond:)];
+    UDRunUntil(_responses[@"initialize"], 5);
+    XCTAssertFalse(client.supportsStepBack);
+    XCTAssertFalse(client.supportsLogPoints);
+    XCTAssertTrue(client.supportsConditionalBreakpoints);
+    XCTAssertEqualObjects(client.exceptionBreakpointFilters, @[]);
+    XCTAssertEqual([client stepBackInThread:1 target:nil action:NULL], 0, @"not sent");
+    XCTAssertEqual([client reverseContinueThread:1 target:nil action:NULL], 0, @"not sent");
+    XCTAssertEqualObjects([adapter.requests valueForKey:@"command"], @[ @"initialize" ]);
+    [client close];
+}
+
 - (void)testRequestsWaitingWhenTheAdapterEndsFail {
     UDDemoDebugAdapter *adapter = nil;
     DAPClient *client = [UDCodeTestCase clientOfAdapter:&adapter];
     client.delegate = self;
     // A request the adapter does not know: answered, unsuccessfully.
-    [client sendRequest:@"goto" arguments:@{ @"threadId": @1 } target:self action:@selector(didRespond:)];
-    UDRunUntil(_responses[@"goto"], 5);
-    XCTAssertFalse(_responses[@"goto"].success);
-    XCTAssertEqualObjects(_responses[@"goto"].error.localizedDescription, @"Unknown request: goto");
+    [client sendRequest:@"readMemory" arguments:@{ @"memoryReference": @"0" } target:self action:@selector(didRespond:)];
+    UDRunUntil(_responses[@"readMemory"], 5);
+    XCTAssertFalse(_responses[@"readMemory"].success);
+    XCTAssertEqualObjects(_responses[@"readMemory"].error.localizedDescription, @"Unknown request: readMemory");
 
     // One the adapter will never answer: it ends first.
     [client sendRequest:@"disconnect" arguments:nil target:nil action:NULL];

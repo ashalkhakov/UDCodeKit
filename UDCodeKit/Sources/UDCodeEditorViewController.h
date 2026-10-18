@@ -8,7 +8,11 @@
  *    – the find and replace bar (top, on Find), UDFindBar.xib
  *    – folding, bracket-match, structured-navigation, auto-indentation
  *    – breakpoints in the gutter and the debugger's line, once given a
- *      UDBreakpointStore (-showBreakpointsOfStore:forFile:)
+ *      UDBreakpointStore (-showBreakpointsOfStore:forFile:); the gutter's
+ *      menu edits them (UDBreakpointEditorViewController: a condition, a
+ *      hit count, a log message); and while the store's session is stopped
+ *      in the file, VS Code's debug hover (UDDebugHoverViewController) and
+ *      Run to Cursor, Jump to Cursor and Add to Watch in the text's menu
  *
  *  Loaded from UDCodeEditorViewController.xib, in the UDCodeKit bundle.
  *  Initialise with -initWithTextStorage: before accessing .view so that the
@@ -23,7 +27,7 @@
 #import "UDLanguageMode.h"
 #import "UDFindModel.h"
 
-@class UDFindBarViewController, UDBreakpointStore;
+@class UDFindBarViewController, UDBreakpointStore, UDBreakpointEditorViewController, UDDebugHoverViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -71,6 +75,25 @@ NS_ASSUME_NONNULL_BEGIN
 /// Debug > Toggle Breakpoint (⌘\): a breakpoint at the caret's line, added
 /// or removed.
 - (IBAction)toggleBreakpoint:(nullable id)sender;
+
+/// Edit Breakpoint…: the box below line @a line for its breakpoint's
+/// condition, hit count and log message (Return adds the breakpoint when
+/// there is none). The breakpoint navigator's Edit Breakpoint… comes here.
+- (void)editBreakpointAtLine:(NSInteger)line;
+/// The box, once shown.
+@property (nonatomic, strong, readonly, nullable) UDBreakpointEditorViewController *breakpointEditor;
+/// The debug hover, once shown.
+@property (nonatomic, strong, readonly, nullable) UDDebugHoverViewController *debugHover;
+
+/// While the store's session is stopped (UDBreakpointStore.debugSession):
+/// Run to Cursor (VS Code's), Jump to Cursor (when the adapter has
+/// gotoTargets), at the caret's line; Add to Watch, the selection or the
+/// expression at the caret. The text's context menu has them (from this
+/// controller's XIB), and a host's Debug menu can send them to the first
+/// responder (the text view hands them here).
+- (IBAction)runToCursor:(nullable id)sender;
+- (IBAction)jumpToCursor:(nullable id)sender;
+- (IBAction)addToWatch:(nullable id)sender;
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;

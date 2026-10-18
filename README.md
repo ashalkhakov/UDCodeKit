@@ -3,8 +3,8 @@
 A code editor in Objective-C (ARC) on AppKit: VS Code's text model ported
 (piece tree, decorations, undo, search, multiple cursors), tree-sitter for
 syntax highlighting, folding, auto-indent and parse errors, an LSP client
-for diagnostics, completion and hover, and a debugger with Xcode's UI over
-any Debug Adapter Protocol adapter.
+for diagnostics, completion and hover, and a debugger with Xcode's UI and VS
+Code's features over any Debug Adapter Protocol adapter.
 
 It is being restructured into **UDCodeKit**: an editor library other
 applications embed, and a VS Code-like application built on it, on macOS and
@@ -26,7 +26,9 @@ on GNUstep (Linux).
   their size, hide, and are remembered), `UDEditorTabsController` with
   `UDTabBarView` (editor tabs), and the find and replace bar. And the
   debugger (`Debug/`): `UDBreakpointStore`, `UDDebugSession`, the debug bar,
-  navigator and area; see [docs/debugging.md](docs/debugging.md). Every view
+  the debug and breakpoint navigators, the debug area with its watch
+  expressions, the breakpoint editor and the debug hover, as VS Code's
+  debugging behaves; see [docs/debugging.md](docs/debugging.md). Every view
   is in a XIB.
 - `Sources/` — the test application on top of it: documents, workspaces,
   tabs, the issues pane, the debugger, and a demo debug adapter (`UDCode

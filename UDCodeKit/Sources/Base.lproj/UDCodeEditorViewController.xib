@@ -14,10 +14,76 @@
                 <outlet property="scrollView" destination="TE-scroll-view" id="TE-scroll-outlet"/>
                 <outlet property="textView" destination="TE-text-view" id="TE-text-outlet"/>
                 <outlet property="gutterView" destination="TE-results-gutter" id="TE-results-gutter-outlet"/>
+                <outlet property="breakpointMenu" destination="TE-breakpoint-menu" id="TE-breakpoint-menu-outlet"/>
+                <outlet property="lineMenu" destination="TE-line-menu" id="TE-line-menu-outlet"/>
+                <outlet property="debugTextMenu" destination="TE-debug-menu" id="TE-debug-menu-outlet"/>
             </connections>
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Breakpoint" autoenablesItems="YES" id="TE-breakpoint-menu" userLabel="Breakpoint Menu">
+            <items>
+                <menuItem title="Edit Breakpoint…" id="TE-bp-edit">
+                    <connections>
+                        <action selector="editBreakpoint:" target="-2" id="TE-bp-edit-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Disable Breakpoint" id="TE-bp-enable">
+                    <connections>
+                        <action selector="toggleBreakpointEnabled:" target="-2" id="TE-bp-enable-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Delete Breakpoint" id="TE-bp-delete">
+                    <connections>
+                        <action selector="deleteBreakpoint:" target="-2" id="TE-bp-delete-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Line" autoenablesItems="YES" id="TE-line-menu" userLabel="Line Menu">
+            <items>
+                <menuItem title="Add Breakpoint" id="TE-line-add">
+                    <connections>
+                        <action selector="addBreakpoint:" target="-2" id="TE-line-add-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Add Conditional Breakpoint…" id="TE-line-conditional">
+                    <connections>
+                        <action selector="addConditionalBreakpoint:" target="-2" id="TE-line-conditional-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Add Logpoint…" id="TE-line-logpoint">
+                    <connections>
+                        <action selector="addLogpoint:" target="-2" id="TE-line-logpoint-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="TE-line-sep"/>
+                <menuItem title="Run to Line" id="TE-line-run">
+                    <connections>
+                        <action selector="runToLine:" target="-2" id="TE-line-run-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Debug" autoenablesItems="YES" id="TE-debug-menu" userLabel="Debug Items of the Text's Menu">
+            <items>
+                <menuItem title="Run to Cursor" id="TE-debug-run">
+                    <connections>
+                        <action selector="runToCursor:" target="-2" id="TE-debug-run-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Jump to Cursor" id="TE-debug-jump">
+                    <connections>
+                        <action selector="jumpToCursor:" target="-2" id="TE-debug-jump-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Add to Watch" id="TE-debug-watch">
+                    <connections>
+                        <action selector="addToWatch:" target="-2" id="TE-debug-watch-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
         <customView id="TE-container-view" userLabel="Editor">
             <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>

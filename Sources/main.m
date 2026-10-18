@@ -13,7 +13,9 @@ int main(int argc, const char * argv[]) {
     // no application, its standard input and output.
     if (argc > 1 && [UDDemoDebugAdapterOption isEqualToString:[NSString stringWithUTF8String:argv[1]]]) {
         @autoreleasepool {
-            return [UDDemoDebugAdapter runOnStandardStreams];
+            NSMutableArray *arguments = [NSMutableArray array];
+            for (int i = 2; i < argc; i++) [arguments addObject:[NSString stringWithUTF8String:argv[i]]];
+            return [UDDemoDebugAdapter runOnStandardStreamsWithArguments:arguments];
         }
     }
     return NSApplicationMain(argc, argv);

@@ -52,7 +52,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // MARK: - Debugging
 
-/// The window's breakpoints, which its editors show and set.
+/// The window's breakpoints, which its editors show and set, with the watch
+/// expressions and the exception filters; kept in the user defaults under
+/// "UDCode Debugger <the workspace's path, or Untitled>".
 @property (nonatomic, strong, readonly) UDBreakpointStore *breakpoints;
 
 /// The session Debug > Run started last (kept when it ends, for its console).
@@ -68,6 +70,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)stopDebugging:(nullable id)sender;
 - (IBAction)toggleDebugArea:(nullable id)sender;
 - (IBAction)showDebugNavigator:(nullable id)sender;
+- (IBAction)showBreakpointNavigator:(nullable id)sender;
 
 // MARK: - Workspace state (used by UDWorkspace for workspace file serialisation)
 

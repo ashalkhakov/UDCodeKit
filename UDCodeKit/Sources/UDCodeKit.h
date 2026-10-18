@@ -5,8 +5,9 @@
 //  text model, the editor view controller with its gutters, folding and
 //  auto-indentation, tree-sitter highlighting, language modes loaded from
 //  grammar bundles, the language server client, and the debugger (a debug
-//  adapter's client, with Xcode's breakpoints, debug bar, debug navigator
-//  and debug area).
+//  adapter's client, with Xcode's breakpoints, debug bar, debug navigator,
+//  breakpoint navigator and debug area, and VS Code's conditions, logpoints,
+//  watches and debug hover).
 //
 
 #import <Cocoa/Cocoa.h>
@@ -61,3 +62,6 @@
 #import <UDCodeKit/UDDebugBarViewController.h>
 #import <UDCodeKit/UDDebugNavigatorViewController.h>
 #import <UDCodeKit/UDDebugAreaViewController.h>
+#import <UDCodeKit/UDBreakpointNavigatorViewController.h>
+#import <UDCodeKit/UDBreakpointEditorViewController.h>
+#import <UDCodeKit/UDDebugHoverViewController.h>

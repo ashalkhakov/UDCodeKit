@@ -8,6 +8,10 @@ NSNotificationName const UDBreakpointStoreDidChangeNotification = @"UDBreakpoint
 NSNotificationName const UDBreakpointStoreDidMoveInstructionPointerNotification =
     @"UDBreakpointStoreDidMoveInstructionPointerNotification";
 NSString * const UDBreakpointStoreFileKey = @"UDBreakpointStoreFileKey";
+NSNotificationName const UDBreakpointStoreDidChangeWatchExpressionsNotification =
+    @"UDBreakpointStoreDidChangeWatchExpressionsNotification";
+NSNotificationName const UDBreakpointStoreDidChangeExceptionFiltersNotification =
+    @"UDBreakpointStoreDidChangeExceptionFiltersNotification";
 
 NSString * const UDBreakpointDecorationOwner = @"debug.breakpoint";
 NSString * const UDInstructionPointerDecorationOwner = @"debug.instructionPointer";
@@ -22,11 +26,22 @@ NSString * const UDInstructionPointerDecorationOwner = @"debug.instructionPointe
 @property (nonatomic, getter=isEnabled) BOOL enabled;
 @property (nonatomic, getter=isVerified) BOOL verified;
 @property (nonatomic, copy, nullable) NSString *message;
+@property (nonatomic, copy, nullable) NSString *condition;
+@property (nonatomic, copy, nullable) NSString *hitCondition;
+@property (nonatomic, copy, nullable) NSString *logMessage;
 /// Its decoration in the file's attached text model.
 @property (nonatomic, copy, nullable) NSString *decorationID;
 @end
 
 @implementation UDBreakpoint
+
+- (BOOL)isConditional {
+    return _condition.length > 0 || _hitCondition.length > 0;
+}
+
+- (BOOL)isLogpoint {
+    return _logMessage.length > 0;
+}
 
 - (NSString *)description {
     return [NSString stringWithFormat:@"<%@ %@:%ld%@>", NSStringFromClass([self class]),
@@ -46,6 +61,8 @@ NSString * const UDInstructionPointerDecorationOwner = @"debug.instructionPointe
     NSInteger _instructionPointerLine;
     NSString *_instructionPointerDecorationID;
     __weak UDTextModel *_instructionPointerModel;
+    NSMutableArray<NSString *> *_watchExpressions;
+    NSMutableDictionary<NSString *, NSNumber *> *_exceptionFilterStates;   // filter → on, as chosen
 }
 
 - (instancetype)init {
@@ -53,11 +70,15 @@ NSString * const UDInstructionPointerDecorationOwner = @"debug.instructionPointe
     if (!self) return nil;
     _breakpoints = [NSMutableDictionary dictionary];
     _models = [NSMapTable strongToWeakObjectsMapTable];
+    _watchExpressions = [NSMutableArray array];
+    _exceptionFilters = @[];
+    _exceptionFilterStates = [NSMutableDictionary dictionary];
     return self;
 }
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self];
 }
 
 static NSString *UDStandardPath(NSString *path) {
@@ -72,6 +93,12 @@ static NSString *UDStandardPath(NSString *path) {
     return [files sortedArrayUsingSelector:@selector(compare:)];
 }
 
+- (NSArray<UDBreakpoint *> *)allBreakpoints {
+    NSMutableArray *all = [NSMutableArray array];
+    for (NSString *path in self.files) [all addObjectsFromArray:_breakpoints[path]];
+    return all;
+}
+
 - (NSArray<UDBreakpoint *> *)breakpointsInFile:(NSString *)path {
     return [_breakpoints[UDStandardPath(path)] copy] ?: @[];
 }
@@ -84,6 +111,7 @@ static NSString *UDStandardPath(NSString *path) {
 }
 
 - (void)_postChangeInFile:(NSString *)path {
+    [self _scheduleAutosave];
     [[NSNotificationCenter defaultCenter] postNotificationName:UDBreakpointStoreDidChangeNotification object:self
                                                       userInfo:@{ UDBreakpointStoreFileKey: path }];
 }
@@ -134,6 +162,55 @@ static void UDSortByLine(NSMutableArray<UDBreakpoint *> *breakpoints) {
     breakpoint.verified = YES;
     breakpoint.message = nil;
     [self _postChangeInFile:breakpoint.path];
+}
+
+static NSString *UDNonEmpty(NSString *text) {
+    return text.length ? [text copy] : nil;
+}
+
+static BOOL UDSame(NSString *a, NSString *b) {
+    return a == b || [a isEqualToString:b];
+}
+
+- (void)setBreakpoint:(UDBreakpoint *)breakpoint condition:(NSString *)condition
+         hitCondition:(NSString *)hitCondition logMessage:(NSString *)logMessage {
+    condition = UDNonEmpty(condition);
+    hitCondition = UDNonEmpty(hitCondition);
+    logMessage = UDNonEmpty(logMessage);
+    if (UDSame(breakpoint.condition, condition) && UDSame(breakpoint.hitCondition, hitCondition) &&
+        UDSame(breakpoint.logMessage, logMessage)) return;
+    breakpoint.condition = condition;
+    breakpoint.hitCondition = hitCondition;
+    breakpoint.logMessage = logMessage;
+    [self _postChangeInFile:breakpoint.path];
+}
+
+- (void)setAllBreakpointsEnabled:(BOOL)enabled {
+    for (NSString *path in self.files) {
+        BOOL changed = NO;
+        for (UDBreakpoint *breakpoint in _breakpoints[path]) {
+            if (breakpoint.enabled == enabled) continue;
+            breakpoint.enabled = enabled;
+            breakpoint.verified = YES;
+            breakpoint.message = nil;
+            changed = YES;
+        }
+        if (changed) [self _postChangeInFile:path];
+    }
+}
+
+- (void)removeAllBreakpoints {
+    for (NSString *path in self.files) {
+        UDTextModel *model = [_models objectForKey:path];
+        NSMutableArray *ids = [NSMutableArray array];
+        for (UDBreakpoint *breakpoint in _breakpoints[path]) {
+            if (breakpoint.decorationID) [ids addObject:breakpoint.decorationID];
+            breakpoint.decorationID = nil;
+        }
+        if (model && ids.count) [model deltaDecorations:ids newDecorations:@[] owner:UDBreakpointDecorationOwner];
+        [_breakpoints[path] removeAllObjects];
+        [self _postChangeInFile:path];
+    }
 }
 
 - (void)clickBreakpointAtLine:(NSInteger)line inFile:(NSString *)path {
@@ -259,6 +336,162 @@ static UDRange UDLineRange(UDTextModel *model, NSInteger line) {
         [list removeObjectAtIndex:(NSUInteger)i];
     }
     return YES;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Watch expressions
+// ---------------------------------------------------------------------------
+
+- (NSArray<NSString *> *)watchExpressions {
+    return [_watchExpressions copy];
+}
+
+- (void)_postWatchExpressionsChange {
+    [self _scheduleAutosave];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDBreakpointStoreDidChangeWatchExpressionsNotification
+                                                        object:self];
+}
+
+static NSString *UDTrimmed(NSString *text) {
+    return [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] ?: @"";
+}
+
+- (void)addWatchExpression:(NSString *)expression {
+    expression = UDTrimmed(expression);
+    if (!expression.length) return;
+    [_watchExpressions addObject:expression];
+    [self _postWatchExpressionsChange];
+}
+
+- (void)replaceWatchExpressionAtIndex:(NSUInteger)index withExpression:(NSString *)expression {
+    if (index >= _watchExpressions.count) return;
+    expression = UDTrimmed(expression);
+    if (!expression.length) {
+        [self removeWatchExpressionAtIndex:index];
+        return;
+    }
+    if ([_watchExpressions[index] isEqualToString:expression]) return;
+    _watchExpressions[index] = expression;
+    [self _postWatchExpressionsChange];
+}
+
+- (void)removeWatchExpressionAtIndex:(NSUInteger)index {
+    if (index >= _watchExpressions.count) return;
+    [_watchExpressions removeObjectAtIndex:index];
+    [self _postWatchExpressionsChange];
+}
+
+- (void)removeAllWatchExpressions {
+    if (!_watchExpressions.count) return;
+    [_watchExpressions removeAllObjects];
+    [self _postWatchExpressionsChange];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Exception filters
+// ---------------------------------------------------------------------------
+
+- (void)_postExceptionFiltersChange {
+    [self _scheduleAutosave];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDBreakpointStoreDidChangeExceptionFiltersNotification
+                                                        object:self];
+}
+
+- (void)setExceptionFilters:(NSArray<NSDictionary *> *)exceptionFilters {
+    exceptionFilters = exceptionFilters ?: @[];
+    if ([_exceptionFilters isEqualToArray:exceptionFilters]) return;
+    _exceptionFilters = [exceptionFilters copy];
+    [self _postExceptionFiltersChange];
+}
+
+- (BOOL)isExceptionFilterEnabled:(NSString *)filterID {
+    NSNumber *chosen = _exceptionFilterStates[filterID];
+    if (chosen) return chosen.boolValue;
+    for (NSDictionary *filter in _exceptionFilters) {
+        if ([filter[@"filter"] isEqual:filterID]) return [filter[@"default"] boolValue];
+    }
+    return NO;
+}
+
+- (void)setExceptionFilter:(NSString *)filterID enabled:(BOOL)enabled {
+    if (!filterID || ([self isExceptionFilterEnabled:filterID] == enabled && _exceptionFilterStates[filterID])) return;
+    _exceptionFilterStates[filterID] = @(enabled);
+    [self _postExceptionFiltersChange];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Keeping it
+// ---------------------------------------------------------------------------
+
+- (NSDictionary *)propertyList {
+    NSMutableArray *breakpoints = [NSMutableArray array];
+    for (UDBreakpoint *breakpoint in self.allBreakpoints) {
+        NSMutableDictionary *item = [@{ @"path": breakpoint.path, @"line": @(breakpoint.line),
+                                        @"enabled": @(breakpoint.enabled) } mutableCopy];
+        if (breakpoint.condition) item[@"condition"] = breakpoint.condition;
+        if (breakpoint.hitCondition) item[@"hitCondition"] = breakpoint.hitCondition;
+        if (breakpoint.logMessage) item[@"logMessage"] = breakpoint.logMessage;
+        [breakpoints addObject:item];
+    }
+    return @{ @"breakpoints": breakpoints,
+              @"watchExpressions": [_watchExpressions copy],
+              @"exceptionFilters": _exceptionFilters,
+              @"exceptionFilterStates": [_exceptionFilterStates copy] };
+}
+
+static id UDKindOf(id value, Class kind) {
+    return [value isKindOfClass:kind] ? value : nil;
+}
+
+- (void)restorePropertyList:(NSDictionary *)propertyList {
+    if (![propertyList isKindOfClass:[NSDictionary class]]) return;
+    [self removeAllBreakpoints];
+    for (NSDictionary *item in UDKindOf(propertyList[@"breakpoints"], [NSArray class])) {
+        NSString *path = UDKindOf(item, [NSDictionary class]) ? UDKindOf(item[@"path"], [NSString class]) : nil;
+        NSInteger line = [UDKindOf(item[@"line"], [NSNumber class]) integerValue];
+        if (!path.length || line < 1) continue;
+        UDBreakpoint *breakpoint = [self addBreakpointAtLine:line inFile:path];
+        NSNumber *enabled = UDKindOf(item[@"enabled"], [NSNumber class]);
+        if (enabled && !enabled.boolValue) [self setBreakpoint:breakpoint enabled:NO];
+        [self setBreakpoint:breakpoint condition:UDKindOf(item[@"condition"], [NSString class])
+               hitCondition:UDKindOf(item[@"hitCondition"], [NSString class])
+                 logMessage:UDKindOf(item[@"logMessage"], [NSString class])];
+    }
+    [_watchExpressions removeAllObjects];
+    for (NSString *expression in UDKindOf(propertyList[@"watchExpressions"], [NSArray class])) {
+        if (UDKindOf(expression, [NSString class]) && UDTrimmed(expression).length) [_watchExpressions addObject:expression];
+    }
+    [self _postWatchExpressionsChange];
+    NSMutableArray *filters = [NSMutableArray array];
+    for (NSDictionary *filter in UDKindOf(propertyList[@"exceptionFilters"], [NSArray class])) {
+        if (UDKindOf(filter, [NSDictionary class]) && UDKindOf(filter[@"filter"], [NSString class])) [filters addObject:filter];
+    }
+    _exceptionFilters = filters;
+    [_exceptionFilterStates removeAllObjects];
+    NSDictionary *states = UDKindOf(propertyList[@"exceptionFilterStates"], [NSDictionary class]);
+    for (NSString *filterID in states) {
+        if (UDKindOf(states[filterID], [NSNumber class])) _exceptionFilterStates[filterID] = states[filterID];
+    }
+    [self _postExceptionFiltersChange];
+}
+
+- (void)setAutosaveName:(NSString *)autosaveName {
+    _autosaveName = [autosaveName copy];
+    NSDictionary *saved = autosaveName ? [[NSUserDefaults standardUserDefaults] dictionaryForKey:autosaveName] : nil;
+    if (saved) [self restorePropertyList:saved];
+}
+
+/// Saved once whatever changes now has changed (an edit can move many).
+- (void)_scheduleAutosave {
+    if (!_autosaveName) return;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_autosave) object:nil];
+    // AppKit's modal and tracking modes too, by name: the store is Foundation's.
+    [self performSelector:@selector(_autosave) withObject:nil afterDelay:0
+                  inModes:@[ NSDefaultRunLoopMode, @"NSModalPanelRunLoopMode", @"NSEventTrackingRunLoopMode" ]];
+}
+
+- (void)_autosave {
+    if (_autosaveName) [[NSUserDefaults standardUserDefaults] setObject:[self propertyList] forKey:_autosaveName];
 }
 
 // ---------------------------------------------------------------------------

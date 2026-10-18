@@ -663,6 +663,11 @@
                                     <action selector="showDebugNavigator:" target="-1" id="UDM-debugnav-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Breakpoints" keyEquivalent="8" id="UDM-breakpointnav">
+                                <connections>
+                                    <action selector="showBreakpointNavigator:" target="-1" id="UDM-breakpointnav-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="UDM-view-sep3"/>
                             <menuItem title="Show Debug Area" keyEquivalent="y" id="UDM-debugarea">
                                 <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
@@ -717,6 +722,22 @@
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="debugStepOut:" target="-1" id="UDM-stepout-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Step Back" id="UDM-stepback">
+                                <connections>
+                                    <action selector="debugStepBack:" target="-1" id="UDM-stepback-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Run to Cursor" keyEquivalent="c" id="UDM-runtocursor">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
+                                <connections>
+                                    <action selector="runToCursor:" target="-1" id="UDM-runtocursor-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Jump to Cursor" id="UDM-jumptocursor">
+                                <connections>
+                                    <action selector="jumpToCursor:" target="-1" id="UDM-jumptocursor-a"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="UDM-debug-sep2"/>

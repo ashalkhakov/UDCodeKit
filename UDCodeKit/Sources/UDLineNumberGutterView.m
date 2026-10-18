@@ -219,11 +219,13 @@ static NSBezierPath *UDTagPath(NSRect rect) {
             lastDrawnLine = lineNumber;
 
             // -- Breakpoint and instruction pointer, under the number --
-            UDGutterBreakpoint breakpoint = [breakpoints[@(lineNumber)] integerValue];
+            NSInteger drawn = [breakpoints[@(lineNumber)] integerValue];
+            UDGutterBreakpoint breakpoint = drawn & UDGutterBreakpointStateMask;
             BOOL here = lineNumber == pointerLine;
             NSRect tag = NSMakeRect(1.0, NSMinY(fragInGutter) + 0.5,
                                     numberColumnRight + 8.0, NSHeight(fragInContainer) - 1.0);
             [self _drawBreakpoint:breakpoint instructionPointer:here inRect:tag];
+            if (breakpoint) [self _drawMark:drawn & ~UDGutterBreakpointStateMask of:breakpoint inRect:tag];
 
             // -- Line number --
             NSDictionary *numberAttrs = (breakpoint == UDGutterBreakpointEnabled || here) ? onTag : attrs;
@@ -279,6 +281,28 @@ static NSBezierPath *UDTagPath(NSRect rect) {
         }
         [UDInstructionPointerColor() setFill];
         [UDTagPath(inner) fill];
+    }
+}
+
+/// A conditional breakpoint's "=" and a logpoint's diamond, at the left of
+/// its tag, where the number leaves room: white on the blue, blue on an
+/// outlined one.
+- (void)_drawMark:(NSInteger)mark of:(UDGutterBreakpoint)breakpoint inRect:(NSRect)rect {
+    if (!mark) return;
+    NSColor *color = breakpoint == UDGutterBreakpointUnverified ? UDBreakpointColor() : [NSColor whiteColor];
+    CGFloat size = MIN(NSHeight(rect) - 4.0, 7.0), x = NSMinX(rect) + 3.0, y = NSMidY(rect);
+    [color set];
+    if (mark & UDGutterBreakpointLogpoint) {
+        NSBezierPath *diamond = [NSBezierPath bezierPath];
+        [diamond moveToPoint:NSMakePoint(x, y)];
+        [diamond lineToPoint:NSMakePoint(x + size / 2, y - size / 2)];
+        [diamond lineToPoint:NSMakePoint(x + size, y)];
+        [diamond lineToPoint:NSMakePoint(x + size / 2, y + size / 2)];
+        [diamond closePath];
+        [diamond fill];
+    } else {
+        NSRectFill(NSMakeRect(x, y - 2.5, size, 1.5));
+        NSRectFill(NSMakeRect(x, y + 1.0, size, 1.5));
     }
 }
 
@@ -340,11 +364,27 @@ static NSBezierPath *UDTagPath(NSRect rect) {
     return [_textModel getPositionAt:(NSInteger)charIdx].line;
 }
 
+/// A line's context menu, the delegate's.
+- (NSMenu *)menuForEvent:(NSEvent *)event {
+    NSInteger lineNumber = [self lineAtPoint:[self convertPoint:event.locationInWindow fromView:nil]];
+    if (lineNumber < 1 || ![_delegate respondsToSelector:@selector(lineNumberGutterView:menuForLine:)]) {
+        return [super menuForEvent:event];
+    }
+    return [_delegate lineNumberGutterView:self menuForLine:lineNumber];
+}
+
 - (void)mouseDown:(NSEvent *)event {
     NSPoint ptInSelf = [self convertPoint:event.locationInWindow fromView:nil];
     NSInteger lineNumber = [self lineAtPoint:ptInSelf];
     _pressedLine = 0;
     if (lineNumber < 1) return;
+
+    // A control click is a right click, as Xcode has it.
+    if (event.modifierFlags & NSEventModifierFlagControl) {
+        NSMenu *menu = [self menuForEvent:event];
+        if (menu) [NSMenu popUpContextMenu:menu withEvent:event forView:self];
+        return;
+    }
 
     // Left of the fold column: the line number, and its breakpoint.
     CGFloat foldColLeft = NSWidth(self.bounds) - kFoldColumnWidth;

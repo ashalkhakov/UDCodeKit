@@ -51,6 +51,33 @@
     return changed;
 }
 
++ (NSArray<NSDictionary *> *)textEditsOfFileURL:(NSURL *)url inEdit:(NSDictionary *)edit {
+    NSDictionary<NSURL *, NSArray *> *files = [self _editsByFile:edit];
+    NSString *path = url.path.stringByStandardizingPath;
+    for (NSURL *file in files) {
+        if ([file.path.stringByStandardizingPath isEqualToString:path]) return files[file];
+    }
+    return @[];
+}
+
++ (NSDictionary *)edit:(NSDictionary *)edit withNewText:(NSString *)text excludingFileURL:(NSURL *)url {
+    NSDictionary<NSURL *, NSArray *> *files = [self _editsByFile:edit];
+    NSString *path = url.path.stringByStandardizingPath;
+    NSMutableDictionary<NSString *, NSArray *> *changes = [NSMutableDictionary dictionary];
+    for (NSURL *file in files) {
+        if (path && [file.path.stringByStandardizingPath isEqualToString:path]) continue;
+        NSMutableArray *edits = [NSMutableArray array];
+        for (NSDictionary *textEdit in files[file]) {
+            if (![textEdit isKindOfClass:[NSDictionary class]]) continue;
+            NSMutableDictionary *renamed = [textEdit mutableCopy];
+            renamed[@"newText"] = text;
+            [edits addObject:renamed];
+        }
+        changes[file.absoluteString] = edits;
+    }
+    return @{ @"changes": changes };
+}
+
 /// A position ({line, character}) as an index of @a lineStarts' text.
 static NSUInteger UDIndexOfPosition(NSDictionary *position, NSArray<NSNumber *> *lineStarts, NSUInteger length) {
     NSInteger line = [position[@"line"] integerValue];

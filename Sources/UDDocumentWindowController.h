@@ -19,7 +19,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController,
-       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDTextPromptController;
+       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDLinkedEditing, UDIssuePopupController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -100,15 +100,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)findReferences:(nullable id)sender;
 - (IBAction)openQuickly:(nullable id)sender;
 @property (nonatomic, strong, readonly, nullable) UDOpenQuicklyController *openQuickly;
-/// Rename Symbol: asks for the name in this sheet.
+/// Rename Symbol: the symbol edited where it stands (Return: everywhere).
 - (IBAction)renameSymbol:(nullable id)sender;
-@property (nonatomic, strong, readonly, nullable) UDTextPromptController *renamePrompt;
+@property (nonatomic, readonly, nullable) UDLinkedEditing *renaming;
 - (IBAction)formatDocument:(nullable id)sender;
-/// Fix Issue: the code actions found, in a menu; each performed by its index.
+/// Fix Issue: the code actions found, in a Fix-its panel; each performed by its index.
 - (IBAction)fixIssue:(nullable id)sender;
 @property (nonatomic, readonly, copy) NSArray<NSDictionary *> *codeActions;
-/// Their menu, the last shown (macOS tracks it modally; GNUstep leaves it up).
-@property (nonatomic, readonly, nullable) NSMenu *codeActionsMenu;
+/// Their panel, while it is up.
+@property (nonatomic, readonly, nullable) UDIssuePopupController *issuePopup;
 - (void)performCodeActionAtIndex:(NSUInteger)index;
 /// The call's signature shown as it is typed; nil when none is.
 @property (nonatomic, readonly, copy, nullable) NSString *signatureHelpText;

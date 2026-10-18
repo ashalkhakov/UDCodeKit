@@ -29,6 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSArray<NSURL *> *)applyEdit:(NSDictionary *)edit documents:(nullable id<UDWorkspaceEditDocuments>)documents
                           error:(NSError * _Nullable * _Nullable)error;
 
+/// The TextEdits @a edit makes to the file at @a url (by its path).
++ (NSArray<NSDictionary *> *)textEditsOfFileURL:(NSURL *)url inEdit:(NSDictionary *)edit;
+/// @a edit with every TextEdit's newText @a text, the file at @a url left out
+/// (a rename's edit, once the name is known).
++ (NSDictionary *)edit:(NSDictionary *)edit withNewText:(NSString *)text excludingFileURL:(nullable NSURL *)url;
+
 /// TextEdits ([{ range, newText }]) to one text model, at once.
 + (void)applyTextEdits:(NSArray<NSDictionary *> *)edits toTextModel:(UDTextModel *)model;
 /// TextEdits to a string: the string they make.

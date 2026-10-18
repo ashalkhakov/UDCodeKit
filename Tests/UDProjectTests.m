@@ -30,9 +30,6 @@
 @property (nonatomic, weak) UDDocumentWindowController *sheetController;
 @property (nonatomic, copy) NSString *sheetPlaceholder;
 @property (nonatomic, copy) NSString *sheetBuild;
-/// The name -answerRename types into Rename Symbol's sheet.
-@property (nonatomic, copy) NSString *renameTo;
-@property (nonatomic) BOOL renameAnswered;
 @end
 
 @implementation UDProjectTests
@@ -530,6 +527,18 @@
                                                encoding:NSUTF8StringEncoding error:NULL];
     XCTAssertEqualObjects(text, @"omega beta\ngamma omega\n");
 
+    // a rename's edit to a stand-in name, given the real one, the file being typed in left out
+    NSString *other = [NSURL fileURLWithPath:@"/tmp/elsewhere.c"].absoluteString;
+    NSDictionary *standIn = @{ @"changes": @{ closed: @[ @{ @"range": range00, @"newText": @"x_udcode_rename" } ],
+                                              other: @[ @{ @"range": range16, @"newText": @"x_udcode_rename" } ] } };
+    NSDictionary *renamed = [UDWorkspaceEdit edit:standIn withNewText:@"better"
+                                 excludingFileURL:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"closed.txt"]]];
+    XCTAssertEqualObjects([renamed[@"changes"] allKeys], @[ other ]);
+    XCTAssertEqualObjects(renamed[@"changes"][other][0][@"newText"], @"better");
+    XCTAssertEqualObjects(renamed[@"changes"][other][0][@"range"], range16);
+    XCTAssertEqual([UDWorkspaceEdit textEditsOfFileURL:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"closed.txt"]]
+                                                inEdit:standIn].count, 1u);
+
     UDTextModel *model = [[UDTextModel alloc] initWithText:@"one two\nthree\n"];
     [UDWorkspaceEdit applyTextEdits:@[ @{ @"range": @{ @"start": @{ @"line": @1, @"character": @0 }, @"end": @{ @"line": @1, @"character": @5 } },
                                           @"newText": @"3" },
@@ -603,33 +612,6 @@
     textView.selectedRange = NSMakeRange(found.location + offset, 0);
 }
 
-/// Rename Symbol's sheet answered when it shows (on GNUstep it runs a modal loop of its own).
-- (void)answerRename:(UDDocumentWindowController *)controller {
-    UDTextPromptController *prompt = controller.renamePrompt;
-    if (!prompt.window.isVisible) {
-        [self performSelector:@selector(answerRename:) withObject:controller afterDelay:0.1
-                      inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
-        return;
-    }
-    prompt.textField.stringValue = _renameTo;
-    [prompt ok:nil];
-    _renameAnswered = YES;
-}
-
-/// Fix Issue's menu dismissed when it shows (it tracks the mouse modally).
-- (void)dismissFixMenu:(UDDocumentWindowController *)controller {
-    NSMenu *menu = controller.codeActionsMenu;
-#ifdef __APPLE__
-    [menu cancelTracking];
-#else
-    [menu close];
-#endif
-    if (!menu) {
-        [self performSelector:@selector(dismissFixMenu:) withObject:controller afterDelay:0.1
-                      inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ]];
-    }
-}
-
 /// clangd, through the Navigate and Editor menus: the caret's symbol
 /// highlighted where it occurs; Fix Issue's fix; Jump to Definition; Find
 /// References; Rename Symbol; Format Document; a call's signature as it is typed.
@@ -663,16 +645,18 @@
     UDRunUntil(lsp.occurrenceRanges.count == 4, 10);
     XCTAssertEqual(lsp.occurrenceRanges.count, 4u);
 
-    // Fix Issue: clangd's fix, the missing semicolon
+    // Fix Issue: clangd's fix, the missing semicolon, in a Fix-its panel; Return applies it
     [self put:textView at:@"bump(2)" nth:0 offset:7];
-    NSArray *modes = @[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ];
-    [self performSelector:@selector(dismissFixMenu:) withObject:controller afterDelay:0.1 inModes:modes];
     [controller fixIssue:nil];
-    UDRunUntil(controller.codeActions.count > 0 && controller.codeActionsMenu, 10);
-    UDRunUntil(NO, 0.3);    // the menu dismissed
-    XCTAssertTrue(controller.codeActions.count > 0, @"a fix for the missing ';'");
-    [controller performCodeActionAtIndex:0];
+    UDRunUntil(controller.issuePopup != nil, 10);
+    XCTAssertNotNil(controller.issuePopup, @"the Fix-its are up");
+    XCTAssertTrue([controller.issuePopup.messageLabel.stringValue containsString:@"after return statement"],
+                  @"the issue's message: %@", controller.issuePopup.messageLabel.stringValue);
+    XCTAssertTrue(controller.issuePopup.fixes.count > 0);
+    [textView doCommandBySelector:@selector(insertNewline:)];
+    XCTAssertNil(controller.issuePopup, @"away once applied");
     XCTAssertTrue([[document.textModel getValue] containsString:@"bump(2);"], @"%@", [document.textModel getValue]);
+    XCTAssertFalse([[document.textModel getValue] containsString:@"bump(2)\n\n"], @"Return went to the panel, not the text");
 
     // Jump to Definition, from a call
     [self put:textView at:@"bump" nth:1 offset:1];
@@ -686,13 +670,31 @@
     UDRunUntil(controller.searchResults.results.count == 3, 10);
     XCTAssertEqualObjects([controller.searchResults.results valueForKey:@"line"], (@[ @2, @7, @8 ]));
 
-    // Rename Symbol
-    _renameTo = @"increase";
-    [self performSelector:@selector(answerRename:) withObject:controller afterDelay:0.1 inModes:modes];
+    // Rename Symbol, as Xcode's: typed where it stands, the file's other places following
+    [self put:textView at:@"bump" nth:2 offset:2];
     [controller renameSymbol:nil];
-    UDRunUntil(_renameAnswered && [[document.textModel getValue] containsString:@"increase(2)"], 10);
+    UDRunUntil(controller.renaming != nil, 10);
+    XCTAssertEqual(controller.renaming.ranges.count, 3u, @"its declaration and both calls");
+    XCTAssertEqualObjects([textView.string substringWithRange:textView.selectedRange], @"bump", @"the one at the caret selected");
+    [textView insertText:@"incr"];
+    UDRunUntil([[document.textModel getValue] componentsSeparatedByString:@"incr("].count == 4, 5);
+    XCTAssertEqual([[document.textModel getValue] componentsSeparatedByString:@"incr("].count, 4u, @"%@", [document.textModel getValue]);
+    [textView insertText:@"ease"];
+    [textView doCommandBySelector:@selector(insertNewline:)];
+    XCTAssertNil(controller.renaming, @"Return ends it");
     XCTAssertFalse([[document.textModel getValue] containsString:@"bump"], @"%@", [document.textModel getValue]);
-    XCTAssertEqual([[document.textModel getValue] componentsSeparatedByString:@"increase"].count, 4u);
+    XCTAssertEqual([[document.textModel getValue] componentsSeparatedByString:@"increase("].count, 4u, @"%@", [document.textModel getValue]);
+    XCTAssertFalse([[document.textModel getValue] containsString:@"\n\n"], @"Return made no line: %@", [document.textModel getValue]);
+
+    // Escape puts it back
+    [self put:textView at:@"increase" nth:1 offset:0];
+    [controller renameSymbol:nil];
+    UDRunUntil(controller.renaming != nil, 10);
+    [textView insertText:@"oops"];
+    UDRunUntil([[document.textModel getValue] componentsSeparatedByString:@"oops"].count == 4, 5);
+    [textView doCommandBySelector:@selector(cancelOperation:)];
+    XCTAssertFalse([[document.textModel getValue] containsString:@"oops"], @"%@", [document.textModel getValue]);
+    XCTAssertEqual([[document.textModel getValue] componentsSeparatedByString:@"increase("].count, 4u);
 
     // Format Document: clangd's style
     [controller formatDocument:nil];

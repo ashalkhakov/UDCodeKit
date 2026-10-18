@@ -96,9 +96,9 @@ As in Xcode, with the language server doing the work:
 | Navigate › Jump to Definition | ⌃⌘J | where the symbol at the caret is defined |
 | Navigate › Find References | ⇧⌃⌘F | everywhere it is used, in the Find navigator |
 | Edit › Find › Find in Workspace… | ⇧⌘F | the folder's files searched (ripgrep, else grep), the matches by file in the Find navigator (⌘3) |
-| Editor › Rename Symbol… | ⌃⌘E | its new name asked for, then changed everywhere: open files through their editors (one undo), the others on disk |
+| Editor › Rename Symbol | ⌃⌘E | edited where it stands, as in Xcode: every place it is in the file changes as you type; Return, and the other files change too (open ones through their editors, the others on disk); Escape puts it back |
 | Editor › Format Document | ⌃⇧I | the server's formatting (clangd follows the project's `.clang-format`) |
-| Editor › Fix Issue at Cursor | ⌃⌥⌘F | the server's fixes for the caret's issue, and its refactorings, in a menu |
+| Editor › Fix Issue at Cursor | ⌃⌥⌘F | the caret's issue and the server's fixes for it (then its refactorings), in a Fix-its panel at the issue, as Xcode's: Return or a click applies one, the arrows choose, Escape puts it away |
 
 Typing `(` or `,` in a call shows the function's signature, the parameter
 there in bold. Resting the caret on a symbol highlights it wherever it occurs
@@ -165,7 +165,8 @@ the SDK on macOS, and the folder's headers.
 | `UDOpenQuicklyController` | UDCodeKit `Project/`, `UDOpenQuickly.xib` | Open Quickly |
 | `UDWorkspaceEdit` | UDCodeKit `LSP/` | a server's WorkspaceEdit or TextEdits, applied |
 | `UDOccurrencesHighlighter` | UDCodeKit `Highlighters/` | the caret's symbol, where it occurs |
-| `UDTextPromptController` | UDCodeKit `Workbench/`, `UDTextPrompt.xib` | a sheet asking for one line (Rename Symbol's) |
+| `UDLinkedEditing` | UDCodeKit `Highlighters/` | places edited together (Rename Symbol's) |
+| `UDIssuePopupController` | UDCodeKit `Workbench/`, `UDIssuePopup.xib` | an issue's Fix-its |
 | `UDDocumentWindowController` | UDCode | the project window: navigator, tabs, the menus' actions |
 
 How this compares with VS Code: [architecture.md](architecture.md).

@@ -32,7 +32,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
-                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate,
+                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -48,11 +48,16 @@ static const NSInteger UDAfterBuildDebug = 2;
 @property (nonatomic, weak) IBOutlet NSTextField        *activityLabel;
 @property (nonatomic, strong, readwrite) UDSearchResultsViewController *searchResults;
 @property (nonatomic, strong, readwrite, nullable) UDOpenQuicklyController *openQuickly;
-@property (nonatomic, strong, readwrite, nullable) UDTextPromptController *renamePrompt;
+@property (nonatomic, strong, nullable) UDLinkedEditing *rename;
+@property (nonatomic, strong, nullable) NSDictionary *renameEdit;
+@property (nonatomic, weak, nullable) UDLSPCoordinator *renameCoordinator;
+@property (nonatomic) NSUInteger renameIndex;
 @property (nonatomic, weak, nullable) UDTextModel *formattingModel;
 @property (nonatomic, readwrite, copy, nullable) NSArray<NSDictionary *> *codeActions;
 @property (nonatomic, weak, nullable) UDLSPCoordinator *codeActionCoordinator;
-@property (nonatomic, strong, readwrite, nullable) NSMenu *codeActionsMenu;
+@property (nonatomic, strong, nullable) UDIssuePopupController *issuePopup;
+@property (nonatomic, copy, nullable) NSString *issueMessage;
+@property (nonatomic) NSUInteger issueIndex;
 @property (nonatomic, strong, nullable) UDHoverViewController *signatureHelp;
 @property (nonatomic, weak, nullable) UDDiagnosticTextView *signatureTextView;
 @property (nonatomic) NSUInteger signatureIndex;
@@ -635,14 +640,20 @@ static const NSInteger UDAfterBuildDebug = 2;
     }
 }
 
-/// The word at the caret: what a search is for.
+/// The identifier at the caret (letters, digits, underscores, as code's
+/// are; not the text system's idea of a word): what a search is for.
 - (NSString *)_wordAtCaret {
     NSTextView *textView = [self _selectedEditor].textView;
     if (!textView) return @"";
+    NSString *string = textView.string;
     NSRange selected = textView.selectedRange;
-    if (selected.length) return [textView.string substringWithRange:selected];
-    NSRange word = [textView selectionRangeForProposedRange:NSMakeRange(selected.location, 0) granularity:NSSelectByWord];
-    return word.length && NSMaxRange(word) <= textView.string.length ? [textView.string substringWithRange:word] : @"";
+    if (selected.length) return [string substringWithRange:selected];
+    NSMutableCharacterSet *identifier = [NSMutableCharacterSet alphanumericCharacterSet];
+    [identifier addCharactersInString:@"_"];
+    NSUInteger start = MIN(selected.location, string.length), end = start;
+    while (start > 0 && [identifier characterIsMember:[string characterAtIndex:start - 1]]) start--;
+    while (end < string.length && [identifier characterIsMember:[string characterAtIndex:end]]) end++;
+    return [string substringWithRange:NSMakeRange(start, end - start)];
 }
 
 - (void)_didFindReferences:(LSPResponse *)response {
@@ -701,44 +712,105 @@ static const NSInteger UDAfterBuildDebug = 2;
     return changed.count > 0;
 }
 
-/// Editor > Rename Symbol (⌃⌘E): its new name asked for, then each place it is.
+/// Editor > Rename Symbol (⌃⌘E), as Xcode's: the symbol edited where it
+/// stands, every place it is in this file with it; Return, and the other
+/// files take the name too; Escape puts it back.
+///
+/// The places come first, from a rename to a stand-in name: where a rename
+/// edits does not depend on the name it gives.
 - (IBAction)renameSymbol:(nullable id)sender {
     UDCodeEditorViewController *editor = [self _selectedEditor];
     UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
-    if (!editor || !lsp.ready) {
-        NSBeep();
-        return;
-    }
-    NSRange selected = editor.textView.selectedRange;
     NSString *word = [self _wordAtCaret];
-    if (!word.length) {
+    if (!editor || !lsp.ready || !word.length || _rename.active) {
         NSBeep();
         return;
     }
-    if (!_renamePrompt) _renamePrompt = [[UDTextPromptController alloc] init];
-    _renamePrompt.context = @{ @"coordinator": lsp, @"index": @(selected.location) };
-    [_renamePrompt beginSheetForWindow:self.window message:[NSString stringWithFormat:@"Rename “%@” to:", word]
-                                  text:word target:self action:@selector(_renamePromptDidEnd:)];
-}
-
-- (void)_renamePromptDidEnd:(UDTextPromptController *)prompt {
-    UDLSPCoordinator *lsp = prompt.context[@"coordinator"];
-    NSUInteger index = [prompt.context[@"index"] unsignedIntegerValue];
-    prompt.context = nil;
-    NSString *name = [prompt.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    if (prompt.returnCode != NSModalResponseOK || !name.length) return;
-    if (![lsp request:@"textDocument/rename" atIndex:index extra:@{ @"newName": name }
-               target:self action:@selector(_didRename:)]) {
+    _renameCoordinator = lsp;
+    _renameIndex = editor.textView.selectedRange.location;
+    NSString *standIn = @"udcodeRenameStandIn";
+    if (![lsp request:@"textDocument/rename" atIndex:_renameIndex extra:@{ @"newName": standIn }
+               target:self action:@selector(_didFindRenamePlaces:)]) {
         NSBeep();
     }
 }
 
-- (void)_didRename:(LSPResponse *)response {
-    if (response.error) {
-        [self _tell:@"The symbol could not be renamed." detail:response.error.localizedDescription];
+- (void)_didFindRenamePlaces:(LSPResponse *)response {
+    UDLSPCoordinator *lsp = _renameCoordinator;
+    NSDictionary *edit = [response.result isKindOfClass:[NSDictionary class]] ? response.result : nil;
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    if (response.error || !edit || !lsp || [self _activeSession].lspCoordinator != lsp) {
+        if (response.error) [self _tell:@"The symbol can't be renamed." detail:response.error.localizedDescription];
+        else NSBeep();
         return;
     }
-    if (![response.result isKindOfClass:[NSDictionary class]] || ![self _applyWorkspaceEdit:response.result]) NSBeep();
+    // this file's places: the one at the caret first
+    NSMutableArray<NSValue *> *ranges = [NSMutableArray array];
+    for (NSDictionary *textEdit in [UDWorkspaceEdit textEditsOfFileURL:lsp.documentURL inEdit:edit]) {
+        NSRange range = [lsp characterRangeOfLSPRange:textEdit[@"range"]];
+        if (range.location == NSNotFound) continue;
+        BOOL atCaret = _renameIndex >= range.location && _renameIndex <= NSMaxRange(range);
+        if (atCaret) [ranges insertObject:[NSValue valueWithRange:range] atIndex:0];
+        else [ranges addObject:[NSValue valueWithRange:range]];
+    }
+    if (!ranges.count) {
+        NSBeep();
+        return;
+    }
+    _renameEdit = edit;
+    _rename = [[UDLinkedEditing alloc] initWithTextView:editor.textView
+                                            textStorage:[self _activeSession].textStorage ranges:ranges];
+    _rename.delegate = self;
+    [self.window makeFirstResponder:editor.textView];
+    [_rename begin];
+}
+
+/// Return or Escape while renaming: its end. With the Fix-its up: Return
+/// applies the one selected, the arrows choose, Escape puts them away.
+- (BOOL)textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
+    if (_issuePopup.shown) {
+        if (sel_isEqual(command, @selector(insertNewline:))) {
+            [_issuePopup chooseSelectedFix];
+            return YES;
+        }
+        if (sel_isEqual(command, @selector(moveDown:)) || sel_isEqual(command, @selector(moveUp:))) {
+            NSUInteger index = _issuePopup.selectedIndex;
+            _issuePopup.selectedIndex = sel_isEqual(command, @selector(moveDown:)) ? index + 1 : (index ? index - 1 : 0);
+            return YES;
+        }
+        if (sel_isEqual(command, @selector(cancelOperation:))) {
+            [_issuePopup close];
+            return YES;
+        }
+    }
+    if (!_rename.active) return NO;
+    if (sel_isEqual(command, @selector(insertNewline:))) {
+        [_rename commit];
+        return YES;
+    }
+    if (sel_isEqual(command, @selector(cancelOperation:))) {
+        [_rename cancel];
+        return YES;
+    }
+    return NO;
+}
+
+/// Renamed in this file: the other files take the name the same way.
+- (void)linkedEditing:(UDLinkedEditing *)editing didEndWithText:(NSString *)text cancelled:(BOOL)cancelled {
+    // kept until the next rename: this is called from inside it
+    NSDictionary *edit = _renameEdit;
+    NSURL *here = _renameCoordinator.documentURL;
+    _renameEdit = nil;
+    if (cancelled || [text isEqualToString:editing.originalText] || !edit) return;
+    NSDictionary *others = [UDWorkspaceEdit edit:edit withNewText:text excludingFileURL:here];
+    NSError *error = nil;
+    [UDWorkspaceEdit applyEdit:others documents:self error:&error];
+    if (error) [self _tell:@"Some files could not be changed." detail:error.localizedDescription];
+}
+
+/// The rename under way, if one is.
+- (nullable UDLinkedEditing *)renaming {
+    return _rename.active ? _rename : nil;
 }
 
 /// Editor > Format Document (⌃⇧I): the server's formatting, one undoable edit.
@@ -760,8 +832,9 @@ static const NSInteger UDAfterBuildDebug = 2;
     if (model && edits.count) [UDWorkspaceEdit applyTextEdits:edits toTextModel:model];
 }
 
-/// Editor > Fix Issue at Cursor (⌃⌥⌘F): the server's code actions for the
-/// caret's diagnostics (its fixes first), in a menu at the caret.
+/// Editor > Fix Issue at Cursor (⌃⌥⌘F), as Xcode's Fix-its: the caret's
+/// issue and the server's fixes for it (its code actions, the fixes first,
+/// then refactorings), in a panel at the issue.
 - (IBAction)fixIssue:(nullable id)sender {
     UDCodeEditorViewController *editor = [self _selectedEditor];
     UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
@@ -776,6 +849,10 @@ static const NSInteger UDAfterBuildDebug = 2;
     NSDictionary *params = @{ @"range": [lsp LSPRangeOfCharacterRange:selected],
                               @"context": @{ @"diagnostics": [lsp diagnosticsInCharacterRange:range] } };
     _codeActionCoordinator = lsp;
+    NSArray<NSDictionary *> *diagnostics = params[@"context"][@"diagnostics"];
+    _issueMessage = [diagnostics.firstObject[@"message"] isKindOfClass:[NSString class]] ? diagnostics.firstObject[@"message"] : nil;
+    _issueIndex = diagnostics.count ? [lsp characterRangeOfLSPRange:diagnostics.firstObject[@"range"]].location : selected.location;
+    if (_issueIndex == NSNotFound) _issueIndex = selected.location;
     if (![lsp request:@"textDocument/codeAction" extra:params target:self action:@selector(_didFindCodeActions:)]) NSBeep();
 }
 
@@ -796,32 +873,26 @@ static const NSInteger UDAfterBuildDebug = 2;
         NSBeep();
         return;
     }
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Fixes"];
-    [actions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger i, BOOL *stop) {
-        NSMenuItem *item = [menu addItemWithTitle:action[@"title"] action:@selector(performCodeAction:) keyEquivalent:@""];
-        item.target = self;
-        item.tag = (NSInteger)i;
-    }];
-    // below the caret's line, at the caret
-    NSLayoutManager *layout = textView.layoutManager;
-    NSUInteger caret = MIN(textView.selectedRange.location, textView.string.length);
-    NSRange glyphs = [layout glyphRangeForCharacterRange:NSMakeRange(caret, 0) actualCharacterRange:NULL];
-    NSRect line = [layout lineFragmentRectForGlyphAtIndex:MIN(glyphs.location, MAX(layout.numberOfGlyphs, 1) - 1) effectiveRange:NULL];
-    NSPoint x = [layout locationForGlyphAtIndex:MIN(glyphs.location, MAX(layout.numberOfGlyphs, 1) - 1)];
-    NSPoint origin = textView.textContainerOrigin;
-    NSPoint at = NSMakePoint(origin.x + line.origin.x + x.x, origin.y + NSMaxY(line));
-    _codeActionsMenu = menu;
-    [menu popUpMenuPositioningItem:nil atLocation:at inView:textView];
+    if (!_issuePopup) {
+        _issuePopup = [[UDIssuePopupController alloc] init];
+        _issuePopup.delegate = self;
+    }
+    BOOL fixes = [actions.firstObject[@"kind"] isEqual:@"quickfix"] || [actions.firstObject[@"isPreferred"] boolValue];
+    NSString *message = _issueMessage ?: (fixes ? @"Fixes" : @"Refactorings");
+    [_issuePopup showMessage:message fixes:[actions valueForKey:@"title"] atCharacterIndex:_issueIndex ofTextView:textView];
 }
 
-/// One of the code actions chosen: its edit, then its command (which may
-/// send its own edit back, workspace/applyEdit).
-- (IBAction)performCodeAction:(nullable id)sender {
-    NSInteger index = [sender respondsToSelector:@selector(tag)] ? [sender tag] : 0;
-    if (index < 0 || (NSUInteger)index >= _codeActions.count) return;
-    [self _performCodeAction:_codeActions[(NSUInteger)index]];
+- (void)issuePopup:(UDIssuePopupController *)popup didChooseFixAtIndex:(NSUInteger)index {
+    if (index < _codeActions.count) [self _performCodeAction:_codeActions[index]];
 }
 
+/// The Fix-its panel, while it is up.
+- (nullable UDIssuePopupController *)issuePopup {
+    return _issuePopup.shown ? _issuePopup : nil;
+}
+
+/// A code action chosen: its edit, then its command (which may send its own
+/// edit back, workspace/applyEdit).
 - (void)_performCodeAction:(NSDictionary *)action {
     LSPClient *client = _codeActionCoordinator.client;
     // a bare Command, or a CodeAction with an edit and/or a command
@@ -899,6 +970,7 @@ static const NSInteger UDAfterBuildDebug = 2;
     NSTextView *textView = note.object;
     if (textView != [self _selectedEditor].textView) return;
     [[self _activeSession].lspCoordinator highlightOccurrencesAtIndex:textView.selectedRange.location];
+    [_issuePopup close];
     if (_signatureHelp.shown && _signatureTextView == textView) {
         NSUInteger caret = textView.selectedRange.location;
         NSString *string = textView.string;
@@ -1633,6 +1705,11 @@ static const NSInteger UDAfterBuildDebug = 2;
 }
 
 - (void)close {
+    // the popups, children of the window, go first
+    [_signatureHelp close];
+    [_hover close];
+    [_issuePopup close];
+    [_rename cancel];
     [_debugSession stop];
     [_fileWatcher stop];
     // the project's language servers go with its window

@@ -37,8 +37,10 @@ static const CGFloat UDHoverMaxWidth = 480, UDHoverMaxHeight = 240;
     return _panel.isVisible;
 }
 
+/// Away, and no longer its window's child (a child outliving its window
+/// is ordered front again, on GNUstep, with its parent gone).
 - (void)close {
-    if (_panel.isVisible) UDHideEditorPopup(_panel);
+    if (_panel.isVisible || _panel.parentWindow) UDHideEditorPopup(_panel);
 }
 
 @end

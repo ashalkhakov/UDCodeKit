@@ -6,6 +6,8 @@
  *
  *    • Opened from a .udworkspace file  → restores the previously-open tab set.
  *    • Opened from a plain file (e.g. .json) → single-tab workspace (backwards-compat).
+ *    • Opened from a folder (File > Open Folder…) → a project (UDProject): its
+ *      files in the navigator, built, run and debugged as its folder says.
  *    • File > New                        → blank workspace with one empty editor tab.
  *
  *  The class is intentionally thin.  All per-window editor setup — tabs, syntax
@@ -39,6 +41,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// UDDocumentWindowController in -windowDidLoad.  Used by
 /// -writeToURL:ofType:error: when saving a plain (non-workspace) document.
 @property (nonatomic, readwrite, nullable) UDTextModelTextStorage *primaryTextStorage;
+
+/// The project, when a folder was opened.
+@property (nonatomic, strong, nullable) UDProject *project;
 
 @end
 

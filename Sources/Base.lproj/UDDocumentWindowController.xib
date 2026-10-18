@@ -13,6 +13,7 @@
                 <outlet property="navigatorControl" destination="WS-nav-control" id="WS-o-nav-control"/>
                 <outlet property="navigatorTabView" destination="WS-nav-tabs" id="WS-o-nav-tabs"/>
                 <outlet property="filesTable" destination="WS-files-table" id="WS-o-files"/>
+                <outlet property="projectHost" destination="WS-project-host" id="WS-o-project-host"/>
                 <outlet property="issuesHost" destination="WS-issues-host" id="WS-o-issues"/>
                 <outlet property="debugNavigatorHost" destination="WS-debug-nav-host" id="WS-o-debug-nav"/>
                 <outlet property="breakpointNavigatorHost" destination="WS-breakpoint-nav-host" id="WS-o-breakpoint-nav"/>
@@ -132,6 +133,10 @@
                                                                 <autoresizingMask key="autoresizingMask"/>
                                                             </scroller>
                                                         </scrollView>
+                                                        <customView hidden="YES" id="WS-project-host" userLabel="Project Files Host">
+                                                            <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                        </customView>
                                                     </subviews>
                                                 </view>
                                             </tabViewItem>

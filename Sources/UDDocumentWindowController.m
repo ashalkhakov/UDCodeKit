@@ -24,7 +24,7 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
-                                          UDBreakpointNavigatorDelegate,
+                                          UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -33,6 +33,9 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
 @property (nonatomic, weak) IBOutlet NSSegmentedControl *navigatorControl;
 @property (nonatomic, weak) IBOutlet NSTabView          *navigatorTabView;
 @property (nonatomic, weak) IBOutlet NSTableView        *filesTable;
+@property (nonatomic, weak) IBOutlet NSView             *projectHost;
+@property (nonatomic, strong, readwrite, nullable) UDProject *project;
+@property (nonatomic, strong, readwrite, nullable) UDFileNavigatorViewController *fileNavigator;
 @property (nonatomic, weak) IBOutlet NSView             *issuesHost;
 @property (nonatomic, weak) IBOutlet NSView             *debugNavigatorHost;
 @property (nonatomic, weak) IBOutlet NSView             *breakpointNavigatorHost;
@@ -141,6 +144,18 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
                                                  name:NSViewFrameDidChangeNotification object:debugPane];
     [self _layoutDebugPane];
 
+    // A project: its files in the Files tab, instead of the open files' list.
+    _project = workspace.project;
+    if (_project) {
+        _fileNavigator = [[UDFileNavigatorViewController alloc] init];
+        _fileNavigator.delegate = self;
+        _fileNavigator.folderURL = _project.folderURL;
+        [self _putView:_fileNavigator.view inHost:_projectHost];
+        _projectHost.hidden = NO;
+        _filesTable.enclosingScrollView.hidden = YES;
+        _breakpoints.autosaveName = [@"UDCode Debugger " stringByAppendingString:_project.folderURL.path];
+    }
+
     // The documents to show.
     NSArray<UDCodeDocument *> *preloaded = workspace.workspaceModel.documents;
     if (preloaded.count > 0) {
@@ -158,12 +173,24 @@ static const NSInteger UDBreakpointNavigatorSegment = 3;
             }
             [self _openTabForDocument:doc];
         }
-    } else {
+    } else if (!_project) {
         [self addEditorTab:nil];
     }
     workspace.primaryTextStorage = [self _sessionForDocument:_workspaceModel.documents.firstObject].textStorage;
 
-    self.window.title = workspace.fileURL ? workspace.fileURL.lastPathComponent : @"Untitled Workspace";
+    self.window.title = _project ? _project.name
+                      : workspace.fileURL ? workspace.fileURL.lastPathComponent : @"Untitled Workspace";
+    if (_project) self.window.representedURL = _project.folderURL;
+}
+
+/// The project's window is named for it, not for an untitled document.
+- (NSString *)windowTitleForDocumentDisplayName:(NSString *)displayName {
+    return _project ? _project.name : displayName;
+}
+
+/// A file chosen in the project's files: its tab.
+- (void)fileNavigator:(UDFileNavigatorViewController *)navigator openFileAtURL:(NSURL *)url {
+    [self _showFile:url.path];
 }
 
 /// A view from its own XIB, filling the host the window's XIB has for it.

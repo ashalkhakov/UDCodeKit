@@ -18,7 +18,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class UDDebugSession, UDBreakpointStore;
+@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -49,6 +49,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// • If the URL has not been opened yet, a new independent context is created.
 /// • If the file cannot be read, logs an error and returns without adding a tab.
 - (void)openURLInNewTab:(NSURL *)url;
+
+// MARK: - The project
+
+/// The folder opened as a project (File > Open Folder…), nil for files alone.
+@property (nonatomic, strong, readonly, nullable) UDProject *project;
+/// Its files, in the navigator's Files tab (nil without a project).
+@property (nonatomic, strong, readonly, nullable) UDFileNavigatorViewController *fileNavigator;
 
 // MARK: - Debugging
 

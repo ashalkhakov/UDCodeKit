@@ -7,6 +7,7 @@
 
 #import "AppDelegate.h"
 #import "UDUpdater.h"
+#import "UDDocument.h"
 #import <UDCodeKit/UDCodeKit.h>
 
 /// Check for Updates… in MainMenu.xib's application menu.
@@ -29,6 +30,40 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
         NSMenuItem *check = [appMenu itemWithTag:UDCheckForUpdatesTag];
         if (check != nil) [appMenu removeItem:check];
     }
+}
+
+/// File > Open Folder…: the folder as a project, in a window of its own (the
+/// one it has, when it is open already).
+- (IBAction)openFolder:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseFiles = NO;
+    panel.canChooseDirectories = YES;
+    panel.allowsMultipleSelection = NO;
+    if ([panel runModal] != NSModalResponseOK || panel.URLs.count == 0) return;
+    [self openFolderAtURL:panel.URLs.firstObject];
+}
+
+- (nullable UDWorkspace *)openFolderAtURL:(NSURL *)url {
+    NSDocumentController *documents = [NSDocumentController sharedDocumentController];
+    NSString *path = url.URLByStandardizingPath.path;
+    for (NSDocument *document in documents.documents) {
+        if ([document isKindOfClass:[UDWorkspace class]] &&
+            [((UDWorkspace *)document).project.folderURL.path isEqualToString:path]) {
+            [document showWindows];
+            return (UDWorkspace *)document;
+        }
+    }
+    NSError *error = nil;
+    UDWorkspace *workspace = [documents makeUntitledDocumentOfType:documents.defaultType error:&error];
+    if (!workspace) {
+        [NSApp presentError:error];
+        return nil;
+    }
+    workspace.project = [[UDProject alloc] initWithFolderURL:url];
+    [documents addDocument:workspace];
+    [workspace makeWindowControllers];
+    [workspace showWindows];
+    return workspace;
 }
 
 - (IBAction)checkForUpdates:(id)sender {

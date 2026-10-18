@@ -23,6 +23,9 @@
 		C0DEC0DE0000000000000006 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			publicHeaders = (
+				Project/UDFileNavigatorViewController.h,
+				Project/UDToolLocator.h,
+				Project/UDProject.h,
 				Debug/UDBreakpointStore.h,
 				Debug/UDDebugSession.h,
 				Debug/UDDebugBarViewController.h,

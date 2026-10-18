@@ -932,6 +932,13 @@ static NSString * const UDProgram =
     [self waitForStopAtLine:2];
     XCTAssertEqualObjects(_controller.debugSession.selectedThread.stopReason, @"goto");
 
+    // Refused: the adapter's reason in the console, and still stopped.
+    [_controller.debugSession jumpToLine:1 inFile:@"/elsewhere/other.demo"];
+    UDRunUntil([_controller.debugArea.consoleView.string containsString:@"can be jumped to"], 5);
+    XCTAssertTrue([_controller.debugArea.consoleView.string containsString:@"Only debugged.demo's lines can be jumped to.\n"], @"%@", _controller.debugArea.consoleView.string);
+    XCTAssertEqual(_controller.debugSession.state, UDDebugSessionStateStopped);
+    XCTAssertTrue(_controller.debugSession.canJump);
+
     // Add to Watch: the selection.
     textView.selectedRange = [UDProgram rangeOfString:@"hello"];
     menu = [textView menuForEvent:[self rightClickAtIndex:textView.selectedRange.location + 1]];

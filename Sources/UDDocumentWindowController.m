@@ -42,6 +42,9 @@ static const NSInteger UDAfterBuildDebug = 2;
 @property (nonatomic, weak) IBOutlet NSView             *buildLogHost;
 @property (nonatomic, strong, readwrite, nullable) UDBuildRunner *buildRunner;
 @property (nonatomic, strong) UDBuildLogViewController *buildLog;
+@property (nonatomic, strong, readwrite, nullable) UDProjectSettingsController *projectSettings;
+/// Run waits for the settings sheet that names its program.
+@property (nonatomic) NSInteger afterSettings;
 /// What follows the build: nothing, running the program, or debugging it.
 @property (nonatomic) NSInteger afterBuild;
 /// The build's diagnostics' stores for files no tab has, listed in Issues.
@@ -434,6 +437,8 @@ static const NSInteger UDAfterBuildDebug = 2;
         return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(runWithoutDebugging:))) {
         return _buildRunner != nil && !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
+    } else if (sel_isEqual(action, @selector(showProjectSettings:))) {
+        return _project != nil && !_projectSettings;
     } else if (sel_isEqual(action, @selector(saveAllDocuments:))) {
         return _project != nil;
     } else if (sel_isEqual(action, @selector(startDebugging:)) && _project) {
@@ -876,8 +881,9 @@ static const NSInteger UDAfterBuildDebug = 2;
 - (void)_runProgramDebugging:(BOOL)debugging {
     NSString *program = _project.runProgram;
     if (!program) {
-        [self _tell:@"Nothing to run" detail:@"The project doesn't say what program it makes. "
-                                              @"Set it in .udcode/settings.json: { \"run\": { \"program\": \"path/to/it\" } }."];
+        // what to run: asked once, then kept with the project
+        _afterSettings = debugging ? UDAfterBuildDebug : UDAfterBuildRun;
+        [self showProjectSettings:nil];
         return;
     }
     if (![[NSFileManager defaultManager] isExecutableFileAtPath:program]) {
@@ -905,6 +911,25 @@ static const NSInteger UDAfterBuildDebug = 2;
     [_debugSplit setPane:UDDebugAreaPane visible:YES];
     if (debugging) [self showDebugNavigator:nil];
     [session launchWithArguments:arguments];
+}
+
+- (IBAction)showProjectSettings:(nullable id)sender {
+    if (!_project || _projectSettings) {
+        NSBeep();
+        return;
+    }
+    _projectSettings = [[UDProjectSettingsController alloc] init];
+    [_projectSettings beginSheetForWindow:self.window project:_project target:self action:@selector(_projectSettingsDidEnd:)];
+}
+
+/// Saved: what was waiting on it (a Run) goes on.
+- (void)_projectSettingsDidEnd:(UDProjectSettingsController *)sheet {
+    NSInteger then = _afterSettings;
+    _afterSettings = UDAfterBuildNothing;
+    _projectSettings = nil;
+    if (sheet.returnCode == NSModalResponseOK && then != UDAfterBuildNothing && _project.runProgram) {
+        [self _runProgramDebugging:then == UDAfterBuildDebug];
+    }
 }
 
 /// A sheet saying what went wrong.

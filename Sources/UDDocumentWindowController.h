@@ -18,7 +18,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner;
+@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -66,6 +66,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Debug > Run Without Debugging (⌃⌘R): built, then run, its output in the console.
 - (IBAction)runWithoutDebugging:(nullable id)sender;
 - (IBAction)showBuildNavigator:(nullable id)sender;
+/// Debug > Project Settings…: what can't be guessed, for this system (a sheet).
+- (IBAction)showProjectSettings:(nullable id)sender;
+/// The sheet, while it shows.
+@property (nonatomic, strong, readonly, nullable) UDProjectSettingsController *projectSettings;
 /// File > Save in a project: the selected tab's file (and every edited one, Save All).
 - (IBAction)saveDocument:(nullable id)sender;
 - (IBAction)saveAllDocuments:(nullable id)sender;

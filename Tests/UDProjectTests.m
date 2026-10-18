@@ -23,6 +23,10 @@
 
 @interface UDProjectTests : UDCodeTestCase
 @property (nonatomic, copy) NSString *folder;
+/// The window whose settings sheet -answerSettingsSheet answers, and what it saw.
+@property (nonatomic, weak) UDDocumentWindowController *sheetController;
+@property (nonatomic, copy) NSString *sheetPlaceholder;
+@property (nonatomic, copy) NSString *sheetBuild;
 @end
 
 @implementation UDProjectTests
@@ -318,6 +322,55 @@
     XCTAssertEqual(controller.debugSession.state, UDDebugSessionStateEnded, @"ran to its end, its breakpoint not stopping it");
     XCTAssertTrue([controller.debugSession.consoleText containsString:@"plain 3"], @"%@", controller.debugSession.consoleText);
     [controller.breakpoints removeAllBreakpoints];
+    [controller close];
+    [workspace close];
+}
+
+/// The settings sheet, once it shows: what it shows noted, the program
+/// named, OK. Until then, asked again.
+- (void)answerSettingsSheet {
+    UDProjectSettingsController *sheet = _sheetController.projectSettings;
+    if (!sheet) {
+        [self performSelector:@selector(answerSettingsSheet) withObject:nil afterDelay:0.2
+                      inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
+        return;
+    }
+    _sheetBuild = sheet.buildField.stringValue;
+    _sheetPlaceholder = [sheet.buildField.cell placeholderString] ?: @"";
+    sheet.programField.stringValue = @"hello";
+    [sheet.debuggerPopUp selectItemWithTag:0];
+    [sheet ok:nil];
+}
+
+/// Project Settings: what is guessed shown, this system's section written
+/// (the other's kept); a Run with nothing to run asks there, then runs.
+- (void)testProjectSettingsAskWhatToRunForThisSystem {
+    [self writeCProjectWith:@"#include <stdio.h>\nint main(void) {\n    printf(\"settled\\n\");\n    return 0;\n}\n"];
+    // no program said, and the other system's section to keep
+    NSString *other = [UDProjectPlatformKey isEqualToString:@"macos"] ? @"gnustep" : @"macos";
+    [self write:[NSString stringWithFormat:@"{ \"%@\": { \"build\": \"make other\" } }", other] to:@".udcode/settings.json"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+
+    // the sheet answered when it shows (on GNUstep it runs a modal loop of its own)
+    _sheetController = controller;
+    [self performSelector:@selector(answerSettingsSheet) withObject:nil afterDelay:0.2
+                  inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
+    [controller runWithoutDebugging:nil];
+    UDRunUntil(_sheetPlaceholder != nil && controller.projectSettings == nil, 60);
+    XCTAssertEqualObjects(_sheetBuild, @"", @"nothing set here");
+    XCTAssertEqualObjects(_sheetPlaceholder, @"make", @"what is guessed, shown");
+
+    NSDictionary *saved = controller.project.settings;
+    XCTAssertEqualObjects(saved[UDProjectPlatformKey][@"run"][@"program"], @"hello", @"this system's section");
+    XCTAssertEqualObjects(saved[other][@"build"], @"make other", @"the other's kept");
+    XCTAssertEqualObjects(controller.project.runProgram, [_folder stringByAppendingPathComponent:@"hello"].stringByStandardizingPath);
+
+    // and the Run that asked goes on
+    if ([UDToolLocator debugAdapterCommandForDebugger:nil]) {
+        UDRunUntil(controller.debugSession.state == UDDebugSessionStateEnded, 60);
+        XCTAssertTrue([controller.debugSession.consoleText containsString:@"settled"], @"%@", controller.debugSession.consoleText);
+    }
     [controller close];
     [workspace close];
 }

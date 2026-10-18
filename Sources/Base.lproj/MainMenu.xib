@@ -773,6 +773,12 @@
                                     <action selector="toggleBreakpoint:" target="-1" id="UDM-breakpoint-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem isSeparatorItem="YES" id="UDM-debug-sep3"/>
+                            <menuItem title="Project Settings…" id="UDM-projectsettings">
+                                <connections>
+                                    <action selector="showProjectSettings:" target="-1" id="UDM-projectsettings-a"/>
+                                </connections>
+                            </menuItem>
                         </items>
                     </menu>
                 </menuItem>

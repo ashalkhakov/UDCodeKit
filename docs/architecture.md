@@ -17,11 +17,11 @@ embedded: UDCode is one app on it, Quarry (UDQuakeTools) another.
 | **Extensions** | npm packages with `package.json`, run in a separate extension-host process | grammar bundles: an `NSBundle` with `LanguageInfo.plist` and a principal class, loaded into the app | different: in-process (see below) |
 | **Language features** | an extension starts a server with `vscode-languageclient` | the bundle names the server's command; the host starts it (`LSPKit`), one per project and command | same protocol (LSP) |
 | **Debugging** | `contributes.debuggers` and a debug adapter per session | the bundle or the project names the adapter's command; `UDDebugSession` per session | same protocol (DAP) and behaviour; Xcode's views |
-| **Launch configurations** | `launch.json`: named configurations, a dropdown | one per project and system (`run` in `.udcode/settings.json`), inferred where it can be | simpler |
-| **Build** | `tasks.json`, problem matchers (`$gcc`) | the project's build command, gcc/clang diagnostics parsed (`UDBuildRunner`) | simpler: one task, one matcher |
-| **Settings** | `.vscode/settings.json`, `tasks.json`, `launch.json`, user settings | `.udcode/settings.json` for all three, with `"macos"`/`"gnustep"` sections; the rest guessed from the folder | simpler |
+| **Launch configurations** | `launch.json`: named configurations, a dropdown | VS Code's `launch.json` as it is (Debug › Launch Configuration); without one, `run` in `.udcode/settings.json`, inferred where it can be | same, and less to write |
+| **Build** | `tasks.json`, problem matchers (`$gcc`) | VS Code's `tasks.json` as it is (the default build task, Run Task); without one, the project's build command; gcc/clang diagnostics parsed (`UDBuildRunner`) | same, one matcher |
+| **Settings** | `.vscode/settings.json`, `tasks.json`, `launch.json`, user settings | `tasks.json` and `launch.json` read; `.udcode/settings.json` for what they don't say, with `"macos"`/`"gnustep"` sections; the rest guessed from the folder | VS Code's files, and less to write |
 | **Workspace** | a folder, or several (multi-root), and `.code-workspace` files | a folder (File › Open Folder…), or files in a window (`.udworkspace`) | no multi-root yet |
-| **Files** | Explorer, file watching | the file navigator, listed again after a build | no file watching yet |
+| **Files** | Explorer, file watching | the file navigator; the folder watched (FSEvents, inotify), open files read again | same |
 
 ## Where we follow VS Code, and why
 
@@ -48,10 +48,10 @@ embedded: UDCode is one app on it, Quarry (UDQuakeTools) another.
   a few methods), and the heavy lifting, the language server and the debugger,
   already runs in processes of its own. Isolation becomes worth it only if
   bundles grow into full extensions.
-- **Inferred, one-file settings.** VS Code asks for `tasks.json` and
-  `launch.json`. We guess from the folder (GNUmakefile, Makefile.apple, CMake,
-  Xcode) and ask only for what can't be guessed, in one file that serves both
-  systems.
+- **Inferred settings.** VS Code asks for `tasks.json` and `launch.json`. We
+  read them when a project has them, and otherwise guess from the folder
+  (GNUmakefile, Makefile.apple, CMake, Xcode) and ask only for what can't be
+  guessed, in one file that serves both systems.
 
 ## Where we are going
 
@@ -60,15 +60,14 @@ native, embeddable, Xcode-like shell, using existing tools and adding no
 formats of our own. What VS Code has that we don't, roughly in the order it
 would matter for the IDE:
 
-1. **File watching**: the navigator and open files follow changes made
-   elsewhere (FSEvents on macOS, inotify on Linux).
-2. **Several launch configurations** per project (a test runner beside the
-   app), as `launch.json`'s list.
-3. **More of LSP**: semantic tokens, rename, find references, code actions,
+1. **More of LSP**: semantic tokens, rename, find references, code actions,
    signature help, workspace symbols, formatting.
-4. **A terminal** in the bottom area.
-5. **Source control** (git's status in the navigator, diffs).
-6. **Multi-root workspaces** and **remote development**, the last of these.
+2. **A terminal** in the bottom area.
+3. **Source control** (git's status in the navigator, diffs).
+4. **Multi-root workspaces** and **remote development**, the last of these.
+
+Done since this was first written: file watching, and VS Code's `tasks.json`
+and `launch.json` (several launch configurations, preLaunchTask, Run Task).
 
 An extension host is not on the list: if bundles ever run third-party code
 of size, it is the way to keep the app responsive, but not before.

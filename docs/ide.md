@@ -44,6 +44,34 @@ The debugger is lldb-dap on macOS and gdb on Linux, each falling back on the
 other. lldb can't launch a program where address randomization can't be
 turned off, a container among them.
 
+## A project set up for VS Code
+
+A folder with `.vscode/tasks.json` and `.vscode/launch.json` works as it is,
+read as VS Code reads them (comments and trailing commas included):
+
+- **Build** runs the default build task (`"group": { "kind": "build",
+  "isDefault": true }`), what it `dependsOn` first; Debug › Run Task runs any.
+- **Run** uses the launch configuration chosen in Debug › Launch
+  Configuration (launch.json's first until one is chosen): its
+  `preLaunchTask`, then its `program`, `args`, `cwd` and `env` (or the C/C++
+  extension's `environment`). `"lldb"`, `"lldb-dap"` and `"cppdbg"` with
+  `"MIMode": "lldb"` run under lldb-dap; `"cppdbg"` with `"MIMode": "gdb"`
+  and `"gdb"` under gdb (`miDebuggerPath` too). An `"attach"` attaches to
+  its `processId`.
+- `"osx"` and `"linux"` properties override the rest on that system.
+- VS Code's variables: `${workspaceFolder}`, `${workspaceFolderBasename}`,
+  `${file}`, `${fileBasename}`, `${fileBasenameNoExtension}`, `${fileDirname}`,
+  `${fileExtname}`, `${relativeFile}`, `${cwd}`, `${userHome}`, `${env:NAME}`.
+
+Without them, what follows is used.
+
+## Changes made elsewhere
+
+The folder is watched (FSEvents on macOS, inotify on Linux): the navigator
+lists what a build or git makes, an open file with no edits of its own takes
+what another program wrote (one with edits keeps them), and the language
+servers are told.
+
 ## Settings
 
 What can't be guessed is set in Debug › Project Settings…, or in the folder's
@@ -92,6 +120,8 @@ the SDK on macOS, and the folder's headers.
 | `UDBuildRunner` | UDCodeKit `Project/` | the build command, its output, its diagnostics by file |
 | `UDBuildLogViewController` | UDCodeKit `Project/`, `UDBuildLog.xib` | the build's log and how it went |
 | `UDProjectSettingsController` | UDCodeKit `Project/`, `UDProjectSettings.xib` | the settings sheet |
+| `UDTasks` | UDCodeKit `Project/` | `.vscode/tasks.json` and `launch.json`, as VS Code reads them |
+| `UDFileWatcher` | UDCodeKit `Project/` | the folder watched: FSEvents, inotify |
 | `UDDocumentWindowController` | UDCode | the project window: navigator, tabs, the menus' actions |
 
 How this compares with VS Code: [architecture.md](architecture.md).

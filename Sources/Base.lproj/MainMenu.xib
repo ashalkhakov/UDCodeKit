@@ -721,6 +721,20 @@
                                     <action selector="runWithoutDebugging:" target="-1" id="UDM-runplain-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Launch Configuration" id="UDM-launchconfig">
+                                <menu key="submenu" title="Launch Configuration" id="UDM-launchconfig-menu">
+                                    <connections>
+                                        <outlet property="delegate" destination="Voe-Tx-rLC" id="UDM-launchconfig-delegate"/>
+                                    </connections>
+                                </menu>
+                            </menuItem>
+                            <menuItem title="Run Task" id="UDM-runtask">
+                                <menu key="submenu" title="Run Task" id="UDM-runtask-menu">
+                                    <connections>
+                                        <outlet property="delegate" destination="Voe-Tx-rLC" id="UDM-runtask-delegate"/>
+                                    </connections>
+                                </menu>
+                            </menuItem>
                             <menuItem title="Stop" keyEquivalent="." id="UDM-stop">
                                 <connections>
                                     <action selector="stopDebugging:" target="-1" id="UDM-stop-a"/>

@@ -18,7 +18,8 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController;
+@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController,
+       UDTasks;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -66,6 +67,17 @@ NS_ASSUME_NONNULL_BEGIN
 /// Debug > Run Without Debugging (⌃⌘R): built, then run, its output in the console.
 - (IBAction)runWithoutDebugging:(nullable id)sender;
 - (IBAction)showBuildNavigator:(nullable id)sender;
+/// The folder's .vscode/tasks.json and launch.json, read now (with the
+/// selected tab's file for ${file}); nil without a project.
+- (nullable UDTasks *)tasks;
+/// The launch configuration Run uses (its name), remembered for the project:
+/// the one chosen, else launch.json's first; nil when it has none.
+@property (nonatomic, copy, nullable) NSString *selectedLaunchConfiguration;
+/// The Debug menu's Launch Configuration and Run Task items: a menu item's
+/// representedObject is the configuration's name, the task's label.
+- (IBAction)selectLaunchConfiguration:(nullable id)sender;
+- (IBAction)runTask:(nullable id)sender;
+
 /// Debug > Project Settings…: what can't be guessed, for this system (a sheet).
 - (IBAction)showProjectSettings:(nullable id)sender;
 /// The sheet, while it shows.

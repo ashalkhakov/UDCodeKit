@@ -410,4 +410,98 @@
     [workspace close];
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - VS Code's tasks.json and launch.json
+// ---------------------------------------------------------------------------
+
+- (void)testTasksAndLaunchJSONAreReadAsVSCodeReadsThem {
+    [self write:@"// VS Code's own comments\n"
+                @"{ \"version\": \"2.0.0\",\n"
+                @"  \"tasks\": [\n"
+                @"    { \"label\": \"prepare\", \"type\": \"shell\", \"command\": \"echo prep\", },  /* a trailing comma */\n"
+                @"    { \"label\": \"build\", \"type\": \"shell\", \"command\": \"make\", \"args\": [\"-j4\", \"two words\"],\n"
+                @"      \"group\": { \"kind\": \"build\", \"isDefault\": true }, \"dependsOn\": \"prepare\",\n"
+                @"      \"options\": { \"cwd\": \"${workspaceFolder}/sub\", \"env\": { \"FLAVOR\": \"${env:HOME}\" } },\n"
+                @"      \"osx\": { \"args\": [\"-j8\"] }, \"linux\": { \"args\": [\"-j2\"] } },\n"
+                @"    { \"label\": \"test\", \"type\": \"process\", \"command\": \"./run tests\", \"group\": \"test\" }\n"
+                @"  ]\n"
+                @"}\n" to:@".vscode/tasks.json"];
+    [self write:@"{ \"configurations\": [\n"
+                @"  { \"name\": \"Hello (lldb)\", \"type\": \"lldb\", \"request\": \"launch\", \"program\": \"${workspaceFolder}/hello\",\n"
+                @"    \"args\": [\"${fileBasenameNoExtension}\"], \"cwd\": \"${workspaceFolder}\", \"env\": { \"A\": \"1\" }, \"preLaunchTask\": \"build\" },\n"
+                @"  { \"name\": \"Hello (gdb)\", \"type\": \"cppdbg\", \"request\": \"launch\", \"MIMode\": \"gdb\", \"program\": \"hello\",\n"
+                @"    \"environment\": [ { \"name\": \"B\", \"value\": \"2\" } ] },\n"
+                @"  { \"name\": \"Attach\", \"type\": \"lldb-dap\", \"request\": \"attach\", \"pid\": 42 },\n"
+                @"]}\n" to:@".vscode/launch.json"];
+    UDTasks *tasks = [[UDTasks alloc] initWithFolderURL:[NSURL fileURLWithPath:_folder]
+                                         currentFileURL:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"main.c"]]];
+    XCTAssertEqualObjects([tasks.tasks valueForKey:@"label"], (@[ @"prepare", @"build", @"test" ]), @"comments, trailing commas");
+    UDTask *build = tasks.buildTask;
+    XCTAssertEqualObjects(build.label, @"build", @"the default build task");
+#ifdef __APPLE__
+    XCTAssertEqualObjects(build.commandLine, @"make -j8", @"osx's args over the rest");
+#else
+    XCTAssertEqualObjects(build.commandLine, @"make -j2", @"linux's args over the rest");
+#endif
+    XCTAssertEqualObjects(build.directory, [_folder stringByAppendingPathComponent:@"sub"], @"${workspaceFolder}");
+    XCTAssertEqualObjects(build.environment[@"FLAVOR"], NSHomeDirectory(), @"${env:HOME}");
+    NSString *line = [tasks commandLineRunning:build];
+    XCTAssertTrue([line rangeOfString:@"echo prep"].location < [line rangeOfString:@"make -j"].location, @"dependsOn first: %@", line);
+    XCTAssertEqualObjects([tasks taskLabelled:@"test"].commandLine, @"'./run tests'", @"a process's program, quoted");
+
+    NSArray<UDLaunchConfiguration *> *configurations = tasks.configurations;
+    XCTAssertEqual(configurations.count, 3u);
+    XCTAssertEqualObjects(configurations[0].debugger, @"lldb");
+    XCTAssertEqualObjects(configurations[0].program, [_folder stringByAppendingPathComponent:@"hello"]);
+    XCTAssertEqualObjects(configurations[0].arguments, @[ @"main" ], @"${fileBasenameNoExtension}");
+    XCTAssertEqualObjects(configurations[0].preLaunchTask, @"build");
+    XCTAssertEqualObjects(configurations[1].debugger, @"gdb", @"cppdbg with gdb");
+    XCTAssertEqualObjects(configurations[1].program, [_folder stringByAppendingPathComponent:@"hello"], @"relative: in the folder");
+    XCTAssertEqualObjects(configurations[1].environment, @{ @"B": @"2" }, @"the C/C++ extension's environment");
+    XCTAssertEqualObjects(configurations[2].request, @"attach");
+    XCTAssertEqual(configurations[2].processID, 42);
+}
+
+/// A project set up for VS Code alone: its launch configuration chosen, its
+/// preLaunchTask builds, it runs; the Debug menu lists both files' entries.
+- (void)testAProjectSetUpForVSCodeRunsAsItIs {
+    if (![UDToolLocator debugAdapterCommandForDebugger:nil]) return;
+    [self write:@"#include <stdio.h>\nint main(int argc, char **argv) {\n    printf(\"vscode %s\\n\", argv[1]);\n    return 0;\n}\n" to:@"hello.c"];
+    [self write:@"{ \"version\": \"2.0.0\", \"tasks\": [\n"
+                @"  { \"label\": \"compile\", \"type\": \"shell\", \"command\": \"cc\", \"args\": [\"-g\", \"-o\", \"hello\", \"hello.c\"],\n"
+                @"    \"group\": { \"kind\": \"build\", \"isDefault\": true } } ] }\n" to:@".vscode/tasks.json"];
+    NSString *type = [UDToolLocator debugAdapterCommandForDebugger:nil] == [UDToolLocator debugAdapterCommandForDebugger:@"gdb"]
+        ? @"\"type\": \"cppdbg\", \"MIMode\": \"gdb\"" : @"\"type\": \"lldb\"";
+#ifdef __APPLE__
+    type = @"\"type\": \"lldb\"";
+#else
+    type = @"\"type\": \"cppdbg\", \"MIMode\": \"gdb\"";
+#endif
+    [self write:[NSString stringWithFormat:@"{ \"configurations\": [\n"
+                 @"  { \"name\": \"First\", %@, \"request\": \"launch\", \"program\": \"${workspaceFolder}/hello\", \"args\": [\"first\"] },\n"
+                 @"  { \"name\": \"Second\", %@, \"request\": \"launch\", \"program\": \"${workspaceFolder}/hello\", \"args\": [\"second\"],\n"
+                 @"    \"preLaunchTask\": \"compile\" } ] }\n", type, type] to:@".vscode/launch.json"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+
+    // the Debug menu's entries
+    AppDelegate *delegate = [[AppDelegate alloc] init];
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Launch Configuration"];
+    [controller.window makeKeyAndOrderFront:nil];
+    [delegate menuNeedsUpdate:menu];
+    XCTAssertEqualObjects([menu.itemArray valueForKey:@"title"], (@[ @"First", @"Second" ]));
+    XCTAssertEqualObjects(controller.selectedLaunchConfiguration, @"First", @"launch.json's first, until one is chosen");
+    [controller selectLaunchConfiguration:menu.itemArray[1]];
+    XCTAssertEqualObjects(controller.selectedLaunchConfiguration, @"Second");
+
+    [controller runWithoutDebugging:nil];
+    UDRunUntil(controller.debugSession.state == UDDebugSessionStateEnded, 90);
+    XCTAssertTrue(controller.buildRunner.succeeded, @"its preLaunchTask built it: %@", controller.buildRunner.output);
+    XCTAssertTrue([controller.debugSession.consoleText containsString:@"vscode second"], @"the configuration's args: %@",
+                  controller.debugSession.consoleText);
+    controller.selectedLaunchConfiguration = nil;
+    [controller close];
+    [workspace close];
+}
+
 @end

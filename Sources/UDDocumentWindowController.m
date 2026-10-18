@@ -48,6 +48,8 @@ static const NSInteger UDAfterBuildDebug = 2;
 @property (nonatomic, strong, readwrite, nullable) UDProjectSettingsController *projectSettings;
 /// Run waits for the settings sheet that names its program.
 @property (nonatomic) NSInteger afterSettings;
+/// The launch configuration a build is for (launch.json's), nil for the project's own run.
+@property (nonatomic, strong, nullable) UDLaunchConfiguration *pendingConfiguration;
 /// What follows the build: nothing, running the program, or debugging it.
 @property (nonatomic) NSInteger afterBuild;
 /// The build's diagnostics' stores for files no tab has, listed in Issues.
@@ -279,8 +281,79 @@ static const NSInteger UDAfterBuildDebug = 2;
     [self _documentsChanged];
 }
 
+/// The build: tasks.json's build task (and what it depends on), else the
+/// project's command.
+- (nullable NSString *)_buildCommandLine {
+    UDTasks *tasks = [self tasks];
+    UDTask *task = tasks.buildTask;
+    return task ? [tasks commandLineRunning:task] : _project.buildCommand;
+}
+
 - (IBAction)build:(nullable id)sender {
-    [self _build:_project.buildCommand then:UDAfterBuildNothing];
+    [self _build:[self _buildCommandLine] then:UDAfterBuildNothing];
+}
+
+- (UDTasks *)tasks {
+    if (!_project) return nil;
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    return [[UDTasks alloc] initWithFolderURL:_project.folderURL currentFileURL:document.fileURL];
+}
+
+- (NSString *)_launchConfigurationDefaultsKey {
+    return [@"UDCode Launch Configuration " stringByAppendingString:_project.folderURL.path ?: @""];
+}
+
+- (NSString *)selectedLaunchConfiguration {
+    NSArray<UDLaunchConfiguration *> *configurations = [self tasks].configurations;
+    NSString *chosen = [[NSUserDefaults standardUserDefaults] stringForKey:[self _launchConfigurationDefaultsKey]];
+    for (UDLaunchConfiguration *configuration in configurations) {
+        if ([configuration.name isEqualToString:chosen]) return chosen;
+    }
+    return configurations.firstObject.name;
+}
+
+- (void)setSelectedLaunchConfiguration:(NSString *)name {
+    if (name) [[NSUserDefaults standardUserDefaults] setObject:name forKey:[self _launchConfigurationDefaultsKey]];
+    else [[NSUserDefaults standardUserDefaults] removeObjectForKey:[self _launchConfigurationDefaultsKey]];
+}
+
+- (IBAction)selectLaunchConfiguration:(nullable id)sender {
+    id name = [sender respondsToSelector:@selector(representedObject)] ? [sender representedObject] : nil;
+    if ([name isKindOfClass:[NSString class]]) self.selectedLaunchConfiguration = name;
+}
+
+- (IBAction)runTask:(nullable id)sender {
+    id label = [sender respondsToSelector:@selector(representedObject)] ? [sender representedObject] : nil;
+    UDTasks *tasks = [self tasks];
+    UDTask *task = [label isKindOfClass:[NSString class]] ? [tasks taskLabelled:label] : nil;
+    if (!task) {
+        NSBeep();
+        return;
+    }
+    [self _build:[tasks commandLineRunning:task] then:UDAfterBuildNothing];
+}
+
+/// launch.json's configuration Run uses, nil when the folder has none.
+- (nullable UDLaunchConfiguration *)_launchConfiguration {
+    NSString *name = self.selectedLaunchConfiguration;
+    for (UDLaunchConfiguration *configuration in [self tasks].configurations) {
+        if ([configuration.name isEqualToString:name]) return configuration;
+    }
+    return nil;
+}
+
+/// Run (debugging or not): launch.json's configuration, its preLaunchTask
+/// first; else the project's build, then its program.
+- (void)_buildAndRun:(NSInteger)then {
+    UDLaunchConfiguration *configuration = [self _launchConfiguration];
+    _pendingConfiguration = configuration;
+    if (!configuration) {
+        [self _build:[self _buildCommandLine] then:then];
+        return;
+    }
+    UDTasks *tasks = [self tasks];
+    UDTask *before = configuration.preLaunchTask ? [tasks taskLabelled:configuration.preLaunchTask] : nil;
+    [self _build:before ? [tasks commandLineRunning:before] : nil then:then];
 }
 
 - (IBAction)clean:(nullable id)sender {
@@ -288,7 +361,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 }
 
 - (IBAction)runWithoutDebugging:(nullable id)sender {
-    [self _build:_project.buildCommand then:UDAfterBuildRun];
+    [self _buildAndRun:UDAfterBuildRun];
 }
 
 /// Saved, then built (when there is a build command), then run or debugged
@@ -465,6 +538,11 @@ static const NSInteger UDAfterBuildDebug = 2;
         return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(runWithoutDebugging:))) {
         return _buildRunner != nil && !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
+    } else if (sel_isEqual(action, @selector(selectLaunchConfiguration:))) {
+        item.state = [item.representedObject isEqual:self.selectedLaunchConfiguration] ? NSControlStateValueOn : NSControlStateValueOff;
+        return _project != nil;
+    } else if (sel_isEqual(action, @selector(runTask:))) {
+        return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(showProjectSettings:))) {
         return _project != nil && !_projectSettings;
     } else if (sel_isEqual(action, @selector(saveAllDocuments:))) {
@@ -874,7 +952,7 @@ static const NSInteger UDAfterBuildDebug = 2;
             NSBeep();
             return;
         }
-        [self _build:_project.buildCommand then:UDAfterBuildDebug];
+        [self _buildAndRun:UDAfterBuildDebug];
         return;
     }
     UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
@@ -907,6 +985,12 @@ static const NSInteger UDAfterBuildDebug = 2;
 /// or what the project names), debugged or (@a debugging NO) run as VS Code
 /// runs without debugging: the same launch, with noDebug.
 - (void)_runProgramDebugging:(BOOL)debugging {
+    UDLaunchConfiguration *configuration = _pendingConfiguration;
+    _pendingConfiguration = nil;
+    if (configuration) {
+        [self _run:configuration debugging:debugging];
+        return;
+    }
     NSString *program = _project.runProgram;
     if (!program) {
         // what to run: asked once, then kept with the project
@@ -958,6 +1042,51 @@ static const NSInteger UDAfterBuildDebug = 2;
     if (sheet.returnCode == NSModalResponseOK && then != UDAfterBuildNothing && _project.runProgram) {
         [self _runProgramDebugging:then == UDAfterBuildDebug];
     }
+}
+
+/// launch.json's configuration: its debugger (its type's, or the one it
+/// names), its program, arguments, folder and environment; an attach's process.
+- (void)_run:(UDLaunchConfiguration *)configuration debugging:(BOOL)debugging {
+    BOOL attach = [configuration.request isEqualToString:@"attach"];
+    if (!attach && !configuration.program) {
+        [self _tell:[NSString stringWithFormat:@"“%@” runs nothing", configuration.name]
+             detail:@"Its launch configuration names no program."];
+        return;
+    }
+    NSArray<NSString *> *command = nil;
+    if (configuration.debuggerPath && [configuration.debugger isEqualToString:UDDebuggerGDB]) {
+        command = @[ configuration.debuggerPath, @"-i", @"dap" ];
+    } else {
+        command = [UDToolLocator debugAdapterCommandForDebugger:configuration.debugger ?: _project.debugger];
+    }
+    if (!command) {
+        [self _tell:@"No debugger" detail:[NSString stringWithFormat:@"“%@” wants %@, which wasn't found.", configuration.name,
+                                           configuration.debugger ?: @"lldb-dap or gdb"]];
+        return;
+    }
+    NSString *kind = [UDToolLocator kindOfDebugAdapterCommand:command];
+    NSMutableDictionary *environment = [_project.buildEnvironment mutableCopy];
+    [environment addEntriesFromDictionary:configuration.environment];
+    NSMutableDictionary *arguments = nil;
+    if (attach) {
+        arguments = [@{ @"pid": @(configuration.processID) } mutableCopy];
+        if (configuration.program) arguments[@"program"] = configuration.program;
+    } else {
+        arguments = [[UDToolLocator launchArgumentsForDebugger:kind program:configuration.program
+                                                     arguments:configuration.arguments
+                                                     directory:configuration.directory ?: _project.folderURL.path
+                                                   environment:environment] mutableCopy];
+    }
+    if (!debugging) arguments[@"noDebug"] = @YES;
+    UDDebugSession *session = [[UDDebugSession alloc] initWithAdapterCommand:command
+                                                        currentDirectoryPath:_project.folderURL.path
+                                                                 breakpoints:debugging ? _breakpoints : [[UDBreakpointStore alloc] init]];
+    session.adapterID = kind ?: configuration.type;
+    self.debugSession = session;
+    [_debugSplit setPane:UDDebugAreaPane visible:YES];
+    if (debugging) [self showDebugNavigator:nil];
+    if (attach) [session attachWithArguments:arguments];
+    else [session launchWithArguments:arguments];
 }
 
 /// A sheet saying what went wrong.

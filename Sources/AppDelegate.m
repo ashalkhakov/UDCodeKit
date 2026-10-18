@@ -63,6 +63,36 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
     return workspace;
 }
 
+/// Debug > Launch Configuration and Run Task: the key project window's
+/// launch.json configurations and tasks.json tasks, as they are when the menu opens.
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    BOOL configurations = [menu.title isEqualToString:@"Launch Configuration"];
+    if (!configurations && ![menu.title isEqualToString:@"Run Task"]) return;
+    [menu removeAllItems];
+    // the key window's project, else the main window's, else the frontmost one's
+    UDTasks *tasks = nil;
+    NSMutableArray<NSWindow *> *windows = [NSMutableArray array];
+    if ([NSApp keyWindow]) [windows addObject:[NSApp keyWindow]];
+    if ([NSApp mainWindow]) [windows addObject:[NSApp mainWindow]];
+    [windows addObjectsFromArray:[NSApp orderedWindows]];
+    for (NSWindow *window in windows) {
+        id controller = window.windowController;
+        tasks = [controller respondsToSelector:@selector(tasks)] ? [controller tasks] : nil;
+        if (tasks) break;
+    }
+    NSArray *names = configurations ? [tasks.configurations valueForKey:@"name"] : [tasks.tasks valueForKey:@"label"];
+    for (NSString *name in names) {
+        NSMenuItem *item = [menu addItemWithTitle:name
+                                           action:configurations ? @selector(selectLaunchConfiguration:) : @selector(runTask:)
+                                    keyEquivalent:@""];
+        item.representedObject = name;
+    }
+    if (!names.count) {
+        NSMenuItem *none = [menu addItemWithTitle:configurations ? @"No launch.json" : @"No tasks.json" action:NULL keyEquivalent:@""];
+        none.enabled = NO;
+    }
+}
+
 - (IBAction)checkForUpdates:(id)sender {
     [self.updater checkForUpdates:sender];
 }

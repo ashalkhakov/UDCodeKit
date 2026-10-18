@@ -65,6 +65,7 @@
 #import <UDCodeKit/UDBreakpointNavigatorViewController.h>
 #import <UDCodeKit/UDBreakpointEditorViewController.h>
 #import <UDCodeKit/UDDebugHoverViewController.h>
+#import <UDCodeKit/UDTasks.h>
 #import <UDCodeKit/UDFileWatcher.h>
 #import <UDCodeKit/UDProjectSettingsController.h>
 #import <UDCodeKit/UDBuildLogViewController.h>

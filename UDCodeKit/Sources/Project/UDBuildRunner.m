@@ -33,8 +33,10 @@ UDDiagnosticSource const UDDiagnosticSourceBuild = @"build";
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
+/// Until its output is all read and the delegate told (the process may have
+/// ended before).
 - (BOOL)isRunning {
-    return _task.isRunning;
+    return _task != nil;
 }
 
 - (NSString *)output {

@@ -9,7 +9,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface AppDelegate : NSObject <NSApplicationDelegate>
+@interface AppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate>
 
 /// File > Open Folder…: a folder opened as a project.
 - (IBAction)openFolder:(nullable id)sender;

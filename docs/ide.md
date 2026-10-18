@@ -6,13 +6,14 @@ that already exist for each of those, and adds no project format:
 - **Building** is the project's own command: `make`, `make -f Makefile.apple`,
   `cmake`, `xcodebuild`.
 - **The language** is clangd, the language server LLVM ships: completion,
-  errors as you type, hover, go to definition.
+  errors as you type, hover, definitions and references, rename, formatting,
+  fixes, signatures, the symbol under the caret highlighted where it occurs.
 - **Debugging** is the debugger's own Debug Adapter Protocol: `lldb-dap` (LLVM's,
   and Xcode's on macOS) or gdb's (`gdb -i dap`, gdb 14 and later).
 
 ## Opening a project
 
-File › Open Folder… (⇧⌘O) opens a folder as a project. Its files are in the
+File › Open Folder… (⌥⌘O) opens a folder as a project. Its files are in the
 navigator's Files tab, folders first, hidden files left out; a click opens one.
 ⌘S saves the tab's file, and Build saves every edited one first.
 
@@ -64,6 +65,24 @@ read as VS Code reads them (comments and trailing commas included):
   `${fileExtname}`, `${relativeFile}`, `${cwd}`, `${userHome}`, `${env:NAME}`.
 
 Without them, what follows is used.
+
+## Finding and changing code
+
+As in Xcode, with the language server doing the work:
+
+| | | |
+|---|---|---|
+| Navigate › Open Quickly… | ⇧⌘O | a file by the letters of its name (ripgrep's list, so `.gitignore`'s files are left out), or a symbol (`workspace/symbol`) |
+| Navigate › Jump to Definition | ⌃⌘J | where the symbol at the caret is defined |
+| Navigate › Find References | ⇧⌃⌘F | everywhere it is used, in the Find navigator |
+| Edit › Find › Find in Workspace… | ⇧⌘F | the folder's files searched (ripgrep, else grep), the matches by file in the Find navigator (⌘3) |
+| Editor › Rename Symbol… | ⌃⌘E | its new name asked for, then changed everywhere: open files through their editors (one undo), the others on disk |
+| Editor › Format Document | ⌃⇧I | the server's formatting (clangd follows the project's `.clang-format`) |
+| Editor › Fix Issue at Cursor | ⌃⌥⌘F | the server's fixes for the caret's issue, and its refactorings, in a menu |
+
+Typing `(` or `,` in a call shows the function's signature, the parameter
+there in bold. Resting the caret on a symbol highlights it wherever it occurs
+in the file, the places it is assigned to in a warmer colour.
 
 ## Changes made elsewhere
 
@@ -122,6 +141,11 @@ the SDK on macOS, and the folder's headers.
 | `UDProjectSettingsController` | UDCodeKit `Project/`, `UDProjectSettings.xib` | the settings sheet |
 | `UDTasks` | UDCodeKit `Project/` | `.vscode/tasks.json` and `launch.json`, as VS Code reads them |
 | `UDFileWatcher` | UDCodeKit `Project/` | the folder watched: FSEvents, inotify |
+| `UDSearchResultsViewController` | UDCodeKit `Project/`, `UDSearchResults.xib` | the Find navigator: workspace search, references |
+| `UDOpenQuicklyController` | UDCodeKit `Project/`, `UDOpenQuickly.xib` | Open Quickly |
+| `UDWorkspaceEdit` | UDCodeKit `LSP/` | a server's WorkspaceEdit or TextEdits, applied |
+| `UDOccurrencesHighlighter` | UDCodeKit `Highlighters/` | the caret's symbol, where it occurs |
+| `UDTextPromptController` | UDCodeKit `Workbench/`, `UDTextPrompt.xib` | a sheet asking for one line (Rename Symbol's) |
 | `UDDocumentWindowController` | UDCode | the project window: navigator, tabs, the menus' actions |
 
 How this compares with VS Code: [architecture.md](architecture.md).

@@ -42,6 +42,9 @@ NS_ASSUME_NONNULL_BEGIN
 /** The server ended without being asked to and was started again: open
     documents must be opened again (after initializing). */
 - (void)languageServerDidRestart:(LSPClient *)client;
+/** workspace/applyEdit: the server's WorkspaceEdit (a command's, say),
+    applied; YES when it was. The first observer to apply it answers. */
+- (BOOL)languageServer:(LSPClient *)client applyEdit:(NSDictionary *)edit;
 
 @end
 

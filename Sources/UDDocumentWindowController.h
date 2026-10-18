@@ -19,7 +19,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController,
-       UDTasks;
+       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDTextPromptController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -85,6 +85,29 @@ NS_ASSUME_NONNULL_BEGIN
 /// File > Save in a project: the selected tab's file (and every edited one, Save All).
 - (IBAction)saveDocument:(nullable id)sender;
 - (IBAction)saveAllDocuments:(nullable id)sender;
+
+// MARK: - The language's (LSP), as Xcode's Navigate and Editor menus
+
+/// The Find navigator: workspace searches and references.
+@property (nonatomic, strong, readonly) UDSearchResultsViewController *searchResults;
+- (IBAction)showFindNavigator:(nullable id)sender;
+- (IBAction)findInWorkspace:(nullable id)sender;
+- (IBAction)jumpToDefinition:(nullable id)sender;
+- (IBAction)findReferences:(nullable id)sender;
+- (IBAction)openQuickly:(nullable id)sender;
+@property (nonatomic, strong, readonly, nullable) UDOpenQuicklyController *openQuickly;
+/// Rename Symbol: asks for the name in this sheet.
+- (IBAction)renameSymbol:(nullable id)sender;
+@property (nonatomic, strong, readonly, nullable) UDTextPromptController *renamePrompt;
+- (IBAction)formatDocument:(nullable id)sender;
+/// Fix Issue: the code actions found, in a menu; each performed by its index.
+- (IBAction)fixIssue:(nullable id)sender;
+@property (nonatomic, readonly, copy) NSArray<NSDictionary *> *codeActions;
+/// Their menu, the last shown (macOS tracks it modally; GNUstep leaves it up).
+@property (nonatomic, readonly, nullable) NSMenu *codeActionsMenu;
+- (void)performCodeActionAtIndex:(NSUInteger)index;
+/// The call's signature shown as it is typed; nil when none is.
+@property (nonatomic, readonly, copy, nullable) NSString *signatureHelpText;
 
 // MARK: - Debugging
 

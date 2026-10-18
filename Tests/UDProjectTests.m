@@ -19,6 +19,8 @@
 @property (nonatomic, strong) UDEditorTabsController *editorTabs;
 @property (nonatomic, weak) NSTableView *filesTable;
 @property (nonatomic, weak) NSView *projectHost;
+- (void)searchResults:(UDSearchResultsViewController *)controller showResult:(UDSearchResult *)result;
+- (void)textViewDidChangeSelection:(NSNotification *)note;
 @end
 
 @interface UDProjectTests : UDCodeTestCase
@@ -27,6 +29,9 @@
 @property (nonatomic, weak) UDDocumentWindowController *sheetController;
 @property (nonatomic, copy) NSString *sheetPlaceholder;
 @property (nonatomic, copy) NSString *sheetBuild;
+/// The name -answerRename types into Rename Symbol's sheet.
+@property (nonatomic, copy) NSString *renameTo;
+@property (nonatomic) BOOL renameAnswered;
 @end
 
 @implementation UDProjectTests
@@ -500,6 +505,205 @@
     XCTAssertTrue([controller.debugSession.consoleText containsString:@"vscode second"], @"the configuration's args: %@",
                   controller.debugSession.consoleText);
     controller.selectedLaunchConfiguration = nil;
+    [controller close];
+    [workspace close];
+}
+
+
+// ---------------------------------------------------------------------------
+// MARK: - The language's: search, Open Quickly, and clangd's navigation and edits
+// ---------------------------------------------------------------------------
+
+/// A WorkspaceEdit's two shapes: an open file's model edited, a closed one's
+/// file rewritten, the edits of one file applied together.
+- (void)testAWorkspaceEditChangesOpenAndClosedFiles {
+    [self write:@"alpha beta\ngamma alpha\n" to:@"closed.txt"];
+    NSString *closed = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"closed.txt"]].absoluteString;
+    NSDictionary *range00 = @{ @"start": @{ @"line": @0, @"character": @0 }, @"end": @{ @"line": @0, @"character": @5 } };
+    NSDictionary *range16 = @{ @"start": @{ @"line": @1, @"character": @6 }, @"end": @{ @"line": @1, @"character": @11 } };
+    NSDictionary *edit = @{ @"changes": @{ closed: @[ @{ @"range": range00, @"newText": @"omega" },
+                                                      @{ @"range": range16, @"newText": @"omega" } ] } };
+    NSArray *changed = [UDWorkspaceEdit applyEdit:edit documents:nil error:NULL];
+    XCTAssertEqual(changed.count, 1u);
+    NSString *text = [NSString stringWithContentsOfFile:[_folder stringByAppendingPathComponent:@"closed.txt"]
+                                               encoding:NSUTF8StringEncoding error:NULL];
+    XCTAssertEqualObjects(text, @"omega beta\ngamma omega\n");
+
+    UDTextModel *model = [[UDTextModel alloc] initWithText:@"one two\nthree\n"];
+    [UDWorkspaceEdit applyTextEdits:@[ @{ @"range": @{ @"start": @{ @"line": @1, @"character": @0 }, @"end": @{ @"line": @1, @"character": @5 } },
+                                          @"newText": @"3" },
+                                       @{ @"range": @{ @"start": @{ @"line": @0, @"character": @4 }, @"end": @{ @"line": @0, @"character": @7 } },
+                                          @"newText": @"2" } ]
+                        toTextModel:model];
+    XCTAssertEqualObjects([model getValue], @"one 2\n3\n");
+}
+
+/// Edit > Find > Find in Workspace: the folder's files searched, the
+/// matches by file in the Find navigator; one chosen, its place shown.
+- (void)testFindInWorkspaceShowsWhereTheTextIs {
+    [self write:@"nothing here\nthe Needle is here\n" to:@"Sources/one.txt"];
+    [self write:@"needle first\nand a needle again\n" to:@"Sources/Model/two.txt"];
+    [self write:@"no match\n" to:@"three.txt"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller.searchResults searchFor:@"needle"];
+    UDRunUntil(!controller.searchResults.searching, 20);
+    NSArray<UDSearchResult *> *results = controller.searchResults.results;
+    XCTAssertEqual(results.count, 3u, @"%@", [results valueForKey:@"lineText"]);
+    NSArray *files = [[results valueForKeyPath:@"url.lastPathComponent"] valueForKeyPath:@"@distinctUnionOfObjects.self"];
+    XCTAssertEqualObjects([files sortedArrayUsingSelector:@selector(compare:)], (@[ @"one.txt", @"two.txt" ]));
+
+    UDSearchResult *needle = nil;
+    for (UDSearchResult *result in results) {
+        if ([result.url.lastPathComponent isEqual:@"one.txt"]) needle = result;
+    }
+    XCTAssertEqual(needle.line, 2);
+    XCTAssertEqual(needle.column, 4);
+    [controller searchResults:controller.searchResults showResult:needle];
+    UDCodeDocument *shown = controller.editorTabs.selectedItem.representedObject;
+    XCTAssertEqualObjects(shown.fileURL.lastPathComponent, @"one.txt");
+    NSTextView *textView = [(UDCodeEditorViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem] textView];
+    XCTAssertEqualObjects([textView.string substringWithRange:textView.selectedRange], @"Needle");
+    [controller close];
+    [workspace close];
+}
+
+/// Open Quickly: the files whose names have the letters typed, in order,
+/// best first.
+- (void)testOpenQuicklyFindsFilesByTheirLetters {
+    [self write:@"" to:@"Sources/Model/UDThing.m"];
+    [self write:@"" to:@"Sources/Model/UDThing.h"];
+    [self write:@"" to:@"Sources/OtherThing.m"];
+    [self write:@"" to:@".hidden/UDThing.m"];
+    UDOpenQuicklyController *open = [[UDOpenQuicklyController alloc] init];
+    open.folderURL = [NSURL fileURLWithPath:_folder];
+    XCTAssertEqual(open.files.count, 3u, @"%@", open.files);
+    XCTAssertFalse([open.files containsObject:@".hidden/UDThing.m"], @"%@", open.files);
+    open.query = @"udthing.m";
+    XCTAssertEqualObjects([open.results.firstObject.url.path substringFromIndex:_folder.length + 1], @"Sources/Model/UDThing.m");
+    open.query = @"othm";
+    XCTAssertEqualObjects([open.results valueForKeyPath:@"url.lastPathComponent"], (@[ @"OtherThing.m" ]), @"letters apart");
+    open.query = @"zzz";
+    XCTAssertEqual(open.results.count, 0u);
+}
+
+- (NSTextView *)textViewOf:(UDDocumentWindowController *)controller {
+    return [(UDCodeEditorViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem] textView];
+}
+
+/// The caret in @a textView, @a offset characters into the @a nth (0-based) @a text.
+- (void)put:(NSTextView *)textView at:(NSString *)text nth:(NSUInteger)nth offset:(NSUInteger)offset {
+    NSRange found = NSMakeRange(0, 0);
+    NSUInteger from = 0;
+    for (NSUInteger i = 0; i <= nth; i++) {
+        found = [textView.string rangeOfString:text options:0 range:NSMakeRange(from, textView.string.length - from)];
+        from = NSMaxRange(found);
+    }
+    textView.selectedRange = NSMakeRange(found.location + offset, 0);
+}
+
+/// Rename Symbol's sheet answered when it shows (on GNUstep it runs a modal loop of its own).
+- (void)answerRename:(UDDocumentWindowController *)controller {
+    UDTextPromptController *prompt = controller.renamePrompt;
+    if (!prompt.window.isVisible) {
+        [self performSelector:@selector(answerRename:) withObject:controller afterDelay:0.1
+                      inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
+        return;
+    }
+    prompt.textField.stringValue = _renameTo;
+    [prompt ok:nil];
+    _renameAnswered = YES;
+}
+
+/// Fix Issue's menu dismissed when it shows (it tracks the mouse modally).
+- (void)dismissFixMenu:(UDDocumentWindowController *)controller {
+    NSMenu *menu = controller.codeActionsMenu;
+#ifdef __APPLE__
+    [menu cancelTracking];
+#else
+    [menu close];
+#endif
+    if (!menu) {
+        [self performSelector:@selector(dismissFixMenu:) withObject:controller afterDelay:0.1
+                      inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ]];
+    }
+}
+
+/// clangd, through the Navigate and Editor menus: the caret's symbol
+/// highlighted where it occurs; Fix Issue's fix; Jump to Definition; Find
+/// References; Rename Symbol; Format Document; a call's signature as it is typed.
+- (void)testClangdNavigatesAndEditsTheCode {
+    if (![UDToolLocator clangdPath]) {
+        NSLog(@"UDProjectTests: no clangd here; its case checks nothing");
+        return;
+    }
+    [self write:@"static int counter;\n"
+                @"static int bump(int by) {\n"
+                @"    counter = counter + by;\n"
+                @"    return counter;\n"
+                @"}\n"
+                @"int main(void) {\n"
+                @"    int   x=bump(1);\n"
+                @"    return x + bump(2)\n"
+                @"}\n" to:@"main.c"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller.window makeKeyAndOrderFront:nil];
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"main.c"]]];
+    UDCodeDocument *document = controller.editorTabs.selectedItem.representedObject;
+    NSTextView *textView = [self textViewOf:controller];
+    UDLSPCoordinator *lsp = ((UDEditorSession *)[[controller valueForKey:@"sessions"] objectForKey:document]).lspCoordinator;
+    UDRunUntil([[self messagesOf:document] containsString:@"after return statement"], 30);
+    XCTAssertTrue([[self messagesOf:document] containsString:@"after return statement"], @"%@", [self messagesOf:document]);
+
+    // the occurrences of counter: its declaration, two writes' and reads'
+    [self put:textView at:@"counter" nth:1 offset:2];
+    [controller textViewDidChangeSelection:[NSNotification notificationWithName:NSTextViewDidChangeSelectionNotification object:textView]];
+    UDRunUntil(lsp.occurrenceRanges.count == 4, 10);
+    XCTAssertEqual(lsp.occurrenceRanges.count, 4u);
+
+    // Fix Issue: clangd's fix, the missing semicolon
+    [self put:textView at:@"bump(2)" nth:0 offset:7];
+    NSArray *modes = @[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ];
+    [self performSelector:@selector(dismissFixMenu:) withObject:controller afterDelay:0.1 inModes:modes];
+    [controller fixIssue:nil];
+    UDRunUntil(controller.codeActions.count > 0 && controller.codeActionsMenu, 10);
+    UDRunUntil(NO, 0.3);    // the menu dismissed
+    XCTAssertTrue(controller.codeActions.count > 0, @"a fix for the missing ';'");
+    [controller performCodeActionAtIndex:0];
+    XCTAssertTrue([[document.textModel getValue] containsString:@"bump(2);"], @"%@", [document.textModel getValue]);
+
+    // Jump to Definition, from a call
+    [self put:textView at:@"bump" nth:1 offset:1];
+    [controller jumpToDefinition:nil];
+    UDRunUntil(textView.selectedRange.location < 40, 10);
+    XCTAssertEqualObjects([textView.string substringWithRange:textView.selectedRange], @"bump", @"its declaration");
+    XCTAssertEqual(textView.selectedRange.location, [textView.string rangeOfString:@"bump"].location);
+
+    // Find References: the declaration and both calls
+    [controller findReferences:nil];
+    UDRunUntil(controller.searchResults.results.count == 3, 10);
+    XCTAssertEqualObjects([controller.searchResults.results valueForKey:@"line"], (@[ @2, @7, @8 ]));
+
+    // Rename Symbol
+    _renameTo = @"increase";
+    [self performSelector:@selector(answerRename:) withObject:controller afterDelay:0.1 inModes:modes];
+    [controller renameSymbol:nil];
+    UDRunUntil(_renameAnswered && [[document.textModel getValue] containsString:@"increase(2)"], 10);
+    XCTAssertFalse([[document.textModel getValue] containsString:@"bump"], @"%@", [document.textModel getValue]);
+    XCTAssertEqual([[document.textModel getValue] componentsSeparatedByString:@"increase"].count, 4u);
+
+    // Format Document: clangd's style
+    [controller formatDocument:nil];
+    UDRunUntil([[document.textModel getValue] containsString:@"int x = increase(1);"], 10);
+    XCTAssertTrue([[document.textModel getValue] containsString:@"int x = increase(1);"], @"%@", [document.textModel getValue]);
+
+    // a call typed: its signature, the parameter
+    [self put:textView at:@"return x" nth:0 offset:0];
+    [textView insertText:@"increase("];
+    UDRunUntil([controller.signatureHelpText containsString:@"int by"], 10);
+    XCTAssertTrue([controller.signatureHelpText containsString:@"increase(int by)"], @"%@", controller.signatureHelpText);
+
     [controller close];
     [workspace close];
 }

@@ -72,6 +72,7 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
 @property (readonly) LSPTransport *transport;
 @property (weak) id<LSPPipelineDelegate> delegate;
 @property NSMutableString *log;
+- (void)sendReplyTo:(id)messageID result:(nullable id)result error:(nullable NSDictionary *)error;
 @end
 
 @implementation LSPPipeline
@@ -115,6 +116,17 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
         [self logMessage:request type:@"send-request"];
     }
     return (NSInteger)_messageID;
+}
+
+/// Answers a request of the server's: its result, or an error.
+- (void)sendReplyTo:(id)messageID result:(nullable id)result error:(nullable NSDictionary *)error {
+    NSMutableDictionary *reply = [NSMutableDictionary dictionaryWithObjectsAndKeys:@"2.0", @"jsonrpc", messageID, @"id", nil];
+    if (error) [reply setObject:error forKey:@"error"];
+    else [reply setObject:result ?: [NSNull null] forKey:@"result"];
+    [_transport sendMessage:reply];
+    if (_log) {
+        [self logMessage:reply type:@"send-response"];
+    }
 }
 
 - (void)sendNotification:(NSString *)method params:(nullable NSDictionary *)params {
@@ -453,8 +465,19 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
     }
 }
 
+/// The edits not yet sent (they wait for the run loop to be idle), sent:
+/// a request is about the text as it is now, as the server must know it.
+- (void)_sendPendingChanges {
+    for (LSPDocument *document in [_documents allValues]) {
+        if ([[document contentChanges] count] == 0) continue;
+        NSDictionary *userInfo = [NSDictionary dictionaryWithObjectsAndKeys:document, LSPDocumentUserInfoKey, nil];
+        [self _documentDidChange:[NSNotification notificationWithName:LSPDocumentDidChangeNotification object:self userInfo:userInfo]];
+    }
+}
+
 - (NSInteger)_request:(NSString *)method params:(NSDictionary *)params kind:(LSPReplyKind)kind
                target:(id)target action:(SEL)action text:(NSString *)text {
+    [self _sendPendingChanges];
     LSPPendingRequest *request = [[LSPPendingRequest alloc] init];
     request.target = target;
     request.action = action;
@@ -465,10 +488,33 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
     return requestID;
 }
 
+/// A request of the server's, answered: each needs its reply, or the server waits.
 - (void)handleRequestMessage:(NSDictionary *)requestMessage {
     NSString *method = [requestMessage objectForKey:@"method"];
-    if ([method isEqual:@"window/showMessageRequest"]) {
-        NSLog(@"window/showMessageRequest %@", requestMessage);
+    id messageID = [requestMessage objectForKey:@"id"];
+    NSDictionary *params = [requestMessage objectForKey:@"params"];
+    if ([method isEqual:@"workspace/applyEdit"]) {
+        // a command's edit (a refactoring's), applied where the documents are
+        NSDictionary *edit = [params isKindOfClass:[NSDictionary class]] ? [params objectForKey:@"edit"] : nil;
+        BOOL applied = NO;
+        for (id<LSPClientObserver> observer in [_observers copy]) {
+            if ([observer respondsToSelector:@selector(languageServer:applyEdit:)] && [observer languageServer:self applyEdit:edit]) {
+                applied = YES;
+                break;
+            }
+        }
+        [_pipeline sendReplyTo:messageID result:@{ @"applied": @(applied) } error:nil];
+    } else if ([method isEqual:@"window/workDoneProgress/create"] || [method isEqual:@"client/registerCapability"] ||
+               [method isEqual:@"client/unregisterCapability"] || [method isEqual:@"window/showMessageRequest"]) {
+        [_pipeline sendReplyTo:messageID result:nil error:nil];
+    } else if ([method isEqual:@"workspace/configuration"]) {
+        NSArray *items = [params isKindOfClass:[NSDictionary class]] ? [params objectForKey:@"items"] : nil;
+        NSMutableArray *results = [NSMutableArray array];
+        for (NSUInteger i = 0; i < [items count]; i++) [results addObject:[NSNull null]];
+        [_pipeline sendReplyTo:messageID result:results error:nil];
+    } else {
+        [_pipeline sendReplyTo:messageID result:nil
+                         error:@{ @"code": @(-32601), @"message": [NSString stringWithFormat:@"%@ is not supported", method] }];
     }
 }
 
@@ -526,11 +572,22 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
 
     NSMutableDictionary *params = [NSMutableDictionary dictionary];
     NSNumber *pid = [NSNumber numberWithInt:[[NSProcessInfo processInfo] processIdentifier]];
-    NSDictionary *capabilities = [NSDictionary dictionaryWithObjectsAndKeys:
-                                  [NSNull null], @"workspace",
-                                  [NSNull null], @"textDocument",
-                                  [NSNull null], @"experimental",
-                                  nil];
+    // What the client takes: code actions with their edits (clangd's fixes),
+    // rename, signature help, workspace edits by document, workspace symbols
+    NSDictionary *capabilities = @{
+        @"workspace": @{ @"applyEdit": @YES, @"workspaceEdit": @{ @"documentChanges": @YES },
+                         @"symbol": @{},
+                         @"didChangeWatchedFiles": @{ @"dynamicRegistration": @NO } },
+        @"textDocument": @{
+            @"codeAction": @{ @"codeActionLiteralSupport": @{ @"codeActionKind": @{
+                @"valueSet": @[ @"", @"quickfix", @"refactor", @"refactor.extract", @"refactor.inline",
+                                @"refactor.rewrite", @"source", @"source.organizeImports" ] } } },
+            @"rename": @{ @"prepareSupport": @YES },
+            @"signatureHelp": @{ @"signatureInformation": @{ @"parameterInformation": @{ @"labelOffsetSupport": @YES } } },
+            @"references": @{},
+            @"formatting": @{},
+            @"publishDiagnostics": @{ @"relatedInformation": @YES } },
+    };
     [params setObject:pid forKey:@"processId"];
     NSURL *root = [self rootURL];
     if (root) {
@@ -704,6 +761,8 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
     if (_initialized == NO) return;
 
     LSPDocument *document = [[notification userInfo] objectForKey:LSPDocumentUserInfoKey];
+    // sent already, before a request
+    if ([[document contentChanges] count] == 0) return;
     if (_textDocumentSync.change == LSPTextDocumentSyncKindNone) {
         [document clearContentChanges];
         return;

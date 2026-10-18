@@ -15,9 +15,11 @@ static const NSInteger UDInspectorPane = 2;
 // The editors' split: the debug area below them.
 static const NSInteger UDDebugAreaPane = 1;
 // The navigator's segments.
-static const NSInteger UDDebugNavigatorSegment = 2;
-static const NSInteger UDBreakpointNavigatorSegment = 3;
-static const NSInteger UDBuildNavigatorSegment = 4;
+static const NSInteger UDFindNavigatorSegment = 1;
+static const NSInteger UDIssuesNavigatorSegment = 2;
+static const NSInteger UDDebugNavigatorSegment = 3;
+static const NSInteger UDBreakpointNavigatorSegment = 4;
+static const NSInteger UDBuildNavigatorSegment = 5;
 // What follows a build.
 static const NSInteger UDAfterBuildNothing = 0;
 static const NSInteger UDAfterBuildRun = 1;
@@ -30,7 +32,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
-                                          UDFileWatcherDelegate,
+                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -41,6 +43,17 @@ static const NSInteger UDAfterBuildDebug = 2;
 @property (nonatomic, weak) IBOutlet NSTableView        *filesTable;
 @property (nonatomic, weak) IBOutlet NSView             *projectHost;
 @property (nonatomic, weak) IBOutlet NSView             *buildLogHost;
+@property (nonatomic, weak) IBOutlet NSView             *findHost;
+@property (nonatomic, strong, readwrite) UDSearchResultsViewController *searchResults;
+@property (nonatomic, strong, readwrite, nullable) UDOpenQuicklyController *openQuickly;
+@property (nonatomic, strong, readwrite, nullable) UDTextPromptController *renamePrompt;
+@property (nonatomic, weak, nullable) UDTextModel *formattingModel;
+@property (nonatomic, readwrite, copy, nullable) NSArray<NSDictionary *> *codeActions;
+@property (nonatomic, weak, nullable) UDLSPCoordinator *codeActionCoordinator;
+@property (nonatomic, strong, readwrite, nullable) NSMenu *codeActionsMenu;
+@property (nonatomic, strong, nullable) UDHoverViewController *signatureHelp;
+@property (nonatomic, weak, nullable) UDDiagnosticTextView *signatureTextView;
+@property (nonatomic) NSUInteger signatureIndex;
 @property (nonatomic, strong, readwrite, nullable) UDBuildRunner *buildRunner;
 @property (nonatomic, strong) UDBuildLogViewController *buildLog;
 /// The project's files, watched: what changes elsewhere shows here.
@@ -181,6 +194,10 @@ static const NSInteger UDAfterBuildDebug = 2;
         _fileWatcher = [[UDFileWatcher alloc] initWithFolderURL:_project.folderURL ignoredNames:nil];
         _fileWatcher.delegate = self;
     }
+    _searchResults = [[UDSearchResultsViewController alloc] init];
+    _searchResults.delegate = self;
+    _searchResults.folderURL = _project.folderURL;
+    [self _putView:_searchResults.view inHost:_findHost];
     _buildLog = [[UDBuildLogViewController alloc] init];
     [self _putView:_buildLog.view inHost:_buildLogHost];
     _buildLog.forward = self;
@@ -453,6 +470,369 @@ static const NSInteger UDAfterBuildDebug = 2;
     [self _documentsChanged];
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - The language's: definitions, references, workspace search (LSP)
+// ---------------------------------------------------------------------------
+
+/// UDWorkspaceEditDocuments: an open file's model, for an edit to go through its editor.
+- (nullable UDTextModel *)textModelForFileURL:(NSURL *)url {
+    return [self _documentOfFileURL:url].textModel;
+}
+
+/// The open document of the file at @a url, by its path (URLs of one file can differ).
+- (nullable UDCodeDocument *)_documentOfFileURL:(NSURL *)url {
+    NSString *path = url.path.stringByStandardizingPath;
+    for (UDCodeDocument *document in _workspaceModel.documents) {
+        if ([document.fileURL.path.stringByStandardizingPath isEqualToString:path]) return document;
+    }
+    return nil;
+}
+
+/// @a url's tab, its LSP range (or a line and column) selected.
+- (void)_showURL:(NSURL *)url line:(NSInteger)line column:(NSInteger)column length:(NSInteger)length {
+    [self _showFile:url.path];
+    UDCodeDocument *document = [self _documentOfFileURL:url];
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    if (!document || !editor) return;
+    // the model's lines and columns are 1-based; a column past the line's end, its end
+    NSInteger offset = [document.textModel getOffsetAt:line column:column + 1];
+    if (offset < 0) offset = [document.textModel getOffsetAt:line column:1];
+    if (offset < 0) return;
+    NSRange range = NSMakeRange((NSUInteger)offset, (NSUInteger)MAX(length, 0));
+    if (NSMaxRange(range) > editor.textView.string.length) range.length = 0;
+    [editor.textView scrollRangeToVisible:range];
+    editor.textView.selectedRange = range;
+    [self.window makeFirstResponder:editor.textView];
+}
+
+/// The text of line @a line (1-based) of @a url: an open file's, else on disk.
+- (NSString *)_lineText:(NSInteger)line ofURL:(NSURL *)url {
+    UDTextModel *model = [self textModelForFileURL:url];
+    NSString *text = model ? [model getValue] : [UDCodeDocument textOfURL:url error:NULL];
+    NSArray<NSString *> *lines = [text componentsSeparatedByString:@"\n"];
+    return line >= 1 && (NSUInteger)line <= lines.count ? lines[(NSUInteger)line - 1] : @"";
+}
+
+/// An LSP Location or LocationLink as a search result.
+- (nullable UDSearchResult *)_resultOfLocation:(NSDictionary *)location {
+    if (![location isKindOfClass:[NSDictionary class]]) return nil;
+    NSString *uri = location[@"uri"] ?: location[@"targetUri"];
+    NSDictionary *range = location[@"range"] ?: location[@"targetSelectionRange"] ?: location[@"targetRange"];
+    NSURL *url = [uri isKindOfClass:[NSString class]] ? [NSURL URLWithString:uri] : nil;
+    if (!url || ![range isKindOfClass:[NSDictionary class]]) return nil;
+    NSInteger line = [range[@"start"][@"line"] integerValue] + 1;
+    NSInteger column = [range[@"start"][@"character"] integerValue];
+    NSInteger endLine = [range[@"end"][@"line"] integerValue] + 1;
+    NSInteger length = endLine == line ? [range[@"end"][@"character"] integerValue] - column : 0;
+    return [[UDSearchResult alloc] initWithURL:url line:line column:column length:length lineText:[self _lineText:line ofURL:url]];
+}
+
+/// Navigate > Jump to Definition (⌃⌘J): where the language server says.
+- (IBAction)jumpToDefinition:(nullable id)sender {
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
+    if (!editor || ![lsp definitionAtIndex:editor.textView.selectedRange.location target:self action:@selector(_didFindDefinition:)]) NSBeep();
+}
+
+- (void)_didFindDefinition:(LSPResponse *)response {
+    id result = response.result;
+    NSDictionary *location = [result isKindOfClass:[NSArray class]] ? [result firstObject] : result;
+    UDSearchResult *found = [self _resultOfLocation:location];
+    if (!found) {
+        NSBeep();
+        return;
+    }
+    [self _showURL:found.url line:found.line column:found.column length:found.length];
+}
+
+/// Navigate > Find References (⇧⌃⌘F): in the Find navigator.
+- (IBAction)findReferences:(nullable id)sender {
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
+    NSRange selected = editor.textView.selectedRange;
+    if (!editor || ![lsp request:@"textDocument/references" atIndex:selected.location
+                           extra:@{ @"context": @{ @"includeDeclaration": @YES } }
+                          target:self action:@selector(_didFindReferences:)]) {
+        NSBeep();
+    }
+}
+
+/// The word at the caret: what a search is for.
+- (NSString *)_wordAtCaret {
+    NSTextView *textView = [self _selectedEditor].textView;
+    if (!textView) return @"";
+    NSRange selected = textView.selectedRange;
+    if (selected.length) return [textView.string substringWithRange:selected];
+    NSRange word = [textView selectionRangeForProposedRange:NSMakeRange(selected.location, 0) granularity:NSSelectByWord];
+    return word.length && NSMaxRange(word) <= textView.string.length ? [textView.string substringWithRange:word] : @"";
+}
+
+- (void)_didFindReferences:(LSPResponse *)response {
+    NSMutableArray<UDSearchResult *> *results = [NSMutableArray array];
+    for (NSDictionary *location in [response.result isKindOfClass:[NSArray class]] ? response.result : @[]) {
+        UDSearchResult *result = [self _resultOfLocation:location];
+        if (result) [results addObject:result];
+    }
+    NSString *word = [self _wordAtCaret];
+    [_searchResults showResults:results title:word.length ? [NSString stringWithFormat:@"References to “%@”", word] : @"References"];
+    [self showFindNavigator:nil];
+}
+
+/// Edit > Find > Find in Workspace (⇧⌘F): the selection's text, or what is typed.
+- (IBAction)findInWorkspace:(nullable id)sender {
+    [self showFindNavigator:nil];
+    NSTextView *textView = [self _selectedEditor].textView;
+    NSRange selected = textView.selectedRange;
+    if (selected.length && selected.length < 200) {
+        [_searchResults searchFor:[textView.string substringWithRange:selected]];
+    } else {
+        [self.window makeFirstResponder:_searchResults.searchField];
+    }
+}
+
+- (void)searchResults:(UDSearchResultsViewController *)controller showResult:(UDSearchResult *)result {
+    [self _showURL:result.url line:result.line column:result.column length:result.length];
+}
+
+/// Open Quickly's choice: a file, or a symbol's place.
+- (void)openQuickly:(UDOpenQuicklyController *)controller showResult:(UDSearchResult *)result {
+    if (result.line > 0) [self _showURL:result.url line:result.line column:result.column length:result.length];
+    else [self _showFile:result.url.path];
+}
+
+/// Navigate > Open Quickly (⇧⌘O): the project's files, the server's symbols.
+- (IBAction)openQuickly:(nullable id)sender {
+    if (!_openQuickly) {
+        _openQuickly = [[UDOpenQuicklyController alloc] init];
+        _openQuickly.delegate = self;
+    }
+    _openQuickly.folderURL = _project.folderURL;
+    _openQuickly.client = [self _activeSession].lspCoordinator.client ?: _projectServers.allValues.firstObject;
+    [_openQuickly beginSheetForWindow:self.window];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - The language's: rename, format, fixes, signatures, occurrences (LSP)
+// ---------------------------------------------------------------------------
+
+/// A WorkspaceEdit applied: open files through their editors, the others on disk.
+- (BOOL)_applyWorkspaceEdit:(NSDictionary *)edit {
+    NSError *error = nil;
+    NSArray<NSURL *> *changed = [UDWorkspaceEdit applyEdit:edit documents:self error:&error];
+    if (error) [self _tell:@"Some files could not be changed." detail:error.localizedDescription];
+    return changed.count > 0;
+}
+
+/// Editor > Rename Symbol (⌃⌘E): its new name asked for, then each place it is.
+- (IBAction)renameSymbol:(nullable id)sender {
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
+    if (!editor || !lsp.ready) {
+        NSBeep();
+        return;
+    }
+    NSRange selected = editor.textView.selectedRange;
+    NSString *word = [self _wordAtCaret];
+    if (!word.length) {
+        NSBeep();
+        return;
+    }
+    if (!_renamePrompt) _renamePrompt = [[UDTextPromptController alloc] init];
+    _renamePrompt.context = @{ @"coordinator": lsp, @"index": @(selected.location) };
+    [_renamePrompt beginSheetForWindow:self.window message:[NSString stringWithFormat:@"Rename “%@” to:", word]
+                                  text:word target:self action:@selector(_renamePromptDidEnd:)];
+}
+
+- (void)_renamePromptDidEnd:(UDTextPromptController *)prompt {
+    UDLSPCoordinator *lsp = prompt.context[@"coordinator"];
+    NSUInteger index = [prompt.context[@"index"] unsignedIntegerValue];
+    prompt.context = nil;
+    NSString *name = [prompt.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    if (prompt.returnCode != NSModalResponseOK || !name.length) return;
+    if (![lsp request:@"textDocument/rename" atIndex:index extra:@{ @"newName": name }
+               target:self action:@selector(_didRename:)]) {
+        NSBeep();
+    }
+}
+
+- (void)_didRename:(LSPResponse *)response {
+    if (response.error) {
+        [self _tell:@"The symbol could not be renamed." detail:response.error.localizedDescription];
+        return;
+    }
+    if (![response.result isKindOfClass:[NSDictionary class]] || ![self _applyWorkspaceEdit:response.result]) NSBeep();
+}
+
+/// Editor > Format Document (⌃⇧I): the server's formatting, one undoable edit.
+- (IBAction)formatDocument:(nullable id)sender {
+    UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
+    NSDictionary *options = @{ @"options": @{ @"tabSize": @4, @"insertSpaces": @YES } };
+    _formattingModel = [self _activeSession].textStorage.textModel;
+    if (![lsp request:@"textDocument/formatting" extra:options target:self action:@selector(_didFormat:)]) NSBeep();
+}
+
+- (void)_didFormat:(LSPResponse *)response {
+    UDTextModel *model = _formattingModel;
+    _formattingModel = nil;
+    if (response.error) {
+        [self _tell:@"The document could not be formatted." detail:response.error.localizedDescription];
+        return;
+    }
+    NSArray *edits = [response.result isKindOfClass:[NSArray class]] ? response.result : nil;
+    if (model && edits.count) [UDWorkspaceEdit applyTextEdits:edits toTextModel:model];
+}
+
+/// Editor > Fix Issue at Cursor (⌃⌥⌘F): the server's code actions for the
+/// caret's diagnostics (its fixes first), in a menu at the caret.
+- (IBAction)fixIssue:(nullable id)sender {
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
+    NSRange selected = editor.textView.selectedRange;
+    if (!editor || !lsp.ready) {
+        NSBeep();
+        return;
+    }
+    // the caret's line, when nothing is selected: a fix is for its diagnostic
+    NSRange range = selected;
+    if (!range.length) range = [editor.textView.string lineRangeForRange:selected];
+    NSDictionary *params = @{ @"range": [lsp LSPRangeOfCharacterRange:selected],
+                              @"context": @{ @"diagnostics": [lsp diagnosticsInCharacterRange:range] } };
+    _codeActionCoordinator = lsp;
+    if (![lsp request:@"textDocument/codeAction" extra:params target:self action:@selector(_didFindCodeActions:)]) NSBeep();
+}
+
+- (void)_didFindCodeActions:(LSPResponse *)response {
+    NSMutableArray<NSDictionary *> *actions = [NSMutableArray array];
+    for (NSDictionary *action in [response.result isKindOfClass:[NSArray class]] ? response.result : @[]) {
+        if ([action isKindOfClass:[NSDictionary class]] && [action[@"title"] isKindOfClass:[NSString class]]) [actions addObject:action];
+    }
+    // the preferred, then the quick fixes, then the rest (refactorings)
+    [actions sortWithOptions:NSSortStable usingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        NSInteger ra = [a[@"isPreferred"] boolValue] ? 0 : [a[@"kind"] isEqual:@"quickfix"] ? 1 : 2;
+        NSInteger rb = [b[@"isPreferred"] boolValue] ? 0 : [b[@"kind"] isEqual:@"quickfix"] ? 1 : 2;
+        return ra < rb ? NSOrderedAscending : ra > rb ? NSOrderedDescending : NSOrderedSame;
+    }];
+    _codeActions = actions;
+    NSTextView *textView = [self _selectedEditor].textView;
+    if (!actions.count || !textView) {
+        NSBeep();
+        return;
+    }
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Fixes"];
+    [actions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger i, BOOL *stop) {
+        NSMenuItem *item = [menu addItemWithTitle:action[@"title"] action:@selector(performCodeAction:) keyEquivalent:@""];
+        item.target = self;
+        item.tag = (NSInteger)i;
+    }];
+    // below the caret's line, at the caret
+    NSLayoutManager *layout = textView.layoutManager;
+    NSUInteger caret = MIN(textView.selectedRange.location, textView.string.length);
+    NSRange glyphs = [layout glyphRangeForCharacterRange:NSMakeRange(caret, 0) actualCharacterRange:NULL];
+    NSRect line = [layout lineFragmentRectForGlyphAtIndex:MIN(glyphs.location, MAX(layout.numberOfGlyphs, 1) - 1) effectiveRange:NULL];
+    NSPoint x = [layout locationForGlyphAtIndex:MIN(glyphs.location, MAX(layout.numberOfGlyphs, 1) - 1)];
+    NSPoint origin = textView.textContainerOrigin;
+    NSPoint at = NSMakePoint(origin.x + line.origin.x + x.x, origin.y + NSMaxY(line));
+    _codeActionsMenu = menu;
+    [menu popUpMenuPositioningItem:nil atLocation:at inView:textView];
+}
+
+/// One of the code actions chosen: its edit, then its command (which may
+/// send its own edit back, workspace/applyEdit).
+- (IBAction)performCodeAction:(nullable id)sender {
+    NSInteger index = [sender respondsToSelector:@selector(tag)] ? [sender tag] : 0;
+    if (index < 0 || (NSUInteger)index >= _codeActions.count) return;
+    [self _performCodeAction:_codeActions[(NSUInteger)index]];
+}
+
+- (void)_performCodeAction:(NSDictionary *)action {
+    LSPClient *client = _codeActionCoordinator.client;
+    // a bare Command, or a CodeAction with an edit and/or a command
+    NSDictionary *command = [action[@"command"] isKindOfClass:[NSString class]] ? action
+                          : [action[@"command"] isKindOfClass:[NSDictionary class]] ? action[@"command"] : nil;
+    if ([action[@"edit"] isKindOfClass:[NSDictionary class]]) [self _applyWorkspaceEdit:action[@"edit"]];
+    if (command && client) {
+        NSMutableDictionary *params = [@{ @"command": command[@"command"] } mutableCopy];
+        if ([command[@"arguments"] isKindOfClass:[NSArray class]]) params[@"arguments"] = command[@"arguments"];
+        [client sendRequest:@"workspace/executeCommand" params:params target:nil action:NULL];
+    }
+}
+
+/// The code actions the last Fix Issue found (for tests: performed by index).
+- (NSArray<NSDictionary *> *)codeActions {
+    return _codeActions ?: @[];
+}
+
+- (void)performCodeActionAtIndex:(NSUInteger)index {
+    if (index < _codeActions.count) [self _performCodeAction:_codeActions[index]];
+}
+
+/// Typed: after "(" or ",", the signature of the call, its parameter there;
+/// after ")", gone.
+- (void)_requestSignatureHelp {
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    NSTextView *textView = editor.textView;
+    NSUInteger caret = textView.selectedRange.location;
+    if (!textView || !caret || caret > textView.string.length) return;
+    unichar typed = [textView.string characterAtIndex:caret - 1];
+    if (typed == ')') {
+        [_signatureHelp close];
+        return;
+    }
+    if (typed != '(' && typed != ',') return;
+    UDLSPCoordinator *lsp = [self _activeSession].lspCoordinator;
+    _signatureTextView = (UDDiagnosticTextView *)textView;
+    _signatureIndex = caret;
+    [lsp request:@"textDocument/signatureHelp" atIndex:caret extra:nil target:self action:@selector(_didReceiveSignatureHelp:)];
+}
+
+- (void)_didReceiveSignatureHelp:(LSPResponse *)response {
+    NSDictionary *help = [response.result isKindOfClass:[NSDictionary class]] ? response.result : nil;
+    NSArray *signatures = [help[@"signatures"] isKindOfClass:[NSArray class]] ? help[@"signatures"] : nil;
+    if (!signatures.count || !_signatureTextView) {
+        [_signatureHelp close];
+        return;
+    }
+    NSUInteger active = MIN((NSUInteger)MAX([help[@"activeSignature"] integerValue], 0), signatures.count - 1);
+    NSDictionary *signature = signatures[active];
+    NSString *text = signature[@"label"] ?: @"";
+    NSArray *parameters = [signature[@"parameters"] isKindOfClass:[NSArray class]] ? signature[@"parameters"] : @[];
+    NSInteger parameter = [(signature[@"activeParameter"] ?: help[@"activeParameter"]) integerValue];
+    if (parameter >= 0 && (NSUInteger)parameter < parameters.count) {
+        id label = parameters[(NSUInteger)parameter][@"label"];
+        // a parameter's label: its text, or its [start, end] in the signature's
+        if ([label isKindOfClass:[NSArray class]] && [label count] == 2) {
+            NSUInteger from = [label[0] unsignedIntegerValue], to = [label[1] unsignedIntegerValue];
+            label = to <= text.length && from < to ? [text substringWithRange:NSMakeRange(from, to - from)] : nil;
+        }
+        if ([label isKindOfClass:[NSString class]]) text = [text stringByAppendingFormat:@"\n\n**%@**", label];
+    }
+    if (!_signatureHelp) _signatureHelp = [[UDHoverViewController alloc] init];
+    [_signatureHelp showText:text atCharacterIndex:_signatureIndex ofTextView:_signatureTextView];
+}
+
+/// The text the signature help shows (for tests); nil when it is not shown.
+- (nullable NSString *)signatureHelpText {
+    return _signatureHelp.shown ? _signatureHelp.textView.string : nil;
+}
+
+/// The caret moved: the symbol under it, highlighted where it occurs;
+/// away from the call, its signature gone.
+- (void)textViewDidChangeSelection:(NSNotification *)note {
+    NSTextView *textView = note.object;
+    if (textView != [self _selectedEditor].textView) return;
+    [[self _activeSession].lspCoordinator highlightOccurrencesAtIndex:textView.selectedRange.location];
+    if (_signatureHelp.shown && _signatureTextView == textView) {
+        NSUInteger caret = textView.selectedRange.location;
+        NSString *string = textView.string;
+        NSRange between = caret >= _signatureIndex ? NSMakeRange(_signatureIndex, caret - _signatureIndex)
+                                                   : NSMakeRange(caret, _signatureIndex - caret);
+        if (caret < _signatureIndex - 1 || NSMaxRange(between) > string.length ||
+            [[string substringWithRange:between] rangeOfString:@"\n"].location != NSNotFound) {
+            [_signatureHelp close];
+        }
+    }
+}
+
 /// A file chosen in the project's files: its tab.
 - (void)fileNavigator:(UDFileNavigatorViewController *)navigator openFileAtURL:(NSURL *)url {
     [self _showFile:url.path];
@@ -504,7 +884,13 @@ static const NSInteger UDAfterBuildDebug = 2;
 
 - (IBAction)showIssuesNavigator:(nullable id)sender {
     [_paneSplit setPane:UDNavigatorPane visible:YES];
-    _navigatorControl.selectedSegment = 1;
+    _navigatorControl.selectedSegment = UDIssuesNavigatorSegment;
+    [self navigatorChanged:nil];
+}
+
+- (IBAction)showFindNavigator:(nullable id)sender {
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = UDFindNavigatorSegment;
     [self navigatorChanged:nil];
 }
 
@@ -664,6 +1050,7 @@ static const NSInteger UDAfterBuildDebug = 2;
     if (first) {
         [session activateWithTheme:_currentTheme];
         if (![self _startProjectLanguageServerOf:session document:document]) [session startLanguageServer];
+        session.lspCoordinator.editDocuments = self;
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
                                                      name:UDDiagnosticsDidChangeNotification
                                                    object:document.diagnosticStore];
@@ -806,7 +1193,12 @@ static const NSInteger UDAfterBuildDebug = 2;
     if (!document) return;
     for (UDTabBarItem *item in [self _itemsForDocument:document]) item.dirty = document.isModified;
     [_filesTable reloadData];
-    if (_editorTabs.selectedItem.representedObject == document) [self _updateInspector];
+    if (_editorTabs.selectedItem.representedObject == document) {
+        [self _updateInspector];
+        // once the text view has the edit and its caret
+        [self performSelector:@selector(_requestSignatureHelp) withObject:nil afterDelay:0
+                      inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
+    }
 }
 
 - (void)_diagnosticsDidChange:(NSNotification *)note {

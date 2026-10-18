@@ -82,6 +82,7 @@
                                 </connections>
                             </menuItem>
                             <menuItem title="Open Folder…" keyEquivalent="O" id="UDM-openfolder">
+                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                 <connections>
                                     <action selector="openFolder:" target="-1" id="UDM-openfolder-a"/>
                                 </connections>
@@ -206,6 +207,11 @@
                                         <menuItem title="Find…" tag="1" keyEquivalent="f" id="Xz5-n4-O0W">
                                             <connections>
                                                 <action selector="performFindPanelAction:" target="-1" id="cD7-Qs-BN4"/>
+                                            </connections>
+                                        </menuItem>
+                                        <menuItem title="Find in Workspace…" keyEquivalent="F" id="UDM-findworkspace">
+                                            <connections>
+                                                <action selector="findInWorkspace:" target="-1" id="UDM-findworkspace-a"/>
                                             </connections>
                                         </menuItem>
                                         <menuItem title="Find and Replace…" tag="12" keyEquivalent="f" id="YEy-JH-Tfz">
@@ -637,6 +643,55 @@
                         </items>
                     </menu>
                 </menuItem>
+                <menuItem title="Navigate" id="UDM-navigate">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <menu key="submenu" title="Navigate" id="UDM-navigate-menu">
+                        <items>
+                            <menuItem title="Open Quickly…" keyEquivalent="O" id="UDM-openquickly">
+                                <connections>
+                                    <action selector="openQuickly:" target="-1" id="UDM-openquickly-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Jump to Definition" keyEquivalent="j" id="UDM-definition">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
+                                <connections>
+                                    <action selector="jumpToDefinition:" target="-1" id="UDM-definition-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Find References" keyEquivalent="F" id="UDM-references">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
+                                <connections>
+                                    <action selector="findReferences:" target="-1" id="UDM-references-a"/>
+                                </connections>
+                            </menuItem>
+                        </items>
+                    </menu>
+                </menuItem>
+                <menuItem title="Editor" id="UDM-editor">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <menu key="submenu" title="Editor" id="UDM-editor-menu">
+                        <items>
+                            <menuItem title="Rename Symbol…" keyEquivalent="e" id="UDM-rename">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
+                                <connections>
+                                    <action selector="renameSymbol:" target="-1" id="UDM-rename-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Format Document" keyEquivalent="I" id="UDM-format">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                <connections>
+                                    <action selector="formatDocument:" target="-1" id="UDM-format-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Fix Issue at Cursor" keyEquivalent="f" id="UDM-fix">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" option="YES" command="YES"/>
+                                <connections>
+                                    <action selector="fixIssue:" target="-1" id="UDM-fix-a"/>
+                                </connections>
+                            </menuItem>
+                        </items>
+                    </menu>
+                </menuItem>
                 <menuItem title="View" id="H8h-7b-M4v">
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="View" id="HyV-fh-RgO">
@@ -656,6 +711,11 @@
                             <menuItem title="Files" keyEquivalent="1" id="UDM-files">
                                 <connections>
                                     <action selector="showFilesNavigator:" target="-1" id="UDM-files-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Find" keyEquivalent="3" id="UDM-findnav">
+                                <connections>
+                                    <action selector="showFindNavigator:" target="-1" id="UDM-findnav-a"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Issues" keyEquivalent="5" id="UDM-issues">

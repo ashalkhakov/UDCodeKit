@@ -104,6 +104,24 @@ NSErrorDomain const DAPErrorDomain = @"DAPErrorDomain";
 - (BOOL)supportsTerminateRequest         { return [self _capability:@"supportsTerminateRequest"]; }
 - (BOOL)supportsEvaluateForHovers        { return [self _capability:@"supportsEvaluateForHovers"]; }
 - (BOOL)supportsConditionalBreakpoints   { return [self _capability:@"supportsConditionalBreakpoints"]; }
+- (BOOL)supportsHitConditionalBreakpoints { return [self _capability:@"supportsHitConditionalBreakpoints"]; }
+- (BOOL)supportsLogPoints                { return [self _capability:@"supportsLogPoints"]; }
+- (BOOL)supportsSetVariable              { return [self _capability:@"supportsSetVariable"]; }
+- (BOOL)supportsGotoTargetsRequest       { return [self _capability:@"supportsGotoTargetsRequest"]; }
+- (BOOL)supportsClipboardContext         { return [self _capability:@"supportsClipboardContext"]; }
+- (BOOL)supportsStepBack                 { return [self _capability:@"supportsStepBack"]; }
+
+- (NSArray<NSDictionary *> *)exceptionBreakpointFilters {
+    NSArray *filters = [_capabilities objectForKey:@"exceptionBreakpointFilters"];
+    if (![filters isKindOfClass:[NSArray class]]) return [NSArray array];
+    NSMutableArray *valid = [NSMutableArray arrayWithCapacity:[filters count]];
+    for (NSDictionary *filter in filters) {
+        if ([filter isKindOfClass:[NSDictionary class]] && [[filter objectForKey:@"filter"] isKindOfClass:[NSString class]]) {
+            [valid addObject:filter];
+        }
+    }
+    return valid;
+}
 
 #pragma mark Messages from the adapter
 
@@ -311,6 +329,11 @@ NSErrorDomain const DAPErrorDomain = @"DAPErrorDomain";
     return [self sendRequest:@"setBreakpoints" arguments:arguments target:target action:action];
 }
 
+- (NSInteger)setExceptionBreakpoints:(NSArray<NSString *> *)filters target:(id)target action:(SEL)action {
+    NSDictionary *arguments = [NSDictionary dictionaryWithObject:filters forKey:@"filters"];
+    return [self sendRequest:@"setExceptionBreakpoints" arguments:arguments target:target action:action];
+}
+
 - (NSInteger)configurationDoneWithTarget:(id)target action:(SEL)action {
     if (![self supportsConfigurationDoneRequest]) return 0;
     return [self sendRequest:@"configurationDone" arguments:nil target:target action:action];
@@ -355,6 +378,36 @@ NSErrorDomain const DAPErrorDomain = @"DAPErrorDomain";
     return [self sendRequest:@"evaluate" arguments:arguments target:target action:action];
 }
 
+- (NSInteger)setVariable:(NSString *)name inReference:(NSInteger)variablesReference value:(NSString *)value
+                  target:(id)target action:(SEL)action {
+    NSDictionary *arguments = [NSDictionary dictionaryWithObjectsAndKeys:
+                               [NSNumber numberWithInteger:variablesReference], @"variablesReference",
+                               name, @"name",
+                               value, @"value",
+                               nil];
+    return [self sendRequest:@"setVariable" arguments:arguments target:target action:action];
+}
+
+- (NSInteger)gotoTargetsInFile:(NSString *)path line:(NSInteger)line target:(id)target action:(SEL)action {
+    NSDictionary *source = [NSDictionary dictionaryWithObjectsAndKeys:
+                            [path lastPathComponent], @"name",
+                            path, @"path",
+                            nil];
+    NSDictionary *arguments = [NSDictionary dictionaryWithObjectsAndKeys:
+                               source, @"source",
+                               [NSNumber numberWithInteger:line], @"line",
+                               nil];
+    return [self sendRequest:@"gotoTargets" arguments:arguments target:target action:action];
+}
+
+- (NSInteger)gotoTarget:(NSInteger)targetID inThread:(NSInteger)threadID target:(id)target action:(SEL)action {
+    NSDictionary *arguments = [NSDictionary dictionaryWithObjectsAndKeys:
+                               [NSNumber numberWithInteger:threadID], @"threadId",
+                               [NSNumber numberWithInteger:targetID], @"targetId",
+                               nil];
+    return [self sendRequest:@"goto" arguments:arguments target:target action:action];
+}
+
 - (NSInteger)continueThread:(NSInteger)threadID target:(id)target action:(SEL)action {
     return [self sendRequest:@"continue" arguments:[self _threadArguments:threadID] target:target action:action];
 }
@@ -373,6 +426,16 @@ NSErrorDomain const DAPErrorDomain = @"DAPErrorDomain";
 
 - (NSInteger)pauseThread:(NSInteger)threadID target:(id)target action:(SEL)action {
     return [self sendRequest:@"pause" arguments:[self _threadArguments:threadID] target:target action:action];
+}
+
+- (NSInteger)stepBackInThread:(NSInteger)threadID target:(id)target action:(SEL)action {
+    if (![self supportsStepBack]) return 0;
+    return [self sendRequest:@"stepBack" arguments:[self _threadArguments:threadID] target:target action:action];
+}
+
+- (NSInteger)reverseContinueThread:(NSInteger)threadID target:(id)target action:(SEL)action {
+    if (![self supportsStepBack]) return 0;
+    return [self sendRequest:@"reverseContinue" arguments:[self _threadArguments:threadID] target:target action:action];
 }
 
 - (NSInteger)terminateDebuggeeWithTarget:(id)target action:(SEL)action {

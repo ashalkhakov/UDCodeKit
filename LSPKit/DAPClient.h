@@ -16,9 +16,11 @@
 //    -launchWithArguments:… or -attachWithArguments:…
 //    initialized event              -debugAdapterDidInitialize:
 //    -setBreakpointsInFile:…        for each file with breakpoints
+//    -setExceptionBreakpoints:…     when the adapter has exception filters
 //    -configurationDoneWithTarget:… when the adapter supports it
 //    stopped, continued, output, ... events; threads, stackTrace, scopes,
-//    variables, evaluate and the stepping requests
+//    variables, evaluate, setVariable, gotoTargets and goto, and the
+//    stepping requests
 //    -disconnectTerminatingDebuggee:…, and the adapter ends
 //
 
@@ -116,6 +118,15 @@ typedef NS_ENUM(NSInteger, DAPErrorCode) {
 @property (nonatomic, readonly) BOOL supportsTerminateRequest;
 @property (nonatomic, readonly) BOOL supportsEvaluateForHovers;
 @property (nonatomic, readonly) BOOL supportsConditionalBreakpoints;
+@property (nonatomic, readonly) BOOL supportsHitConditionalBreakpoints;
+@property (nonatomic, readonly) BOOL supportsLogPoints;
+@property (nonatomic, readonly) BOOL supportsSetVariable;
+@property (nonatomic, readonly) BOOL supportsGotoTargetsRequest;
+@property (nonatomic, readonly) BOOL supportsClipboardContext;
+@property (nonatomic, readonly) BOOL supportsStepBack;
+/// The exception filters the adapter offers (ExceptionBreakpointsFilter:
+/// {filter, label, description?, default?}); empty when it has none.
+@property (nonatomic, readonly) NSArray<NSDictionary *> *exceptionBreakpointFilters;
 
 #pragma mark Requests
 
@@ -141,6 +152,10 @@ typedef NS_ENUM(NSInteger, DAPErrorCode) {
 /// The response's body.breakpoints are in the same order.
 - (NSInteger)setBreakpointsInFile:(NSString *)path breakpoints:(NSArray<NSDictionary *> *)breakpoints
                            target:(nullable id)target action:(nullable SEL)action;
+/// "setExceptionBreakpoints": the exception filters (their ids) to break on,
+/// replacing those set before.
+- (NSInteger)setExceptionBreakpoints:(NSArray<NSString *> *)filters
+                              target:(nullable id)target action:(nullable SEL)action;
 /// "configurationDone", when the adapter supports it (0, and nothing sent, when not).
 - (NSInteger)configurationDoneWithTarget:(nullable id)target action:(nullable SEL)action;
 /// "threads": body.threads, [{id, name}].
@@ -157,12 +172,27 @@ typedef NS_ENUM(NSInteger, DAPErrorCode) {
 /// "watch", "hover"): body.result, body.variablesReference.
 - (NSInteger)evaluate:(NSString *)expression inFrame:(NSInteger)frameID context:(NSString *)context
                target:(nullable id)target action:(nullable SEL)action;
+/// "setVariable": @a name, in the container @a variablesReference names, set
+/// to @a value: body.value, body.type, body.variablesReference.
+- (NSInteger)setVariable:(NSString *)name inReference:(NSInteger)variablesReference value:(NSString *)value
+                  target:(nullable id)target action:(nullable SEL)action;
+/// "gotoTargets": where execution can jump to at @a line of the file at
+/// @a path: body.targets, [{id, label, line}].
+- (NSInteger)gotoTargetsInFile:(NSString *)path line:(NSInteger)line
+                        target:(nullable id)target action:(nullable SEL)action;
+/// "goto": @a threadID jumps to the target @a targetID (a gotoTargets one).
+- (NSInteger)gotoTarget:(NSInteger)targetID inThread:(NSInteger)threadID
+                 target:(nullable id)target action:(nullable SEL)action;
 /// "continue", "next" (step over), "stepIn", "stepOut", "pause", for @a threadID.
 - (NSInteger)continueThread:(NSInteger)threadID target:(nullable id)target action:(nullable SEL)action;
 - (NSInteger)nextInThread:(NSInteger)threadID target:(nullable id)target action:(nullable SEL)action;
 - (NSInteger)stepInThread:(NSInteger)threadID target:(nullable id)target action:(nullable SEL)action;
 - (NSInteger)stepOutThread:(NSInteger)threadID target:(nullable id)target action:(nullable SEL)action;
 - (NSInteger)pauseThread:(NSInteger)threadID target:(nullable id)target action:(nullable SEL)action;
+/// "stepBack" and "reverseContinue", when the adapter supports stepping
+/// back (0, and nothing sent, when not).
+- (NSInteger)stepBackInThread:(NSInteger)threadID target:(nullable id)target action:(nullable SEL)action;
+- (NSInteger)reverseContinueThread:(NSInteger)threadID target:(nullable id)target action:(nullable SEL)action;
 /// "terminate": the debuggee is asked to end, when the adapter supports it
 /// (0, and nothing sent, when not).
 - (NSInteger)terminateDebuggeeWithTarget:(nullable id)target action:(nullable SEL)action;

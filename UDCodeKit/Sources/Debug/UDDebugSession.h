@@ -11,10 +11,15 @@
  *      and its scopes, each a variable whose children load when asked
  *      (-loadChildrenOfVariable:), as an outline expands;
  *    - the console: what the adapter prints, and what -evaluate: answers;
- *    - continue, pause, step over, into and out, and stop;
+ *    - the watch expressions (the store's), evaluated in the selected
+ *      frame, and any expression evaluated for a hover or a copy;
+ *    - continue, pause, step over, into and out (and back, when the adapter
+ *      can), Run to Cursor and Jump to Cursor, and stop;
  *    - the breakpoints (UDBreakpointStore): sent per file when the adapter
- *      is ready and whenever a file's change, verified by its answers; and
- *      the instruction pointer, set in the store at the selected frame.
+ *      is ready and whenever a file's change, with their conditions, hit
+ *      counts and log messages as far as the adapter takes them, verified
+ *      by its answers; the exception filters that are on; and the
+ *      instruction pointer, set in the store at the selected frame.
  *
  *  Who shows the selected frame's file is the delegate's business: the host
  *  opens it (-debugSession:showFile:line:).
@@ -57,6 +62,9 @@ extern NSNotificationName const UDDebugSessionDidSelectFrameNotification;
 /// Variables loaded: the selected frame's scopes (no UDDebugSessionVariableKey),
 /// or a variable's children (the variable under UDDebugSessionVariableKey).
 extern NSNotificationName const UDDebugSessionDidLoadVariablesNotification;
+/// The watch expressions were evaluated (or their values went: the session
+/// runs, or ended).
+extern NSNotificationName const UDDebugSessionDidEvaluateWatchesNotification;
 /// Text went to the console: UDDebugSessionOutputKey, and its category
 /// (DAP's: "console", "stdout", "stderr"; "input" for what was evaluated,
 /// "result" for its answer) under UDDebugSessionOutputCategoryKey.
@@ -81,17 +89,25 @@ extern NSString * const UDDebugSessionOutputCategoryKey;
 @property (nonatomic, readonly) NSInteger threadID;
 @property (nonatomic, readonly, copy) NSString *name;
 @property (nonatomic, readonly, getter=isStopped) BOOL stopped;
-/// Why it stopped ("breakpoint", "step", "pause", "entry", ...).
+/// Why it stopped ("breakpoint", "step", "pause", "entry", "exception", ...).
 @property (nonatomic, readonly, copy, nullable) NSString *stopReason;
+/// What the adapter said of it (an exception's message, say).
+@property (nonatomic, readonly, copy, nullable) NSString *stopDescription;
 /// Its call stack, top first, when stopped and loaded; nil before.
 @property (nonatomic, readonly, copy, nullable) NSArray<UDDebugStackFrame *> *frames;
 @end
 
 /// A scope or a variable: a name, a value, and children when it has any
-/// (variablesReference), loaded when asked.
+/// (variablesReference), loaded when asked. Or what an expression
+/// evaluated to: named by the expression, its value the result.
 @interface UDDebugVariable : NSObject
 @property (nonatomic, readonly, copy) NSString *name;
 @property (nonatomic, readonly, copy) NSString *value;
+/// An expression that evaluates to it ("info.length"), when the adapter
+/// gives one: what Copy as Expression copies and Add to Watch watches.
+@property (nonatomic, readonly, copy, nullable) NSString *evaluateName;
+/// An expression that did not evaluate: its value is the adapter's message.
+@property (nonatomic, readonly, getter=isFailed) BOOL failed;
 @property (nonatomic, readonly, copy, nullable) NSString *type;
 @property (nonatomic, readonly) NSInteger variablesReference;
 /// A scope the adapter calls expensive (not loaded unless asked).
@@ -160,17 +176,53 @@ extern NSString * const UDDebugSessionOutputCategoryKey;
 /// Loads @a variable's children; posted when they are in.
 - (void)loadChildrenOfVariable:(UDDebugVariable *)variable;
 
+/// Evaluates @a expression in the selected frame, in @a context ("hover",
+/// "watch", "repl", "clipboard"), and sends @a action to @a target with a
+/// UDDebugVariable: named by the expression, its value the result (or,
+/// failed, the adapter's message), its children loaded by
+/// -loadChildrenOfVariable: as any variable's. Nothing is sent when the
+/// session has moved on (run, or another frame) before the answer.
+- (void)evaluate:(NSString *)expression context:(NSString *)context target:(nullable id)target action:(nullable SEL)action;
+
+/// The store's watch expressions, in its order, as evaluated in the
+/// selected frame (context "watch"): evaluated whenever it stops, another
+/// frame is selected or they change; nil while it is not stopped.
+@property (nonatomic, readonly, copy, nullable) NSArray<UDDebugVariable *> *watches;
+
+/// Whether a variable can be set (setVariable): stopped, and the adapter
+/// supports it; and @a variable is one of a scope or of a structured value.
+@property (nonatomic, readonly) BOOL canSetVariables;
+- (BOOL)canSetVariable:(UDDebugVariable *)variable;
+/// Sets @a variable to @a value (an expression in the adapter's language):
+/// it takes the adapter's answer (posted as UDDebugSessionDidLoadVariables
+/// with it), and the watches are evaluated again; a refusal goes to the
+/// console.
+- (void)setValue:(NSString *)value ofVariable:(UDDebugVariable *)variable;
+
 /// The actions, on the selected thread. Each does nothing when it may not.
 - (void)continueExecution;
 - (void)pause;
 - (void)stepOver;
 - (void)stepInto;
 - (void)stepOut;
+/// Step back and reverse continue: an adapter that supports stepping back.
+- (void)stepBack;
+- (void)reverseContinue;
+/// Run to Cursor, as VS Code's: a breakpoint at @a line of @a path for this
+/// once (unless an enabled one is there), and continue; it goes at the next
+/// stop.
+- (void)runToLine:(NSInteger)line inFile:(NSString *)path;
+/// Jump to Cursor (gotoTargets, then goto), when the adapter supports it:
+/// the selected thread goes on from @a line, without running what is
+/// between, and stops there.
+- (void)jumpToLine:(NSInteger)line inFile:(NSString *)path;
 /// Ends the session: the debuggee (a launched one) and the adapter.
 - (void)stop;
 @property (nonatomic, readonly) BOOL canContinue;   // stopped
 @property (nonatomic, readonly) BOOL canPause;      // running
 @property (nonatomic, readonly) BOOL canStep;       // stopped
+@property (nonatomic, readonly) BOOL canStepBack;   // stopped, and the adapter supports stepping back
+@property (nonatomic, readonly) BOOL canJump;       // stopped, and the adapter supports gotoTargets
 @property (nonatomic, readonly) BOOL canStop;       // not ended
 
 /// Everything the console has shown.

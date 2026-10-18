@@ -458,6 +458,11 @@ static NSString *UDStringArgument(id value) {
 - (void)_gotoTargets:(NSDictionary *)request arguments:(NSDictionary *)arguments {
     NSString *path = [arguments[@"source"][@"path"] stringByStandardizingPath];
     NSInteger line = [arguments[@"line"] integerValue];
+    // another file: refused, saying why (as an adapter that cannot jump there does)
+    if (![path isEqualToString:_program]) {
+        [self _fail:request message:[NSString stringWithFormat:@"Only %@'s lines can be jumped to.", _program.lastPathComponent]];
+        return;
+    }
     NSMutableArray *targets = [NSMutableArray array];
     if ([path isEqualToString:_program] && line >= 1 && line <= (NSInteger)_lines.count) {
         [targets addObject:@{ @"id": @(line), @"label": [NSString stringWithFormat:@"Line %ld", (long)line], @"line": @(line) }];

@@ -434,9 +434,14 @@ static NSInteger UDInteger(id value) {
 
 /// Whether @a response answers a request of this generation (and forgets it).
 - (BOOL)_isCurrent:(DAPResponse *)response {
+    return [self _isCurrentAnswer:response] && !response.error;
+}
+
+/// An answer to a request of this stop's, a refusal too.
+- (BOOL)_isCurrentAnswer:(DAPResponse *)response {
     NSNumber *generation = _requestGenerations[@(response.requestSeq)];
     [_requestGenerations removeObjectForKey:@(response.requestSeq)];
-    return generation && generation.integerValue == _generation && !response.error;
+    return generation && generation.integerValue == _generation;
 }
 
 - (void)debugAdapter:(DAPClient *)client didStop:(NSDictionary *)body {
@@ -843,14 +848,30 @@ static NSArray<UDDebugVariable *> *UDVariablesFromList(id list, UDDebugVariable 
 
 /// The first target the adapter gives (VS Code's, without a choice).
 - (void)_didFindGotoTargets:(DAPResponse *)response {
-    if (![self _isCurrent:response]) return;
+    if (![self _isCurrentAnswer:response]) return;
+    // refused: the adapter's reason, as VS Code shows it
+    if (response.error) {
+        [self _output:[response.error.localizedDescription stringByAppendingString:@"\n"] category:@"stderr"];
+        return;
+    }
     NSArray *targets = [response.body isKindOfClass:[NSDictionary class]] ? response.body[@"targets"] : nil;
     NSDictionary *target = [targets isKindOfClass:[NSArray class]] ? targets.firstObject : nil;
     if (![target isKindOfClass:[NSDictionary class]] || !target[@"id"]) {
         [self _output:@"There is nowhere to jump to on that line.\n" category:@"stderr"];
         return;
     }
-    [_client gotoTarget:UDInteger(target[@"id"]) inThread:[self _actionThreadID] target:nil action:NULL];
+    [self _request:[_client gotoTarget:UDInteger(target[@"id"]) inThread:[self _actionThreadID]
+                                target:self action:@selector(_didGoto:)]];
+}
+
+/// Gone: it runs until the adapter says where it stopped (a goto's stop);
+/// refused, it stays stopped, and says why.
+- (void)_didGoto:(DAPResponse *)response {
+    if (![self _isCurrentAnswer:response]) return;
+    if (response.error) {
+        [self _output:[response.error.localizedDescription stringByAppendingString:@"\n"] category:@"stderr"];
+        return;
+    }
     [self _resumed];
 }
 

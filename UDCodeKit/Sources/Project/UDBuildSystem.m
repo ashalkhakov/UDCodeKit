@@ -3,20 +3,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDBuildSystem.h"
-#import "UDGNUstepMakeBuildSystem.h"
-#import "UDMakeBuildSystem.h"
-#import "UDXcodeBuildSystem.h"
-#import "UDCMakeBuildSystem.h"
-#import "UDGoogleTestRunner.h"
+#import "UDLanguageModeRegistry.h"
+#import "UDExtension.h"
+
+static NSMutableArray<Class> *UDRegisteredBuildSystems;
 
 @implementation UDBuildSystem
 
 + (NSArray<Class> *)classes {
-#ifdef GNUSTEP
-    return @[ [UDGNUstepMakeBuildSystem class], [UDMakeBuildSystem class], [UDCMakeBuildSystem class] ];
-#else
-    return @[ [UDAppleMakeBuildSystem class], [UDXcodeBuildSystem class], [UDMakeBuildSystem class], [UDCMakeBuildSystem class] ];
-#endif
+    NSMutableArray<Class> *classes = [NSMutableArray array];
+    @synchronized ([UDBuildSystem class]) {
+        if (UDRegisteredBuildSystems) [classes addObjectsFromArray:UDRegisteredBuildSystems];
+    }
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if ([extension respondsToSelector:@selector(buildSystemClasses)]) [classes addObjectsFromArray:[extension buildSystemClasses]];
+    }
+    return classes;
+}
+
++ (void)registerClass:(Class)buildSystemClass {
+    @synchronized ([UDBuildSystem class]) {
+        if (!UDRegisteredBuildSystems) UDRegisteredBuildSystems = [NSMutableArray array];
+        if (![UDRegisteredBuildSystems containsObject:buildSystemClass]) [UDRegisteredBuildSystems addObject:buildSystemClass];
+    }
 }
 
 + (Class)classBuilding:(UDProject *)project {
@@ -30,13 +39,17 @@
     return NO;
 }
 
++ (NSString *)name {
+    return NSStringFromClass(self);
+}
+
 - (instancetype)initWithProject:(UDProject *)project {
     if ((self = [super init])) _project = project;
     return self;
 }
 
-- (UDProjectBuildSystem)kind {
-    return UDProjectBuildSystemNone;
+- (NSString *)name {
+    return [[self class] name];
 }
 
 - (NSDictionary *)inferredSettings {
@@ -58,7 +71,7 @@
 }
 
 - (NSArray<UDTestRunner *> *)testRunners {
-    return @[ [[UDGoogleTestRunner alloc] initWithProject:_project] ];
+    return @[];
 }
 
 @end

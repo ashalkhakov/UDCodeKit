@@ -4,7 +4,6 @@
 
 #import "UDXcodeBuildSystem.h"
 #import "UDXcodeTestRunner.h"
-#import "UDToolLocator.h"
 
 @implementation UDXcodeBuildSystem {
     NSString *_product;
@@ -21,8 +20,8 @@
     return NO;
 }
 
-- (UDProjectBuildSystem)kind {
-    return UDProjectBuildSystemXcode;
++ (NSString *)name {
+    return @"Xcode";
 }
 
 /// The project to build, when the folder has more than one: its first.

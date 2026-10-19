@@ -287,9 +287,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
                             currentDirectoryPath:_project.folderURL.path
                                       languageID:mode.lspLanguageID];
         client.rootURL = _project.folderURL;
-        if ([path.lastPathComponent hasPrefix:@"clangd"]) {
-            client.initializationOptions = @{ @"fallbackFlags": _project.fallbackCompileFlags };
-        }
+        // the extensions' (clangd's fallbackFlags, from CFamily)
+        client.initializationOptions = [_project initializationOptionsForLanguageServer:
+                                        [@[ path ] arrayByAddingObjectsFromArray:[command subarrayWithRange:NSMakeRange(1, command.count - 1)]]];
         _projectServers[command] = client;
     }
     [session startLanguageServerWithClient:client documentURL:document.fileURL];
@@ -1825,23 +1825,23 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         [self _tell:@"The program isn't there" detail:[NSString stringWithFormat:@"%@ wasn't made by the build.", program]];
         return;
     }
-    NSArray<NSString *> *command = [UDToolLocator debugAdapterCommandForDebugger:_project.debugger];
+    NSArray<NSString *> *command = [UDDebugger adapterCommandForDebugger:_project.debugger];
     if (!command) {
-        [self _tell:@"No debugger" detail:@"Neither lldb-dap nor gdb (14 or later) was found. Install LLVM's lldb, or gdb, "
-                                          @"or name a debug adapter in the project's settings (\"debugger\")."];
+        [self _tell:@"No debugger" detail:[NSString stringWithFormat:@"None of the debuggers UDCode knows (%@) was found. "
+                                           @"Install one, or name a debug adapter in the project's settings (\"debugger\").",
+                                           [self _debuggerNames]]];
         return;
     }
-    NSString *kind = [UDToolLocator kindOfDebugAdapterCommand:command];
-    NSMutableDictionary *arguments = [[UDToolLocator launchArgumentsForDebugger:kind program:program
-                                                                      arguments:_project.runArguments
-                                                                      directory:_project.runDirectory
-                                                                    environment:_project.buildEnvironment] mutableCopy];
+    Class debugger = [UDDebugger classOfAdapterCommand:command] ?: [UDDebugger class];
+    NSMutableDictionary *arguments = [[debugger launchArgumentsForProgram:program arguments:_project.runArguments
+                                                                directory:_project.runDirectory
+                                                              environment:_project.buildEnvironment] mutableCopy];
     if (!debugging) arguments[@"noDebug"] = @YES;
     // run alone: no breakpoints for it to stop at (not every adapter honours noDebug)
     UDDebugSession *session = [[UDDebugSession alloc] initWithAdapterCommand:command
                                                         currentDirectoryPath:_project.folderURL.path
                                                                  breakpoints:debugging ? _breakpoints : [[UDBreakpointStore alloc] init]];
-    session.adapterID = kind ?: @"udcode";
+    session.adapterID = debugger != [UDDebugger class] ? [debugger name] : @"udcode";
     self.debugSession = session;
     [_debugSplit setPane:UDDebugAreaPane visible:YES];
     if (debugging) [self showDebugNavigator:nil];
@@ -1876,18 +1876,17 @@ static const NSInteger UDAfterBuildDebugTests = 3;
              detail:@"Its launch configuration names no program."];
         return;
     }
-    NSArray<NSString *> *command = nil;
-    if (configuration.debuggerPath && [configuration.debugger isEqualToString:UDDebuggerGDB]) {
-        command = @[ configuration.debuggerPath, @"-i", @"dap" ];
-    } else {
-        command = [UDToolLocator debugAdapterCommandForDebugger:configuration.debugger ?: _project.debugger];
-    }
+    // its debugger's adapter, from where it says (miDebuggerPath), or as found
+    Class named = configuration.debugger ? [UDDebugger classNamed:configuration.debugger] : Nil;
+    NSArray<NSString *> *command = configuration.debuggerPath && named
+        ? [named adapterCommandWithExecutable:configuration.debuggerPath]
+        : [UDDebugger adapterCommandForDebugger:configuration.debugger ?: _project.debugger];
     if (!command) {
         [self _tell:@"No debugger" detail:[NSString stringWithFormat:@"“%@” wants %@, which wasn't found.", configuration.name,
-                                           configuration.debugger ?: @"lldb-dap or gdb"]];
+                                           configuration.debugger ?: [self _debuggerNames]]];
         return;
     }
-    NSString *kind = [UDToolLocator kindOfDebugAdapterCommand:command];
+    Class debugger = [UDDebugger classOfAdapterCommand:command] ?: [UDDebugger class];
     NSMutableDictionary *environment = [_project.buildEnvironment mutableCopy];
     [environment addEntriesFromDictionary:configuration.environment];
     NSMutableDictionary *arguments = nil;
@@ -1896,21 +1895,26 @@ static const NSInteger UDAfterBuildDebugTests = 3;
                                           : [@{ @"pid": @(configuration.processID) } mutableCopy];
         if (configuration.program) arguments[@"program"] = configuration.program;
     } else {
-        arguments = [[UDToolLocator launchArgumentsForDebugger:kind program:configuration.program
-                                                     arguments:configuration.arguments
-                                                     directory:configuration.directory ?: _project.folderURL.path
-                                                   environment:environment] mutableCopy];
+        arguments = [[debugger launchArgumentsForProgram:configuration.program arguments:configuration.arguments
+                                               directory:configuration.directory ?: _project.folderURL.path
+                                             environment:environment] mutableCopy];
     }
     if (!debugging) arguments[@"noDebug"] = @YES;
     UDDebugSession *session = [[UDDebugSession alloc] initWithAdapterCommand:command
                                                         currentDirectoryPath:_project.folderURL.path
                                                                  breakpoints:debugging ? _breakpoints : [[UDBreakpointStore alloc] init]];
-    session.adapterID = kind ?: configuration.type;
+    session.adapterID = debugger != [UDDebugger class] ? [debugger name] : configuration.type;
     self.debugSession = session;
     [_debugSplit setPane:UDDebugAreaPane visible:YES];
     if (debugging) [self showDebugNavigator:nil];
     if (attach) [session attachWithArguments:arguments];
     else [session launchWithArguments:arguments];
+}
+
+/// The debuggers known, as the settings sheet names them ("LLDB or GDB").
+- (NSString *)_debuggerNames {
+    NSArray *names = [[UDDebugger classes] valueForKey:@"displayName"];
+    return names.count ? [names componentsJoinedByString:@" or "] : @"none";
 }
 
 /// A sheet saying what went wrong.

@@ -29,7 +29,8 @@ const TSLanguage *tree_sitter_c(void);
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier {
     if (![identifier isEqualToString:@"c"]) return nil;
     Class locator = NSClassFromString(@"UDToolLocator");
-    NSString *clangd = [locator respondsToSelector:@selector(clangdPath)] ? [locator performSelector:@selector(clangdPath)] : nil;
+    NSString *clangd = [locator respondsToSelector:@selector(pathOfLLVMTool:)]
+                     ? [locator performSelector:@selector(pathOfLLVMTool:) withObject:@"clangd"] : nil;
     return clangd ? @[ clangd ] : nil;
 }
 

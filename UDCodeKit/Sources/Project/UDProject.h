@@ -25,12 +25,14 @@
  *  rest on that system ("run" key by key), as VS Code's launch.json has
  *  "osx" and "linux".
  *
- *  What the folder doesn't say is its build system's to say (UDBuildSystem:
- *  GNUstep make, Makefile.apple, Xcode, make, CMake — whichever builds the
- *  folder, on the system it runs on), and its tests its test runners' (for
- *  each kind of test, UDTestRunner). The existing tools are used, never
- *  reimplemented: the build is the project's own command, the language
- *  servers and debuggers are clangd, lldb-dap and gdb (UDToolLocator finds them).
+ *  What the folder doesn't say is its build system's to say (UDBuildSystem,
+ *  the first that builds the folder), and its tests its test runners'
+ *  (UDTestRunner). UDCodeKit knows none of them: extension bundles bring
+ *  them (UDExtension's projects part), as VS Code's extensions bring task
+ *  providers, debuggers and test controllers — UDCode's CFamily: GNUstep
+ *  make, Makefile.apple, Xcode, make, CMake; XCTest, CTest, GoogleTest;
+ *  lldb-dap, gdb; clangd's flags. The existing tools are used, never
+ *  reimplemented.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -39,16 +41,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Posted when a project's settings change (set, or read again).
 extern NSNotificationName const UDProjectSettingsDidChangeNotification;
-
-/// The build systems a folder is recognised by (UDBuildSystem -kind).
-typedef NS_ENUM(NSInteger, UDProjectBuildSystem) {
-    UDProjectBuildSystemNone,
-    UDProjectBuildSystemGNUstepMake,     // GNUmakefile (on GNUstep)
-    UDProjectBuildSystemAppleMake,       // Makefile.apple (on macOS)
-    UDProjectBuildSystemXcode,           // an .xcodeproj (on macOS)
-    UDProjectBuildSystemMake,            // Makefile
-    UDProjectBuildSystemCMake,           // CMakeLists.txt
-};
 
 @class UDBuildSystem, UDTestCatalog;
 
@@ -72,8 +64,9 @@ extern NSString * const UDProjectPlatformKey;
 /// What builds the folder: the first UDBuildSystem that recognises it, as
 /// it is now (the same object while it still does); nil: none does.
 @property (nonatomic, readonly, nullable) UDBuildSystem *buildSystem;
-/// Whether this machine has the tool @a name (UDToolLocator): with a
-/// Makefile and a CMakeLists.txt both, the build is the one it has the tool for.
+/// Whether this machine has the tool @a name (UDToolLocator): what a build
+/// system asks (with a Makefile and a CMakeLists.txt both, CFamily's builds
+/// with the one this machine has the tool for).
 - (BOOL)hasTool:(NSString *)name;
 /// Whether the folder has @a path (relative to it).
 - (BOOL)hasFile:(NSString *)path;
@@ -102,12 +95,9 @@ extern NSString * const UDProjectPlatformKey;
 /// system's (make check, ctest, xcodebuild test); nil when nothing says.
 @property (nonatomic, readonly, copy, nullable) NSString *testCommand;
 
-/// The project's Objective-C sources and headers (its build products and
-/// hidden folders left out), where its tests are looked for.
-@property (nonatomic, readonly, copy) NSArray<NSString *> *sourceFiles;
-/// Its tests: the sources' test cases and what its build system's runners
-/// list, each suite with its runner; and the project's test command, run
-/// when no runner runs anything.
+/// Its tests: what its build system's runners and the extensions' find,
+/// each suite with its runner; and the project's test command
+/// (UDCommandTestRunner), run when no runner runs anything.
 - (UDTestCatalog *)testCatalog;
 
 /// @a argument as a shell reads it back, quoted when it has to be.
@@ -135,9 +125,10 @@ extern NSString * const UDProjectPlatformKey;
 /// A language server's command set for language mode @a identifier, nil when none is.
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier;
 
-/// The environment the build and the program run in: this process's, with
-/// GNUstep's for a GNUstep make project (GNUSTEP_MAKEFILES and the rest,
-/// as GNUstep.sh sets them, which an app started from a desktop lacks).
+/// The environment the build and the program run in: the machine's (an
+/// AppImage's own left out), PATH with the folders tools are found in, what
+/// the extensions add (CFamily's, GNUstep's on GNUstep), what the settings
+/// add.
 - (NSDictionary<NSString *, NSString *> *)buildEnvironment;
 /// A tool's path on the build's PATH (GNUstep's tools among them).
 - (nullable NSString *)pathOfToolOnBuildPath:(NSString *)name;
@@ -145,11 +136,9 @@ extern NSString * const UDProjectPlatformKey;
 /// folder and the build's environment; given up after @a seconds.
 - (nullable NSString *)outputOf:(NSString *)tool arguments:(NSArray<NSString *> *)arguments timeout:(NSTimeInterval)seconds;
 
-/// What a language server like clangd compiles a file with when the project
-/// has no compile_commands.json for it (clangd's fallbackFlags): GNUstep's
-/// Objective-C flags on GNUstep (gnustep-config --objc-flags), the SDK on
-/// macOS; and the folder's own headers.
-- (NSArray<NSString *> *)fallbackCompileFlags;
+/// The initializationOptions of a language server started with @a command
+/// (clangd's fallbackFlags, from CFamily): the extensions'; nil: none.
+- (nullable NSDictionary *)initializationOptionsForLanguageServer:(NSArray<NSString *> *)command;
 
 /// A command line's words: split at white space, a quoted one kept whole.
 + (NSArray<NSString *> *)argumentsOfCommandLine:(NSString *)line;

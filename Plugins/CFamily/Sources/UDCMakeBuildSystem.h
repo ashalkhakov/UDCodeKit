@@ -8,7 +8,7 @@
  *  generator). Its tests are CTest's, else TestMate's executables.
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDBuildSystem.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

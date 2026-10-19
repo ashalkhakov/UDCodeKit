@@ -40,9 +40,12 @@
 }
 
 - (UDTestDebugPlan *)debugPlanForTests:(NSArray<UDTest *> *)tests reason:(NSString **)reason {
-    if (reason) *reason = @"Debugging a test runs what runs it under the debugger: a GNUstep project's XCTest bundle with xctest, "
-                          @"an Xcode project's test target, a CTest test's command, or a GoogleTest executable.";
+    if (reason) *reason = @"What runs these tests runs them all at once: they can't be debugged one by one.";
     return nil;
+}
+
+- (BOOL)readLine:(NSString *)line inCatalog:(UDTestCatalog *)catalog failure:(UDTestFailure **)failure {
+    return NO;
 }
 
 + (NSString *)commandOfSteps:(NSArray<NSString *> *)steps {

@@ -7,11 +7,11 @@
  *  debugged as xctest runs them.
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDTestRunner.h"
+#import "UDCFamilyTestOutput.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface UDXCTestBundleRunner : UDTestRunner
+@interface UDXCTestBundleRunner : UDCFamilyTestRunner
 
 /// @a bundle: relative to the project's folder (CalculatorTests/CalculatorTests.bundle);
 /// @a only: the project's only one.

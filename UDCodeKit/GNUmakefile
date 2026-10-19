@@ -18,16 +18,9 @@ UD_HEADER_LINKS := $(shell mkdir -p $(UD_INCLUDE)/UDCodeKit && \
     for h in `find $(CURDIR)/Sources -name '*.h'`; do ln -sfn $$h $(UD_INCLUDE)/UDCodeKit/; done)
 UDCodeKit_HEADER_FILES_DIR = $(UD_INCLUDE)/UDCodeKit
 UDCodeKit_HEADER_FILES = \
-    UDXcodeTestRunner.h \
-    UDXCTestBundleRunner.h \
+    UDDebugger.h \
     UDTestRunner.h \
-    UDGoogleTestRunner.h \
     UDCommandTestRunner.h \
-    UDCTestRunner.h \
-    UDXcodeBuildSystem.h \
-    UDMakeBuildSystem.h \
-    UDGNUstepMakeBuildSystem.h \
-    UDCMakeBuildSystem.h \
     UDBuildSystem.h \
     UDTestNavigatorViewController.h \
     UDTests.h \

@@ -232,11 +232,11 @@ the SDK on macOS, and the folder's headers.
 
 | Piece | Where | What |
 |---|---|---|
-| `UDProject` | UDCodeKit `Project/` | a folder's settings, the build's environment, clangd's fallback flags; the rest its build system's |
-| `UDBuildSystem` and its kinds | UDCodeKit `Project/BuildSystems/` | GNUstep make, Makefile.apple, Xcode, make, CMake: whether each builds the folder, its commands, what it builds that runs, its test runners |
-| `UDTestRunner` and its kinds | UDCodeKit `Project/TestRunners/` | XCTest bundles, Xcode, CTest, GoogleTest, the project's command: each finds its tests, runs some or all, and says how they are debugged |
-| `UDTestCatalog` | UDCodeKit `Project/` | the tests, each suite's runner, what a run's output says of them |
-| `UDToolLocator` | UDCodeKit `Project/` | where clangd, lldb-dap and gdb are, and how each debugger is asked to launch |
+| `UDProject` | UDCodeKit `Project/` | a folder's settings, the build's environment; the rest its build system's and the extensions' |
+| `UDBuildSystem`, `UDTestRunner`, `UDDebugger` | UDCodeKit `Project/`, `Debug/` | what a build system, a test runner and a debugger are: the extensions bring them (`UDExtension`), the core knows none; `UDCommandTestRunner` runs the project's test command |
+| `UDCFamilyPlugin` | `Plugins/CFamily` (CFamily.bundle, in UDCode's PlugIns) | the C family: GNUstep make, Makefile.apple, Xcode, make, CMake; XCTest bundles, Xcode's test targets, CTest, GoogleTest (found as C++ TestMate finds them), and their runs' output; lldb-dap, gdb; GNUstep's environment; clangd's fallback flags |
+| `UDTestCatalog` | UDCodeKit `Project/` | the tests, each suite's runner, a run of several kinds |
+| `UDToolLocator` | UDCodeKit `Project/` | where tools are: PATH, Xcode's toolchain, Homebrew's, a distribution's versioned LLVM names |
 | `UDFileNavigatorViewController` | UDCodeKit `Project/`, `UDFileNavigator.xib` | the folder's files |
 | `UDBuildRunner` | UDCodeKit `Project/` | the build command, its output, its diagnostics by file |
 | `UDBuildLogViewController` | UDCodeKit `Project/`, `UDBuildLog.xib` | the build's log and how it went |

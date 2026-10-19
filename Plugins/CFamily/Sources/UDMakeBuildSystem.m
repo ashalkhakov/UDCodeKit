@@ -3,6 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDMakeBuildSystem.h"
+#import "UDGoogleTestRunner.h"
+#import "UDXCTestSourcesRunner.h"
 
 @implementation UDMakeBuildSystem
 
@@ -12,8 +14,8 @@
     return ![project hasFile:@"CMakeLists.txt"] || [project hasTool:@"make"] || ![project hasTool:@"cmake"];
 }
 
-- (UDProjectBuildSystem)kind {
-    return UDProjectBuildSystemMake;
++ (NSString *)name {
+    return @"make";
 }
 
 - (NSString *)makefile {
@@ -26,6 +28,13 @@
 
 - (NSDictionary *)inferredSettings {
     return @{ @"build": self.make, @"clean": [self.make stringByAppendingString:@" clean"] };
+}
+
+- (NSArray<UDTestRunner *> *)testRunners {
+    // the sources' XCTest cases and test executables, as C++ TestMate finds
+    // them (make check, else, runs them all)
+    return @[ [[UDXCTestSourcesRunner alloc] initWithProject:self.project],
+              [[UDGoogleTestRunner alloc] initWithProject:self.project] ];
 }
 
 - (NSString *)testCommand {
@@ -48,8 +57,8 @@
     return [project hasFile:@"Makefile.apple"];
 }
 
-- (UDProjectBuildSystem)kind {
-    return UDProjectBuildSystemAppleMake;
++ (NSString *)name {
+    return @"Makefile.apple";
 }
 
 - (NSString *)makefile {

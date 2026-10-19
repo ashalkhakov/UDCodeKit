@@ -7,7 +7,7 @@
  *  asked once (-showBuildSettings; -list; the test action's settings).
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDBuildSystem.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

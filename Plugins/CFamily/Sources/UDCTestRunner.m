@@ -3,8 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDCTestRunner.h"
-#import "UDProject.h"
-#import "UDToolLocator.h"
 
 @implementation UDCTestRunner
 
@@ -43,7 +41,8 @@
 
 - (void)addTestsToCatalog:(UDTestCatalog *)catalog {
     for (NSDictionary *found in _listedTests) {
-        UDTestSuite *suite = [catalog addSuiteNamed:@"CTest" kind:UDTestKindCTest];
+        UDTestSuite *suite = [catalog addSuiteNamed:@"CTest"];
+        suite.kind = UDTestKindCTest;
         suite.runner = self;
         UDTest *test = [catalog addTest:found[@"name"] toSuite:suite];
         test.command = found[@"command"];
@@ -52,7 +51,7 @@
 }
 
 - (BOOL)runsSuite:(UDTestSuite *)suite {
-    return suite.kind == UDTestKindCTest;
+    return [suite.kind isEqualToString:UDTestKindCTest];
 }
 
 /// "^(a|b)$": -R for exactly these names.

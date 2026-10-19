@@ -358,6 +358,14 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 // MARK: - Lifecycle
 // ---------------------------------------------------------------------------
 
+- (NSArray<id<UDExtension>> *)extensions {
+    __block NSArray *extensions;
+    dispatch_sync(_queue, ^{
+        extensions = [self->_loadedExtensions valueForKey:@"extension"];
+    });
+    return extensions;
+}
+
 - (void)unloadAllExtensions {
     // Notify extensions in reverse load order (last loaded → first unloaded).
     NSArray<UDExtensionRecord *> *reversed =

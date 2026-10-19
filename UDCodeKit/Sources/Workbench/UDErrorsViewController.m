@@ -4,6 +4,10 @@
 
 #import "UDErrorsViewController.h"
 
+static NSString *UDIssueMark(UDDiagnosticSeverity severity);
+static NSColor *UDIssueColor(UDDiagnosticSeverity severity);
+static NSString *UDIssueCounts(NSArray<UDDiagnosticItem *> *diagnostics);
+
 /// The separator colour; GNUstep's NSColor has no -separatorColor.
 static NSColor *UDSeparatorColor(void) {
 #ifdef __APPLE__
@@ -193,20 +197,63 @@ static NSColor *UDSeparatorColor(void) {
  objectValueForTableColumn:(nullable NSTableColumn *)tableColumn
                     byItem:(nullable id)item {
     if ([item isKindOfClass:[UDErrorsEntry class]]) {
-        // File-group row: "<filename> (N error(s))".
+        // File-group row: "<filename> (1 error, 2 warnings)".
         UDErrorsEntry *entry = (UDErrorsEntry *)item;
-        NSUInteger count = entry.diagnostics.count;
-        return (count == 0)
-            ? entry.displayName
-            : [NSString stringWithFormat:@"%@ (%lu %@)", entry.displayName, (unsigned long)count,
-               count == 1 ? @"error" : @"errors"];
+        NSString *counts = UDIssueCounts(entry.diagnostics);
+        return counts.length ? [NSString stringWithFormat:@"%@ (%@)", entry.displayName, counts] : entry.displayName;
     }
-    // Error row: "Line L: message"
+    // An issue's row, as Xcode's: its mark (an error's red, a warning's
+    // yellow), "Line L: message"
     UDDiagnosticItem *diag = (UDDiagnosticItem *)item;
-    return [NSString stringWithFormat:@"Line %ld: %@", (long)diag.line, diag.message];
+    NSMutableAttributedString *row = [[NSMutableAttributedString alloc]
+        initWithString:[UDIssueMark(diag.severity) stringByAppendingString:@" "]
+            attributes:@{ NSForegroundColorAttributeName: UDIssueColor(diag.severity),
+                          NSFontAttributeName: [NSFont systemFontOfSize:NSFont.smallSystemFontSize] }];
+    [row appendAttributedString:[[NSAttributedString alloc]
+        initWithString:[NSString stringWithFormat:@"Line %ld: %@", (long)diag.line, diag.message]
+            attributes:@{ NSForegroundColorAttributeName: [NSColor labelColor],
+                          NSFontAttributeName: [NSFont systemFontOfSize:NSFont.smallSystemFontSize] }]];
+    return row;
 }
 
-// File-group rows bold, red when they have errors; error rows plain.
+/// An issue's mark: an error's ●, a warning's ▲, a note's ◆.
+static NSString *UDIssueMark(UDDiagnosticSeverity severity) {
+    switch (severity) {
+        case UDDiagnosticSeverityError: return @"\u25CF";
+        case UDDiagnosticSeverityWarning: return @"\u25B2";
+        default: return @"\u25C6";
+    }
+}
+
+static NSColor *UDIssueColor(UDDiagnosticSeverity severity) {
+    switch (severity) {
+        case UDDiagnosticSeverityError: return [NSColor systemRedColor];
+        case UDDiagnosticSeverityWarning: return [NSColor colorWithCalibratedRed:0.85 green:0.65 blue:0.0 alpha:1];
+        default: return [NSColor secondaryLabelColor];
+    }
+}
+
+/// "1 error, 2 warnings": what a file's issues are, by severity.
+static NSString *UDIssueCounts(NSArray<UDDiagnosticItem *> *diagnostics) {
+    NSUInteger errors = 0, warnings = 0, others = 0;
+    for (UDDiagnosticItem *diagnostic in diagnostics) {
+        if (diagnostic.severity == UDDiagnosticSeverityError) errors++;
+        else if (diagnostic.severity == UDDiagnosticSeverityWarning) warnings++;
+        else others++;
+    }
+    NSMutableArray<NSString *> *parts = [NSMutableArray array];
+    if (errors) [parts addObject:[NSString stringWithFormat:@"%lu error%@", (unsigned long)errors, errors == 1 ? @"" : @"s"]];
+    if (warnings) [parts addObject:[NSString stringWithFormat:@"%lu warning%@", (unsigned long)warnings, warnings == 1 ? @"" : @"s"]];
+    if (others) [parts addObject:[NSString stringWithFormat:@"%lu note%@", (unsigned long)others, others == 1 ? @"" : @"s"]];
+    return [parts componentsJoinedByString:@", "];
+}
+
+/// Not edited: a double-click (which GNUstep starts editing with) goes to the issue.
+- (BOOL)outlineView:(NSOutlineView *)outlineView shouldEditTableColumn:(nullable NSTableColumn *)tableColumn item:(id)item {
+    return NO;
+}
+
+// File-group rows bold: red with an error among them, else secondary; issue rows as their marks colour them.
 - (void)outlineView:(NSOutlineView *)outlineView
     willDisplayCell:(id)cell
      forTableColumn:(nullable NSTableColumn *)tableColumn
@@ -215,11 +262,13 @@ static NSColor *UDSeparatorColor(void) {
     NSTextFieldCell *text = cell;
     if ([item isKindOfClass:[UDErrorsEntry class]]) {
         text.font      = [NSFont boldSystemFontOfSize:NSFont.smallSystemFontSize];
-        text.textColor = ((UDErrorsEntry *)item).diagnostics.count > 0
-            ? [NSColor systemRedColor] : [NSColor secondaryLabelColor];
+        BOOL errors = NO;
+        for (UDDiagnosticItem *diagnostic in ((UDErrorsEntry *)item).diagnostics) {
+            errors = errors || diagnostic.severity == UDDiagnosticSeverityError;
+        }
+        text.textColor = errors ? [NSColor systemRedColor] : [NSColor secondaryLabelColor];
     } else {
         text.font      = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
-        text.textColor = [NSColor labelColor];
     }
 }
 

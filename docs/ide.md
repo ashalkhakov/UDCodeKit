@@ -52,6 +52,11 @@ are built on, with:
 - UDCode, its latest release, in the application menu (or
   `distrobox enter udcode -- udcode`).
 
+A project that builds on our libraries (UDQuakeTools on UDCodeKit, TopoText
+on FreeCoreData) names them in its `.github/pins.env`; in the box, in the
+project's folder, `udcode-deps` fetches and unpacks them as its CI does
+(gnustep-release-actions' `deps.sh`).
+
 Run it again to bring the box up to date. `--appimage FILE` installs UDCode
 from an AppImage of your own (in your home); `--stack VERSION` a release of
 the stack other than the latest.
@@ -70,7 +75,7 @@ system it runs on:
 
 | The folder has | On | Build | Run |
 |---|---|---|---|
-| `GNUmakefile` | GNUstep | `make`, in GNUstep's environment | its `APP_NAME`'s `.app`, or `TOOL_NAME`'s `obj/` tool |
+| `GNUmakefile` (or one in a folder of its own, as ProjectCenter's beside an Xcode project) | GNUstep | `make debug=yes` (unoptimized, as Xcode's Run builds Debug), in GNUstep's environment | its applications and tools, its `SUBPROJECTS`' too: each a scheme in the toolbar, the first application unless another is chosen |
 | `Makefile.apple` | macOS | `make -f Makefile.apple` | asked |
 | an `.xcodeproj` | macOS | `xcodebuild -configuration Debug build` (Debug, as Xcode's Run) | its first application or tool, where the Debug build puts it (`xcodebuild -showBuildSettings`) |
 | `Makefile` | both | `make` | asked |

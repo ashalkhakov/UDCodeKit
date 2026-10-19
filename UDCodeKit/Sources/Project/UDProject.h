@@ -88,6 +88,13 @@ extern NSString * const UDProjectPlatformKey;
 /// project's first application or tool, where its Debug build puts it
 /// (xcodebuild -showBuildSettings, asked once). Nil when nothing is.
 @property (nonatomic, readonly, copy, nullable) NSString *inferredProgram;
+/// What the project builds that runs, as its build names them (relative to
+/// the folder): a GNUmakefile's applications, then its tools, its
+/// SUBPROJECTS' too (UDQuakeTools': UDLauncher, Quarry, PakManager, ...).
+/// Xcode's schemes, as it were; empty where the build doesn't say.
+@property (nonatomic, readonly, copy) NSArray<NSString *> *programs;
+/// The one of -programs to run (the scheme chosen); nil: the first.
+@property (nonatomic, copy, nullable) NSString *preferredProgram;
 /// The product xcodebuild -showBuildSettings' output names: the first
 /// application's or tool's TARGET_BUILD_DIR/FULL_PRODUCT_NAME.
 + (nullable NSString *)productOfBuildSettings:(NSString *)output;

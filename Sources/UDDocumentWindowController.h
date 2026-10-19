@@ -76,6 +76,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// The Debug menu's Launch Configuration and Run Task items: a menu item's
 /// representedObject is the configuration's name, the task's label.
 - (IBAction)selectLaunchConfiguration:(nullable id)sender;
+/// Without a launch.json, the program Run runs, among the project's
+/// (UDProject's programs), as the scheme pop-up chose it.
+@property (nonatomic, copy, nullable) NSString *selectedProgram;
+- (IBAction)selectProgram:(nullable id)sender;
 /// The toolbar's activity view: the project, and what is going on ("Building",
 /// "Running hello", "Build Succeeded | 2 warnings").
 @property (nonatomic, readonly, copy) NSString *activityText;

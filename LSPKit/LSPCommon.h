@@ -169,6 +169,10 @@ typedef NS_ENUM(NSUInteger, LSPDiagnosticSeverity) {
  * a scope collide all definitions can be marked via this property.
  */
 @property (readonly) id relatedInformation;
+/**
+ * The diagnostic as the server sent it (for a code action's context).
+ */
+@property (readonly) NSDictionary *dictionary;
 
 + (NSArray<LSPDiagnostic *> *)diagnosticsFromArray:(NSArray *)array;
 + (instancetype)diagnosticFromDictionary:(NSDictionary *)dict;

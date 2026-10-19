@@ -18,7 +18,8 @@
 
 #import <Cocoa/Cocoa.h>
 
-@class UDDebugSession, UDBreakpointStore;
+@class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController,
+       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDLinkedEditing, UDIssuePopupController, UDTerminalViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -50,6 +51,68 @@ NS_ASSUME_NONNULL_BEGIN
 /// • If the file cannot be read, logs an error and returns without adding a tab.
 - (void)openURLInNewTab:(NSURL *)url;
 
+// MARK: - The project
+
+/// The folder opened as a project (File > Open Folder…), nil for files alone.
+@property (nonatomic, strong, readonly, nullable) UDProject *project;
+/// Its files, in the navigator's Files tab (nil without a project).
+@property (nonatomic, strong, readonly, nullable) UDFileNavigatorViewController *fileNavigator;
+/// Its build (Debug > Build), whose log is the navigator's Build tab.
+@property (nonatomic, strong, readonly, nullable) UDBuildRunner *buildRunner;
+
+/// Debug > Build (⌘B) and Clean (⇧⌘K): the project's own commands, the
+/// edited files saved first; the build's errors in the Issues navigator.
+- (IBAction)build:(nullable id)sender;
+- (IBAction)clean:(nullable id)sender;
+/// Debug > Run Without Debugging (⌃⌘R): built, then run, its output in the console.
+- (IBAction)runWithoutDebugging:(nullable id)sender;
+- (IBAction)showBuildNavigator:(nullable id)sender;
+/// The folder's .vscode/tasks.json and launch.json, read now (with the
+/// selected tab's file for ${file}); nil without a project.
+- (nullable UDTasks *)tasks;
+/// The launch configuration Run uses (its name), remembered for the project:
+/// the one chosen, else launch.json's first; nil when it has none.
+@property (nonatomic, copy, nullable) NSString *selectedLaunchConfiguration;
+/// The Debug menu's Launch Configuration and Run Task items: a menu item's
+/// representedObject is the configuration's name, the task's label.
+- (IBAction)selectLaunchConfiguration:(nullable id)sender;
+/// The toolbar's activity view: the project, and what is going on ("Building",
+/// "Running hello", "Build Succeeded | 2 warnings").
+@property (nonatomic, readonly, copy) NSString *activityText;
+- (BOOL)validateToolbarItem:(NSToolbarItem *)toolbarItem;
+- (IBAction)runTask:(nullable id)sender;
+
+/// Debug > Project Settings…: what can't be guessed, for this system (a sheet).
+- (IBAction)showProjectSettings:(nullable id)sender;
+/// The sheet, while it shows.
+@property (nonatomic, strong, readonly, nullable) UDProjectSettingsController *projectSettings;
+/// File > Save in a project: the selected tab's file (and every edited one, Save All).
+- (IBAction)saveDocument:(nullable id)sender;
+- (IBAction)saveAllDocuments:(nullable id)sender;
+
+// MARK: - The language's (LSP), as Xcode's Navigate and Editor menus
+
+/// The Find navigator: workspace searches and references.
+@property (nonatomic, strong, readonly) UDSearchResultsViewController *searchResults;
+- (IBAction)showFindNavigator:(nullable id)sender;
+- (IBAction)findInWorkspace:(nullable id)sender;
+- (IBAction)jumpToDefinition:(nullable id)sender;
+- (IBAction)findReferences:(nullable id)sender;
+- (IBAction)openQuickly:(nullable id)sender;
+@property (nonatomic, strong, readonly, nullable) UDOpenQuicklyController *openQuickly;
+/// Rename Symbol: the symbol edited where it stands (Return: everywhere).
+- (IBAction)renameSymbol:(nullable id)sender;
+@property (nonatomic, readonly, nullable) UDLinkedEditing *renaming;
+- (IBAction)formatDocument:(nullable id)sender;
+/// Fix Issue: the code actions found, in a Fix-its panel; each performed by its index.
+- (IBAction)fixIssue:(nullable id)sender;
+@property (nonatomic, readonly, copy) NSArray<NSDictionary *> *codeActions;
+/// Their panel, while it is up.
+@property (nonatomic, readonly, nullable) UDIssuePopupController *issuePopup;
+- (void)performCodeActionAtIndex:(NSUInteger)index;
+/// The call's signature shown as it is typed; nil when none is.
+@property (nonatomic, readonly, copy, nullable) NSString *signatureHelpText;
+
 // MARK: - Debugging
 
 /// The window's breakpoints, which its editors show and set, with the watch
@@ -69,6 +132,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)startDebugging:(nullable id)sender;
 - (IBAction)stopDebugging:(nullable id)sender;
 - (IBAction)toggleDebugArea:(nullable id)sender;
+/// View > Terminal (⌃`): a shell in the bottom area, in the project's folder.
+- (IBAction)showTerminal:(nullable id)sender;
+/// The bottom area's switch, Debug | Terminal.
+- (IBAction)bottomAreaChanged:(nullable id)sender;
+@property (nonatomic, strong, readonly, nullable) UDTerminalViewController *terminal;
 - (IBAction)showDebugNavigator:(nullable id)sender;
 - (IBAction)showBreakpointNavigator:(nullable id)sender;
 

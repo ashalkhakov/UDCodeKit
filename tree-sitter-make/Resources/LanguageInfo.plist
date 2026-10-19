@@ -12,6 +12,19 @@
 			<key>fileExtensions</key>
 			<array>
 				<string>mk</string>
+				<string>mak</string>
+				<string>make</string>
+			</array>
+			<key>fileNames</key>
+			<array>
+				<string>Makefile</string>
+				<string>makefile</string>
+				<string>GNUmakefile</string>
+				<string>GNUmakefile.preamble</string>
+				<string>GNUmakefile.postamble</string>
+				<string>Makefile.apple</string>
+				<string>Makefile.am</string>
+				<string>Makefile.in</string>
 			</array>
 			<key>highlightsQueryFile</key>
 			<string>highlights.scm</string>

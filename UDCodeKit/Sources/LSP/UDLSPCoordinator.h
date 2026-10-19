@@ -3,6 +3,7 @@
 #import "UDTextModelTextStorage.h"
 #import "UDLSPDiagnosticHighlighter.h"
 #import "UDDiagnosticStore.h"
+#import "UDWorkspaceEdit.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -49,6 +50,51 @@ NS_ASSUME_NONNULL_BEGIN
 /// an LSPResponse whose result is the server's: a Location, an array of
 /// them, or nil.
 - (NSInteger)definitionAtIndex:(NSUInteger)characterIndex target:(id)target action:(SEL)action;
+
+/// The document's URL, as the server knows it.
+@property (nonatomic, readonly, copy) NSURL *documentURL;
+/// Whether the server has the document (it initialized and was told).
+@property (nonatomic, readonly, getter=isReady) BOOL ready;
+
+/// Any request about the document at a character index (textDocument/
+/// references, rename, signatureHelp, …): its params the document and the
+/// position, with @a extra's keys. Returns 0 when the server isn't ready.
+- (NSInteger)request:(NSString *)method atIndex:(NSUInteger)characterIndex extra:(nullable NSDictionary *)extra
+              target:(id)target action:(SEL)action;
+/// Any request about the document (textDocument/formatting, codeAction, …):
+/// its params the document, with @a extra's keys.
+- (NSInteger)request:(NSString *)method extra:(nullable NSDictionary *)extra target:(id)target action:(SEL)action;
+/// The server's client, for workspace requests (workspace/symbol, executeCommand).
+@property (nonatomic, readonly) LSPClient *client;
+
+/// An LSP range ({start, end}: 0-based lines, UTF-16 characters) as the
+/// text's characters; NSNotFound when it isn't in the text.
+- (NSRange)characterRangeOfLSPRange:(NSDictionary *)range;
+/// The LSP range of characters @a range.
+- (NSDictionary *)LSPRangeOfCharacterRange:(NSRange)range;
+
+/// The server's diagnostics of the document, as it sent them; those on
+/// characters @a range (touching it counts), for a code action's context.
+@property (nonatomic, readonly, copy) NSArray<NSDictionary *> *diagnostics;
+- (NSArray<NSDictionary *> *)diagnosticsInCharacterRange:(NSRange)range;
+
+/// The caret moved to @a characterIndex: once it rests, the symbol there is
+/// highlighted wherever it occurs in the document (textDocument/documentHighlight).
+- (void)highlightOccurrencesAtIndex:(NSUInteger)characterIndex;
+/// The occurrences highlighted (none when fewer than two).
+@property (nonatomic, readonly, copy) NSArray<NSValue *> *occurrenceRanges;
+
+/// The server's semantic tokens, asked for once the document is open and
+/// again when the typing pauses, coloured over the syntax's: the style name
+/// of the one at @a index ("variable.parameter", "constant.macro"), nil when
+/// none is; how many there are.
+- (nullable NSString *)semanticTokenAtIndex:(NSUInteger)index;
+@property (nonatomic, readonly) NSUInteger semanticTokenCount;
+
+/// Where a server's own edit (workspace/applyEdit: a command's) is applied:
+/// the open files' models, else on disk. Nil: this document's coordinator
+/// does not apply them.
+@property (nonatomic, weak, nullable) id<UDWorkspaceEditDocuments> editDocuments;
 
 @end
 

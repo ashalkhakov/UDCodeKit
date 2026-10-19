@@ -169,7 +169,7 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     [_controller toggleNavigator:nil];
     [_controller showIssuesNavigator:nil];
     XCTAssertFalse([[self pane:0] isHidden], @"showing a navigator shows the pane");
-    XCTAssertEqual(_controller.navigatorControl.selectedSegment, 1);
+    XCTAssertEqual(_controller.navigatorControl.selectedSegment, 2);
     XCTAssertEqualObjects(_controller.navigatorTabView.selectedTabViewItem.identifier, @"issues");
 }
 

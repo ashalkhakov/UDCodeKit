@@ -136,6 +136,7 @@ NSErrorDomain const LSPResponseError = @"LSPResponseError";
 @property (readwrite) NSString *source;
 @property (readwrite) NSString *message;
 @property (readwrite) id relatedInformation;
+@property (readwrite) NSDictionary *dictionary;
 @end
 
 @implementation LSPDiagnostic
@@ -160,6 +161,7 @@ NSErrorDomain const LSPResponseError = @"LSPResponseError";
     diagnostic.code = [dict objectForKey:@"code"];
     diagnostic.source = [dict objectForKey:@"source"];
     diagnostic.message = [dict objectForKey:@"message"];
+    diagnostic.dictionary = dict;
     return diagnostic;
 }
 

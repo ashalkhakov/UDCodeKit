@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDTerminalViewController">
+            <connections>
+                <outlet property="view" destination="TM-scroll" id="TM-o-view"/>
+                <outlet property="terminalView" destination="TM-terminal" id="TM-o-terminal"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="TM-scroll" userLabel="Terminal">
+            <rect key="frame" x="0.0" y="0.0" width="640" height="220"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <clipView key="contentView" id="TM-clip">
+                <rect key="frame" x="0.0" y="0.0" width="640" height="220"/>
+                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                <subviews>
+                    <customView id="TM-terminal" customClass="UDTerminalView">
+                        <rect key="frame" x="0.0" y="0.0" width="640" height="220"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES"/>
+                        <connections>
+                            <outlet property="delegate" destination="-2" id="TM-o-delegate"/>
+                        </connections>
+                    </customView>
+                </subviews>
+                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+            </clipView>
+            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="TM-hscroll">
+                <rect key="frame" x="-100" y="-100" width="223" height="15"/>
+                <autoresizingMask key="autoresizingMask"/>
+            </scroller>
+            <scroller key="verticalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="NO" id="TM-vscroll">
+                <rect key="frame" x="624" y="0.0" width="16" height="220"/>
+                <autoresizingMask key="autoresizingMask"/>
+            </scroller>
+            <point key="canvasLocation" x="200" y="200"/>
+        </scrollView>
+    </objects>
+</document>

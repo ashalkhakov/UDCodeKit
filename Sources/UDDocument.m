@@ -31,6 +31,12 @@
              ofType:(NSString *)typeName
               error:(NSError **)outError {
 
+    BOOL directory = NO;
+    if ([[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&directory] && directory) {
+        // ---- A folder: a project ----
+        _project = [[UDProject alloc] initWithFolderURL:url];
+        return YES;
+    }
     if ([[url.pathExtension lowercaseString] isEqualToString:@"udworkspace"]) {
         // ---- Workspace file: deserialise via UDWorkspaceModel ----
         NSData *data = [NSData dataWithContentsOfURL:url options:0 error:outError];

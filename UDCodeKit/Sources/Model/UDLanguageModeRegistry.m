@@ -135,6 +135,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     NSMutableArray           *_modes;             // NSMutableArray<UDLanguageMode *>, ordered
     NSMutableDictionary      *_byIdentifier;      // NSMutableDictionary<NSString *, UDLanguageMode *>
     NSMutableDictionary      *_byExtension;       // NSMutableDictionary<NSString *, UDLanguageMode *>
+    NSMutableDictionary      *_byFileName;        // whole names: NSMutableDictionary<NSString *, UDLanguageMode *>
     UDLanguageMode           *_plaintextFallback;
     // Extension records in load order — used for deterministic reverse-order unload.
     NSMutableArray<UDExtensionRecord *> *_loadedExtensions;
@@ -298,6 +299,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
                      keyHandler:keyHandler
                       extension:ext];
         mode.reportsParseErrors = [modeInfo[@"reportsParseErrors"] boolValue];
+        mode.fileNames = [modeInfo[@"fileNames"] isKindOfClass:[NSArray class]] ? modeInfo[@"fileNames"] : @[];
 
         [self _registerModeUnsafe:mode];
     }
@@ -312,6 +314,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     _modes             = [NSMutableArray array];
     _byIdentifier      = [NSMutableDictionary dictionary];
     _byExtension       = [NSMutableDictionary dictionary];
+    _byFileName        = [NSMutableDictionary dictionary];
     _loadedExtensions  = [NSMutableArray array];
 
     // Plain text — the universal fallback, registered first.
@@ -396,6 +399,9 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     for (NSString *ext in mode.fileExtensions) {
         _byExtension[ext.lowercaseString] = mode;
     }
+    for (NSString *name in mode.fileNames) {
+        _byFileName[name] = mode;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -420,6 +426,15 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 }
 
 - (UDLanguageMode *)modeForFileURL:(nullable NSURL *)fileURL {
+    // a whole name first: GNUmakefile, Makefile.apple
+    NSString *name = fileURL.lastPathComponent;
+    __block UDLanguageMode *named = nil;
+    if (name.length) {
+        dispatch_sync(_queue, ^{
+            named = self->_byFileName[name];
+        });
+    }
+    if (named) return named;
     NSString *ext = fileURL.pathExtension;
     return [self modeForFileExtension:ext ?: @""];
 }

@@ -26,6 +26,25 @@ static NSArray<NSString *> *LSPTransportModes(void) {
 
 @implementation LSPTransport
 
++ (NSDictionary<NSString *, NSString *> *)hostEnvironment {
+    return [self hostEnvironmentOf:[[NSProcessInfo processInfo] environment]];
+}
+
++ (NSDictionary<NSString *, NSString *> *)hostEnvironmentOf:(NSDictionary<NSString *, NSString *> *)environment {
+    NSString *hostPath = [environment objectForKey:@"APPIMAGE_HOST_PATH"];
+    if (hostPath == nil) return environment;
+    NSMutableDictionary *host = [environment mutableCopy];
+    [host setObject:hostPath forKey:@"PATH"];
+    NSString *libraries = [environment objectForKey:@"APPIMAGE_HOST_LD_LIBRARY_PATH"];
+    if ([libraries length]) [host setObject:libraries forKey:@"LD_LIBRARY_PATH"];
+    else [host removeObjectForKey:@"LD_LIBRARY_PATH"];
+    for (NSString *key in [environment allKeys]) {
+        if ([key hasPrefix:@"GNUSTEP_"] || [key hasPrefix:@"APPIMAGE_HOST_"]) [host removeObjectForKey:key];
+    }
+    [host removeObjectsForKeys:[NSArray arrayWithObjects:@"FONTCONFIG_FILE", @"APPDIR", @"APPIMAGE", @"ARGV0", @"OWD", nil]];
+    return host;
+}
+
 - (instancetype)initWithLaunchPath:(NSString *)path
                          arguments:(NSArray<NSString *> *)arguments
               currentDirectoryPath:(NSString *)directory {
@@ -42,6 +61,7 @@ static NSArray<NSString *> *LSPTransportModes(void) {
     if (directory) [_task setCurrentDirectoryPath:directory];
     [_task setLaunchPath:path];
     [_task setArguments:arguments];
+    [_task setEnvironment:[LSPTransport hostEnvironment]];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_taskDidTerminate:)
                                                  name:NSTaskDidTerminateNotification object:_task];
     @try {

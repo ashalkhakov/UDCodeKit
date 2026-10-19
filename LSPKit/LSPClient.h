@@ -42,6 +42,9 @@ NS_ASSUME_NONNULL_BEGIN
 /** The server ended without being asked to and was started again: open
     documents must be opened again (after initializing). */
 - (void)languageServerDidRestart:(LSPClient *)client;
+/** workspace/applyEdit: the server's WorkspaceEdit (a command's, say),
+    applied; YES when it was. The first observer to apply it answers. */
+- (BOOL)languageServer:(LSPClient *)client applyEdit:(NSDictionary *)edit;
 
 @end
 
@@ -157,6 +160,13 @@ typedef struct _LSPTextDocumentSyncOptions {
  */
 @property (readonly) BOOL workspaceSymbolProvider;
 /**
+ * The server gives a document's semantic tokens (textDocument/semanticTokens/full),
+ * their types and modifiers named by these, its legend.
+ */
+@property (readonly) BOOL semanticTokensProvider;
+@property (readonly, copy) NSArray<NSString *> *semanticTokenTypes;
+@property (readonly, copy) NSArray<NSString *> *semanticTokenModifiers;
+/**
  * The server provides code actions. The `CodeActionOptions` return type is only
  * valid if the client signals code action literal support via the property
  * `textDocument.codeAction.codeActionLiteralSupport`.
@@ -242,6 +252,15 @@ typedef struct _LSPTextDocumentSyncOptions {
 - (instancetype)initWithPath:(NSString *)path arguments:(NSArray<NSString *> *)arguments currentDirectoryPath:(nullable NSString *)currentDirectoryPath languageID:(NSString *)languageID;
 
 @property (readonly, nullable) NSString *languageID;
+
+/**
+ * Set before initializing: the workspace's folder (initialize's rootUri,
+ * rootPath and its one workspaceFolder), where a server like clangd looks for
+ * the project's compile commands and indexes; and its initializationOptions
+ * (clangd's fallbackFlags, say). Neither, when not set.
+ */
+@property (copy, nullable) NSURL *rootURL;
+@property (copy, nullable) NSDictionary *initializationOptions;
 
 #pragma mark Observers
 

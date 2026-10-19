@@ -7,6 +7,7 @@
 
 #import "AppDelegate.h"
 #import "UDUpdater.h"
+#import "UDDocument.h"
 #import <UDCodeKit/UDCodeKit.h>
 
 /// Check for Updates… in MainMenu.xib's application menu.
@@ -29,6 +30,72 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
         NSMenuItem *check = [appMenu itemWithTag:UDCheckForUpdatesTag];
         if (check != nil) [appMenu removeItem:check];
     }
+}
+
+/// File > Open Folder…: the folder as a project, in a window of its own (the
+/// one it has, when it is open already).
+- (IBAction)openFolder:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseFiles = NO;
+    panel.canChooseDirectories = YES;
+    panel.allowsMultipleSelection = NO;
+    if ([panel runModal] != NSModalResponseOK || panel.URLs.count == 0) return;
+    [self openFolderAtURL:panel.URLs.firstObject];
+}
+
+- (nullable UDWorkspace *)openFolderAtURL:(NSURL *)url {
+    NSDocumentController *documents = [NSDocumentController sharedDocumentController];
+    UDProject *project = [[UDProject alloc] initWithFolderURL:url];
+    NSString *path = project.folderURL.path;
+    for (NSDocument *document in documents.documents) {
+        if ([document isKindOfClass:[UDWorkspace class]] &&
+            [((UDWorkspace *)document).project.folderURL.path isEqualToString:path]) {
+            [document showWindows];
+            return (UDWorkspace *)document;
+        }
+    }
+    // no type: a project is a folder, not a file of any of the app's types
+    UDWorkspace *workspace = [[UDWorkspace alloc] init];
+    workspace.project = project;
+    [documents addDocument:workspace];
+    [workspace makeWindowControllers];
+    [workspace showWindows];
+    return workspace;
+}
+
+/// Debug > Launch Configuration and Run Task: the key project window's
+/// launch.json configurations and tasks.json tasks, as they are when the menu opens.
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    BOOL configurations = [menu.title isEqualToString:@"Launch Configuration"];
+    if (!configurations && ![menu.title isEqualToString:@"Run Task"]) return;
+    // GNUstep updates a menu as its items change, which asks again: once is enough
+    static BOOL updating = NO;
+    if (updating) return;
+    updating = YES;
+    [menu removeAllItems];
+    // the key window's project, else the main window's, else the frontmost one's
+    UDTasks *tasks = nil;
+    NSMutableArray<NSWindow *> *windows = [NSMutableArray array];
+    if ([NSApp keyWindow]) [windows addObject:[NSApp keyWindow]];
+    if ([NSApp mainWindow]) [windows addObject:[NSApp mainWindow]];
+    [windows addObjectsFromArray:[NSApp orderedWindows]];
+    for (NSWindow *window in windows) {
+        id controller = window.windowController;
+        tasks = [controller respondsToSelector:@selector(tasks)] ? [controller tasks] : nil;
+        if (tasks) break;
+    }
+    NSArray *names = configurations ? [tasks.configurations valueForKey:@"name"] : [tasks.tasks valueForKey:@"label"];
+    for (NSString *name in names) {
+        NSMenuItem *item = [menu addItemWithTitle:name
+                                           action:configurations ? @selector(selectLaunchConfiguration:) : @selector(runTask:)
+                                    keyEquivalent:@""];
+        item.representedObject = name;
+    }
+    if (!names.count) {
+        // no action: disabled
+        [menu addItemWithTitle:configurations ? @"No launch.json" : @"No tasks.json" action:NULL keyEquivalent:@""];
+    }
+    updating = NO;
 }
 
 - (IBAction)checkForUpdates:(id)sender {

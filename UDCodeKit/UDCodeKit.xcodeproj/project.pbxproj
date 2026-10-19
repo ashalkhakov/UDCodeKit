@@ -10,6 +10,15 @@
 		C0DEC0DE0000000000000012 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000011 /* lib.c */; };
 		C0DEC0DE0000000000000014 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000013 /* UDPieceTable.framework */; };
 		C0DEC0DE0000000000000016 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000015 /* LSPKit.framework */; };
+		C0DEC0DE0000000000000101 /* encoding.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000100 /* encoding.c */; };
+		C0DEC0DE0000000000000103 /* keyboard.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000102 /* keyboard.c */; };
+		C0DEC0DE0000000000000105 /* mouse.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000104 /* mouse.c */; };
+		C0DEC0DE0000000000000107 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000106 /* parser.c */; };
+		C0DEC0DE0000000000000109 /* pen.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000108 /* pen.c */; };
+		C0DEC0DE0000000000000111 /* screen.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000110 /* screen.c */; };
+		C0DEC0DE0000000000000113 /* state.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000112 /* state.c */; };
+		C0DEC0DE0000000000000115 /* unicode.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000114 /* unicode.c */; };
+		C0DEC0DE0000000000000117 /* vterm.c in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000116 /* vterm.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,37 +26,67 @@
 		C0DEC0DE0000000000000011 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = lib.c; path = "../tree-sitter/src/lib.c"; sourceTree = SOURCE_ROOT; };
 		C0DEC0DE0000000000000013 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0DEC0DE0000000000000015 /* LSPKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = LSPKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0DEC0DE0000000000000100 /* encoding.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = encoding.c; path = ../libvterm/src/encoding.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000102 /* keyboard.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = keyboard.c; path = ../libvterm/src/keyboard.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000104 /* mouse.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = mouse.c; path = ../libvterm/src/mouse.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000106 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = parser.c; path = ../libvterm/src/parser.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000108 /* pen.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = pen.c; path = ../libvterm/src/pen.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000110 /* screen.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = screen.c; path = ../libvterm/src/screen.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000112 /* state.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = state.c; path = ../libvterm/src/state.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000114 /* unicode.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = unicode.c; path = ../libvterm/src/unicode.c; sourceTree = SOURCE_ROOT; };
+		C0DEC0DE0000000000000116 /* vterm.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = vterm.c; path = ../libvterm/src/vterm.c; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		C0DEC0DE0000000000000006 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		C0DEC0DE0000000000000006 /* Exceptions for "Sources" folder in "UDCodeKit" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			publicHeaders = (
-				Debug/UDBreakpointStore.h,
-				Debug/UDDebugSession.h,
-				Debug/UDDebugBarViewController.h,
-				Debug/UDDebugNavigatorViewController.h,
-				Debug/UDDebugAreaViewController.h,
+				Highlighters/UDSemanticTokensHighlighter.h,
+				Terminal/UDTerminalViewController.h,
+				Terminal/UDTerminalView.h,
+				Terminal/UDPseudoTerminal.h,
 				Debug/UDBreakpointEditorViewController.h,
 				Debug/UDBreakpointNavigatorViewController.h,
+				Debug/UDBreakpointStore.h,
+				Debug/UDDebugAreaViewController.h,
+				Debug/UDDebugBarViewController.h,
 				Debug/UDDebugHoverViewController.h,
+				Debug/UDDebugNavigatorViewController.h,
+				Debug/UDDebugSession.h,
 				Diagnostics/UDDiagnosticStore.h,
 				Extensions/UDDiagnosticItem.h,
 				Extensions/UDExtension.h,
 				Extensions/UDLanguageKeyHandler.h,
+				Find/UDFindBarViewController.h,
+				Find/UDFindModel.h,
 				Highlighters/UDBracketMatchHighlighter.h,
 				Highlighters/UDDecorationHighlighter.h,
 				Highlighters/UDDecorationLayerRegistry.h,
+				Highlighters/UDLinkedEditing.h,
 				Highlighters/UDLSPDiagnosticHighlighter.h,
+				Highlighters/UDOccurrencesHighlighter.h,
+				Highlighters/UDPlaceholderHighlighter.h,
 				Highlighters/UDSyntaxHighlighter.h,
 				Highlighters/UDTreeSitterHighlighter.h,
-				Highlighters/UDPlaceholderHighlighter.h,
 				LSP/UDLSPCoordinator.h,
 				"LSP/UDTextModel+LSPTextBuffer.h",
+				LSP/UDWorkspaceEdit.h,
 				Model/UDCodeDocument.h,
 				Model/UDLanguageConfiguration.h,
 				Model/UDLanguageMode.h,
 				Model/UDLanguageModeRegistry.h,
+				Project/UDBuildLogViewController.h,
+				Project/UDBuildRunner.h,
+				Project/UDFileNavigatorViewController.h,
+				Project/UDFileWatcher.h,
+				Project/UDOpenQuicklyController.h,
+				Project/UDProject.h,
+				Project/UDProjectSettingsController.h,
+				Project/UDSearchResultsViewController.h,
+				Project/UDTasks.h,
+				Project/UDToolLocator.h,
+				Tabs/UDTabBarView.h,
+				Tabs/UDTabItemView.h,
 				TextModel/UDTextModelString.h,
 				TextModel/UDTextModelTextStorage.h,
 				TreeSitter/TreeSitterTheme.h,
@@ -55,29 +94,33 @@
 				TreeSitter/UDTreeSitterTypes.h,
 				UDAutoIndenter.h,
 				UDCodeEditorLayoutManager.h,
+				UDCodeEditorViewController.h,
 				UDCodeKit.h,
 				UDEditorSession.h,
 				UDFindResultsGutterView.h,
 				UDFoldingController.h,
 				UDLineNumberGutterView.h,
-				Find/UDFindBarViewController.h,
-				Find/UDFindModel.h,
-				Tabs/UDTabBarView.h,
+				UDStructuredNavigator.h,
+				Workbench/UDCompletionListController.h,
 				Workbench/UDEditorTabsController.h,
 				Workbench/UDErrorsViewController.h,
-				Workbench/UDCompletionListController.h,
 				Workbench/UDHoverViewController.h,
+				Workbench/UDIssuePopupController.h,
 				Workbench/UDPaneSplitController.h,
-				Tabs/UDTabItemView.h,
-				UDStructuredNavigator.h,
-				UDCodeEditorViewController.h,
 			);
 			target = C0DEC0DE0000000000000004 /* UDCodeKit */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C0DEC0DE0000000000000005 /* Sources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C0DEC0DE0000000000000006 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); path = Sources; sourceTree = "<group>"; };
+		C0DEC0DE0000000000000005 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C0DEC0DE0000000000000006 /* Exceptions for "Sources" folder in "UDCodeKit" target */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +141,7 @@
 			children = (
 				C0DEC0DE0000000000000005 /* Sources */,
 				C0DEC0DE0000000000000018 /* tree-sitter */,
+				C0DEC0DE0000000000000199 /* libvterm */,
 				C0DEC0DE0000000000000017 /* Frameworks */,
 				C0DEC0DE0000000000000002 /* Products */,
 			);
@@ -111,6 +155,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		C0DEC0DE0000000000000017 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C0DEC0DE0000000000000013 /* UDPieceTable.framework */,
+				C0DEC0DE0000000000000015 /* LSPKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		C0DEC0DE0000000000000018 /* tree-sitter */ = {
 			isa = PBXGroup;
 			children = (
@@ -119,13 +172,20 @@
 			name = "tree-sitter";
 			sourceTree = "<group>";
 		};
-		C0DEC0DE0000000000000017 /* Frameworks */ = {
+		C0DEC0DE0000000000000199 /* libvterm */ = {
 			isa = PBXGroup;
 			children = (
-				C0DEC0DE0000000000000013 /* UDPieceTable.framework */,
-				C0DEC0DE0000000000000015 /* LSPKit.framework */,
+				C0DEC0DE0000000000000100 /* encoding.c */,
+				C0DEC0DE0000000000000102 /* keyboard.c */,
+				C0DEC0DE0000000000000104 /* mouse.c */,
+				C0DEC0DE0000000000000106 /* parser.c */,
+				C0DEC0DE0000000000000108 /* pen.c */,
+				C0DEC0DE0000000000000110 /* screen.c */,
+				C0DEC0DE0000000000000112 /* state.c */,
+				C0DEC0DE0000000000000114 /* unicode.c */,
+				C0DEC0DE0000000000000116 /* vterm.c */,
 			);
-			name = Frameworks;
+			name = libvterm;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -213,6 +273,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0DEC0DE0000000000000012 /* lib.c in Sources */,
+				C0DEC0DE0000000000000101 /* encoding.c in Sources */,
+				C0DEC0DE0000000000000103 /* keyboard.c in Sources */,
+				C0DEC0DE0000000000000105 /* mouse.c in Sources */,
+				C0DEC0DE0000000000000107 /* parser.c in Sources */,
+				C0DEC0DE0000000000000109 /* pen.c in Sources */,
+				C0DEC0DE0000000000000111 /* screen.c in Sources */,
+				C0DEC0DE0000000000000113 /* state.c in Sources */,
+				C0DEC0DE0000000000000115 /* unicode.c in Sources */,
+				C0DEC0DE0000000000000117 /* vterm.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -239,26 +308,26 @@
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
-				SDKROOT = macosx;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_TESTABILITY = YES;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					"$(inherited)",
-				);
 				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
 			};
 			name = Debug;
 		};
@@ -282,6 +351,9 @@
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -292,9 +364,6 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
 				SDKROOT = macosx;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
 			};
 			name = Release;
 		};
@@ -312,6 +381,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../tree-sitter/include",
 					"$(SRCROOT)/../tree-sitter/src",
+					"$(SRCROOT)/../libvterm/include",
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
@@ -341,6 +411,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(SRCROOT)/../tree-sitter/include",
 					"$(SRCROOT)/../tree-sitter/src",
+					"$(SRCROOT)/../libvterm/include",
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";

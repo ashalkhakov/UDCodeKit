@@ -8,6 +8,8 @@
 
 #import <AppKit/AppKit.h>
 #import "UDDebugSession.h"
+#include <limits.h>
+#include <stdlib.h>
 #import "UDLanguageMode.h"
 
 NSNotificationName const UDDebugSessionDidChangeStateNotification = @"UDDebugSessionDidChangeStateNotification";
@@ -350,7 +352,14 @@ static NSInteger UDInteger(id value) {
     NSArray *sent = _sent[path];
     if ((sent && [sent isEqualToArray:sourceBreakpoints]) || (!sent && !sourceBreakpoints.count)) return NO;
     _sent[path] = sourceBreakpoints;
-    NSInteger seq = [_client setBreakpointsInFile:path breakpoints:sourceBreakpoints
+    // the file's real path, as a compiler records it (a debugger matches its
+    // breakpoints against that: macOS's /var is /private/var, a project may
+    // be opened through a link)
+    // (realpath(3): Foundation's resolving takes /private off again)
+    char resolved[PATH_MAX];
+    NSString *real = realpath(path.fileSystemRepresentation, resolved)
+        ? [[NSFileManager defaultManager] stringWithFileSystemRepresentation:resolved length:strlen(resolved)] : path;
+    NSInteger seq = [_client setBreakpointsInFile:real breakpoints:sourceBreakpoints
                                            target:self action:@selector(_didSetBreakpoints:)];
     if (seq) _breakpointRequests[@(seq)] = @[ sentFor, unsupported, action ? NSStringFromSelector(action) : @"" ];
     return seq != 0;
@@ -526,7 +535,8 @@ static NSInteger UDInteger(id value) {
         frame.frameID = UDInteger(item[@"id"]);
         frame.name = UDString(item[@"name"]) ?: @"";
         NSDictionary *source = item[@"source"];
-        frame.path = [source isKindOfClass:[NSDictionary class]] ? UDString(source[@"path"]) : nil;
+        // as the editors and the store name files (standardized)
+        frame.path = [[source isKindOfClass:[NSDictionary class]] ? UDString(source[@"path"]) : nil stringByStandardizingPath];
         frame.line = UDInteger(item[@"line"]);
         frame.column = UDInteger(item[@"column"]);
         frame.thread = thread;

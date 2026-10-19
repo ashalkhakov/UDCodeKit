@@ -81,6 +81,26 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     return ok;
 }
 
+- (BOOL)reloadFromFileIfUnmodified {
+    if (!_fileURL || self.isModified) return NO;
+    NSString *disk = [UDCodeDocument textOfURL:_fileURL error:NULL];
+    NSString *mine = [_textModel getValue];
+    if (!disk || [disk isEqualToString:mine]) return NO;
+    // what differs: after the common start, before the common end
+    NSUInteger start = 0, mineLength = mine.length, diskLength = disk.length;
+    while (start < mineLength && start < diskLength && [mine characterAtIndex:start] == [disk characterAtIndex:start]) start++;
+    NSUInteger end = 0;
+    while (end < mineLength - start && end < diskLength - start &&
+           [mine characterAtIndex:mineLength - 1 - end] == [disk characterAtIndex:diskLength - 1 - end]) end++;
+    UDPosition from = [_textModel getPositionAt:(NSInteger)start];
+    UDPosition to = [_textModel getPositionAt:(NSInteger)(mineLength - end)];
+    NSString *replacement = [disk substringWithRange:NSMakeRange(start, diskLength - end - start)];
+    [_textModel applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:PTRangeMake(from.line, from.column, to.line, to.column)
+                                                                text:replacement] ]];
+    _savedAlternativeVersionId = _textModel.alternativeVersionId;
+    return YES;
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - Private
 // ---------------------------------------------------------------------------

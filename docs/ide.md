@@ -31,6 +31,34 @@ our own under the same names, from `scripts/draw-gnustep-images.swift` into
 `Images/GNUstep/`. A segment's image in a XIB needs the gnustep-patches stack
 with `xib-segment-image`.
 
+## On a Linux without build tools (Bazzite, SteamOS)
+
+An immutable system has no compiler to install, by design; it has Distrobox
+for that: a container that shares your home, display, GPU and sound, whose
+programs run as any other. `scripts/udcode-box.sh` makes one to work in:
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/ashalkhakov/UDCodeKit/master/scripts/udcode-box.sh
+bash udcode-box.sh
+```
+
+It is Ubuntu 22.04, what UDCode's AppImage and the GNUstep stack's archives
+are built on, with:
+
+- the patched GNUstep stack and FreeCoreData, their latest releases, in
+  `/opt/gnustep`, and the packages building on them needs;
+- LLVM 18's clangd and lldb-dap, gdb, make, cmake, ninja and ripgrep;
+- what the Quake and Doom 3 engines build with: SDL2, OpenAL, Vorbis, Opus;
+- UDCode, its latest release, in the application menu (or
+  `distrobox enter udcode -- udcode`).
+
+Run it again to bring the box up to date. `--appimage FILE` installs UDCode
+from an AppImage of your own (in your home); `--stack VERSION` a release of
+the stack other than the latest.
+
+The debugger in the box is lldb-dap (Ubuntu 22.04's gdb is older than its
+DAP); the box is privileged, as Distrobox makes them, so lldb launches there.
+
 ## Opening a project
 
 File › Open Folder… (⌥⌘O) opens a folder as a project. Its files are in the

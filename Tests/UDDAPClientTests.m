@@ -22,6 +22,7 @@
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *eventBodies;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, DAPResponse *> *responses;
 @property (nonatomic) BOOL ended;
+@property (nonatomic, copy) NSString *between;
 @end
 
 @implementation UDDAPClientTests
@@ -34,6 +35,7 @@
     _responses = [NSMutableDictionary dictionary];
     _closed = NO;
     _ended = NO;
+    _between = nil;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +51,10 @@
 }
 
 - (void)transport:(LSPTransport *)transport didReceiveErrorOutput:(NSString *)text {
+}
+
+- (void)transport:(LSPTransport *)transport didReceiveOutputBetweenMessages:(NSString *)text {
+    _between = [(_between ?: @"") stringByAppendingString:text];
 }
 
 - (void)testTheTransportFramesMessagesHoweverTheyArrive {
@@ -76,6 +82,17 @@
     [writer writeData:[frame subdataWithRange:NSMakeRange(22, frame.length - 22)]];
     UDRunUntil(_messages.count == 3, 5);
     XCTAssertEqualObjects(_messages.lastObject[@"n"], @3);
+
+    // What isn't a message (a debuggee's output let through) is passed on,
+    // and the messages around it read as they are.
+    NSMutableData *mixed = [NSMutableData dataWithData:[@"vscode second\n" dataUsingEncoding:NSUTF8StringEncoding]];
+    [mixed appendData:[LSPTransport frameForMessage:@{ @"n": @4 }]];
+    [mixed appendData:[@"more\n" dataUsingEncoding:NSUTF8StringEncoding]];
+    [mixed appendData:[LSPTransport frameForMessage:@{ @"n": @5 }]];
+    [writer writeData:mixed];
+    UDRunUntil(_messages.count == 5, 5);
+    XCTAssertEqualObjects([_messages valueForKey:@"n"], (@[ @1, @2, @3, @4, @5 ]));
+    XCTAssertEqualObjects(_between, @"vscode second\nmore\n");
 
     // The end of what is read is the end of the other side.
     [writer closeFile];

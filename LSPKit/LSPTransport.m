@@ -158,7 +158,18 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
 - (void)_didReceiveData:(NSData *)data {
     [_buffer appendData:data];
     NSData *separator = [@"\r\n\r\n" dataUsingEncoding:NSASCIIStringEncoding];
+    NSData *contentLength = [@"Content-Length:" dataUsingEncoding:NSASCIIStringEncoding];
     while (_open) {
+        // a message's header begins with its Content-Length (LSP's, DAP's):
+        // what comes before it is no message's, and is passed on, so that the
+        // messages after it are read as they are
+        NSRange start = [_buffer rangeOfData:contentLength options:0 range:NSMakeRange(0, [_buffer length])];
+        if (start.location == NSNotFound) return;
+        if (start.location > 0) {
+            [self _passOnOutputBetweenMessages:[_buffer subdataWithRange:NSMakeRange(0, start.location)]];
+            [_buffer replaceBytesInRange:NSMakeRange(0, start.location) withBytes:NULL length:0];
+            continue;
+        }
         NSRange end = [_buffer rangeOfData:separator options:0 range:NSMakeRange(0, [_buffer length])];
         if (end.location == NSNotFound) return;
         NSDictionary *headers = LSPParseHeaders([_buffer subdataWithRange:NSMakeRange(0, end.location)]);
@@ -175,6 +186,18 @@ static NSDictionary *LSPParseHeaders(NSData *header) {
             continue;
         }
         [_delegate transport:self didReceiveMessage:message];
+    }
+}
+
+- (void)_passOnOutputBetweenMessages:(NSData *)data {
+    NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]
+                  ?: [[NSString alloc] initWithData:data encoding:NSISOLatin1StringEncoding];
+    if (!text.length) return;
+    id<LSPTransportDelegate> delegate = _delegate;
+    if ([delegate respondsToSelector:@selector(transport:didReceiveOutputBetweenMessages:)]) {
+        [delegate transport:self didReceiveOutputBetweenMessages:text];
+    } else {
+        NSLog(@"LSPKit: not a message: %@", text);
     }
 }
 

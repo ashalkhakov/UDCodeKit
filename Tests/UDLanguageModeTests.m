@@ -241,6 +241,18 @@
     XCTAssertEqualObjects(mode.identifier, @"xml");
 }
 
+/// Makefiles by their whole names (GNUstep's among them), and by extension.
+- (void)testMakefilesAreMakeByTheirNames {
+    UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
+    for (NSString *name in @[ @"GNUmakefile", @"GNUmakefile.preamble", @"GNUmakefile.postamble", @"Makefile",
+                              @"makefile", @"Makefile.apple", @"Libraries.make", @"rules.mk" ]) {
+        NSURL *url = [NSURL fileURLWithPath:[@"/tmp/project" stringByAppendingPathComponent:name]];
+        XCTAssertEqualObjects([reg modeForFileURL:url].identifier, @"make", @"%@", name);
+    }
+    XCTAssertEqualObjects([reg modeForFileURL:[NSURL fileURLWithPath:@"/tmp/project/GNUmakefile.txt"]].identifier,
+                          @"plaintext", @"a name is the whole name");
+}
+
 - (void)testLookupByExtension_svg {
     UDLanguageMode *mode =
         [[UDLanguageModeRegistry sharedRegistry] modeForFileExtension:@"svg"];

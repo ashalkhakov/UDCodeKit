@@ -82,6 +82,41 @@
 #endif
 }
 
+/// An Xcode project: its Debug build (as Xcode's Run), and what that makes
+/// run, as xcodebuild -showBuildSettings says: the first application or tool.
+- (void)testAnXcodeProjectRunsWhatItsDebugBuildMakes {
+    NSString *settings = @"Command line invocation:\n    xcodebuild -showBuildSettings\n\n"
+                         @"Build settings for action build and target Kit:\n"
+                         @"    FULL_PRODUCT_NAME = Kit.framework\n"
+                         @"    PRODUCT_TYPE = com.apple.product-type.framework\n"
+                         @"    TARGET_BUILD_DIR = /tmp/p/build/Debug\n\n"
+                         @"Build settings for action build and target Calculator:\n"
+                         @"    ACTION = build\n"
+                         @"    FULL_PRODUCT_NAME = Calculator.app\n"
+                         @"    PRODUCT_TYPE = com.apple.product-type.application\n"
+                         @"    TARGET_BUILD_DIR = /tmp/p/build/Debug\n\n"
+                         @"Build settings for action build and target CalculatorTests:\n"
+                         @"    FULL_PRODUCT_NAME = CalculatorTests.xctest\n"
+                         @"    PRODUCT_TYPE = com.apple.product-type.bundle.unit-test\n";
+    XCTAssertEqualObjects([UDProject productOfBuildSettings:settings], @"/tmp/p/build/Debug/Calculator.app");
+    XCTAssertNil([UDProject productOfBuildSettings:@"Build settings for action build and target Kit:\n"
+                                                   @"    FULL_PRODUCT_NAME = Kit.framework\n"
+                                                   @"    PRODUCT_TYPE = com.apple.product-type.framework\n"
+                                                   @"    TARGET_BUILD_DIR = /tmp\n"], @"nothing to run");
+    XCTAssertEqualObjects([UDProject quotedArgument:@"My App.xcodeproj"], @"'My App.xcodeproj'");
+#ifndef GNUSTEP
+    [[NSFileManager defaultManager] createDirectoryAtPath:[_folder stringByAppendingPathComponent:@"Calculator.xcodeproj"]
+                              withIntermediateDirectories:YES attributes:nil error:NULL];
+    XCTAssertEqual(self.project.buildSystem, UDProjectBuildSystemXcode);
+    XCTAssertEqualObjects(self.project.buildCommand, @"xcodebuild -configuration Debug build", @"Debug, as Xcode's Run");
+    XCTAssertEqualObjects(self.project.cleanCommand, @"xcodebuild -configuration Debug clean");
+    [[NSFileManager defaultManager] createDirectoryAtPath:[_folder stringByAppendingPathComponent:@"Other Thing.xcodeproj"]
+                              withIntermediateDirectories:YES attributes:nil error:NULL];
+    XCTAssertEqualObjects(self.project.buildCommand, @"xcodebuild -configuration Debug -project Calculator.xcodeproj build",
+                          @"which, when there are two");
+#endif
+}
+
 - (void)testOneFolderForBothSystems {
     [self write:@"all:\n" to:@"Makefile"];
     [self write:@"{ \"build\": \"make all\", \"run\": { \"program\": \"bin/hello\", \"arguments\": \"-v \\\"two words\\\"\" },"

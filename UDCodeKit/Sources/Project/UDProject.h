@@ -80,6 +80,16 @@ extern NSString * const UDProjectPlatformKey;
 
 /// What the folder's build system suggests: its build and clean commands.
 - (NSDictionary *)inferredSettings;
+/// What is guessed to run, as the settings would name it (relative to the
+/// folder when in it): a GNUmakefile's APP_NAME or TOOL_NAME; an Xcode
+/// project's first application or tool, where its Debug build puts it
+/// (xcodebuild -showBuildSettings, asked once). Nil when nothing is.
+@property (nonatomic, readonly, copy, nullable) NSString *inferredProgram;
+/// The product xcodebuild -showBuildSettings' output names: the first
+/// application's or tool's TARGET_BUILD_DIR/FULL_PRODUCT_NAME.
++ (nullable NSString *)productOfBuildSettings:(NSString *)output;
+/// @a argument as a shell reads it back, quoted when it has to be.
++ (NSString *)quotedArgument:(NSString *)argument;
 
 /// The settings in effect on this system: what is inferred, under the
 /// folder's, under its section for this system.

@@ -44,7 +44,7 @@ system it runs on:
 |---|---|---|---|
 | `GNUmakefile` | GNUstep | `make`, in GNUstep's environment | its `APP_NAME`'s `.app`, or `TOOL_NAME`'s `obj/` tool |
 | `Makefile.apple` | macOS | `make -f Makefile.apple` | asked |
-| an `.xcodeproj` | macOS | `xcodebuild build` | asked |
+| an `.xcodeproj` | macOS | `xcodebuild -configuration Debug build` (Debug, as Xcode's Run) | its first application or tool, where the Debug build puts it (`xcodebuild -showBuildSettings`) |
 | `Makefile` | both | `make` | asked |
 | `CMakeLists.txt` | both | `cmake -S . -B build && cmake --build build` | asked |
 

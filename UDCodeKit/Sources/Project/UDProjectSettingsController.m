@@ -59,7 +59,7 @@ static const NSInteger UDDebuggerAutomaticTag = 0, UDDebuggerLLDBTag = 1, UDDebu
     NSDictionary *inferredRun = [self _run:inferred] ?: @{};
     [self _field:_buildField value:mine[@"build"] ?: settings[@"build"] guess:inferred[@"build"]];
     [self _field:_cleanField value:mine[@"clean"] ?: settings[@"clean"] guess:inferred[@"clean"]];
-    [self _field:_programField value:run[@"program"] ?: [self _run:settings][@"program"] guess:inferredRun[@"program"]];
+    [self _field:_programField value:run[@"program"] ?: [self _run:settings][@"program"] guess:inferredRun[@"program"] ?: _project.inferredProgram];
     id arguments = run[@"arguments"];
     if ([arguments isKindOfClass:[NSArray class]]) arguments = [arguments componentsJoinedByString:@" "];
     [self _field:_argumentsField value:arguments guess:nil];

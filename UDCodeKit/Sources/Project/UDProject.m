@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDProject.h"
+#import "UDToolLocator.h"
 #include <limits.h>
 #include <stdlib.h>
 
@@ -16,6 +17,8 @@ NSString * const UDProjectPlatformKey = @"macos";
 
 @implementation UDProject {
     NSDictionary *_settings;
+    NSString *_xcodeProduct;
+    BOOL _xcodeProductAsked;
 }
 
 - (instancetype)initWithFolderURL:(NSURL *)folderURL {
@@ -99,6 +102,8 @@ static NSDictionary *UDMergedSettings(NSDictionary *under, NSDictionary *over) {
 // MARK: - What the folder suggests
 // ---------------------------------------------------------------------------
 
+static NSString *UDStringOrNil(id value);
+
 - (BOOL)_has:(NSString *)name {
     return [[NSFileManager defaultManager] fileExistsAtPath:[_folderURL.path stringByAppendingPathComponent:name]];
 }
@@ -142,6 +147,87 @@ static NSDictionary *UDMergedSettings(NSDictionary *under, NSDictionary *over) {
     return nil;
 }
 
+/// The project xcodebuild is to build, when the folder has more than one.
+- (NSString *)_xcodeProjectArgument {
+    NSArray<NSString *> *projects = [[[[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]
+                                      filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"pathExtension == 'xcodeproj'"]]
+                                     sortedArrayUsingSelector:@selector(compare:)];
+    if (projects.count < 2) return @"";
+    return [@" -project " stringByAppendingString:[UDProject quotedArgument:projects.firstObject]];
+}
+
++ (NSString *)quotedArgument:(NSString *)argument {
+    if ([argument rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@" \t'\"$\\"]].location == NSNotFound) {
+        return argument;
+    }
+    return [NSString stringWithFormat:@"'%@'", [argument stringByReplacingOccurrencesOfString:@"'" withString:@"'\\''"]];
+}
+
++ (NSString *)productOfBuildSettings:(NSString *)output {
+    // "Build settings for action build and target Name:", then "    KEY = value" lines
+    NSString *buildDirectory = nil, *productName = nil, *productType = nil;
+    for (NSString *line in [[output stringByAppendingString:@"\nBuild settings for action end:"] componentsSeparatedByString:@"\n"]) {
+        if ([line hasPrefix:@"Build settings for "]) {
+            BOOL runnable = [productType isEqualToString:@"com.apple.product-type.application"] ||
+                            [productType isEqualToString:@"com.apple.product-type.tool"];
+            if (runnable && buildDirectory.length && productName.length) {
+                return [buildDirectory stringByAppendingPathComponent:productName];
+            }
+            buildDirectory = productName = productType = nil;
+            continue;
+        }
+        NSRange equals = [line rangeOfString:@" = "];
+        if (equals.location == NSNotFound) continue;
+        NSString *key = [[line substringToIndex:equals.location] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        NSString *value = [line substringFromIndex:NSMaxRange(equals)];
+        if ([key isEqualToString:@"TARGET_BUILD_DIR"]) buildDirectory = value;
+        else if ([key isEqualToString:@"FULL_PRODUCT_NAME"]) productName = value;
+        else if ([key isEqualToString:@"PRODUCT_TYPE"]) productType = value;
+    }
+    return nil;
+}
+
+/// What the Xcode project's Debug build makes to run (its first application
+/// or tool), as xcodebuild -showBuildSettings says; asked once.
+- (nullable NSString *)_xcodeProduct {
+    if (_xcodeProductAsked) return _xcodeProduct;
+    _xcodeProductAsked = YES;
+    NSString *xcodebuild = [UDToolLocator pathOfTool:@"xcodebuild"];
+    if (!xcodebuild) return nil;
+    NSMutableArray *arguments = [@[ @"-configuration", @"Debug", @"-showBuildSettings" ] mutableCopy];
+    NSString *project = [self _xcodeProjectArgument];
+    if (project.length) {
+        [arguments addObject:@"-project"];
+        [arguments addObject:[UDProject argumentsOfCommandLine:project].lastObject];
+    }
+    NSTask *task = [[NSTask alloc] init];
+    task.launchPath = xcodebuild;
+    task.arguments = arguments;
+    task.currentDirectoryPath = _folderURL.path;
+    NSPipe *pipe = [NSPipe pipe];
+    task.standardOutput = pipe;
+    task.standardError = [NSFileHandle fileHandleWithNullDevice];
+    @try {
+        [task launch];
+        NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+        [task waitUntilExit];
+        NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        _xcodeProduct = output ? [UDProject productOfBuildSettings:output] : nil;
+    } @catch (NSException *exception) {
+        _xcodeProduct = nil;
+    }
+    return _xcodeProduct;
+}
+
+- (NSString *)inferredProgram {
+    NSDictionary *run = [self inferredSettings][@"run"];
+    NSString *program = [run isKindOfClass:[NSDictionary class]] ? UDStringOrNil(run[@"program"]) : nil;
+    if (!program && self.buildSystem == UDProjectBuildSystemXcode) program = [self _xcodeProduct];
+    // shown as the settings would say it: relative to the folder when in it
+    NSString *folder = [_folderURL.path stringByAppendingString:@"/"];
+    return [program hasPrefix:folder] ? [program substringFromIndex:folder.length] : program;
+}
+
 - (NSDictionary *)inferredSettings {
     switch (self.buildSystem) {
         case UDProjectBuildSystemGNUstepMake: {
@@ -153,8 +239,12 @@ static NSDictionary *UDMergedSettings(NSDictionary *under, NSDictionary *over) {
             return @{ @"build": @"make", @"clean": @"make clean" };
         case UDProjectBuildSystemAppleMake:
             return @{ @"build": @"make -f Makefile.apple", @"clean": @"make -f Makefile.apple clean" };
-        case UDProjectBuildSystemXcode:
-            return @{ @"build": @"xcodebuild build", @"clean": @"xcodebuild clean" };
+        case UDProjectBuildSystemXcode: {
+            // Debug, as Xcode's Run builds it: what a debugger can follow
+            NSString *xcodebuild = [@"xcodebuild -configuration Debug" stringByAppendingString:[self _xcodeProjectArgument]];
+            return @{ @"build": [xcodebuild stringByAppendingString:@" build"],
+                      @"clean": [xcodebuild stringByAppendingString:@" clean"] };
+        }
         case UDProjectBuildSystemCMake:
             return @{ @"build": @"cmake -S . -B build && cmake --build build", @"clean": @"cmake --build build --target clean" };
         case UDProjectBuildSystemNone:
@@ -188,6 +278,8 @@ static NSString *UDStringOrNil(id value) {
 
 - (NSString *)runProgram {
     NSString *program = UDStringOrNil(self._run[@"program"]);
+    // an Xcode project's: what its Debug build makes
+    if (!program && self.buildSystem == UDProjectBuildSystemXcode) program = [self _xcodeProduct];
     if (!program) return nil;
     program = [self _absolutePath:program];
     // an application: its executable, which a debugger runs

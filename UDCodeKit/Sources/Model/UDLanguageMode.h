@@ -90,6 +90,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// language service: JSON's are, C's are not (its macros make tree-sitter's
 /// parse wrong where the code is right), XML's come from its server.
 @property (nonatomic, assign) BOOL reportsParseErrors;
+/// Whole file names the mode is for, whatever their extension (a makefile's
+/// "GNUmakefile", "Makefile"): LanguageInfo.plist's fileNames, as VS Code's
+/// "filenames". Matched before the extension.
+@property (nonatomic, copy) NSArray<NSString *> *fileNames;
 
 /// The command used to launch the language server for this mode.  The first
 /// element is the executable path; subsequent elements are the command-line

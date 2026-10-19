@@ -25,14 +25,12 @@
  *  rest on that system ("run" key by key), as VS Code's launch.json has
  *  "osx" and "linux".
  *
- *  What the folder doesn't say is guessed from what is in it (UDProject
- *  -inferredSettings), for the system it runs on: on GNUstep a GNUmakefile is
- *  GNUstep make's (`make`, with GNUstep's environment); on macOS a
- *  Makefile.apple is `make -f Makefile.apple`, an Xcode project xcodebuild's;
- *  else a Makefile is make's, a CMakeLists.txt CMake's. The existing
- *  tools are used, never reimplemented: the build is the project's own
- *  command, the language servers and debuggers are clangd, lldb-dap and gdb
- *  (UDToolLocator finds them).
+ *  What the folder doesn't say is its build system's to say (UDBuildSystem:
+ *  GNUstep make, Makefile.apple, Xcode, make, CMake — whichever builds the
+ *  folder, on the system it runs on), and its tests its test runners' (for
+ *  each kind of test, UDTestRunner). The existing tools are used, never
+ *  reimplemented: the build is the project's own command, the language
+ *  servers and debuggers are clangd, lldb-dap and gdb (UDToolLocator finds them).
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -42,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Posted when a project's settings change (set, or read again).
 extern NSNotificationName const UDProjectSettingsDidChangeNotification;
 
-/// The build systems a folder is recognised by.
+/// The build systems a folder is recognised by (UDBuildSystem -kind).
 typedef NS_ENUM(NSInteger, UDProjectBuildSystem) {
     UDProjectBuildSystemNone,
     UDProjectBuildSystemGNUstepMake,     // GNUmakefile (on GNUstep)
@@ -51,6 +49,8 @@ typedef NS_ENUM(NSInteger, UDProjectBuildSystem) {
     UDProjectBuildSystemMake,            // Makefile
     UDProjectBuildSystemCMake,           // CMakeLists.txt
 };
+
+@class UDBuildSystem, UDTestCatalog;
 
 /// The system's key in the settings: "macos" or "gnustep".
 extern NSString * const UDProjectPlatformKey;
@@ -69,10 +69,16 @@ extern NSString * const UDProjectPlatformKey;
 /// .udcode/settings.json in the folder.
 @property (nonatomic, readonly, copy) NSURL *settingsURL;
 
-@property (nonatomic, readonly) UDProjectBuildSystem buildSystem;
+/// What builds the folder: the first UDBuildSystem that recognises it, as
+/// it is now (the same object while it still does); nil: none does.
+@property (nonatomic, readonly, nullable) UDBuildSystem *buildSystem;
 /// Whether this machine has the tool @a name (UDToolLocator): with a
 /// Makefile and a CMakeLists.txt both, the build is the one it has the tool for.
 - (BOOL)hasTool:(NSString *)name;
+/// Whether the folder has @a path (relative to it).
+- (BOOL)hasFile:(NSString *)path;
+/// @a path relative to the folder, when in it.
+- (NSString *)relativePath:(NSString *)path;
 
 /// The settings as the folder has them (empty when it has none), both
 /// systems' sections in them; and set: written to the folder.
@@ -81,34 +87,29 @@ extern NSString * const UDProjectPlatformKey;
 /// Reads them from the folder again (after another program changed them).
 - (void)reloadSettings;
 
-/// What the folder's build system suggests: its build and clean commands.
+/// What the folder's build system suggests: its build and clean commands,
+/// what runs.
 - (NSDictionary *)inferredSettings;
 /// What is guessed to run, as the settings would name it (relative to the
-/// folder when in it): a GNUmakefile's APP_NAME or TOOL_NAME; an Xcode
-/// project's first application or tool, where its Debug build puts it
-/// (xcodebuild -showBuildSettings, asked once). Nil when nothing is.
+/// folder when in it): the build system's product. Nil when nothing is.
 @property (nonatomic, readonly, copy, nullable) NSString *inferredProgram;
 /// What the project builds that runs, as its build names them (relative to
-/// the folder): a GNUmakefile's applications, then its tools, its
-/// SUBPROJECTS' too (UDQuakeTools': UDLauncher, Quarry, PakManager, ...).
-/// Xcode's schemes, as it were; empty where the build doesn't say.
+/// the folder): Xcode's schemes, as it were; empty where the build doesn't say.
 @property (nonatomic, readonly, copy) NSArray<NSString *> *programs;
-/// The XCTest bundles the project builds, relative to its folder (a
-/// GNUmakefile's BUNDLE_NAME linking XCTest, its SUBPROJECTS' too: UDCalc's
-/// CalculatorTests/CalculatorTests.bundle), which xctest runs; GNUstep's.
-@property (nonatomic, readonly, copy) NSArray<NSString *> *testBundles;
-/// What runs the tests where xctest does not: the settings' "test", else
-/// Xcode's xcodebuild test, CMake's ctest, a Makefile's check (or test)
-/// target; nil when nothing says.
+/// The one of -programs to run (the scheme chosen); nil: the first.
+@property (nonatomic, copy, nullable) NSString *preferredProgram;
+/// What runs all the tests at once: the settings' "test", else the build
+/// system's (make check, ctest, xcodebuild test); nil when nothing says.
 @property (nonatomic, readonly, copy, nullable) NSString *testCommand;
+
 /// The project's Objective-C sources and headers (its build products and
 /// hidden folders left out), where its tests are looked for.
 @property (nonatomic, readonly, copy) NSArray<NSString *> *sourceFiles;
-/// The one of -programs to run (the scheme chosen); nil: the first.
-@property (nonatomic, copy, nullable) NSString *preferredProgram;
-/// The product xcodebuild -showBuildSettings' output names: the first
-/// application's or tool's TARGET_BUILD_DIR/FULL_PRODUCT_NAME.
-+ (nullable NSString *)productOfBuildSettings:(NSString *)output;
+/// Its tests: the sources' test cases and what its build system's runners
+/// list, each suite with its runner; and the project's test command, run
+/// when no runner runs anything.
+- (UDTestCatalog *)testCatalog;
+
 /// @a argument as a shell reads it back, quoted when it has to be.
 + (NSString *)quotedArgument:(NSString *)argument;
 
@@ -138,6 +139,11 @@ extern NSString * const UDProjectPlatformKey;
 /// GNUstep's for a GNUstep make project (GNUSTEP_MAKEFILES and the rest,
 /// as GNUstep.sh sets them, which an app started from a desktop lacks).
 - (NSDictionary<NSString *, NSString *> *)buildEnvironment;
+/// A tool's path on the build's PATH (GNUstep's tools among them).
+- (nullable NSString *)pathOfToolOnBuildPath:(NSString *)name;
+/// What @a tool says (standard output and error) with @a arguments, in the
+/// folder and the build's environment; given up after @a seconds.
+- (nullable NSString *)outputOf:(NSString *)tool arguments:(NSArray<NSString *> *)arguments timeout:(NSTimeInterval)seconds;
 
 /// What a language server like clangd compiles a file with when the project
 /// has no compile_commands.json for it (clangd's fallbackFlags): GNUstep's

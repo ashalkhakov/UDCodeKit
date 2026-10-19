@@ -136,6 +136,8 @@ static NSInteger UDInteger(id value) {
 @end
 
 @implementation UDDebugSession {
+    NSUInteger _breakpointsBeforeRunning;   // setBreakpoints not yet answered, before configurationDone
+    BOOL _launchSent;
     NSString *_request;                  // "launch" or "attach"
     NSDictionary *_requestArguments;
     BOOL _configured;                    // the adapter has had its breakpoints
@@ -268,6 +270,22 @@ static NSInteger UDInteger(id value) {
     }
     // Its exception filters, which the breakpoint navigator shows.
     _breakpoints.exceptionFilters = _client.exceptionBreakpointFilters;
+    // Launched at once, as the protocol has it (the breakpoints follow, then
+    // configurationDone) — but gdb's: gdb 15 runs the program as it is asked
+    // to launch, configurationDone or not, so it has the breakpoints first
+    // when it says it is initialized at once (it does), else in a moment.
+    if (![_adapterID isEqualToString:@"gdb"]) {
+        [self _sendLaunch];
+        return;
+    }
+    [self performSelector:@selector(_sendLaunch) withObject:nil afterDelay:0.25
+                  inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode, NSEventTrackingRunLoopMode ]];
+}
+
+- (void)_sendLaunch {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_sendLaunch) object:nil];
+    if (_launchSent || _state == UDDebugSessionStateEnded) return;
+    _launchSent = YES;
     if ([_request isEqualToString:@"attach"]) {
         [_client attachWithArguments:_requestArguments target:self action:@selector(_didLaunch:)];
     } else {
@@ -282,18 +300,35 @@ static NSInteger UDInteger(id value) {
     [self stop];
 }
 
-/// The adapter is ready for the breakpoints, then configurationDone.
+/// The adapter is ready for the breakpoints, then configurationDone — once
+/// they are answered, as VS Code waits: gdb's adapter may otherwise run the
+/// program (configurationDone) before it has set them.
 - (void)debugAdapterDidInitialize:(DAPClient *)client {
     if (_configured || _state == UDDebugSessionStateEnded) return;
     _configured = YES;
-    for (NSString *path in _breakpoints.files) [self _sendBreakpointsOfFile:path];
+    // said before the launch: the launch waits for the configuration
+    if (!_launchSent) [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_sendLaunch) object:nil];
+    _breakpointsBeforeRunning = 0;
+    for (NSString *path in _breakpoints.files) {
+        if ([self _sendBreakpointsOfFile:path then:@selector(_breakpointsSetBeforeRunning:)]) _breakpointsBeforeRunning++;
+    }
     [self _sendExceptionFilters];
+    if (!_breakpointsBeforeRunning) [self _configurationDone];
+}
+
+- (void)_breakpointsSetBeforeRunning:(DAPResponse *)response {
+    if (_breakpointsBeforeRunning && --_breakpointsBeforeRunning == 0) [self _configurationDone];
+}
+
+- (void)_configurationDone {
+    if (_state == UDDebugSessionStateEnded) return;
     if ([_client configurationDoneWithTarget:self action:@selector(_didConfigure:)] == 0) {
         [self _didConfigure:nil];
     }
 }
 
 - (void)_didConfigure:(DAPResponse *)response {
+    if (!_launchSent) [self _sendLaunch];
     if (_state == UDDebugSessionStateStarting) self.state = UDDebugSessionStateRunning;
 }
 

@@ -79,7 +79,7 @@ system it runs on:
 | `Makefile.apple` | macOS | `make -f Makefile.apple` | asked |
 | an `.xcodeproj` | macOS | `xcodebuild -configuration Debug build` (Debug, as Xcode's Run) | its first application or tool, where the Debug build puts it (`xcodebuild -showBuildSettings`) |
 | `Makefile` | both | `make` | asked |
-| `CMakeLists.txt` | both | `cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build` (`-G Ninja` where there is no make) | asked |
+| `CMakeLists.txt` | both | `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build` (`-G Ninja` where there is no make) | asked |
 
 "Asked": the first Run opens Debug › Project Settings…, where the program is
 named once.
@@ -106,25 +106,25 @@ turned off, a container among them.
 ## Tests
 
 Debug › Test (⌘U) runs the project's tests, as Xcode's Product › Test does,
-with the project's own tools:
+each kind by the tool that runs it:
 
-- a GNUstep project's XCTest bundles (a GNUmakefile's `BUNDLE_NAME` that links
-  XCTest, in its folder or one of its own, as UDCalc's `CalculatorTests/`):
-  each built with `make debug=yes` and run by `xctest`;
-- an Xcode project's `xcodebuild test`; CMake's `ctest`; a Makefile's `check`
-  (or `test`) target; tasks.json's default `"test"` task; or the settings'
-  own `"test"` command.
+| Tests | Found | Run | One alone | Debugged |
+|---|---|---|---|---|
+| a GNUstep project's XCTest bundles (a GNUmakefile's `BUNDLE_NAME` that links XCTest, in its folder or one of its own, as UDCalc's `CalculatorTests/`) | the sources' `XCTestCase`s | `make debug=yes`, then `xctest` | `xctest -XCTest Suite.test` | `xctest` under the debugger |
+| an Xcode project's (its first scheme's test targets) | the sources' `XCTestCase`s | `xcodebuild test` | `-only-testing:Target/Suite/test` | built for testing, the debugger waiting for the test host (or `xctest`), then `test-without-building` |
+| CMake's (`add_test`, GoogleTest's discovered ones among them) | `ctest --show-only=json-v1`, in the build folder (CMake Tools' `cmake.buildDirectory`, else `build/`) | `ctest` | `ctest -R '^(a\|b)$'` | one test's command, in its folder |
+| GoogleTest executables, found as C++ TestMate finds them (its `testMate.cpp.test.executables` glob, else its default, `{build,out}/**/*test*`) | each asked (`--help`, `--gtest_list_tests`) | each, in its folder | `--gtest_filter=Suite.Test` | the executable, as TestMate's `testMate.cpp.debug.configTemplate` says if there is one |
 
-The Test navigator (⌘6, the ◇ tab) lists the tests the project's sources
-have (`XCTestCase`'s subclasses, through classes of their own too, and their
-`test…` methods) before any run, and marks each as its last run left it:
-◇ not run, ✓ passed, ✗ failed (a failure's message in its tool tip). A failed
-assertion is an issue at its line, in Issues and in its file's editor. Run
-(▶) and Debug (the bug) do the tests selected — a suite's all — or every one;
-so does the row's menu. Debugging runs `xctest` with the bundle, filtered to
-the tests, under the debugger: its breakpoints stop, in the tests and in what
-they test. On GNUstep a single test or suite runs alone (`xctest -XCTest
-Suite.test`); other runners run them all.
+When none of these runs anything, tasks.json's default `"test"` task, the
+settings' own `"test"` command, or a Makefile's `check` (or `test`) target
+runs them all.
+
+The Test navigator (⌘6, the ◇ tab) lists the tests before any run, and marks
+each as its last run left it: ◇ not run, ✓ passed, ✗ failed (a failure's
+message in its tool tip). A failed assertion is an issue at its line, in
+Issues and in its file's editor. Run (▶) and Debug (the bug) do the tests
+selected — a suite's all — or every one; so does the row's menu. A debugged
+test's breakpoints stop, in the tests and in what they test.
 
 ## A project set up for VS Code
 
@@ -232,7 +232,10 @@ the SDK on macOS, and the folder's headers.
 
 | Piece | Where | What |
 |---|---|---|
-| `UDProject` | UDCodeKit `Project/` | a folder's settings, what is guessed, the build's environment, clangd's fallback flags |
+| `UDProject` | UDCodeKit `Project/` | a folder's settings, the build's environment, clangd's fallback flags; the rest its build system's |
+| `UDBuildSystem` and its kinds | UDCodeKit `Project/BuildSystems/` | GNUstep make, Makefile.apple, Xcode, make, CMake: whether each builds the folder, its commands, what it builds that runs, its test runners |
+| `UDTestRunner` and its kinds | UDCodeKit `Project/TestRunners/` | XCTest bundles, Xcode, CTest, GoogleTest, the project's command: each finds its tests, runs some or all, and says how they are debugged |
+| `UDTestCatalog` | UDCodeKit `Project/` | the tests, each suite's runner, what a run's output says of them |
 | `UDToolLocator` | UDCodeKit `Project/` | where clangd, lldb-dap and gdb are, and how each debugger is asked to launch |
 | `UDFileNavigatorViewController` | UDCodeKit `Project/`, `UDFileNavigator.xib` | the folder's files |
 | `UDBuildRunner` | UDCodeKit `Project/` | the build command, its output, its diagnostics by file |

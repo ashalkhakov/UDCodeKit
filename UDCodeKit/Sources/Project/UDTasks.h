@@ -63,6 +63,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// test's xctest, say): its debugger the project's.
 + (instancetype)configurationNamed:(NSString *)name program:(NSString *)program arguments:(NSArray<NSString *> *)arguments
                          directory:(nullable NSString *)directory;
+/// An attach to @a program's process when it starts (lldb-dap's waitFor):
+/// a test's host, which xcodebuild starts.
++ (instancetype)configurationAttachingTo:(NSString *)program;
+/// Attaching: waits for @a program's process to start, rather than a pid.
+@property (nonatomic, readonly) BOOL waitFor;
 @end
 
 @interface UDTasks : NSObject
@@ -87,6 +92,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// JSON with comments and trailing commas, as VS Code's files have it.
 + (nullable id)objectOfJSONC:(NSData *)data;
+/// .vscode/settings.json (TestMate's and CMake Tools' settings among them).
+@property (nonatomic, readonly, copy) NSDictionary *settings;
+/// How C++ TestMate's testMate.cpp.debug.configTemplate debugs a test
+/// executable: the template (or the launch.json entry its "name:" names) with
+/// ${exec}, ${argsArray} and ${cwd} put in, read as launch.json's are; nil
+/// when there is none (the project's debugger, then).
+- (nullable UDLaunchConfiguration *)testDebugConfigurationForExecutable:(NSString *)executable
+                                                              arguments:(NSArray<NSString *> *)arguments
+                                                              directory:(nullable NSString *)directory;
 /// @a text with VS Code's variables put in.
 - (NSString *)substitute:(NSString *)text;
 

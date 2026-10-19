@@ -25,6 +25,9 @@ extern NSString * const UDDebuggerGDB;    // "gdb": gdb -i dap
 
 /// The executable named @a name, as found (nil when it is nowhere).
 + (nullable NSString *)pathOfTool:(NSString *)name;
+/// Where tools are looked for: PATH's folders (the machine's), then those an
+/// app started from a desktop or the Dock lacks (Homebrew's, /usr/local/bin).
++ (NSArray<NSString *> *)searchedFolders;
 
 + (nullable NSString *)clangdPath;
 + (nullable NSString *)lldbDapPath;

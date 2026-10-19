@@ -148,4 +148,18 @@ image("terminal", size: 16) {
     stroke(prompt)
     line(8, 5.5, 11.5, 5.5)
 }
+image("checkmark.diamond", size: 16) {
+    let diamond = NSBezierPath()
+    diamond.move(to: NSPoint(x: 8, y: 14.5))
+    diamond.line(to: NSPoint(x: 14.5, y: 8))
+    diamond.line(to: NSPoint(x: 8, y: 1.5))
+    diamond.line(to: NSPoint(x: 1.5, y: 8))
+    diamond.close()
+    stroke(diamond)
+    let check = NSBezierPath()
+    check.move(to: NSPoint(x: 5.2, y: 8.2))
+    check.line(to: NSPoint(x: 7.2, y: 6))
+    check.line(to: NSPoint(x: 10.8, y: 10.2))
+    stroke(check, 1.4)
+}
 print("drawn in \(out)")

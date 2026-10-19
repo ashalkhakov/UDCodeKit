@@ -205,7 +205,7 @@ static NSString * const UDProgram =
     XCTAssertEqual(_controller.debugBarHost.subviews.count, 1u);
     XCTAssertEqual(_controller.debugAreaHost.subviews.count, 1u);
     XCTAssertNotNil(_controller.debugSplit.splitView);
-    XCTAssertEqual(_controller.navigatorControl.segmentCount, 6);
+    XCTAssertEqual(_controller.navigatorControl.segmentCount, 7);
     UDDebugBarViewController *bar = _controller.debugBar;
     for (NSString *outlet in @[ @"continueButton", @"stepOverButton", @"stepIntoButton", @"stepOutButton", @"stopButton", @"statusLabel" ]) {
         XCTAssertNotNil([bar valueForKey:outlet], @"%@ is connected in UDDebugBar.xib", outlet);
@@ -279,7 +279,7 @@ static NSString * const UDProgram =
 
     // The panes: the debug area, the debug navigator.
     XCTAssertTrue([_controller.debugSplit isPaneVisible:1]);
-    XCTAssertEqual(_controller.navigatorControl.selectedSegment, 3);
+    XCTAssertEqual(_controller.navigatorControl.selectedSegment, 4);
     XCTAssertEqualObjects(_controller.navigatorTabView.selectedTabViewItem.identifier, @"debug");
 
     // The navigator: the threads, the stopped one's frames, its top one chosen.
@@ -561,7 +561,7 @@ static NSString * const UDProgram =
     XCTAssertNotNil(navigator.outlineView.menu, @"its menu, in UDBreakpointNavigator.xib");
     XCTAssertEqual(navigator.breakpoints, _controller.breakpoints);
     [_controller showBreakpointNavigator:nil];
-    XCTAssertEqual(_controller.navigatorControl.selectedSegment, 4);
+    XCTAssertEqual(_controller.navigatorControl.selectedSegment, 5);
     XCTAssertEqualObjects(_controller.navigatorTabView.selectedTabViewItem.identifier, @"breakpoints");
 
     UDDebugAreaViewController *area = _controller.debugArea;

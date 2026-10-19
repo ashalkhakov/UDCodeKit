@@ -59,6 +59,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy, nullable) NSString *preLaunchTask;
 /// An attach's process (its pid), 0 when it names none.
 @property (nonatomic, readonly) NSInteger processID;
+/// A launch of @a program, made here rather than read from launch.json (a
+/// test's xctest, say): its debugger the project's.
++ (instancetype)configurationNamed:(NSString *)name program:(NSString *)program arguments:(NSArray<NSString *> *)arguments
+                         directory:(nullable NSString *)directory;
 @end
 
 @interface UDTasks : NSObject
@@ -75,6 +79,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable UDTask *)taskLabelled:(NSString *)label;
 /// The build task: the default of the "build" group, else the first of it.
 @property (nonatomic, readonly, nullable) UDTask *buildTask;
+/// The test task: the default of the "test" group, else the first of it.
+@property (nonatomic, readonly, nullable) UDTask *testTask;
 /// @a task's command line with what it depends on first, each in its folder
 /// with its environment: one line for the shell.
 - (NSString *)commandLineRunning:(UDTask *)task;

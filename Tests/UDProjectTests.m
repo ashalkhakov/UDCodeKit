@@ -1019,4 +1019,177 @@
     [workspace close];
 }
 
+
+// ---------------------------------------------------------------------------
+// MARK: - Tests: found, run, marked, debugged
+// ---------------------------------------------------------------------------
+
+/// The tests in a project's sources: XCTestCase's subclasses (a class of the
+/// project's between, too), their test methods with where each is; not a
+/// test's helper, nor a class that isn't one.
+- (void)testTheTestsAreFoundInTheSources {
+    NSDictionary *sources = @{
+        @"/p/Tests/Base.h": @"@interface BaseCase : XCTestCase\n@end\n",
+        @"/p/Tests/Base.m": @"@implementation BaseCase\n- (void)setUp {}\n- (void)helper {}\n@end\n",
+        @"/p/Tests/CalcTests.m": @"#import \"Base.h\"\n@interface CalcTests : BaseCase\n@end\n\n@implementation CalcTests\n\n"
+                               @"- (void)testAdds {\n}\n\n- (void) testDivides\n{\n}\n- (void)testWith:(int)x {}\n- (int)testValue { return 0; }\n@end\n",
+        @"/p/Tests/Other.m": @"@interface Other : NSObject\n@end\n@implementation Other\n- (void)testNothing {}\n@end\n" };
+    UDTestCatalog *catalog = [UDTestCatalog catalogOfSources:sources];
+    XCTAssertEqualObjects([catalog.suites valueForKey:@"name"], @[ @"CalcTests" ], @"BaseCase has no tests; Other is no test case");
+    UDTestSuite *calc = [catalog suiteNamed:@"CalcTests"];
+    XCTAssertEqualObjects([calc.tests valueForKey:@"name"], (@[ @"testAdds", @"testDivides" ]));
+    XCTAssertEqualObjects(calc.path, @"/p/Tests/CalcTests.m");
+    XCTAssertEqual(calc.line, 5);
+    XCTAssertEqual([catalog testNamed:@"testDivides" inSuite:@"CalcTests"].line, 10);
+    XCTAssertEqualObjects([catalog testNamed:@"testAdds" inSuite:@"CalcTests"].identifier, @"CalcTests.testAdds", @"xctest's filter");
+    XCTAssertEqualObjects([catalog pathOfFile:@"CalcTests.m"], @"/p/Tests/CalcTests.m");
+    XCTAssertEqualObjects([catalog pathOfFile:@"Tests/CalcTests.m"], @"/p/Tests/CalcTests.m");
+    XCTAssertNil([catalog pathOfFile:@"Missing.m"]);
+}
+
+/// A run's output, GNUstep's xctest's and Apple's: each test marked as it
+/// went, a failure where it was said.
+- (void)testARunsOutputMarksTheTests {
+    UDTestCatalog *catalog = [UDTestCatalog catalogOfSources:@{
+        @"/p/T.m": @"@interface CalcTests : XCTestCase\n@end\n@implementation CalcTests\n- (void)testAdds {}\n- (void)testDivides {}\n@end\n" }];
+    UDTest *adds = [catalog testNamed:@"testAdds" inSuite:@"CalcTests"];
+    UDTest *divides = [catalog testNamed:@"testDivides" inSuite:@"CalcTests"];
+    XCTAssertNil([catalog readLine:@"2026-10-19 12:00:00.000 xctest[1:1] XCTest:   Running CalcTests"]);
+    XCTAssertEqual(adds.status, UDTestStatusRunning);
+    [catalog readLine:@"2026-10-19 12:00:00.001 xctest[1:1] XCTest:     -[CalcTests testAdds] PASSED"];
+    UDTestFailure *failure = [catalog readLine:@"2026-10-19 12:00:00.002 xctest[1:1] XCTest: T.m:5: -[CalcTests testDivides]: "
+                                               @"((1/2) equal to (0.5)) failed: (\"0\") is not equal to (\"0.5\")"];
+    [catalog readLine:@"2026-10-19 12:00:00.003 xctest[1:1] XCTest:     -[CalcTests testDivides] FAILED"];
+    XCTAssertEqual(adds.status, UDTestStatusPassed);
+    XCTAssertEqual(divides.status, UDTestStatusFailed);
+    XCTAssertEqual(failure.test, divides);
+    XCTAssertEqualObjects(failure.file, @"T.m");
+    XCTAssertEqual(failure.line, 5);
+    XCTAssertTrue([failure.message hasPrefix:@"((1/2) equal to (0.5)) failed"], @"%@", failure.message);
+    XCTAssertFalse(failure.compilerStyle);
+    XCTAssertEqual(catalog.passedCount, 1u);
+    XCTAssertEqual(catalog.failedCount, 1u);
+    XCTAssertEqual([catalog suiteNamed:@"CalcTests"].status, UDTestStatusFailed);
+
+    // Apple's (xcodebuild test, Xcode's xctest); a test the sources didn't have, added
+    [catalog resetTests:nil];
+    XCTAssertEqual(adds.status, UDTestStatusNotRun);
+    [catalog readLine:@"Test Case '-[CalcTests testAdds]' started."];
+    XCTAssertEqual(adds.status, UDTestStatusRunning);
+    [catalog readLine:@"Test Case '-[CalcTests testAdds]' passed (0.001 seconds)."];
+    failure = [catalog readLine:@"/p/T.m:5: error: -[CalcTests testDivides] : XCTAssertEqual failed: (\"0\") is not equal to (\"1\")"];
+    [catalog readLine:@"Test Case '-[CalcTests testDivides]' failed (0.002 seconds)."];
+    [catalog readLine:@"Test Case '-[Calc.MoreTests testNew]' passed (0.001 seconds)."];
+    XCTAssertEqual(adds.status, UDTestStatusPassed);
+    XCTAssertEqual(divides.status, UDTestStatusFailed);
+    XCTAssertTrue(failure.compilerStyle, @"the build's issues have it already");
+    XCTAssertEqualObjects(failure.file, @"/p/T.m");
+    XCTAssertEqualObjects(failure.message, @"XCTAssertEqual failed: (\"0\") is not equal to (\"1\")");
+    XCTAssertEqual([catalog testNamed:@"testNew" inSuite:@"MoreTests"].status, UDTestStatusPassed, @"Swift's Module.Suite");
+}
+
+/// How a project's tests run, as it says: a GNUstep XCTest bundle (by
+/// xctest), a Makefile's check target, CMake's ctest, the settings' own.
+- (void)testTheProjectSaysHowItsTestsRun {
+    XCTAssertNil(self.project.testCommand, @"nothing says");
+    [self write:@"all:\n\tcc -o hello hello.c\n\ncheck: all\n\t./hello --test\n" to:@"Makefile"];
+    XCTAssertEqualObjects(self.project.testCommand, @"make check");
+    [self write:@"{ \"test\": \"./run-tests.sh\" }" to:@".udcode/settings.json"];
+    XCTAssertEqualObjects(self.project.testCommand, @"./run-tests.sh", @"the settings' own");
+    [[NSFileManager defaultManager] removeItemAtPath:[_folder stringByAppendingPathComponent:@".udcode"] error:NULL];
+    [[NSFileManager defaultManager] removeItemAtPath:[_folder stringByAppendingPathComponent:@"Makefile"] error:NULL];
+    [self write:@"project(x)\n" to:@"CMakeLists.txt"];
+    XCTAssertEqualObjects(self.project.testCommand, @"ctest --test-dir build --output-on-failure");
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nAPP_NAME = Calc\n" to:@"Calc/GNUmakefile"];
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nBUNDLE_NAME = CalcTests\nADDITIONAL_LDFLAGS += -lXCTest\n"
+             to:@"CalcTests/GNUmakefile"];
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nBUNDLE_NAME = Plugin\n" to:@"Plugin/GNUmakefile"];
+#ifdef GNUSTEP
+    XCTAssertEqualObjects(self.project.testBundles, @[ @"CalcTests/CalcTests.bundle" ], @"an XCTest bundle; not another bundle");
+#else
+    XCTAssertEqualObjects(self.project.testBundles, @[], @"GNUstep's");
+#endif
+}
+
+/// A GNUstep project's tests, written as UDCalc's are (an XCTest bundle in a
+/// folder of its own): Debug › Test builds and runs them, the Test navigator
+/// marks each, a failure is an issue at its line; one test runs alone.
+- (void)testTestsRunFromTheWindow {
+#ifdef GNUSTEP
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nTOOL_NAME = calc\ncalc_OBJC_FILES = main.m\n"
+                @"include $(GNUSTEP_MAKEFILES)/tool.make\n" to:@"Calc/GNUmakefile"];
+    [self write:@"int main(void) { return 0; }\n" to:@"Calc/main.m"];
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nBUNDLE_NAME = CalcTests\nCalcTests_OBJC_FILES = CalcTests.m\n"
+                @"ADDITIONAL_LDFLAGS += -lXCTest\ninclude $(GNUSTEP_MAKEFILES)/bundle.make\n" to:@"CalcTests/GNUmakefile"];
+    [self write:@"#import <XCTest/XCTest.h>\n"
+                @"@interface CalcTests : XCTestCase\n@end\n\n"
+                @"@implementation CalcTests\n\n"
+                @"- (void)testAdds {\n    XCTAssertEqual(1 + 1, 2);\n}\n\n"
+                @"- (void)testDivides {\n    XCTAssertEqual(1 / 2, 1, @\"integers\");\n}\n\n"
+                @"@end\n" to:@"CalcTests/CalcTests.m"];
+#else
+    // Apple's XCTest's output, from a Makefile's check target
+    [self write:@"all:\n\ncheck:\n"
+                @"\t@echo \"Test Case '-[CalcTests testAdds]' started.\"\n"
+                @"\t@echo \"Test Case '-[CalcTests testAdds]' passed (0.001 seconds).\"\n"
+                @"\t@echo \"$(CURDIR)/CalcTests/CalcTests.m:12: error: -[CalcTests testDivides] : integers\"\n"
+                @"\t@echo \"Test Case '-[CalcTests testDivides]' failed (0.001 seconds).\"\n"
+                @"\t@false\n" to:@"Makefile"];
+    [self write:@"#import <XCTest/XCTest.h>\n@interface CalcTests : XCTestCase\n@end\n\n@implementation CalcTests\n\n"
+                @"- (void)testAdds {\n    XCTAssertEqual(1 + 1, 2);\n}\n\n- (void)testDivides {\n    XCTAssertEqual(1 / 2, 1, @\"integers\");\n}\n\n@end\n"
+             to:@"CalcTests/CalcTests.m"];
+#endif
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller showTestNavigator:nil];
+    UDTestCatalog *catalog = controller.testCatalog;
+    XCTAssertEqualObjects([catalog.allTests valueForKey:@"name"], (@[ @"testAdds", @"testDivides" ]), @"found before any run");
+    XCTAssertEqualObjects(controller.testNavigator.summaryLabel.stringValue, @"2 tests");
+
+    [controller test:nil];
+    XCTAssertEqualObjects(controller.activityText, ([NSString stringWithFormat:@"%@ | Testing…", controller.project.name]));
+    UDRunUntil(!controller.buildRunner.running, 120);
+    UDRunUntil(NO, 0.3);
+    UDTest *adds = [catalog testNamed:@"testAdds" inSuite:@"CalcTests"];
+    UDTest *divides = [catalog testNamed:@"testDivides" inSuite:@"CalcTests"];
+    XCTAssertEqual(adds.status, UDTestStatusPassed, @"%@", controller.buildRunner.output);
+    XCTAssertEqual(divides.status, UDTestStatusFailed, @"%@", controller.buildRunner.output);
+    XCTAssertEqualObjects(controller.activityText, ([NSString stringWithFormat:@"%@ | Tests Failed | 1 failed, 1 passed", controller.project.name]));
+    XCTAssertEqualObjects([controller.testNavigator textOfRow:1], @"✓ testAdds");
+    XCTAssertEqualObjects([controller.testNavigator textOfRow:2], @"✗ testDivides");
+    XCTAssertEqualObjects(controller.testNavigator.summaryLabel.stringValue, @"1 passed, 1 failed, of 2");
+    // the failure, an issue of the test's file at its line
+    NSString *file = [[_folder stringByAppendingPathComponent:@"CalcTests/CalcTests.m"] stringByStandardizingPath];
+    UDDiagnosticItem *issue = controller.buildRunner.diagnostics[file].allDiagnostics.firstObject;
+    XCTAssertEqual(issue.line, 12, @"%@", controller.buildRunner.diagnostics);
+    XCTAssertEqual(issue.severity, UDDiagnosticSeverityError);
+    XCTAssertTrue([issue.message containsString:@"integers"], @"%@", issue.message);
+
+#ifdef GNUSTEP
+    // one test, alone
+    [controller runTests:@[ adds ] debugging:NO];
+    UDRunUntil(!controller.buildRunner.running, 120);
+    UDRunUntil(NO, 0.3);
+    XCTAssertEqual(adds.status, UDTestStatusPassed);
+    XCTAssertEqual(divides.status, UDTestStatusFailed, @"not run again: as the last run left it");
+    XCTAssertFalse([controller.buildRunner.output containsString:@"testDivides"], @"%@", controller.buildRunner.output);
+    XCTAssertEqualObjects(controller.activityText, ([NSString stringWithFormat:@"%@ | Tests Failed | 1 failed, 1 passed", controller.project.name]));
+
+    // debugged: stopped at a breakpoint in the test
+    if ([UDToolLocator debugAdapterCommandForDebugger:nil]) {
+        [controller.breakpoints addBreakpointAtLine:12 inFile:file];
+        [controller runTests:@[ divides ] debugging:YES];
+        UDRunUntil(controller.debugSession.state == UDDebugSessionStateStopped && controller.debugSession.selectedFrame, 120);
+        XCTAssertEqual(controller.debugSession.state, UDDebugSessionStateStopped, @"%@ %@", controller.buildRunner.output,
+                       controller.debugSession.consoleText);
+        XCTAssertEqual(controller.debugSession.selectedFrame.line, 12);
+        [controller.debugSession continueExecution];
+        UDRunUntil(controller.debugSession.state == UDDebugSessionStateEnded, 60);
+        [controller.breakpoints removeAllBreakpoints];
+    }
+#endif
+    [controller close];
+    [workspace close];
+}
+
 @end

@@ -215,6 +215,88 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     return products;
 }
 
+/// The XCTest bundles the GNUmakefile in @a folder builds (BUNDLE_NAME, its
+/// makefile linking XCTest), and its SUBPROJECTS', as the folder names them.
+- (NSArray<NSString *> *)_gnustepTestBundlesIn:(NSString *)folder depth:(NSUInteger)depth {
+    if (depth > 4) return @[];
+    NSString *text = [self _makefileIn:folder];
+    NSMutableArray<NSString *> *bundles = [NSMutableArray array];
+    if ([text rangeOfString:@"XCTest"].location != NSNotFound) {
+        NSString *extension = UDMakeVariable(text, @"BUNDLE_EXTENSION").firstObject ?: @".bundle";
+        if ([extension hasPrefix:@"."]) extension = [extension substringFromIndex:1];
+        for (NSString *name in UDMakeVariable(text, @"BUNDLE_NAME")) {
+            [bundles addObject:[folder stringByAppendingPathComponent:[name stringByAppendingPathExtension:extension]]];
+        }
+    }
+    for (NSString *subproject in UDMakeVariable(text, @"SUBPROJECTS")) {
+        NSString *inner = [folder stringByAppendingPathComponent:subproject];
+        if ([self _has:[inner stringByAppendingPathComponent:@"GNUmakefile"]]) {
+            [bundles addObjectsFromArray:[self _gnustepTestBundlesIn:inner depth:depth + 1]];
+        }
+    }
+    return bundles;
+}
+
+- (NSArray<NSString *> *)testBundles {
+#ifdef GNUSTEP
+    // the folder's GNUmakefile's, else each folder's in it (UDCalc's CalculatorTests/)
+    if ([self _has:@"GNUmakefile"]) return [self _gnustepTestBundlesIn:@"" depth:0];
+    NSMutableArray<NSString *> *bundles = [NSMutableArray array];
+    for (NSString *entry in [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]
+                             sortedArrayUsingSelector:@selector(compare:)]) {
+        if ([entry hasPrefix:@"."] || ![self _has:[entry stringByAppendingPathComponent:@"GNUmakefile"]]) continue;
+        [bundles addObjectsFromArray:[self _gnustepTestBundlesIn:entry depth:0]];
+    }
+    return bundles;
+#else
+    return @[];
+#endif
+}
+
+- (NSString *)testCommand {
+    NSString *mine = UDStringOrNil(self.effectiveSettings[@"test"]);
+    if (mine) return mine;
+    switch (self.buildSystem) {
+        case UDProjectBuildSystemXcode:
+            return [[@"xcodebuild -configuration Debug" stringByAppendingString:[self _xcodeProjectArgument]] stringByAppendingString:@" test"];
+        case UDProjectBuildSystemCMake:
+            return @"ctest --test-dir build --output-on-failure";
+        case UDProjectBuildSystemMake:
+        case UDProjectBuildSystemAppleMake: {
+            NSString *makefile = self.buildSystem == UDProjectBuildSystemAppleMake ? @"Makefile.apple"
+                               : [self _has:@"Makefile"] ? @"Makefile" : @"makefile";
+            NSString *text = [NSString stringWithContentsOfFile:[_folderURL.path stringByAppendingPathComponent:makefile]
+                                                       encoding:NSUTF8StringEncoding error:NULL];
+            NSString *make = self.buildSystem == UDProjectBuildSystemAppleMake ? @"make -f Makefile.apple" : @"make";
+            for (NSString *target in @[ @"check", @"test" ]) {
+                for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+                    if ([line hasPrefix:[target stringByAppendingString:@":"]]) return [NSString stringWithFormat:@"%@ %@", make, target];
+                }
+            }
+            return nil;
+        }
+        default:
+            return nil;
+    }
+}
+
+- (NSArray<NSString *> *)sourceFiles {
+    NSMutableArray<NSString *> *files = [NSMutableArray array];
+    NSFileManager *manager = [NSFileManager defaultManager];
+    NSDirectoryEnumerator *enumerator = [manager enumeratorAtPath:_folderURL.path];
+    NSSet *skipped = [NSSet setWithObjects:@"build", @"obj", @"DerivedData", @"node_modules", nil];
+    for (NSString *path in enumerator) {
+        if (files.count >= 20000) break;
+        BOOL hidden = NO;
+        for (NSString *component in path.pathComponents) hidden = hidden || [component hasPrefix:@"."] || [skipped containsObject:component];
+        if (hidden) continue;
+        if ([@[ @"m", @"mm", @"h" ] containsObject:path.pathExtension]) {
+            [files addObject:[_folderURL.path stringByAppendingPathComponent:path]];
+        }
+    }
+    return files;
+}
+
 - (NSArray<NSString *> *)programs {
 #ifdef GNUSTEP
     NSString *folder = [self _gnustepMakeFolder];

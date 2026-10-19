@@ -32,6 +32,8 @@ extern UDDiagnosticSource const UDDiagnosticSourceBuild;
 - (void)buildRunner:(UDBuildRunner *)runner didOutput:(NSString *)text;
 /// The command ended (or was stopped): succeeded says how.
 - (void)buildRunnerDidFinish:(UDBuildRunner *)runner;
+/// Each line of its output, as it comes (a test run's, read for its tests).
+- (void)buildRunner:(UDBuildRunner *)runner didReadLine:(NSString *)line;
 @end
 
 @interface UDBuildRunner : NSObject
@@ -64,6 +66,10 @@ extern UDDiagnosticSource const UDDiagnosticSourceBuild;
 
 /// One line of compiler output read as a diagnostic, its file resolved in
 /// @a folder; nil for a line that isn't one. (@a path set to its file.)
+/// An issue of the file at @a path its output says in its own words (a
+/// test's failure), beside those a compiler's lines say.
+- (void)addDiagnostic:(UDDiagnosticItem *)item atPath:(NSString *)path;
+
 + (nullable UDDiagnosticItem *)diagnosticOfLine:(NSString *)line inFolder:(NSString *)folder
                                             path:(NSString * _Nullable * _Nonnull)path;
 

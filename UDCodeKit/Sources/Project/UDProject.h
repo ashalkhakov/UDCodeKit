@@ -93,6 +93,17 @@ extern NSString * const UDProjectPlatformKey;
 /// SUBPROJECTS' too (UDQuakeTools': UDLauncher, Quarry, PakManager, ...).
 /// Xcode's schemes, as it were; empty where the build doesn't say.
 @property (nonatomic, readonly, copy) NSArray<NSString *> *programs;
+/// The XCTest bundles the project builds, relative to its folder (a
+/// GNUmakefile's BUNDLE_NAME linking XCTest, its SUBPROJECTS' too: UDCalc's
+/// CalculatorTests/CalculatorTests.bundle), which xctest runs; GNUstep's.
+@property (nonatomic, readonly, copy) NSArray<NSString *> *testBundles;
+/// What runs the tests where xctest does not: the settings' "test", else
+/// Xcode's xcodebuild test, CMake's ctest, a Makefile's check (or test)
+/// target; nil when nothing says.
+@property (nonatomic, readonly, copy, nullable) NSString *testCommand;
+/// The project's Objective-C sources and headers (its build products and
+/// hidden folders left out), where its tests are looked for.
+@property (nonatomic, readonly, copy) NSArray<NSString *> *sourceFiles;
 /// The one of -programs to run (the scheme chosen); nil: the first.
 @property (nonatomic, copy, nullable) NSString *preferredProgram;
 /// The product xcodebuild -showBuildSettings' output names: the first

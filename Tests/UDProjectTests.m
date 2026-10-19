@@ -532,17 +532,24 @@
 /// A project set up for VS Code alone: its launch configuration chosen, its
 /// preLaunchTask builds, it runs; the Debug menu lists both files' entries.
 - (void)testAProjectSetUpForVSCodeRunsAsItIs {
-    if (![UDToolLocator debugAdapterCommandForDebugger:nil]) return;
+    // the debugger its launch.json names: lldb on macOS, gdb (14 or later, for its DAP) on Linux
+#ifdef __APPLE__
+    NSString *debugger = @"lldb";
+#else
+    NSString *debugger = @"gdb";
+#endif
+    if (![UDToolLocator debugAdapterCommandForDebugger:debugger]) {
+        NSLog(@"UDProjectTests: no %@ that speaks DAP here; its case checks nothing", debugger);
+        return;
+    }
     [self write:@"#include <stdio.h>\nint main(int argc, char **argv) {\n    printf(\"vscode %s\\n\", argv[1]);\n    return 0;\n}\n" to:@"hello.c"];
     [self write:@"{ \"version\": \"2.0.0\", \"tasks\": [\n"
                 @"  { \"label\": \"compile\", \"type\": \"shell\", \"command\": \"cc\", \"args\": [\"-g\", \"-o\", \"hello\", \"hello.c\"],\n"
                 @"    \"group\": { \"kind\": \"build\", \"isDefault\": true } } ] }\n" to:@".vscode/tasks.json"];
-    NSString *type = [UDToolLocator debugAdapterCommandForDebugger:nil] == [UDToolLocator debugAdapterCommandForDebugger:@"gdb"]
-        ? @"\"type\": \"cppdbg\", \"MIMode\": \"gdb\"" : @"\"type\": \"lldb\"";
 #ifdef __APPLE__
-    type = @"\"type\": \"lldb\"";
+    NSString *type = @"\"type\": \"lldb\"";
 #else
-    type = @"\"type\": \"cppdbg\", \"MIMode\": \"gdb\"";
+    NSString *type = @"\"type\": \"cppdbg\", \"MIMode\": \"gdb\"";
 #endif
     [self write:[NSString stringWithFormat:@"{ \"configurations\": [\n"
                  @"  { \"name\": \"First\", %@, \"request\": \"launch\", \"program\": \"${workspaceFolder}/hello\", \"args\": [\"first\"] },\n"

@@ -70,6 +70,7 @@ static const NSUInteger UDOpenQuicklyLimit = 200;
     NSString *rg = [UDToolLocator pathOfTool:@"rg"];
     if (rg) {
         NSTask *task = [[NSTask alloc] init];
+        task.environment = [LSPTransport hostEnvironment];
         task.launchPath = rg;
         task.arguments = @[ @"--files", @"--color=never" ];
         task.currentDirectoryPath = _folderURL.path;

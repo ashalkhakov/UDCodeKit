@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDTerminalViewController.h"
+#import <LSPKit/LSPKit.h>
 
 @interface UDTerminalViewController ()
 @property (nonatomic, weak) IBOutlet UDTerminalView *terminalView;
@@ -41,7 +42,7 @@
     (void)self.view;
     if (_pseudoTerminal.running) return NO;
     [_terminalView reset];
-    NSMutableDictionary *env = [(environment ?: NSProcessInfo.processInfo.environment) mutableCopy];
+    NSMutableDictionary *env = [(environment ?: [LSPTransport hostEnvironment]) mutableCopy];
     env[@"TERM"] = @"xterm-256color";
     env[@"COLORTERM"] = @"truecolor";
     env[@"TERM_PROGRAM"] = @"UDCode";

@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDToolLocator.h"
+#import <LSPKit/LSPKit.h>
 
 NSString * const UDDebuggerLLDB = @"lldb";
 NSString * const UDDebuggerGDB = @"gdb";
@@ -26,6 +27,7 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
     NSPipe *pipe = [NSPipe pipe];
     task.launchPath = launchPath;
     task.arguments = arguments;
+    task.environment = [LSPTransport hostEnvironment];
     task.standardOutput = pipe;
     task.standardError = [NSFileHandle fileHandleWithNullDevice];
     @try {
@@ -43,7 +45,8 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
 /// The folders a tool is looked for in: PATH's, then the usual others.
 + (NSArray<NSString *> *)_folders {
     NSMutableArray<NSString *> *folders = [NSMutableArray array];
-    NSString *path = [[NSProcessInfo processInfo] environment][@"PATH"];
+    // the machine's PATH, not an AppImage's
+    NSString *path = [LSPTransport hostEnvironment][@"PATH"];
     for (NSString *folder in [path componentsSeparatedByString:@":"]) {
         if (folder.length) [folders addObject:folder];
     }

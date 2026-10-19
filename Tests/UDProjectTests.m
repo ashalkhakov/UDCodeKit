@@ -146,6 +146,29 @@
     XCTAssertEqual(project.buildSystem, UDProjectBuildSystemMake, @"neither: the Makefile, as before");
 }
 
+/// Run from an AppImage, what UDCode starts (a build, a shell, a debugger, a
+/// language server) gets the machine's environment back, not the image's.
+- (void)testWhatItStartsGetsTheMachinesEnvironment {
+    NSDictionary *image = @{ @"PATH": @"/tmp/.mount_UDCode/usr/bin:/usr/bin:/bin",
+                             @"LD_LIBRARY_PATH": @"/tmp/.mount_UDCode/usr/lib",
+                             @"APPIMAGE_HOST_PATH": @"/usr/bin:/bin:/opt/gnustep/System/Tools",
+                             @"APPIMAGE_HOST_LD_LIBRARY_PATH": @"",
+                             @"GNUSTEP_CONFIG_FILE": @"/tmp/GNUstep-UDCode-1.conf",
+                             @"GNUSTEP_SYSTEM_ROOT": @"/tmp/.mount_UDCode/usr/System",
+                             @"FONTCONFIG_FILE": @"/tmp/fonts-udcode-1.conf",
+                             @"APPDIR": @"/tmp/.mount_UDCode", @"APPIMAGE": @"/home/me/UDCode.AppImage",
+                             @"HOME": @"/home/me", @"LANG": @"en_US.UTF-8" };
+    NSDictionary *host = [LSPTransport hostEnvironmentOf:image];
+    XCTAssertEqualObjects(host, (@{ @"PATH": @"/usr/bin:/bin:/opt/gnustep/System/Tools", @"HOME": @"/home/me",
+                                    @"LANG": @"en_US.UTF-8" }));
+    NSMutableDictionary *withLibraries = [image mutableCopy];
+    withLibraries[@"APPIMAGE_HOST_LD_LIBRARY_PATH"] = @"/opt/gnustep/Local/Library/Libraries";
+    XCTAssertEqualObjects([LSPTransport hostEnvironmentOf:withLibraries][@"LD_LIBRARY_PATH"], @"/opt/gnustep/Local/Library/Libraries");
+    // not from an AppImage: as it is
+    NSDictionary *plain = @{ @"PATH": @"/usr/bin", @"GNUSTEP_MAKEFILES": @"/opt/gnustep/System/Library/Makefiles" };
+    XCTAssertEqualObjects([LSPTransport hostEnvironmentOf:plain], plain);
+}
+
 - (void)testOneFolderForBothSystems {
     [self write:@"all:\n" to:@"Makefile"];
     [self write:@"{ \"build\": \"make all\", \"run\": { \"program\": \"bin/hello\", \"arguments\": \"-v \\\"two words\\\"\" },"

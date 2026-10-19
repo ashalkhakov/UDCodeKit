@@ -4,6 +4,7 @@
 
 #import "UDSearchResultsViewController.h"
 #import "UDToolLocator.h"
+#import <LSPKit/LSPKit.h>
 
 @implementation UDSearchResult
 
@@ -126,6 +127,7 @@
     }
     NSString *rg = [UDToolLocator pathOfTool:@"rg"];
     NSTask *task = [[NSTask alloc] init];
+    task.environment = [LSPTransport hostEnvironment];
     if (rg) {
         // file:line:column:text, the files .gitignore leaves out left out
         task.launchPath = rg;

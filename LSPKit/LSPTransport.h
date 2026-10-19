@@ -40,6 +40,17 @@ NS_ASSUME_NONNULL_BEGIN
                          arguments:(NSArray<NSString *> *)arguments
               currentDirectoryPath:(nullable NSString *)directory;
 
+/// The environment a program started from here gets: this process's, with
+/// what an AppImage's launcher changed to run the app put back as the
+/// machine had it (its PATH and LD_LIBRARY_PATH, which it keeps as
+/// APPIMAGE_HOST_PATH and APPIMAGE_HOST_LD_LIBRARY_PATH, and none of the
+/// GNUstep and fontconfig settings it points into the image). Otherwise a
+/// build, a shell, a debugger or a language server would run on the image's
+/// libraries and see its GNUstep instead of the machine's.
++ (NSDictionary<NSString *, NSString *> *)hostEnvironment;
+/// The same, of @a environment.
++ (NSDictionary<NSString *, NSString *> *)hostEnvironmentOf:(NSDictionary<NSString *, NSString *> *)environment;
+
 /// Messages read from @a readHandle and written to @a writeHandle.
 - (instancetype)initWithReadHandle:(NSFileHandle *)readHandle
                        writeHandle:(NSFileHandle *)writeHandle;

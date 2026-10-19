@@ -4,6 +4,7 @@
 
 #import "UDProject.h"
 #import "UDToolLocator.h"
+#import <LSPKit/LSPKit.h>
 #include <limits.h>
 #include <stdlib.h>
 
@@ -220,6 +221,7 @@ static NSString *UDStringOrNil(id value);
         [arguments addObject:[UDProject argumentsOfCommandLine:project].lastObject];
     }
     NSTask *task = [[NSTask alloc] init];
+    task.environment = [LSPTransport hostEnvironment];
     task.launchPath = xcodebuild;
     task.arguments = arguments;
     task.currentDirectoryPath = _folderURL.path;
@@ -349,7 +351,7 @@ static NSString *UDStringOrNil(id value) {
 // ---------------------------------------------------------------------------
 
 - (NSDictionary<NSString *, NSString *> *)buildEnvironment {
-    NSMutableDictionary *environment = [[[NSProcessInfo processInfo] environment] mutableCopy];
+    NSMutableDictionary *environment = [[LSPTransport hostEnvironment] mutableCopy];
 #ifdef GNUSTEP
     // GNUstep's, as GNUstep.sh sets it (a desktop doesn't run it): make finds
     // its makefiles, and what is built its libraries
@@ -364,11 +366,13 @@ static NSString *UDStringOrNil(id value) {
 + (NSDictionary<NSString *, NSString *> *)_gnustepEnvironment {
     static NSDictionary *gnustep;
     if (gnustep) return gnustep;
-    NSString *makefiles = [[NSProcessInfo processInfo] environment][@"GNUSTEP_MAKEFILES"] ?: [self _gnustepMakefiles];
+    // the machine's GNUstep: an AppImage's own settings are not it
+    NSString *makefiles = [LSPTransport hostEnvironment][@"GNUSTEP_MAKEFILES"] ?: [self _gnustepMakefiles];
     NSString *script = [makefiles stringByAppendingPathComponent:@"GNUstep.sh"];
     NSMutableDictionary *found = [NSMutableDictionary dictionary];
     if (makefiles && [[NSFileManager defaultManager] fileExistsAtPath:script]) {
         NSTask *task = [[NSTask alloc] init];
+        task.environment = [LSPTransport hostEnvironment];
         NSPipe *pipe = [NSPipe pipe];
         task.launchPath = @"/bin/sh";
         task.arguments = @[ @"-c", @". \"$1\" >/dev/null 2>&1; env", @"sh", script ];
@@ -392,10 +396,18 @@ static NSString *UDStringOrNil(id value) {
 }
 
 + (nullable NSString *)_gnustepMakefiles {
+    // the machine's gnustep-config, on its PATH, before the domains this
+    // process's GNUstep knows (an AppImage's, which has no make)
+    NSMutableArray<NSString *> *configs = [NSMutableArray array];
+    NSString *onPath = [UDToolLocator pathOfTool:@"gnustep-config"];
+    if (onPath) [configs addObject:onPath];
     for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
-        NSString *config = [tools stringByAppendingPathComponent:@"gnustep-config"];
+        [configs addObject:[tools stringByAppendingPathComponent:@"gnustep-config"]];
+    }
+    for (NSString *config in configs) {
         if (![[NSFileManager defaultManager] isExecutableFileAtPath:config]) continue;
         NSTask *task = [[NSTask alloc] init];
+        task.environment = [LSPTransport hostEnvironment];
         NSPipe *pipe = [NSPipe pipe];
         task.launchPath = config;
         task.arguments = @[ @"--variable=GNUSTEP_MAKEFILES" ];
@@ -441,6 +453,7 @@ static NSString *UDStringOrNil(id value) {
 + (nullable NSString *)_outputOf:(NSString *)launchPath arguments:(NSArray<NSString *> *)arguments {
     if (![[NSFileManager defaultManager] isExecutableFileAtPath:launchPath]) return nil;
     NSTask *task = [[NSTask alloc] init];
+    task.environment = [LSPTransport hostEnvironment];
     NSPipe *pipe = [NSPipe pipe];
     task.launchPath = launchPath;
     task.arguments = arguments;

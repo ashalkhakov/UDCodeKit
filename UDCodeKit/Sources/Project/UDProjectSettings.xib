@@ -145,8 +145,6 @@
                             <menu key="menu" id="PS-debugger-menu">
                                 <items>
                                     <menuItem title="Automatic" state="on" id="PS-dbg-auto"/>
-                                    <menuItem title="LLDB (lldb-dap)" tag="1" id="PS-dbg-lldb"/>
-                                    <menuItem title="GDB (gdb -i dap)" tag="2" id="PS-dbg-gdb"/>
                                 </items>
                             </menu>
                         </popUpButtonCell>

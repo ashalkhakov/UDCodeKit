@@ -19,6 +19,9 @@
    <FileRef
       location = "group:Tests/UDCode.xctestplan">
    </FileRef>
+   <FileRef
+      location = "group:Plugins/CFamily/CFamily.xcodeproj">
+   </FileRef>
    <Group
       location = "group:."
       name = "Grammar Bundles">

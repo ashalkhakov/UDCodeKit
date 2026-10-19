@@ -9,11 +9,11 @@
  *  template says (testMate.cpp.debug.configTemplate), else as they are.
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDTestRunner.h"
+#import "UDCFamilyTestOutput.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface UDGoogleTestRunner : UDTestRunner
+@interface UDGoogleTestRunner : UDCFamilyTestRunner
 
 /// The globs test executables are matched by, relative to the folder.
 @property (nonatomic, readonly, copy) NSArray<NSString *> *globs;

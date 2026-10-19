@@ -50,7 +50,7 @@
 #import "UDLanguageKeyHandler.h"
 
 // Forward declarations for types used in optional factory methods.
-@class UDDiagnosticStore;
+@class UDDiagnosticStore, UDProject, UDTestRunner;
 
 /// Posted by an extension when a language server that was previously unavailable
 /// becomes ready (e.g. after an async download/install). The object is the
@@ -139,5 +139,33 @@ FOUNDATION_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 /// takes), or @c nil for { "program": the file's path }. A host that knows
 /// better (the game to start, say) builds its own.
 - (nullable NSDictionary *)debugLaunchArgumentsForIdentifier:(NSString *)identifier fileURL:(NSURL *)fileURL;
+
+// ---------------------------------------------------------------------------
+// Projects: what VS Code's extensions contribute (task providers, debuggers,
+// test controllers), each asked by UDCodeKit's own kind of it. The core knows
+// no build system, debugger or test framework; a bundle (UDCode's CFamily:
+// make, CMake, Xcode, lldb-dap, gdb, XCTest, CTest, GoogleTest) brings them.
+// ---------------------------------------------------------------------------
+
+/// The build systems it knows (UDBuildSystem subclasses), in the order they
+/// are asked whether they build a folder.
+- (NSArray<Class> *)buildSystemClasses;
+
+/// The debuggers it knows (UDDebugger subclasses), the one to use when a
+/// project names none first.
+- (NSArray<Class> *)debuggerClasses;
+
+/// What finds and runs @a project's tests besides its build system's own
+/// runners (C++ TestMate's test executables, say): new each time it is asked.
+- (NSArray<UDTestRunner *> *)testRunnersForProject:(UDProject *)project;
+
+/// What @a project's build and program get in their environment (GNUstep's,
+/// as GNUstep.sh sets it); nil: nothing.
+- (nullable NSDictionary<NSString *, NSString *> *)environmentForProject:(UDProject *)project;
+
+/// The initializationOptions a language server started with @a command for
+/// @a project takes (clangd's fallbackFlags); nil: none.
+- (nullable NSDictionary *)initializationOptionsForLanguageServer:(NSArray<NSString *> *)command
+                                                          project:(UDProject *)project;
 
 @end

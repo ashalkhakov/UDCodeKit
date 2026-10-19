@@ -7,7 +7,7 @@
  *  Xcode project's: make -f Makefile.apple.
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDBuildSystem.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

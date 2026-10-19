@@ -4,7 +4,7 @@
 
 #import "UDGNUstepMakeBuildSystem.h"
 #import "UDXCTestBundleRunner.h"
-#import "UDToolLocator.h"
+#import "UDGoogleTestRunner.h"
 #import <LSPKit/LSPKit.h>
 
 @implementation UDGNUstepMakeBuildSystem
@@ -30,8 +30,8 @@
     return [self _makeFolderOf:project] != nil;
 }
 
-- (UDProjectBuildSystem)kind {
-    return UDProjectBuildSystemGNUstepMake;
++ (NSString *)name {
+    return @"GNUstep make";
 }
 
 - (NSString *)makeFolder {
@@ -153,7 +153,7 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     for (NSString *bundle in bundles) {
         [runners addObject:[[UDXCTestBundleRunner alloc] initWithProject:self.project bundle:bundle only:bundles.count == 1]];
     }
-    [runners addObjectsFromArray:[super testRunners]];
+    [runners addObject:[[UDGoogleTestRunner alloc] initWithProject:self.project]];
     return runners;
 }
 

@@ -7,10 +7,10 @@
 #import "UDTasks.h"
 #import "UDTests.h"
 #import "UDBuildSystem.h"
-#import "UDGNUstepMakeBuildSystem.h"
 #import "UDTestRunner.h"
 #import "UDCommandTestRunner.h"
-#import "UDGoogleTestRunner.h"
+#import "UDLanguageModeRegistry.h"
+#import "UDExtension.h"
 #import <LSPKit/LSPKit.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -150,28 +150,15 @@ static NSString *UDStringOrNil(id value);
     return UDStringOrNil(self.effectiveSettings[@"test"]) ?: self.buildSystem.testCommand;
 }
 
-- (NSArray<NSString *> *)sourceFiles {
-    NSMutableArray<NSString *> *files = [NSMutableArray array];
-    NSFileManager *manager = [NSFileManager defaultManager];
-    NSDirectoryEnumerator *enumerator = [manager enumeratorAtPath:_folderURL.path];
-    NSSet *skipped = [NSSet setWithObjects:@"build", @"obj", @"DerivedData", @"node_modules", nil];
-    for (NSString *path in enumerator) {
-        if (files.count >= 20000) break;
-        BOOL hidden = NO;
-        for (NSString *component in path.pathComponents) hidden = hidden || [component hasPrefix:@"."] || [skipped containsObject:component];
-        if (hidden) continue;
-        if ([@[ @"m", @"mm", @"h" ] containsObject:path.pathExtension]) {
-            [files addObject:[_folderURL.path stringByAppendingPathComponent:path]];
+- (UDTestCatalog *)testCatalog {
+    UDTestCatalog *catalog = [[UDTestCatalog alloc] init];
+    NSMutableArray<UDTestRunner *> *runners = [NSMutableArray array];
+    [runners addObjectsFromArray:self.buildSystem.testRunners ?: @[]];
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if ([extension respondsToSelector:@selector(testRunnersForProject:)]) {
+            [runners addObjectsFromArray:[extension testRunnersForProject:self] ?: @[]];
         }
     }
-    return files;
-}
-
-- (UDTestCatalog *)testCatalog {
-    UDTestCatalog *catalog = [UDTestCatalog catalogOfFiles:self.sourceFiles];
-    UDBuildSystem *buildSystem = self.buildSystem;
-    NSMutableArray<UDTestRunner *> *runners = [NSMutableArray array];
-    [runners addObjectsFromArray:buildSystem ? buildSystem.testRunners : @[ [[UDGoogleTestRunner alloc] initWithProject:self] ]];
     [runners addObject:[[UDCommandTestRunner alloc] initWithProject:self]];
     for (UDTestRunner *runner in runners) [runner addTestsToCatalog:catalog];
     catalog.runners = runners;
@@ -289,11 +276,12 @@ static NSString *UDStringOrNil(id value) {
 
 - (NSDictionary<NSString *, NSString *> *)buildEnvironment {
     NSMutableDictionary *environment = [[LSPTransport hostEnvironment] mutableCopy];
-#ifdef GNUSTEP
-    // GNUstep's, as GNUstep.sh sets it (a desktop doesn't run it): make finds
-    // its makefiles, and what is built its libraries
-    [environment addEntriesFromDictionary:[UDGNUstepMakeBuildSystem environment]];
-#endif
+    // the extensions' (GNUstep's, as GNUstep.sh sets it, which a desktop doesn't run)
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if ([extension respondsToSelector:@selector(environmentForProject:)]) {
+            [environment addEntriesFromDictionary:[extension environmentForProject:self] ?: @{}];
+        }
+    }
     // an app started from a desktop or the Dock has a short PATH: the folders
     // the tools are found in (Homebrew's among them), so the shell finds them too
     NSMutableArray<NSString *> *path = [[environment[@"PATH"] ?: @"" componentsSeparatedByString:@":"] mutableCopy];
@@ -314,48 +302,17 @@ static NSString *UDStringOrNil(id value) {
     return [UDToolLocator pathOfTool:name];
 }
 
-- (NSArray<NSString *> *)fallbackCompileFlags {
-    NSMutableArray<NSString *> *flags = [NSMutableArray array];
-#ifdef GNUSTEP
-    NSString *config = nil;
-    for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
-        NSString *candidate = [tools stringByAppendingPathComponent:@"gnustep-config"];
-        if ([[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) { config = candidate; break; }
+- (NSDictionary *)initializationOptionsForLanguageServer:(NSArray<NSString *> *)command {
+    NSMutableDictionary *options = nil;
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if (![extension respondsToSelector:@selector(initializationOptionsForLanguageServer:project:)]) continue;
+        NSDictionary *its = [extension initializationOptionsForLanguageServer:command project:self];
+        if (its.count) {
+            if (!options) options = [NSMutableDictionary dictionary];
+            [options addEntriesFromDictionary:its];
+        }
     }
-    NSString *objcFlags = config ? [UDProject _outputOf:config arguments:@[ @"--objc-flags" ]] : nil;
-    for (NSString *flag in [UDProject argumentsOfCommandLine:objcFlags ?: @""]) {
-        // what makes dependency files is make's business, not an index's
-        if ([flag hasPrefix:@"-M"]) continue;
-        [flags addObject:flag];
-    }
-#else
-    NSString *sdk = [UDProject _outputOf:@"/usr/bin/xcrun" arguments:@[ @"--show-sdk-path" ]];
-    if (sdk.length) [flags addObjectsFromArray:@[ @"-isysroot", sdk ]];
-#endif
-    [flags addObject:[@"-I" stringByAppendingString:_folderURL.path]];
-    return flags;
-}
-
-/// What a command prints, trimmed; nil when it can't run.
-+ (nullable NSString *)_outputOf:(NSString *)launchPath arguments:(NSArray<NSString *> *)arguments {
-    if (![[NSFileManager defaultManager] isExecutableFileAtPath:launchPath]) return nil;
-    NSTask *task = [[NSTask alloc] init];
-    task.environment = [LSPTransport hostEnvironment];
-    NSPipe *pipe = [NSPipe pipe];
-    task.launchPath = launchPath;
-    task.arguments = arguments;
-    task.standardOutput = pipe;
-    task.standardError = [NSFileHandle fileHandleWithNullDevice];
-    @try {
-        [task launch];
-    } @catch (NSException *exception) {
-        return nil;
-    }
-    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-    [task waitUntilExit];
-    if (task.terminationStatus != 0) return nil;
-    return [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]
-            stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return options;
 }
 
 + (NSArray<NSString *> *)argumentsOfCommandLine:(NSString *)line {

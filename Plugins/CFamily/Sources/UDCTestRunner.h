@@ -6,11 +6,11 @@
  *  -R '^(a|b)$' for some of them; one debugged as its command, in its folder.
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDTestRunner.h"
+#import "UDCFamilyTestOutput.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface UDCTestRunner : UDTestRunner
+@interface UDCTestRunner : UDCFamilyTestRunner
 
 /// The tests in @a directory, CMake's build folder, as ctest lists them.
 - (instancetype)initWithProject:(UDProject *)project directory:(NSString *)directory;

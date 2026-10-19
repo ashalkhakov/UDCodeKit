@@ -14,9 +14,11 @@ embedded: UDCode is one app on it, Quarry (UDQuakeTools) another.
 | **Text model** | piece tree (a piece table in a red-black tree) | `UDPieceTable`: the same, ported; every edit costs the edit, tested for it (`UDComplexityTests`) | same |
 | **Highlighting** | TextMate grammars, then semantic tokens from the language server | tree-sitter grammars and queries (`highlights.scm`), incremental | different: tree-sitter is the newer way (Zed, Neovim, Helix) |
 | **Language configuration** | `language-configuration.json`: comments, brackets, auto-closing, indentation | `LanguageInfo.plist`, the same keys | same |
-| **Extensions** | npm packages with `package.json`, run in a separate extension-host process | grammar bundles: an `NSBundle` with `LanguageInfo.plist` and a principal class, loaded into the app | different: in-process (see below) |
+| **Extensions** | npm packages with `package.json`, run in a separate extension-host process | bundles: an `NSBundle` with `LanguageInfo.plist` and a principal class (`UDExtension`), loaded into the app: the grammar bundles, and UDCode's CFamily | different: in-process (see below) |
+| **What the core knows** | the workbench, the tasks runner, the debug UI and DAP client, the Testing UI; no build system, debugger or test framework (CMake Tools, cpptools, C++ TestMate are extensions) | the same: `UDProject`, `UDBuildRunner`, `UDDebugSession`, `UDTestCatalog`, and the kinds `UDBuildSystem`, `UDDebugger`, `UDTestRunner`; CFamily brings make, CMake, Xcode, GNUstep make, lldb-dap, gdb, XCTest, CTest, GoogleTest | same |
 | **Language features** | an extension starts a server with `vscode-languageclient` | the bundle names the server's command; the host starts it (`LSPKit`), one per project and command | same protocol (LSP) |
-| **Debugging** | `contributes.debuggers` and a debug adapter per session | the bundle or the project names the adapter's command; `UDDebugSession` per session | same protocol (DAP) and behaviour; Xcode's views |
+| **Debugging** | `contributes.debuggers` and a debug adapter per session | a bundle's `UDDebugger`s (CFamily's lldb-dap and gdb), a language mode's adapter (idScript's), or the project's command; `UDDebugSession` per session | same protocol (DAP) and behaviour; Xcode's views |
+| **Tests** | the Testing API: extensions' test controllers find and run tests | a build system's and the bundles' `UDTestRunner`s find, run and read them; the Test navigator, as Xcode's | same split |
 | **Launch configurations** | `launch.json`: named configurations, a dropdown | VS Code's `launch.json` as it is (Debug › Launch Configuration); without one, `run` in `.udcode/settings.json`, inferred where it can be | same, and less to write |
 | **Build** | `tasks.json`, problem matchers (`$gcc`) | VS Code's `tasks.json` as it is (the default build task, Run Task); without one, the project's build command; gcc/clang diagnostics parsed (`UDBuildRunner`) | same, one matcher |
 | **Settings** | `.vscode/settings.json`, `tasks.json`, `launch.json`, user settings | `tasks.json` and `launch.json` read; `.udcode/settings.json` for what they don't say, with `"macos"`/`"gnustep"` sections; the rest guessed from the folder | VS Code's files, and less to write |
@@ -49,9 +51,10 @@ embedded: UDCode is one app on it, Quarry (UDQuakeTools) another.
   already runs in processes of its own. Isolation becomes worth it only if
   bundles grow into full extensions.
 - **Inferred settings.** VS Code asks for `tasks.json` and `launch.json`. We
-  read them when a project has them, and otherwise guess from the folder
-  (GNUmakefile, Makefile.apple, CMake, Xcode) and ask only for what can't be
-  guessed, in one file that serves both systems.
+  read them when a project has them, and otherwise the build system that
+  builds the folder (CFamily's: GNUmakefile, Makefile.apple, CMake, Xcode)
+  says what it can, and we ask only for what can't be guessed, in one file
+  that serves both systems.
 
 ## Where we are going
 

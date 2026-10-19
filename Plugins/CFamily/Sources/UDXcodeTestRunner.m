@@ -3,9 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDXcodeTestRunner.h"
+#import "UDXCTestSources.h"
 #import "UDXcodeBuildSystem.h"
-#import "UDToolLocator.h"
-#import "UDTasks.h"
 
 @implementation UDXcodeTestRunner {
     UDXcodeBuildSystem *_buildSystem;
@@ -17,13 +16,15 @@
 }
 
 - (void)addTestsToCatalog:(UDTestCatalog *)catalog {
+    // the sources' test cases (read once for the catalog), those it runs
+    [UDXCTestSources addTestsOfProject:self.project toCatalog:catalog];
     for (UDTestSuite *suite in catalog.suites) {
         if (!suite.runner && [self runsSuite:suite]) suite.runner = self;
     }
 }
 
 - (BOOL)runsSuite:(UDTestSuite *)suite {
-    return suite.kind == UDTestKindXCTest;
+    return [suite.kind isEqualToString:UDTestKindXCTest];
 }
 
 /// xcodebuild's @a action, -only-testing each of @a tests.

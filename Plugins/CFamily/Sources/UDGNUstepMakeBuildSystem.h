@@ -11,7 +11,7 @@
  *  too; each bundle's tests are run by xctest.
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDBuildSystem.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

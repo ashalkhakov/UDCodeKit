@@ -5,7 +5,7 @@
 #import "UDCMakeBuildSystem.h"
 #import "UDCTestRunner.h"
 #import "UDGoogleTestRunner.h"
-#import "UDTasks.h"
+#import "UDXCTestSourcesRunner.h"
 
 @implementation UDCMakeBuildSystem
 
@@ -13,8 +13,8 @@
     return [project hasFile:@"CMakeLists.txt"];
 }
 
-- (UDProjectBuildSystem)kind {
-    return UDProjectBuildSystemCMake;
++ (NSString *)name {
+    return @"CMake";
 }
 
 - (NSString *)buildDirectory {
@@ -48,7 +48,8 @@
     // CTest's (GoogleTest's discovered ones among them), else the test
     // executables TestMate's glob finds
     UDCTestRunner *ctest = [[UDCTestRunner alloc] initWithProject:self.project directory:self.buildDirectory];
-    return ctest.listedTests.count ? @[ ctest ] : [super testRunners];
+    UDTestRunner *sources = [[UDXCTestSourcesRunner alloc] initWithProject:self.project];
+    return ctest.listedTests.count ? @[ ctest, sources ] : @[ sources, [[UDGoogleTestRunner alloc] initWithProject:self.project] ];
 }
 
 @end

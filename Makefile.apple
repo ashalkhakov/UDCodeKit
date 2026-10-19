@@ -10,7 +10,8 @@
 #                                     UDPieceTable, LSPKit and UDCodeKit
 #                                     .xcframework for what builds on them,
 #                                     with the grammar bundles in PlugIns/ for
-#                                     the apps that embed UDCodeKit
+#                                     the apps that embed UDCodeKit (CFamily
+#                                     is UDCode's own)
 #   make -f Makefile.apple installcheck DESTDIR=<dir>  its signature holds,
 #                                     and it starts and stays up, in a fresh home
 #
@@ -54,7 +55,7 @@ install: all
 	  rm -rf $(DESTDIR)/$$f.xcframework && ditto $(BUILD)/$$f.xcframework $(DESTDIR)/$$f.xcframework || exit 1; \
 	done
 	rm -rf $(DESTDIR)/PlugIns && mkdir -p $(DESTDIR)/PlugIns
-	for b in $(RELEASE)/UDCode.app/Contents/PlugIns/*.bundle; do \
+	for b in $(RELEASE)/UDCode.app/Contents/PlugIns/TreeSitter*.bundle; do \
 	  ditto $$b $(DESTDIR)/PlugIns/$$(basename $$b) || exit 1; \
 	done
 

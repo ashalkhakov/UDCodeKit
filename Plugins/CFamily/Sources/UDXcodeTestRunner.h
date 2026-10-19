@@ -8,13 +8,13 @@
  *  test-without-building.
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDTestRunner.h"
+#import "UDCFamilyTestOutput.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class UDXcodeBuildSystem;
 
-@interface UDXcodeTestRunner : UDTestRunner
+@interface UDXcodeTestRunner : UDCFamilyTestRunner
 - (instancetype)initWithBuildSystem:(UDXcodeBuildSystem *)buildSystem;
 @end
 

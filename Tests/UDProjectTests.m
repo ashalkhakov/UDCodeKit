@@ -14,6 +14,25 @@
 #import "AppDelegate.h"
 #import "UDDocument.h"
 #import "UDDocumentWindowController.h"
+// CFamily's, UDCode's plugin: its classes reached by name once the plugins
+// are loaded (the tests link UDCodeKit, not the bundle); its headers for
+// what they answer to
+#import "UDCFamilyPlugin.h"
+#import "UDCFamilyDebuggers.h"
+#import "UDCFamilyTestOutput.h"
+#import "UDXCTestSources.h"
+#import "UDGNUstepMakeBuildSystem.h"
+#import "UDXcodeBuildSystem.h"
+#import "UDCMakeBuildSystem.h"
+#import "UDGoogleTestRunner.h"
+#import "UDCTestRunner.h"
+#import "UDXCTestBundleRunner.h"
+
+static Class UDPluginClass(NSString *name) {
+    (void)[UDLanguageModeRegistry sharedRegistry];
+    return NSClassFromString(name);
+}
+#define UDPlugin(name) ((id)UDPluginClass(@#name))
 
 @interface UDDocumentWindowController (ProjectTesting)
 @property (nonatomic, strong) UDEditorTabsController *editorTabs;
@@ -82,14 +101,14 @@
     // a GNUstep project: on GNUstep, make, and its application is run
     [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nAPP_NAME_SUFFIX = x\nAPP_NAME = Hello\n" to:@"GNUmakefile"];
 #ifdef GNUSTEP
-    XCTAssertEqual(self.project.buildSystem.kind, UDProjectBuildSystemGNUstepMake);
+    XCTAssertEqualObjects(self.project.buildSystem.name, @"GNUstep make");
     XCTAssertEqualObjects(self.project.runProgram, [_folder stringByAppendingPathComponent:@"Hello.app/Hello"],
                           @"the application's executable");
     XCTAssertEqualObjects(self.project.buildCommand, @"make debug=yes", @"unoptimized, for the debugger");
     XCTAssertEqualObjects(self.project.cleanCommand, @"make debug=yes clean");
     XCTAssertNotNil(self.project.buildEnvironment[@"GNUSTEP_MAKEFILES"], @"GNUstep's environment, as GNUstep.sh has it");
 #else
-    XCTAssertEqual(self.project.buildSystem.kind, UDProjectBuildSystemMake, @"a GNUmakefile is GNUstep's: not on macOS");
+    XCTAssertEqualObjects(self.project.buildSystem.name, @"make", @"a GNUmakefile is GNUstep's: not on macOS");
     [self write:@"all:\n" to:@"Makefile.apple"];
     XCTAssertEqualObjects(self.project.buildCommand, @"make -f Makefile.apple", @"on macOS, Makefile.apple");
 #endif
@@ -111,8 +130,8 @@
                          @"Build settings for action build and target CalculatorTests:\n"
                          @"    FULL_PRODUCT_NAME = CalculatorTests.xctest\n"
                          @"    PRODUCT_TYPE = com.apple.product-type.bundle.unit-test\n";
-    XCTAssertEqualObjects([UDXcodeBuildSystem productOfBuildSettings:settings], @"/tmp/p/build/Debug/Calculator.app");
-    XCTAssertNil([UDXcodeBuildSystem productOfBuildSettings:@"Build settings for action build and target Kit:\n"
+    XCTAssertEqualObjects([UDPlugin(UDXcodeBuildSystem) productOfBuildSettings:settings], @"/tmp/p/build/Debug/Calculator.app");
+    XCTAssertNil([UDPlugin(UDXcodeBuildSystem) productOfBuildSettings:@"Build settings for action build and target Kit:\n"
                                                             @"    FULL_PRODUCT_NAME = Kit.framework\n"
                                                    @"    PRODUCT_TYPE = com.apple.product-type.framework\n"
                                                    @"    TARGET_BUILD_DIR = /tmp\n"], @"nothing to run");
@@ -120,7 +139,7 @@
 #ifndef GNUSTEP
     [[NSFileManager defaultManager] createDirectoryAtPath:[_folder stringByAppendingPathComponent:@"Calculator.xcodeproj"]
                               withIntermediateDirectories:YES attributes:nil error:NULL];
-    XCTAssertEqual(self.project.buildSystem.kind, UDProjectBuildSystemXcode);
+    XCTAssertEqualObjects(self.project.buildSystem.name, @"Xcode");
     XCTAssertEqualObjects(self.project.buildCommand, @"xcodebuild -configuration Debug build", @"Debug, as Xcode's Run");
     XCTAssertEqualObjects(self.project.cleanCommand, @"xcodebuild -configuration Debug clean");
     [[NSFileManager defaultManager] createDirectoryAtPath:[_folder stringByAppendingPathComponent:@"Other Thing.xcodeproj"]
@@ -139,13 +158,13 @@
     project.tools = [NSSet setWithObjects:@"make", @"cmake", nil];
     XCTAssertEqualObjects(project.buildCommand, @"make", @"make, when there is one");
     project.tools = [NSSet setWithObjects:@"cmake", @"ninja", nil];
-    XCTAssertEqual(project.buildSystem.kind, UDProjectBuildSystemCMake);
+    XCTAssertEqualObjects(project.buildSystem.name, @"CMake");
     XCTAssertEqualObjects(project.buildCommand, @"cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja && cmake --build build");
     XCTAssertEqualObjects(project.cleanCommand, @"cmake --build build --target clean");
     [self write:@"CMAKE_GENERATOR:INTERNAL=Unix Makefiles\n" to:@"build/CMakeCache.txt"];
     XCTAssertEqualObjects(project.buildCommand, @"cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build", @"configured: its own generator");
     project.tools = [NSSet set];
-    XCTAssertEqual(project.buildSystem.kind, UDProjectBuildSystemMake, @"neither: the Makefile, as before");
+    XCTAssertEqualObjects(project.buildSystem.name, @"make", @"neither: the Makefile, as before");
 }
 
 /// Run from an AppImage, what UDCode starts (a build, a shell, a debugger, a
@@ -177,12 +196,12 @@
     [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nTOOL_NAME = CalculatorTests\n" to:@"CalculatorTests/GNUmakefile"];
     [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nAPP_NAME = Calculator\n" to:@"Calculator/GNUmakefile"];
 #ifdef GNUSTEP
-    XCTAssertEqual(self.project.buildSystem.kind, UDProjectBuildSystemGNUstepMake);
+    XCTAssertEqualObjects(self.project.buildSystem.name, @"GNUstep make");
     XCTAssertEqualObjects(self.project.buildCommand, @"make -C Calculator debug=yes", @"the application's, not the tests'");
     XCTAssertEqualObjects(self.project.runProgram, [_folder stringByAppendingPathComponent:@"Calculator/Calculator.app/Calculator"]);
     XCTAssertEqualObjects(self.project.inferredProgram, @"Calculator/Calculator.app");
 #else
-    XCTAssertEqual(self.project.buildSystem.kind, UDProjectBuildSystemNone, @"GNUstep's, not macOS's");
+    XCTAssertNil(self.project.buildSystem, @"GNUstep's, not macOS's");
 #endif
 }
 
@@ -251,18 +270,27 @@
 }
 
 - (void)testTheDebuggersAreAskedAsEachTakesIt {
-    NSDictionary *lldb = [UDToolLocator launchArgumentsForDebugger:UDDebuggerLLDB program:@"/p" arguments:@[ @"a" ]
-                                                         directory:@"/d" environment:@{ @"K": @"v" }];
+    // CFamily's, the extensions': lldb's first on macOS, gdb's elsewhere
+    NSArray *names = [[UDDebugger classes] valueForKey:@"name"];
+#ifdef __APPLE__
+    XCTAssertEqualObjects(names, (@[ @"lldb", @"gdb" ]));
+#else
+    XCTAssertEqualObjects(names, (@[ @"gdb", @"lldb" ]));
+#endif
+    NSDictionary *lldb = [[UDDebugger classNamed:@"lldb"] launchArgumentsForProgram:@"/p" arguments:@[ @"a" ]
+                                                                         directory:@"/d" environment:@{ @"K": @"v" }];
     XCTAssertEqualObjects(lldb[@"env"], @[ @"K=v" ], @"lldb-dap: NAME=value");
-    NSDictionary *gdb = [UDToolLocator launchArgumentsForDebugger:UDDebuggerGDB program:@"/p" arguments:@[ @"a" ]
-                                                        directory:@"/d" environment:@{ @"K": @"v" }];
+    NSDictionary *gdb = [[UDDebugger classNamed:@"gdb"] launchArgumentsForProgram:@"/p" arguments:@[ @"a" ]
+                                                                       directory:@"/d" environment:@{ @"K": @"v" }];
     XCTAssertEqualObjects(gdb[@"env"], @{ @"K": @"v" });
     XCTAssertEqualObjects(gdb[@"program"], @"/p");
     XCTAssertEqualObjects(gdb[@"args"], @[ @"a" ]);
     XCTAssertEqualObjects(gdb[@"cwd"], @"/d");
-    XCTAssertEqualObjects([UDToolLocator kindOfDebugAdapterCommand:@[ @"/usr/bin/lldb-dap-18" ]], UDDebuggerLLDB);
-    XCTAssertEqualObjects([UDToolLocator kindOfDebugAdapterCommand:(@[ @"/usr/bin/gdb", @"-i", @"dap" ])], UDDebuggerGDB);
-    XCTAssertEqualObjects([UDToolLocator debugAdapterCommandForDebugger:@[ @"my-adapter" ]], @[ @"my-adapter" ],
+    XCTAssertEqualObjects([[UDDebugger classOfAdapterCommand:@[ @"/usr/bin/lldb-dap-18" ]] name], @"lldb");
+    XCTAssertEqualObjects([[UDDebugger classOfAdapterCommand:(@[ @"/usr/bin/gdb", @"-i", @"dap" ])] name], @"gdb");
+    XCTAssertEqualObjects([[UDDebugger classNamed:@"gdb"] adapterCommandWithExecutable:@"/opt/gdb"], (@[ @"/opt/gdb", @"-i", @"dap" ]),
+                          @"launch.json's miDebuggerPath");
+    XCTAssertEqualObjects([UDDebugger adapterCommandForDebugger:@[ @"my-adapter" ]], @[ @"my-adapter" ],
                           @"an adapter the project names, as it is");
     XCTAssertNotNil([UDToolLocator pathOfTool:@"sh"], @"found on PATH");
 }
@@ -323,7 +351,7 @@
 /// Objective-C: one process for the project, its errors in the editor, a
 /// GNUstep or Cocoa header found without compile commands (its fallback flags).
 - (void)testClangdIsTheProjectsLanguageServer {
-    if (![UDToolLocator clangdPath]) {
+    if (![UDToolLocator pathOfLLVMTool:@"clangd"]) {
         NSLog(@"UDProjectTests: no clangd here; its case checks nothing");
         return;
     }
@@ -445,7 +473,7 @@
 }
 
 - (void)testRunBuildsThenDebugsTheProgramStoppingAtABreakpoint {
-    if (![UDToolLocator debugAdapterCommandForDebugger:nil]) {
+    if (![UDDebugger adapterCommandForDebugger:nil]) {
         NSLog(@"UDProjectTests: neither lldb-dap nor gdb here; the debugging case checks nothing");
         return;
     }
@@ -488,7 +516,7 @@
 }
 
 - (void)testRunWithoutDebuggingRunsItItsOutputInTheConsole {
-    if (![UDToolLocator debugAdapterCommandForDebugger:nil]) return;
+    if (![UDDebugger adapterCommandForDebugger:nil]) return;
     [self writeCProjectWith:@"#include <stdio.h>\nint main(int argc, char **argv) {\n    printf(\"plain %d\\n\", argc);\n    return 0;\n}\n"];
     UDWorkspace *workspace = nil;
     UDDocumentWindowController *controller = [self openProject:&workspace];
@@ -543,7 +571,7 @@
     XCTAssertEqualObjects(controller.project.runProgram, [_folder stringByAppendingPathComponent:@"hello"].stringByStandardizingPath);
 
     // and the Run that asked goes on
-    if ([UDToolLocator debugAdapterCommandForDebugger:nil]) {
+    if ([UDDebugger adapterCommandForDebugger:nil]) {
         UDRunUntil(controller.debugSession.state == UDDebugSessionStateEnded, 60);
         XCTAssertTrue([controller.debugSession.consoleText containsString:@"settled"], @"%@", controller.debugSession.consoleText);
     }
@@ -647,7 +675,7 @@
 #else
     NSString *debugger = @"gdb";
 #endif
-    if (![UDToolLocator debugAdapterCommandForDebugger:debugger]) {
+    if (![UDDebugger adapterCommandForDebugger:debugger]) {
         NSLog(@"UDProjectTests: no %@ that speaks DAP here; its case checks nothing", debugger);
         return;
     }
@@ -796,7 +824,7 @@
 /// highlighted where it occurs; Fix Issue's fix; Jump to Definition; Find
 /// References; Rename Symbol; Format Document; a call's signature as it is typed.
 - (void)testClangdNavigatesAndEditsTheCode {
-    if (![UDToolLocator clangdPath]) {
+    if (![UDToolLocator pathOfLLVMTool:@"clangd"]) {
         NSLog(@"UDProjectTests: no clangd here; its case checks nothing");
         return;
     }
@@ -971,7 +999,7 @@
 /// clangd's semantic tokens, coloured over tree-sitter's: a macro, a
 /// parameter, a field, a typedef's name, code an #if leaves out.
 - (void)testClangdColoursWhatOnlyTheCompilerKnows {
-    if (![UDToolLocator clangdPath]) {
+    if (![UDToolLocator pathOfLLVMTool:@"clangd"]) {
         NSLog(@"UDProjectTests: no clangd here; its case checks nothing");
         return;
     }
@@ -1024,6 +1052,15 @@
 // MARK: - Tests: found, run, marked, debugged
 // ---------------------------------------------------------------------------
 
+/// A catalog of the tests in these sources (path → text), as CFamily
+/// finds them, a run's output read as its runners read it.
+- (UDTestCatalog *)catalogOfSources:(NSDictionary<NSString *, NSString *> *)sources {
+    UDTestCatalog *catalog = [[UDTestCatalog alloc] init];
+    [UDPlugin(UDXCTestSources) addTestsOfSources:sources toCatalog:catalog];
+    catalog.runners = @[ [[UDPlugin(UDCFamilyTestRunner) alloc] initWithProject:self.project] ];
+    return catalog;
+}
+
 /// The tests in a project's sources: XCTestCase's subclasses (a class of the
 /// project's between, too), their test methods with where each is; not a
 /// test's helper, nor a class that isn't one.
@@ -1034,7 +1071,7 @@
         @"/p/Tests/CalcTests.m": @"#import \"Base.h\"\n@interface CalcTests : BaseCase\n@end\n\n@implementation CalcTests\n\n"
                                @"- (void)testAdds {\n}\n\n- (void) testDivides\n{\n}\n- (void)testWith:(int)x {}\n- (int)testValue { return 0; }\n@end\n",
         @"/p/Tests/Other.m": @"@interface Other : NSObject\n@end\n@implementation Other\n- (void)testNothing {}\n@end\n" };
-    UDTestCatalog *catalog = [UDTestCatalog catalogOfSources:sources];
+    UDTestCatalog *catalog = [self catalogOfSources:sources];
     XCTAssertEqualObjects([catalog.suites valueForKey:@"name"], @[ @"CalcTests" ], @"BaseCase has no tests; Other is no test case");
     UDTestSuite *calc = [catalog suiteNamed:@"CalcTests"];
     XCTAssertEqualObjects([calc.tests valueForKey:@"name"], (@[ @"testAdds", @"testDivides" ]));
@@ -1050,7 +1087,7 @@
 /// A run's output, GNUstep's xctest's and Apple's: each test marked as it
 /// went, a failure where it was said.
 - (void)testARunsOutputMarksTheTests {
-    UDTestCatalog *catalog = [UDTestCatalog catalogOfSources:@{
+    UDTestCatalog *catalog = [self catalogOfSources:@{
         @"/p/T.m": @"@interface CalcTests : XCTestCase\n@end\n@implementation CalcTests\n- (void)testAdds {}\n- (void)testDivides {}\n@end\n" }];
     UDTest *adds = [catalog testNamed:@"testAdds" inSuite:@"CalcTests"];
     UDTest *divides = [catalog testNamed:@"testDivides" inSuite:@"CalcTests"];
@@ -1105,9 +1142,10 @@
     XCTAssertNil([catalog commandRunningTests:@[]], @"none asked for");
 
     // a CTest runner's and a GoogleTest runner's, made by hand
-    UDCTestRunner *ctest = [[UDCTestRunner alloc] initWithProject:self.project directory:[_folder stringByAppendingPathComponent:@"build"]];
-    UDGoogleTestRunner *google = [[UDGoogleTestRunner alloc] initWithProject:self.project];
-    UDTestSuite *calc = [catalog addSuiteNamed:@"Calc" kind:UDTestKindGoogleTest];
+    UDCTestRunner *ctest = [[UDPlugin(UDCTestRunner) alloc] initWithProject:self.project directory:[_folder stringByAppendingPathComponent:@"build"]];
+    UDGoogleTestRunner *google = [[UDPlugin(UDGoogleTestRunner) alloc] initWithProject:self.project];
+    UDTestSuite *calc = [catalog addSuiteNamed:@"Calc"];
+    calc.kind = @"gtest";
     calc.executable = [_folder stringByAppendingPathComponent:@"build/calc_test"];
     UDTest *adds = [catalog addTest:@"Adds" toSuite:calc];
     UDTest *divides = [catalog addTest:@"Divides" toSuite:calc];
@@ -1144,11 +1182,11 @@
 #ifdef GNUSTEP
     UDProject *project = self.project;      // its build system's, kept
     UDGNUstepMakeBuildSystem *gnustep = (UDGNUstepMakeBuildSystem *)project.buildSystem;
-    XCTAssertEqual(gnustep.kind, UDProjectBuildSystemGNUstepMake);
+    XCTAssertEqualObjects(gnustep.name, @"GNUstep make");
     XCTAssertEqualObjects(gnustep.testBundles, @[ @"CalcTests/CalcTests.bundle" ], @"an XCTest bundle; not another bundle");
-    XCTAssertTrue([[project.testCatalog.runners.firstObject class] isEqual:[UDXCTestBundleRunner class]], @"run by xctest");
+    XCTAssertTrue([[project.testCatalog.runners.firstObject class] isEqual:UDPluginClass(@"UDXCTestBundleRunner")], @"run by xctest");
 #else
-    XCTAssertEqual(self.project.buildSystem.kind, UDProjectBuildSystemCMake, @"a GNUmakefile is GNUstep's");
+    XCTAssertEqualObjects(self.project.buildSystem.name, @"CMake", @"a GNUmakefile is GNUstep's");
 #endif
 }
 
@@ -1217,7 +1255,7 @@
     XCTAssertEqualObjects(controller.activityText, ([NSString stringWithFormat:@"%@ | Tests Failed | 1 failed, 1 passed", controller.project.name]));
 
     // debugged: stopped at a breakpoint in the test
-    if ([UDToolLocator debugAdapterCommandForDebugger:nil]) {
+    if ([UDDebugger adapterCommandForDebugger:nil]) {
         [controller.breakpoints addBreakpointAtLine:12 inFile:file];
         [controller runTests:@[ divides ] debugging:YES];
         UDRunUntil(controller.debugSession.state == UDDebugSessionStateStopped && controller.debugSession.selectedFrame, 120);
@@ -1236,8 +1274,9 @@
 
 /// CTest's and GoogleTest's output, as their runs print it.
 - (void)testCTestsAndGoogleTestsOutputMarksTheirTests {
-    UDTestCatalog *catalog = [UDTestCatalog catalogOfSources:@{}];
-    UDTestSuite *ctest = [catalog addSuiteNamed:@"CTest" kind:UDTestKindCTest];
+    UDTestCatalog *catalog = [self catalogOfSources:@{}];
+    UDTestSuite *ctest = [catalog addSuiteNamed:@"CTest"];
+    ctest.kind = @"ctest";
     UDTest *adds = [catalog addTest:@"adds" toSuite:ctest];
     UDTest *divides = [catalog addTest:@"divides" toSuite:ctest];
     XCTAssertEqualObjects(adds.identifier, @"adds", @"CTest's test, by its name");
@@ -1248,7 +1287,8 @@
     XCTAssertEqual(adds.status, UDTestStatusPassed);
     XCTAssertEqual(divides.status, UDTestStatusFailed);
 
-    UDTestSuite *calc = [catalog addSuiteNamed:@"Calc" kind:UDTestKindGoogleTest];
+    UDTestSuite *calc = [catalog addSuiteNamed:@"Calc"];
+    calc.kind = @"gtest";
     UDTest *gadds = [catalog addTest:@"Adds" toSuite:calc];
     UDTest *gdivides = [catalog addTest:@"Divides" toSuite:calc];
     XCTAssertEqualObjects(gadds.identifier, @"Calc.Adds", @"--gtest_filter's");
@@ -1276,23 +1316,23 @@
 /// debug template.
 - (void)testTheRunnersAreReadAsTheySay {
     NSString *glob = @"{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
-    XCTAssertTrue([UDGoogleTestRunner path:@"build/calc_test" matchesGlob:glob]);
-    XCTAssertTrue([UDGoogleTestRunner path:@"out/tests/bin/UnitTests" matchesGlob:glob]);
-    XCTAssertFalse([UDGoogleTestRunner path:@"src/calc_test.cc" matchesGlob:glob]);
-    XCTAssertFalse([UDGoogleTestRunner path:@"build/calc" matchesGlob:glob]);
-    XCTAssertTrue([UDGoogleTestRunner path:@"bin/a.test" matchesGlob:@"bin/*.test"]);
+    XCTAssertTrue([UDPlugin(UDGoogleTestRunner) path:@"build/calc_test" matchesGlob:glob]);
+    XCTAssertTrue([UDPlugin(UDGoogleTestRunner) path:@"out/tests/bin/UnitTests" matchesGlob:glob]);
+    XCTAssertFalse([UDPlugin(UDGoogleTestRunner) path:@"src/calc_test.cc" matchesGlob:glob]);
+    XCTAssertFalse([UDPlugin(UDGoogleTestRunner) path:@"build/calc" matchesGlob:glob]);
+    XCTAssertTrue([UDPlugin(UDGoogleTestRunner) path:@"bin/a.test" matchesGlob:@"bin/*.test"]);
 
-    XCTAssertEqualObjects([UDGoogleTestRunner testsOfListing:@"Calc.\n  Adds\n  Divides\nParam/Squares.\n  Of/0  # GetParam() = 1\n"],
+    XCTAssertEqualObjects([UDPlugin(UDGoogleTestRunner) testsOfListing:@"Calc.\n  Adds\n  Divides\nParam/Squares.\n  Of/0  # GetParam() = 1\n"],
                           (@[ @"Calc.Adds", @"Calc.Divides", @"Param/Squares.Of/0" ]));
 
     NSString *json = @"{ \"kind\": \"ctestInfo\", \"tests\": [ { \"name\": \"adds\", \"command\": [ \"/b/calc_test\", \"adds\" ], "
                      @"\"properties\": [ { \"name\": \"WORKING_DIRECTORY\", \"value\": \"/b\" } ] }, { \"name\": \"divides\" } ] }";
-    NSArray *ctests = [UDCTestRunner testsOfJSON:json];
+    NSArray *ctests = [UDPlugin(UDCTestRunner) testsOfJSON:json];
     XCTAssertEqual(ctests.count, 2u);
     XCTAssertEqualObjects(ctests[0][@"command"], (@[ @"/b/calc_test", @"adds" ]));
     XCTAssertEqualObjects(ctests[0][@"directory"], @"/b");
 
-    NSArray *targets = [UDXcodeBuildSystem targetsOfBuildSettings:@"Build settings for action build and target Calculator:\n"
+    NSArray *targets = [UDPlugin(UDXcodeBuildSystem) targetsOfBuildSettings:@"Build settings for action build and target Calculator:\n"
                                                           @"    PRODUCT_TYPE = com.apple.product-type.application\n\n"
                                                           @"Build settings for action build and target CalculatorTests:\n"
                                                           @"    PRODUCT_TYPE = com.apple.product-type.bundle.unit-test\n"
@@ -1312,8 +1352,8 @@
     XCTAssertEqualObjects(debug.arguments, @[ @"--gtest_filter=Calc.Adds" ]);
     XCTAssertEqualObjects(debug.directory, @"/b");
     XCTAssertEqualObjects(debug.debugger, @"gdb", @"cppdbg with gdb");
-    XCTAssertEqualObjects([[UDGoogleTestRunner alloc] initWithProject:self.project].globs, @[ @"bin/*.test" ], @"TestMate's own setting");
-    XCTAssertEqualObjects([[UDCMakeBuildSystem alloc] initWithProject:self.project].buildDirectory,
+    XCTAssertEqualObjects([[[UDPlugin(UDGoogleTestRunner) alloc] initWithProject:self.project] globs], @[ @"bin/*.test" ], @"TestMate's own setting");
+    XCTAssertEqualObjects([[[UDPlugin(UDCMakeBuildSystem) alloc] initWithProject:self.project] buildDirectory],
                           [_folder stringByAppendingPathComponent:@"out"], @"CMake Tools' cmake.buildDirectory");
 }
 
@@ -1358,7 +1398,7 @@
     XCTAssertEqual(adds.status, UDTestStatusPassed);
     XCTAssertFalse([controller.buildRunner.output containsString:@"divides"], @"alone: %@", controller.buildRunner.output);
 
-    if ([UDToolLocator debugAdapterCommandForDebugger:nil]) {
+    if ([UDDebugger adapterCommandForDebugger:nil]) {
         NSString *source = [_folder stringByAppendingPathComponent:@"calc_test.c"];
         [controller.breakpoints addBreakpointAtLine:6 inFile:source];
         [controller runTests:@[ divides ] debugging:YES];
@@ -1399,7 +1439,7 @@
     UDTest *adds = [catalog testNamed:@"Adds" inSuite:@"Calc"];
     UDTest *divides = [catalog testNamed:@"Divides" inSuite:@"Calc"];
     XCTAssertNotNil(adds, @"%@", [catalog.allTests valueForKey:@"identifier"]);
-    XCTAssertEqual(adds.suite.kind, UDTestKindGoogleTest);
+    XCTAssertEqualObjects(adds.suite.kind, @"gtest");
 
     [controller test:nil];
     UDRunUntil(!controller.buildRunner.running, 60);
@@ -1427,7 +1467,7 @@
     }
     UDProject *project = [[UDProject alloc] initWithFolderURL:[NSURL fileURLWithPath:folder]];
     UDXcodeBuildSystem *xcode = (UDXcodeBuildSystem *)project.buildSystem;
-    XCTAssertEqual(xcode.kind, UDProjectBuildSystemXcode);
+    XCTAssertEqualObjects(xcode.name, @"Xcode");
     XCTAssertNotNil(xcode.scheme);
     XCTAssertTrue(xcode.testTargets.count > 0, @"%@", xcode.testTargets);
     XCTAssertTrue([project.testCommand containsString:@" -scheme "], @"%@", project.testCommand);
@@ -1449,7 +1489,7 @@
     UDRunUntil(!controller.buildRunner.running, 600);
     XCTAssertNotEqual(one.status, UDTestStatusNotRun, @"%@", controller.buildRunner.output);
     XCTAssertEqual(other.status, UDTestStatusNotRun, @"alone");
-    if ([UDToolLocator lldbDapPath] && one.path) {
+    if ([UDDebugger adapterCommandForDebugger:@"lldb"] && one.path) {
         [controller.breakpoints addBreakpointAtLine:one.line + 1 inFile:one.path];
         [controller runTests:@[ one ] debugging:YES];
         // the breakpoint's stop (not the attach's, in dyld)

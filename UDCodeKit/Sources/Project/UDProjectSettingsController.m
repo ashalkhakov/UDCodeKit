@@ -3,10 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDProjectSettingsController.h"
+#import "UDDebugger.h"
 #import "UDProject.h"
 
-// The debugger popup's items, by tag.
-static const NSInteger UDDebuggerAutomaticTag = 0, UDDebuggerLLDBTag = 1, UDDebuggerGDBTag = 2;
 
 @interface UDProjectSettingsController ()
 @property (nonatomic, weak) IBOutlet NSTextField *buildField;
@@ -64,9 +63,15 @@ static const NSInteger UDDebuggerAutomaticTag = 0, UDDebuggerLLDBTag = 1, UDDebu
     if ([arguments isKindOfClass:[NSArray class]]) arguments = [arguments componentsJoinedByString:@" "];
     [self _field:_argumentsField value:arguments guess:nil];
     [self _field:_directoryField value:run[@"directory"] guess:@"The project's folder"];
+    // Automatic (the XIB's), then the debuggers the extensions know, by name
+    while (_debuggerPopUp.numberOfItems > 1) [_debuggerPopUp removeItemAtIndex:1];
+    for (Class each in [UDDebugger classes]) {
+        [_debuggerPopUp addItemWithTitle:[each displayName]];
+        _debuggerPopUp.lastItem.representedObject = [each name];
+    }
     id debugger = mine[@"debugger"] ?: settings[@"debugger"];
-    NSInteger tag = [debugger isEqual:@"lldb"] ? UDDebuggerLLDBTag : [debugger isEqual:@"gdb"] ? UDDebuggerGDBTag : UDDebuggerAutomaticTag;
-    [_debuggerPopUp selectItemWithTag:tag];
+    NSInteger index = [debugger isKindOfClass:[NSString class]] ? [_debuggerPopUp indexOfItemWithRepresentedObject:debugger] : -1;
+    [_debuggerPopUp selectItemAtIndex:index > 0 ? index : 0];
 }
 
 - (nullable NSDictionary *)_run:(NSDictionary *)settings {
@@ -93,9 +98,8 @@ static const NSInteger UDDebuggerAutomaticTag = 0, UDDebuggerLLDBTag = 1, UDDebu
         if (value.length) run[pair[1]] = value;
     }
     if (run.count) mine[@"run"] = run;
-    NSInteger tag = _debuggerPopUp.selectedItem.tag;
-    if (tag == UDDebuggerLLDBTag) mine[@"debugger"] = @"lldb";
-    else if (tag == UDDebuggerGDBTag) mine[@"debugger"] = @"gdb";
+    NSString *debugger = _debuggerPopUp.selectedItem.representedObject;
+    if ([debugger isKindOfClass:[NSString class]]) mine[@"debugger"] = debugger;
     if (mine.count) settings[UDProjectPlatformKey] = mine;
     else [settings removeObjectForKey:UDProjectPlatformKey];
     return settings;

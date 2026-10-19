@@ -3,8 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDGoogleTestRunner.h"
-#import "UDProject.h"
-#import "UDTasks.h"
 
 @implementation UDGoogleTestRunner {
     NSDictionary<NSString *, NSArray<NSString *> *> *_found;
@@ -102,7 +100,8 @@ static NSString *UDRegexOfGlob(NSString *glob) {
         for (NSString *name in executables[executable]) {
             NSRange dot = [name rangeOfString:@"."];
             if (dot.location == NSNotFound) continue;
-            UDTestSuite *suite = [catalog addSuiteNamed:[name substringToIndex:dot.location] kind:UDTestKindGoogleTest];
+            UDTestSuite *suite = [catalog addSuiteNamed:[name substringToIndex:dot.location]];
+            suite.kind = UDTestKindGoogleTest;
             suite.executable = executable;
             suite.runner = self;
             [catalog addTest:[name substringFromIndex:NSMaxRange(dot)] toSuite:suite];
@@ -111,7 +110,7 @@ static NSString *UDRegexOfGlob(NSString *glob) {
 }
 
 - (BOOL)runsSuite:(UDTestSuite *)suite {
-    return suite.kind == UDTestKindGoogleTest && suite.executable;
+    return [suite.kind isEqualToString:UDTestKindGoogleTest] && suite.executable;
 }
 
 /// @a tests by their executable; nil: all, each executable's.

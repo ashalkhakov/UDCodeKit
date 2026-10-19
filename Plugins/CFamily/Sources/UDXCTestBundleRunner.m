@@ -3,8 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDXCTestBundleRunner.h"
-#import "UDProject.h"
-#import "UDTasks.h"
+#import "UDXCTestSources.h"
 
 @implementation UDXCTestBundleRunner {
     BOOL _only;
@@ -19,6 +18,8 @@
 }
 
 - (void)addTestsToCatalog:(UDTestCatalog *)catalog {
+    // the sources' test cases (read once for the catalog), those it runs
+    [UDXCTestSources addTestsOfProject:self.project toCatalog:catalog];
     for (UDTestSuite *suite in catalog.suites) {
         if (!suite.runner && [self runsSuite:suite]) suite.runner = self;
     }
@@ -26,7 +27,7 @@
 
 /// An XCTest case whose file is in the bundle's folder; any, the only bundle.
 - (BOOL)runsSuite:(UDTestSuite *)suite {
-    if (suite.kind != UDTestKindXCTest) return NO;
+    if (![suite.kind isEqualToString:UDTestKindXCTest]) return NO;
     if (_only) return YES;
     NSString *folder = [self.project.folderURL.path stringByAppendingPathComponent:_bundle.stringByDeletingLastPathComponent];
     return [suite.path hasPrefix:[folder stringByAppendingString:@"/"]];

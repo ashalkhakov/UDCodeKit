@@ -376,6 +376,38 @@
     return controller;
 }
 
+/// The Issues navigator, as Xcode's: an error's red mark, a warning's
+/// yellow one, a file's issues counted by kind; not edited by a double-click.
+- (void)testIssuesAreErrorsOrWarningsAsTheyAre {
+    UDDiagnosticStore *store = [[UDDiagnosticStore alloc] init];
+    [store setDiagnostics:@[ [[UDDiagnosticItem alloc] initWithLine:3 column:1 message:@"unused variable 'x'"
+                                                          severity:UDDiagnosticSeverityWarning source:UDDiagnosticSourceBuild],
+                             [[UDDiagnosticItem alloc] initWithLine:7 column:1 message:@"undeclared identifier"
+                                                          severity:UDDiagnosticSeverityError source:UDDiagnosticSourceBuild],
+                             [[UDDiagnosticItem alloc] initWithLine:9 column:1 message:@"unused function"
+                                                          severity:UDDiagnosticSeverityWarning source:UDDiagnosticSourceBuild] ]
+                forSource:UDDiagnosticSourceBuild];
+    UDErrorsViewController *issues = [[UDErrorsViewController alloc] init];
+    (void)issues.view;
+    [issues setStores:@[ store ] displayNames:@[ @"UDVM.m" ]];
+    NSOutlineView *outline = [issues valueForKey:@"outlineView"];
+    NSTableColumn *column = outline.tableColumns.firstObject;
+    id file = [outline itemAtRow:0];
+    XCTAssertEqualObjects([issues outlineView:outline objectValueForTableColumn:column byItem:file], @"UDVM.m (1 error, 2 warnings)");
+    NSMutableArray<NSString *> *rows = [NSMutableArray array];
+    for (NSInteger row = 1; row < outline.numberOfRows; row++) {
+        id value = [issues outlineView:outline objectValueForTableColumn:column byItem:[outline itemAtRow:row]];
+        [rows addObject:[value isKindOfClass:[NSAttributedString class]] ? [value string] : value];
+    }
+    XCTAssertEqual(rows.count, 3u);
+    for (NSString *row in rows) {
+        BOOL warning = [row containsString:@"unused"];
+        XCTAssertTrue([row hasPrefix:warning ? @"\u25B2 Line" : @"\u25CF Line"], @"%@", row);
+    }
+    XCTAssertFalse([issues outlineView:outline shouldEditTableColumn:column item:[outline itemAtRow:1]], @"a double-click goes to it");
+    XCTAssertFalse(column.isEditable);
+}
+
 - (void)testABuildsErrorsAreIssuesOfTheirFiles {
     NSString *path = nil;
     UDDiagnosticItem *item = [UDBuildRunner diagnosticOfLine:@"src/a.c:12:5: error: use of undeclared identifier 'x'"

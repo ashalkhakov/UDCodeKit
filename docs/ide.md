@@ -46,10 +46,15 @@ system it runs on:
 | `Makefile.apple` | macOS | `make -f Makefile.apple` | asked |
 | an `.xcodeproj` | macOS | `xcodebuild -configuration Debug build` (Debug, as Xcode's Run) | its first application or tool, where the Debug build puts it (`xcodebuild -showBuildSettings`) |
 | `Makefile` | both | `make` | asked |
-| `CMakeLists.txt` | both | `cmake -S . -B build && cmake --build build` | asked |
+| `CMakeLists.txt` | both | `cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build` (`-G Ninja` where there is no make) | asked |
 
 "Asked": the first Run opens Debug › Project Settings…, where the program is
 named once.
+
+A folder with both a Makefile and a CMakeLists.txt is built with the one this
+machine has the tool for: make where there is make, else CMake (a Steam Deck
+has CMake and Ninja, not make). A `"macos"` or `"gnustep"` section in the
+settings can say otherwise.
 
 ## Building, running, debugging
 

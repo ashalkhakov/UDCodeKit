@@ -117,9 +117,28 @@ static NSString *UDStringOrNil(id value);
         if ([entry.pathExtension isEqualToString:@"xcodeproj"]) return UDProjectBuildSystemXcode;
     }
 #endif
-    if ([self _has:@"Makefile"] || [self _has:@"makefile"]) return UDProjectBuildSystemMake;
-    if ([self _has:@"CMakeLists.txt"]) return UDProjectBuildSystemCMake;
+    BOOL makefile = [self _has:@"Makefile"] || [self _has:@"makefile"];
+    BOOL cmake = [self _has:@"CMakeLists.txt"];
+    // both: the one this machine has the tool for (a Steam Deck has CMake, not make)
+    if (makefile && cmake) return [self hasTool:@"make"] || ![self hasTool:@"cmake"] ? UDProjectBuildSystemMake : UDProjectBuildSystemCMake;
+    if (makefile) return UDProjectBuildSystemMake;
+    if (cmake) return UDProjectBuildSystemCMake;
     return UDProjectBuildSystemNone;
+}
+
+- (BOOL)hasTool:(NSString *)name {
+    return [UDToolLocator pathOfTool:name] != nil;
+}
+
+/// CMake's configure and build, compile_commands.json exported for clangd
+/// (which looks for it in build/). Its usual generator writes Makefiles; with
+/// no make here, Ninja, when there is one and the build folder is not yet
+/// configured (CMake keeps a folder's generator).
+- (NSString *)_cmakeBuildCommand {
+    NSString *configure = @"cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
+    BOOL configured = [self _has:@"build/CMakeCache.txt"];
+    if (!configured && ![self hasTool:@"make"] && [self hasTool:@"ninja"]) configure = [configure stringByAppendingString:@" -G Ninja"];
+    return [configure stringByAppendingString:@" && cmake --build build"];
 }
 
 /// What a GNUmakefile builds first: an application (APP_NAME, its .app) or a
@@ -246,7 +265,7 @@ static NSString *UDStringOrNil(id value);
                       @"clean": [xcodebuild stringByAppendingString:@" clean"] };
         }
         case UDProjectBuildSystemCMake:
-            return @{ @"build": @"cmake -S . -B build && cmake --build build", @"clean": @"cmake --build build --target clean" };
+            return @{ @"build": [self _cmakeBuildCommand], @"clean": @"cmake --build build --target clean" };
         case UDProjectBuildSystemNone:
             return @{};
     }

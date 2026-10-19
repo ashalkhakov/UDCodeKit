@@ -70,6 +70,9 @@ extern NSString * const UDProjectPlatformKey;
 @property (nonatomic, readonly, copy) NSURL *settingsURL;
 
 @property (nonatomic, readonly) UDProjectBuildSystem buildSystem;
+/// Whether this machine has the tool @a name (UDToolLocator): with a
+/// Makefile and a CMakeLists.txt both, the build is the one it has the tool for.
+- (BOOL)hasTool:(NSString *)name;
 
 /// The settings as the folder has them (empty when it has none), both
 /// systems' sections in them; and set: written to the folder.

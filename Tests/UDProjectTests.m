@@ -24,6 +24,17 @@
 @property (nonatomic, weak) NSPopUpButton *schemePopUp;
 @end
 
+/// A machine with only the tools named (a Steam Deck: CMake, Ninja, no make).
+@interface UDProjectWithTools : UDProject
+@property (nonatomic, copy) NSSet<NSString *> *tools;
+@end
+
+@implementation UDProjectWithTools
+- (BOOL)hasTool:(NSString *)name {
+    return [_tools containsObject:name];
+}
+@end
+
 @interface UDProjectTests : UDCodeTestCase
 @property (nonatomic, copy) NSString *folder;
 /// The window whose settings sheet -answerSettingsSheet answers, and what it saw.
@@ -115,6 +126,24 @@
     XCTAssertEqualObjects(self.project.buildCommand, @"xcodebuild -configuration Debug -project Calculator.xcodeproj build",
                           @"which, when there are two");
 #endif
+}
+
+/// A Makefile and a CMakeLists.txt: the build this machine has the tool
+/// for; CMake with Ninja where there is no make, unless already configured.
+- (void)testMakeOrCMakeAsTheMachineHasThem {
+    [self write:@"all:\n" to:@"Makefile"];
+    [self write:@"project(x)\n" to:@"CMakeLists.txt"];
+    UDProjectWithTools *project = [[UDProjectWithTools alloc] initWithFolderURL:[NSURL fileURLWithPath:_folder]];
+    project.tools = [NSSet setWithObjects:@"make", @"cmake", nil];
+    XCTAssertEqualObjects(project.buildCommand, @"make", @"make, when there is one");
+    project.tools = [NSSet setWithObjects:@"cmake", @"ninja", nil];
+    XCTAssertEqual(project.buildSystem, UDProjectBuildSystemCMake);
+    XCTAssertEqualObjects(project.buildCommand, @"cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja && cmake --build build");
+    XCTAssertEqualObjects(project.cleanCommand, @"cmake --build build --target clean");
+    [self write:@"CMAKE_GENERATOR:INTERNAL=Unix Makefiles\n" to:@"build/CMakeCache.txt"];
+    XCTAssertEqualObjects(project.buildCommand, @"cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build", @"configured: its own generator");
+    project.tools = [NSSet set];
+    XCTAssertEqual(project.buildSystem, UDProjectBuildSystemMake, @"neither: the Makefile, as before");
 }
 
 - (void)testOneFolderForBothSystems {

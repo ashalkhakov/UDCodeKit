@@ -41,6 +41,17 @@
 		C0DEC0DE0000000000000006 /* Exceptions for "Sources" folder in "UDCodeKit" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			publicHeaders = (
+				Project/TestRunners/UDXcodeTestRunner.h,
+				Project/TestRunners/UDXCTestBundleRunner.h,
+				Project/TestRunners/UDTestRunner.h,
+				Project/TestRunners/UDGoogleTestRunner.h,
+				Project/TestRunners/UDCommandTestRunner.h,
+				Project/TestRunners/UDCTestRunner.h,
+				Project/BuildSystems/UDXcodeBuildSystem.h,
+				Project/BuildSystems/UDMakeBuildSystem.h,
+				Project/BuildSystems/UDGNUstepMakeBuildSystem.h,
+				Project/BuildSystems/UDCMakeBuildSystem.h,
+				Project/BuildSystems/UDBuildSystem.h,
 				Project/UDTestNavigatorViewController.h,
 				Project/UDTests.h,
 				Highlighters/UDSemanticTokensHighlighter.h,

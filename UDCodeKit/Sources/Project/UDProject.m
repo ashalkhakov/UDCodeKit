@@ -4,6 +4,13 @@
 
 #import "UDProject.h"
 #import "UDToolLocator.h"
+#import "UDTasks.h"
+#import "UDTests.h"
+#import "UDBuildSystem.h"
+#import "UDGNUstepMakeBuildSystem.h"
+#import "UDTestRunner.h"
+#import "UDCommandTestRunner.h"
+#import "UDGoogleTestRunner.h"
 #import <LSPKit/LSPKit.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -18,9 +25,7 @@ NSString * const UDProjectPlatformKey = @"macos";
 
 @implementation UDProject {
     NSDictionary *_settings;
-    NSString *_preferredProgram;
-    NSString *_xcodeProduct;
-    BOOL _xcodeProductAsked;
+    UDBuildSystem *_buildSystem;
 }
 
 - (instancetype)initWithFolderURL:(NSURL *)folderURL {
@@ -101,183 +106,48 @@ static NSDictionary *UDMergedSettings(NSDictionary *under, NSDictionary *over) {
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - What the folder suggests
+// MARK: - What the folder suggests: its build system's to say
 // ---------------------------------------------------------------------------
 
 static NSString *UDStringOrNil(id value);
 
-- (BOOL)_has:(NSString *)name {
-    return [[NSFileManager defaultManager] fileExistsAtPath:[_folderURL.path stringByAppendingPathComponent:name]];
-}
-
-- (UDProjectBuildSystem)buildSystem {
-#ifdef GNUSTEP
-    if ([self _gnustepMakeFolder]) return UDProjectBuildSystemGNUstepMake;
-#else
-    if ([self _has:@"Makefile.apple"]) return UDProjectBuildSystemAppleMake;
-    for (NSString *entry in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]) {
-        if ([entry.pathExtension isEqualToString:@"xcodeproj"]) return UDProjectBuildSystemXcode;
-    }
-#endif
-    BOOL makefile = [self _has:@"Makefile"] || [self _has:@"makefile"];
-    BOOL cmake = [self _has:@"CMakeLists.txt"];
-    // both: the one this machine has the tool for (a Steam Deck has CMake, not make)
-    if (makefile && cmake) return [self hasTool:@"make"] || ![self hasTool:@"cmake"] ? UDProjectBuildSystemMake : UDProjectBuildSystemCMake;
-    if (makefile) return UDProjectBuildSystemMake;
-    if (cmake) return UDProjectBuildSystemCMake;
-    return UDProjectBuildSystemNone;
+- (BOOL)hasFile:(NSString *)path {
+    return [[NSFileManager defaultManager] fileExistsAtPath:[_folderURL.path stringByAppendingPathComponent:path]];
 }
 
 - (BOOL)hasTool:(NSString *)name {
     return [UDToolLocator pathOfTool:name] != nil;
 }
 
-/// CMake's configure and build, compile_commands.json exported for clangd
-/// (which looks for it in build/). Its usual generator writes Makefiles; with
-/// no make here, Ninja, when there is one and the build folder is not yet
-/// configured (CMake keeps a folder's generator).
-- (NSString *)_cmakeBuildCommand {
-    NSString *configure = @"cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
-    BOOL configured = [self _has:@"build/CMakeCache.txt"];
-    if (!configured && ![self hasTool:@"make"] && [self hasTool:@"ninja"]) configure = [configure stringByAppendingString:@" -G Ninja"];
-    return [configure stringByAppendingString:@" && cmake --build build"];
+- (NSString *)relativePath:(NSString *)path {
+    NSString *folder = [_folderURL.path stringByAppendingString:@"/"];
+    return [path hasPrefix:folder] ? [path substringFromIndex:folder.length] : path;
 }
 
-/// What a GNUmakefile builds first: an application (APP_NAME, its .app) or a
-/// tool (TOOL_NAME, in obj/), as GNUstep make names them.
-/// Where the GNUmakefile is: the folder itself (""), else the folder in it
-/// whose GNUmakefile builds an application (ProjectCenter's projects sit
-/// beside an Xcode project that way: UDCalc's Calculator/), else one that
-/// builds anything; nil when there is none.
-- (nullable NSString *)_gnustepMakeFolder {
-    if ([self _has:@"GNUmakefile"]) return @"";
-    NSString *tool = nil;
-    NSArray *entries = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]
-                        sortedArrayUsingSelector:@selector(compare:)];
-    for (NSString *entry in entries) {
-        if ([entry hasPrefix:@"."] || ![self _has:[entry stringByAppendingPathComponent:@"GNUmakefile"]]) continue;
-        NSArray<NSString *> *products = [self _gnustepProductsIn:entry depth:0];
-        for (NSString *product in products) {
-            if ([product.pathExtension isEqualToString:@"app"]) return entry;
-        }
-        if (products.count && !tool) tool = entry;
-    }
-    return tool;
+- (UDBuildSystem *)buildSystem {
+    // what the folder has now: the one made before while it still builds it
+    // (what it asked its tool is kept)
+    Class kind = [UDBuildSystem classBuilding:self];
+    if (![_buildSystem isMemberOfClass:kind]) _buildSystem = kind ? [[kind alloc] initWithProject:self] : nil;
+    return _buildSystem;
 }
 
-/// A GNUmakefile's text, its lines continued with a backslash joined.
-- (NSString *)_makefileIn:(NSString *)folder {
-    NSString *path = [[_folderURL.path stringByAppendingPathComponent:folder] stringByAppendingPathComponent:@"GNUmakefile"];
-    NSString *text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL] ?: @"";
-    return [text stringByReplacingOccurrencesOfString:@"\\\n" withString:@" "];
+- (NSDictionary *)inferredSettings {
+    return self.buildSystem.inferredSettings ?: @{};
 }
 
-/// The words a makefile assigns @a variable (APP_NAME = Quarry), as given.
-static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
-    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
-        NSString *trimmed = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-        if (![trimmed hasPrefix:variable]) continue;
-        NSRange equals = [trimmed rangeOfString:@"="];
-        if (equals.location == NSNotFound) continue;
-        NSString *between = [[trimmed substringWithRange:NSMakeRange(variable.length, equals.location - variable.length)]
-                             stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" \t:+?"]];
-        if (between.length) continue;           // another variable, APP_NAME_FOO
-        NSMutableArray<NSString *> *words = [NSMutableArray array];
-        for (NSString *word in [[trimmed substringFromIndex:NSMaxRange(equals)] componentsSeparatedByCharactersInSet:
-                                   [NSCharacterSet whitespaceCharacterSet]]) {
-            if (word.length && ![word hasPrefix:@"$"] && ![word hasPrefix:@"#"]) [words addObject:word];
-            if ([word hasPrefix:@"#"]) break;
-        }
-        return words;
-    }
-    return @[];
+- (NSArray<NSString *> *)programs {
+    return self.buildSystem.programs ?: @[];
 }
 
-/// What the GNUmakefile in @a folder builds that runs, as gnustep-make
-/// names it (APP_NAME's .app, TOOL_NAME's obj/ tool), and what its
-/// SUBPROJECTS build, in their order, each as the project's folder names it.
-- (NSArray<NSString *> *)_gnustepProductsIn:(NSString *)folder depth:(NSUInteger)depth {
-    if (depth > 4) return @[];
-    NSString *text = [self _makefileIn:folder];
-    NSMutableArray<NSString *> *products = [NSMutableArray array];
-    for (NSString *name in UDMakeVariable(text, @"APP_NAME")) {
-        [products addObject:[folder stringByAppendingPathComponent:[name stringByAppendingPathExtension:@"app"]]];
-    }
-    for (NSString *name in UDMakeVariable(text, @"TOOL_NAME")) {
-        [products addObject:[folder stringByAppendingPathComponent:[@"obj" stringByAppendingPathComponent:name]]];
-    }
-    for (NSString *subproject in UDMakeVariable(text, @"SUBPROJECTS")) {
-        NSString *inner = [folder stringByAppendingPathComponent:subproject];
-        if ([self _has:[inner stringByAppendingPathComponent:@"GNUmakefile"]]) {
-            [products addObjectsFromArray:[self _gnustepProductsIn:inner depth:depth + 1]];
-        }
-    }
-    return products;
-}
-
-/// The XCTest bundles the GNUmakefile in @a folder builds (BUNDLE_NAME, its
-/// makefile linking XCTest), and its SUBPROJECTS', as the folder names them.
-- (NSArray<NSString *> *)_gnustepTestBundlesIn:(NSString *)folder depth:(NSUInteger)depth {
-    if (depth > 4) return @[];
-    NSString *text = [self _makefileIn:folder];
-    NSMutableArray<NSString *> *bundles = [NSMutableArray array];
-    if ([text rangeOfString:@"XCTest"].location != NSNotFound) {
-        NSString *extension = UDMakeVariable(text, @"BUNDLE_EXTENSION").firstObject ?: @".bundle";
-        if ([extension hasPrefix:@"."]) extension = [extension substringFromIndex:1];
-        for (NSString *name in UDMakeVariable(text, @"BUNDLE_NAME")) {
-            [bundles addObject:[folder stringByAppendingPathComponent:[name stringByAppendingPathExtension:extension]]];
-        }
-    }
-    for (NSString *subproject in UDMakeVariable(text, @"SUBPROJECTS")) {
-        NSString *inner = [folder stringByAppendingPathComponent:subproject];
-        if ([self _has:[inner stringByAppendingPathComponent:@"GNUmakefile"]]) {
-            [bundles addObjectsFromArray:[self _gnustepTestBundlesIn:inner depth:depth + 1]];
-        }
-    }
-    return bundles;
-}
-
-- (NSArray<NSString *> *)testBundles {
-#ifdef GNUSTEP
-    // the folder's GNUmakefile's, else each folder's in it (UDCalc's CalculatorTests/)
-    if ([self _has:@"GNUmakefile"]) return [self _gnustepTestBundlesIn:@"" depth:0];
-    NSMutableArray<NSString *> *bundles = [NSMutableArray array];
-    for (NSString *entry in [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]
-                             sortedArrayUsingSelector:@selector(compare:)]) {
-        if ([entry hasPrefix:@"."] || ![self _has:[entry stringByAppendingPathComponent:@"GNUmakefile"]]) continue;
-        [bundles addObjectsFromArray:[self _gnustepTestBundlesIn:entry depth:0]];
-    }
-    return bundles;
-#else
-    return @[];
-#endif
+- (NSString *)inferredProgram {
+    // shown as the settings would say it: relative to the folder when in it
+    NSString *program = self.buildSystem.product;
+    return program ? [self relativePath:program] : nil;
 }
 
 - (NSString *)testCommand {
-    NSString *mine = UDStringOrNil(self.effectiveSettings[@"test"]);
-    if (mine) return mine;
-    switch (self.buildSystem) {
-        case UDProjectBuildSystemXcode:
-            return [[@"xcodebuild -configuration Debug" stringByAppendingString:[self _xcodeProjectArgument]] stringByAppendingString:@" test"];
-        case UDProjectBuildSystemCMake:
-            return @"ctest --test-dir build --output-on-failure";
-        case UDProjectBuildSystemMake:
-        case UDProjectBuildSystemAppleMake: {
-            NSString *makefile = self.buildSystem == UDProjectBuildSystemAppleMake ? @"Makefile.apple"
-                               : [self _has:@"Makefile"] ? @"Makefile" : @"makefile";
-            NSString *text = [NSString stringWithContentsOfFile:[_folderURL.path stringByAppendingPathComponent:makefile]
-                                                       encoding:NSUTF8StringEncoding error:NULL];
-            NSString *make = self.buildSystem == UDProjectBuildSystemAppleMake ? @"make -f Makefile.apple" : @"make";
-            for (NSString *target in @[ @"check", @"test" ]) {
-                for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
-                    if ([line hasPrefix:[target stringByAppendingString:@":"]]) return [NSString stringWithFormat:@"%@ %@", make, target];
-                }
-            }
-            return nil;
-        }
-        default:
-            return nil;
-    }
+    return UDStringOrNil(self.effectiveSettings[@"test"]) ?: self.buildSystem.testCommand;
 }
 
 - (NSArray<NSString *> *)sourceFiles {
@@ -297,34 +167,15 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     return files;
 }
 
-- (NSArray<NSString *> *)programs {
-#ifdef GNUSTEP
-    NSString *folder = [self _gnustepMakeFolder];
-    if (!folder) return @[];
-    NSArray<NSString *> *products = [self _gnustepProductsIn:folder depth:0];
-    // the applications first, as they are what one runs
-    NSArray *apps = [products filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"pathExtension == 'app'"]];
-    NSArray *tools = [products filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"pathExtension != 'app'"]];
-    return [apps arrayByAddingObjectsFromArray:tools];
-#else
-    return @[];
-#endif
-}
-
-/// What runs: the program chosen among the project's, else its first.
-- (nullable NSString *)_gnustepMakeProduct {
-    NSArray<NSString *> *programs = self.programs;
-    if (_preferredProgram && [programs containsObject:_preferredProgram]) return _preferredProgram;
-    return programs.firstObject;
-}
-
-/// The project xcodebuild is to build, when the folder has more than one.
-- (NSString *)_xcodeProjectArgument {
-    NSArray<NSString *> *projects = [[[[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]
-                                      filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"pathExtension == 'xcodeproj'"]]
-                                     sortedArrayUsingSelector:@selector(compare:)];
-    if (projects.count < 2) return @"";
-    return [@" -project " stringByAppendingString:[UDProject quotedArgument:projects.firstObject]];
+- (UDTestCatalog *)testCatalog {
+    UDTestCatalog *catalog = [UDTestCatalog catalogOfFiles:self.sourceFiles];
+    UDBuildSystem *buildSystem = self.buildSystem;
+    NSMutableArray<UDTestRunner *> *runners = [NSMutableArray array];
+    [runners addObjectsFromArray:buildSystem ? buildSystem.testRunners : @[ [[UDGoogleTestRunner alloc] initWithProject:self] ]];
+    [runners addObject:[[UDCommandTestRunner alloc] initWithProject:self]];
+    for (UDTestRunner *runner in runners) [runner addTestsToCatalog:catalog];
+    catalog.runners = runners;
+    return catalog;
 }
 
 + (NSString *)quotedArgument:(NSString *)argument {
@@ -334,100 +185,31 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     return [NSString stringWithFormat:@"'%@'", [argument stringByReplacingOccurrencesOfString:@"'" withString:@"'\\''"]];
 }
 
-+ (NSString *)productOfBuildSettings:(NSString *)output {
-    // "Build settings for action build and target Name:", then "    KEY = value" lines
-    NSString *buildDirectory = nil, *productName = nil, *productType = nil;
-    for (NSString *line in [[output stringByAppendingString:@"\nBuild settings for action end:"] componentsSeparatedByString:@"\n"]) {
-        if ([line hasPrefix:@"Build settings for "]) {
-            BOOL runnable = [productType isEqualToString:@"com.apple.product-type.application"] ||
-                            [productType isEqualToString:@"com.apple.product-type.tool"];
-            if (runnable && buildDirectory.length && productName.length) {
-                return [buildDirectory stringByAppendingPathComponent:productName];
-            }
-            buildDirectory = productName = productType = nil;
-            continue;
-        }
-        NSRange equals = [line rangeOfString:@" = "];
-        if (equals.location == NSNotFound) continue;
-        NSString *key = [[line substringToIndex:equals.location] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-        NSString *value = [line substringFromIndex:NSMaxRange(equals)];
-        if ([key isEqualToString:@"TARGET_BUILD_DIR"]) buildDirectory = value;
-        else if ([key isEqualToString:@"FULL_PRODUCT_NAME"]) productName = value;
-        else if ([key isEqualToString:@"PRODUCT_TYPE"]) productType = value;
-    }
-    return nil;
-}
-
-/// What the Xcode project's Debug build makes to run (its first application
-/// or tool), as xcodebuild -showBuildSettings says; asked once.
-- (nullable NSString *)_xcodeProduct {
-    if (_xcodeProductAsked) return _xcodeProduct;
-    _xcodeProductAsked = YES;
-    NSString *xcodebuild = [UDToolLocator pathOfTool:@"xcodebuild"];
-    if (!xcodebuild) return nil;
-    NSMutableArray *arguments = [@[ @"-configuration", @"Debug", @"-showBuildSettings" ] mutableCopy];
-    NSString *project = [self _xcodeProjectArgument];
-    if (project.length) {
-        [arguments addObject:@"-project"];
-        [arguments addObject:[UDProject argumentsOfCommandLine:project].lastObject];
-    }
+- (NSString *)outputOf:(NSString *)tool arguments:(NSArray<NSString *> *)arguments timeout:(NSTimeInterval)seconds {
+    NSString *file = [NSTemporaryDirectory() stringByAppendingPathComponent:[[NSUUID UUID] UUIDString]];
+    [[NSFileManager defaultManager] createFileAtPath:file contents:nil attributes:nil];
+    NSFileHandle *output = [NSFileHandle fileHandleForWritingAtPath:file];
     NSTask *task = [[NSTask alloc] init];
-    task.environment = [LSPTransport hostEnvironment];
-    task.launchPath = xcodebuild;
+    task.launchPath = tool;
     task.arguments = arguments;
     task.currentDirectoryPath = _folderURL.path;
-    NSPipe *pipe = [NSPipe pipe];
-    task.standardOutput = pipe;
-    task.standardError = [NSFileHandle fileHandleWithNullDevice];
+    task.environment = [self buildEnvironment];
+    task.standardOutput = output;
+    task.standardError = output;
+    task.standardInput = [NSFileHandle fileHandleWithNullDevice];
     @try {
         [task launch];
-        NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-        [task waitUntilExit];
-        NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-        _xcodeProduct = output ? [UDProject productOfBuildSettings:output] : nil;
     } @catch (NSException *exception) {
-        _xcodeProduct = nil;
+        [[NSFileManager defaultManager] removeItemAtPath:file error:NULL];
+        return nil;
     }
-    return _xcodeProduct;
-}
-
-- (NSString *)inferredProgram {
-    NSDictionary *run = [self inferredSettings][@"run"];
-    NSString *program = [run isKindOfClass:[NSDictionary class]] ? UDStringOrNil(run[@"program"]) : nil;
-    if (!program && self.buildSystem == UDProjectBuildSystemXcode) program = [self _xcodeProduct];
-    // shown as the settings would say it: relative to the folder when in it
-    NSString *folder = [_folderURL.path stringByAppendingString:@"/"];
-    return [program hasPrefix:folder] ? [program substringFromIndex:folder.length] : program;
-}
-
-- (NSDictionary *)inferredSettings {
-    switch (self.buildSystem) {
-        case UDProjectBuildSystemGNUstepMake: {
-            // debug=yes: unoptimized, with debug information (Xcode's Run builds Debug)
-            NSString *folder = [self _gnustepMakeFolder];
-            NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
-            NSString *build = [make stringByAppendingString:@" debug=yes"];
-            NSString *clean = [make stringByAppendingString:@" debug=yes clean"];
-            NSString *product = [self _gnustepMakeProduct];
-            if (!product) return @{ @"build": build, @"clean": clean };
-            return @{ @"build": build, @"clean": clean, @"run": @{ @"program": product } };
-        }
-        case UDProjectBuildSystemMake:
-            return @{ @"build": @"make", @"clean": @"make clean" };
-        case UDProjectBuildSystemAppleMake:
-            return @{ @"build": @"make -f Makefile.apple", @"clean": @"make -f Makefile.apple clean" };
-        case UDProjectBuildSystemXcode: {
-            // Debug, as Xcode's Run builds it: what a debugger can follow
-            NSString *xcodebuild = [@"xcodebuild -configuration Debug" stringByAppendingString:[self _xcodeProjectArgument]];
-            return @{ @"build": [xcodebuild stringByAppendingString:@" build"],
-                      @"clean": [xcodebuild stringByAppendingString:@" clean"] };
-        }
-        case UDProjectBuildSystemCMake:
-            return @{ @"build": [self _cmakeBuildCommand], @"clean": @"cmake --build build --target clean" };
-        case UDProjectBuildSystemNone:
-            return @{};
-    }
-    return @{};
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    while (task.isRunning && deadline.timeIntervalSinceNow > 0) [NSThread sleepForTimeInterval:0.02];
+    if (task.isRunning) [task terminate];
+    [output closeFile];
+    NSString *text = [NSString stringWithContentsOfFile:file encoding:NSUTF8StringEncoding error:NULL];
+    [[NSFileManager defaultManager] removeItemAtPath:file error:NULL];
+    return text;
 }
 
 // ---------------------------------------------------------------------------
@@ -454,9 +236,8 @@ static NSString *UDStringOrNil(id value) {
 }
 
 - (NSString *)runProgram {
-    NSString *program = UDStringOrNil(self._run[@"program"]);
-    // an Xcode project's: what its Debug build makes
-    if (!program && self.buildSystem == UDProjectBuildSystemXcode) program = [self _xcodeProduct];
+    // the settings', else what the build makes (an Xcode project's Debug build's)
+    NSString *program = UDStringOrNil(self._run[@"program"]) ?: self.buildSystem.product;
     if (!program) return nil;
     program = [self _absolutePath:program];
     // an application: its executable, which a debugger runs
@@ -511,77 +292,27 @@ static NSString *UDStringOrNil(id value) {
 #ifdef GNUSTEP
     // GNUstep's, as GNUstep.sh sets it (a desktop doesn't run it): make finds
     // its makefiles, and what is built its libraries
-    [environment addEntriesFromDictionary:[UDProject _gnustepEnvironment]];
+    [environment addEntriesFromDictionary:[UDGNUstepMakeBuildSystem environment]];
 #endif
+    // an app started from a desktop or the Dock has a short PATH: the folders
+    // the tools are found in (Homebrew's among them), so the shell finds them too
+    NSMutableArray<NSString *> *path = [[environment[@"PATH"] ?: @"" componentsSeparatedByString:@":"] mutableCopy];
+    [path removeObject:@""];
+    for (NSString *folder in [UDToolLocator searchedFolders]) {
+        if (![path containsObject:folder] && [[NSFileManager defaultManager] fileExistsAtPath:folder]) [path addObject:folder];
+    }
+    environment[@"PATH"] = [path componentsJoinedByString:@":"];
     [environment addEntriesFromDictionary:self.runEnvironment];
     return environment;
 }
 
-#ifdef GNUSTEP
-/// What GNUstep.sh sets, read once: the shell runs it and says its environment.
-+ (NSDictionary<NSString *, NSString *> *)_gnustepEnvironment {
-    static NSDictionary *gnustep;
-    if (gnustep) return gnustep;
-    // the machine's GNUstep: an AppImage's own settings are not it
-    NSString *makefiles = [LSPTransport hostEnvironment][@"GNUSTEP_MAKEFILES"] ?: [self _gnustepMakefiles];
-    NSString *script = [makefiles stringByAppendingPathComponent:@"GNUstep.sh"];
-    NSMutableDictionary *found = [NSMutableDictionary dictionary];
-    if (makefiles && [[NSFileManager defaultManager] fileExistsAtPath:script]) {
-        NSTask *task = [[NSTask alloc] init];
-        task.environment = [LSPTransport hostEnvironment];
-        NSPipe *pipe = [NSPipe pipe];
-        task.launchPath = @"/bin/sh";
-        task.arguments = @[ @"-c", @". \"$1\" >/dev/null 2>&1; env", @"sh", script ];
-        task.standardOutput = pipe;
-        @try {
-            [task launch];
-            NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-            [task waitUntilExit];
-            NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-            for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
-                NSRange equals = [line rangeOfString:@"="];
-                if (equals.location == NSNotFound || equals.location == 0) continue;
-                found[[line substringToIndex:equals.location]] = [line substringFromIndex:NSMaxRange(equals)];
-            }
-        } @catch (NSException *exception) {
-        }
+- (NSString *)pathOfToolOnBuildPath:(NSString *)name {
+    for (NSString *folder in [self.buildEnvironment[@"PATH"] componentsSeparatedByString:@":"]) {
+        NSString *candidate = [folder stringByAppendingPathComponent:name];
+        if (folder.length && [[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
     }
-    if (makefiles && !found[@"GNUSTEP_MAKEFILES"]) found[@"GNUSTEP_MAKEFILES"] = makefiles;
-    gnustep = found;
-    return gnustep;
+    return [UDToolLocator pathOfTool:name];
 }
-
-+ (nullable NSString *)_gnustepMakefiles {
-    // the machine's gnustep-config, on its PATH, before the domains this
-    // process's GNUstep knows (an AppImage's, which has no make)
-    NSMutableArray<NSString *> *configs = [NSMutableArray array];
-    NSString *onPath = [UDToolLocator pathOfTool:@"gnustep-config"];
-    if (onPath) [configs addObject:onPath];
-    for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
-        [configs addObject:[tools stringByAppendingPathComponent:@"gnustep-config"]];
-    }
-    for (NSString *config in configs) {
-        if (![[NSFileManager defaultManager] isExecutableFileAtPath:config]) continue;
-        NSTask *task = [[NSTask alloc] init];
-        task.environment = [LSPTransport hostEnvironment];
-        NSPipe *pipe = [NSPipe pipe];
-        task.launchPath = config;
-        task.arguments = @[ @"--variable=GNUSTEP_MAKEFILES" ];
-        task.standardOutput = pipe;
-        @try {
-            [task launch];
-        } @catch (NSException *exception) {
-            continue;
-        }
-        NSData *output = [pipe.fileHandleForReading readDataToEndOfFile];
-        [task waitUntilExit];
-        NSString *path = [[[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding]
-                          stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (path.length) return path;
-    }
-    return nil;
-}
-#endif
 
 - (NSArray<NSString *> *)fallbackCompileFlags {
     NSMutableArray<NSString *> *flags = [NSMutableArray array];

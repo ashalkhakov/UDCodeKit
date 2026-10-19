@@ -58,6 +58,10 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
     return folders;
 }
 
++ (NSArray<NSString *> *)searchedFolders {
+    return [self _folders];
+}
+
 + (NSString *)pathOfTool:(NSString *)name {
     if (name.isAbsolutePath) return [self _isExecutable:name] ? name : nil;
     for (NSString *folder in [self _folders]) {

@@ -89,7 +89,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic) BOOL testing;
 /// The last the runner ran was tests (the activity view says how they went).
 @property (nonatomic) BOOL testsRan;
-@property (nonatomic, strong, nullable) UDLaunchConfiguration *pendingTestConfiguration;
+/// Tests being debugged: built, then debugged.
+@property (nonatomic, strong, nullable) UDTestDebugPlan *pendingTestPlan;
+/// What runs them once the debugger waits for it (an Xcode project's).
+@property (nonatomic, copy, nullable) NSString *pendingAttachedTestCommand;
 @property (nonatomic, weak) IBOutlet NSView             *debugNavigatorHost;
 @property (nonatomic, weak) IBOutlet NSView             *breakpointNavigatorHost;
 @property (nonatomic, strong) IBOutlet UDPaneSplitController *debugSplit;
@@ -403,7 +406,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
 - (void)reloadTests {
     if (!_project) return;
-    UDTestCatalog *catalog = [UDTestCatalog catalogOfFiles:_project.sourceFiles];
+    UDTestCatalog *catalog = [_project testCatalog];
     for (UDTest *test in catalog.allTests) {
         UDTest *before = [_testCatalogStore testNamed:test.name inSuite:test.suite.name];
         if (!before) continue;
@@ -427,52 +430,6 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [self runTests:tests debugging:debugging];
 }
 
-/// The bundle @a test is in: the one whose folder its file is in.
-- (nullable NSString *)_testBundleOf:(UDTest *)test {
-    NSString *folder = [_project.folderURL.path stringByAppendingString:@"/"];
-    for (NSString *bundle in _project.testBundles) {
-        NSString *inside = [folder stringByAppendingString:[bundle.stringByDeletingLastPathComponent stringByAppendingString:@"/"]];
-        if ([test.path hasPrefix:inside]) return bundle;
-    }
-    return _project.testBundles.count == 1 ? _project.testBundles.firstObject : nil;
-}
-
-/// What runs @a tests (nil: all): each XCTest bundle built (make debug=yes)
-/// and run by xctest, filtered to the tests asked for; else the project's
-/// test task or command, which runs them all.
-- (nullable NSString *)_testCommandFor:(nullable NSArray<UDTest *> *)tests {
-    NSArray<NSString *> *bundles = _project.testBundles;
-    if (bundles.count) {
-        NSMutableArray<NSString *> *steps = [NSMutableArray array];
-        for (NSString *bundle in bundles) {
-            NSMutableArray<NSString *> *filters = [NSMutableArray array];
-            for (UDTest *test in tests) {
-                if ([[self _testBundleOf:test] isEqualToString:bundle]) [filters addObject:test.identifier];
-            }
-            if (tests && !filters.count) continue;
-            NSString *folder = bundle.stringByDeletingLastPathComponent;
-            NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
-            NSString *filter = filters.count ? [@" -XCTest " stringByAppendingString:[UDProject quotedArgument:[filters componentsJoinedByString:@","]]] : @"";
-            [steps addObject:[NSString stringWithFormat:@"( %@ debug=yes && xctest%@ %@ ) || failed=1", make, filter,
-                              [UDProject quotedArgument:bundle]]];
-        }
-        if (!steps.count) return nil;
-        return [NSString stringWithFormat:@"failed=0; %@; exit $failed", [steps componentsJoinedByString:@"; "]];
-    }
-    UDTasks *tasks = [self tasks];
-    if (tasks.testTask) return [tasks commandLineRunning:tasks.testTask];
-    return _project.testCommand;
-}
-
-/// The path of a tool on the build's PATH (GNUstep's tools among them).
-- (nullable NSString *)_toolOnBuildPath:(NSString *)name {
-    for (NSString *folder in [_project.buildEnvironment[@"PATH"] componentsSeparatedByString:@":"]) {
-        NSString *candidate = [folder stringByAppendingPathComponent:name];
-        if (folder.length && [[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
-    }
-    return [UDToolLocator pathOfTool:name];
-}
-
 - (void)runTests:(nullable NSArray<UDTest *> *)tests debugging:(BOOL)debugging {
     if (!_project || !_buildRunner || _buildRunner.running) {
         NSBeep();
@@ -483,28 +440,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [_testNavigator reload];
     [self showTestNavigator:nil];
     if (debugging) {
-        // xctest, under the debugger, with the bundle and the tests asked for
-        UDTest *first = tests.firstObject ?: catalog.allTests.firstObject;
-        NSString *bundle = first ? [self _testBundleOf:first] : _project.testBundles.firstObject;
-        NSString *xctest = [self _toolOnBuildPath:@"xctest"];
-        if (!bundle || !xctest) {
-            [self _tell:@"These tests can't be debugged here"
-                 detail:@"Debugging a test runs xctest with its bundle under the debugger: a GNUstep project's XCTest bundle, and GNUstep's xctest."];
-            return;
-        }
-        NSMutableArray<NSString *> *arguments = [NSMutableArray array];
-        NSMutableArray<NSString *> *filters = [NSMutableArray array];
-        for (UDTest *test in tests) [filters addObject:test.identifier];
-        if (filters.count) [arguments addObjectsFromArray:@[ @"-XCTest", [filters componentsJoinedByString:@","] ]];
-        [arguments addObject:[_project.folderURL.path stringByAppendingPathComponent:bundle]];
-        _pendingTestConfiguration = [UDLaunchConfiguration configurationNamed:@"Tests" program:xctest arguments:arguments
-                                                                    directory:[_project.folderURL.path stringByAppendingPathComponent:bundle.stringByDeletingLastPathComponent]];
-        NSString *folder = bundle.stringByDeletingLastPathComponent;
-        NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
-        [self _build:[make stringByAppendingString:@" debug=yes"] then:UDAfterBuildDebugTests];
+        [self _debugTests:tests];
         return;
     }
-    NSString *command = [self _testCommandFor:tests];
+    NSString *command = [catalog commandRunningTests:tests];
     if (!command) {
         [self _tell:@"No tests to run"
              detail:@"UDCode runs a GNUstep project's XCTest bundles with xctest, an Xcode project's with xcodebuild test, "
@@ -523,6 +462,20 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     _buildLog.runner = _buildRunner;
     [self _showBuildIssues];
     [self _updateActivity];
+}
+
+/// Debugs @a tests (nil: all), as their runner says: built, then what runs
+/// them under the debugger (or, an Xcode project's, the debugger waiting to
+/// attach to what xcodebuild then starts).
+- (void)_debugTests:(nullable NSArray<UDTest *> *)tests {
+    NSString *reason = nil;
+    UDTestDebugPlan *plan = [self.testCatalog debugPlanForTests:tests reason:&reason];
+    if (!plan) {
+        [self _tell:@"These tests can't be debugged here" detail:reason ?: @""];
+        return;
+    }
+    _pendingTestPlan = plan;
+    [self _build:plan.buildCommand then:UDAfterBuildDebugTests];
 }
 
 /// A test run's line: its tests marked; a failure an issue at its place.
@@ -735,11 +688,38 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     _afterBuild = UDAfterBuildNothing;
     if (then == UDAfterBuildRun) [self _runProgramDebugging:NO];
     else if (then == UDAfterBuildDebug) [self _runProgramDebugging:YES];
-    else if (then == UDAfterBuildDebugTests && _pendingTestConfiguration) {
-        UDLaunchConfiguration *configuration = _pendingTestConfiguration;
-        _pendingTestConfiguration = nil;
-        [self _run:configuration debugging:YES];
+    else if (then == UDAfterBuildDebugTests && _pendingTestPlan) {
+        UDTestDebugPlan *plan = _pendingTestPlan;
+        _pendingTestPlan = nil;
+        [self _run:plan.configuration debugging:YES];
+        if (plan.testCommand) {
+            // what runs the tests, started once the debugger waits for it
+            // (lldb-dap says so; a process started before it waits isn't
+            // the one it waits for), or in a while if it doesn't say
+            _pendingAttachedTestCommand = plan.testCommand;
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_debuggerSaid:)
+                                                         name:UDDebugSessionDidOutputNotification object:self.debugSession];
+            [self performSelector:@selector(_startAttachedTests) withObject:nil afterDelay:10];
+        }
     }
+}
+
+- (void)_debuggerSaid:(NSNotification *)notification {
+    if (![notification.userInfo[UDDebugSessionOutputKey] containsString:@"Waiting to attach"]) return;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_startAttachedTests) object:nil];
+    [self performSelector:@selector(_startAttachedTests) withObject:nil afterDelay:0.5];
+}
+
+- (void)_startAttachedTests {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_startAttachedTests) object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UDDebugSessionDidOutputNotification object:nil];
+    NSString *command = _pendingAttachedTestCommand;
+    _pendingAttachedTestCommand = nil;
+    if (!command || self.debugSession.state == UDDebugSessionStateEnded) return;
+    _testing = YES;
+    _testsRan = YES;
+    if (![_buildRunner runCommand:command]) _testing = NO;
+    [self _updateActivity];
 }
 
 /// The build's diagnostics: an open file's in its own store (where its
@@ -1912,7 +1892,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [environment addEntriesFromDictionary:configuration.environment];
     NSMutableDictionary *arguments = nil;
     if (attach) {
-        arguments = [@{ @"pid": @(configuration.processID) } mutableCopy];
+        arguments = configuration.waitFor ? [@{ @"waitFor": @YES } mutableCopy]
+                                          : [@{ @"pid": @(configuration.processID) } mutableCopy];
         if (configuration.program) arguments[@"program"] = configuration.program;
     } else {
         arguments = [[UDToolLocator launchArgumentsForDebugger:kind program:configuration.program

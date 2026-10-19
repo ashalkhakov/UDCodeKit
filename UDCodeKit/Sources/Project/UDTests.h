@@ -21,7 +21,17 @@ typedef NS_ENUM(NSInteger, UDTestStatus) {
     UDTestStatusFailed,
 };
 
-@class UDTestSuite;
+/// The format a suite's tests are run and reported in.
+typedef NS_ENUM(NSInteger, UDTestKind) {
+    /// XCTest's: GNUstep's xctest, or xcodebuild
+    UDTestKindXCTest,
+    /// CTest's tests (add_test): ctest -R
+    UDTestKindCTest,
+    /// A GoogleTest executable's: --gtest_filter
+    UDTestKindGoogleTest,
+};
+
+@class UDTestSuite, UDTestRunner, UDTestDebugPlan;
 
 /// One test method.
 @interface UDTest : NSObject
@@ -34,8 +44,12 @@ typedef NS_ENUM(NSInteger, UDTestStatus) {
 @property (nonatomic) UDTestStatus status;
 /// What its failures said, in order.
 @property (nonatomic, readonly) NSMutableArray<NSString *> *failures;
-/// "Suite.test": GNUstep's xctest's filter for it (Apple's: "Suite/test").
+/// "Suite.test": GNUstep's xctest's filter for it (Apple's: "Suite/test"),
+/// GoogleTest's; CTest's test, its name.
 @property (nonatomic, readonly, copy) NSString *identifier;
+/// What runs it alone, for the debugger (CTest's: its command, in its folder).
+@property (nonatomic, copy, nullable) NSArray<NSString *> *command;
+@property (nonatomic, copy, nullable) NSString *directory;
 @end
 
 /// A test case class and its tests.
@@ -48,6 +62,13 @@ typedef NS_ENUM(NSInteger, UDTestStatus) {
 @property (nonatomic, readonly) UDTestStatus status;
 /// What went wrong outside its tests (its setUp threw).
 @property (nonatomic, readonly) NSMutableArray<NSString *> *failures;
+/// Its tests' format.
+@property (nonatomic) UDTestKind kind;
+/// What runs it: the runner that listed it, or claimed it (see
+/// -[UDTestCatalog runnerOfSuite:]).
+@property (nonatomic, strong, nullable) UDTestRunner *runner;
+/// A GoogleTest suite's executable.
+@property (nonatomic, copy, nullable) NSString *executable;
 @end
 
 /// A failure a run reported, as it reported it.
@@ -73,10 +94,28 @@ typedef NS_ENUM(NSInteger, UDTestStatus) {
 - (nullable UDTestSuite *)suiteNamed:(NSString *)name;
 - (nullable UDTest *)testNamed:(NSString *)name inSuite:(NSString *)suite;
 
+/// A suite and a test of it, as a runner lists them (CTest's, GoogleTest's).
+- (UDTestSuite *)addSuiteNamed:(NSString *)name kind:(UDTestKind)kind;
+- (UDTest *)addTest:(NSString *)name toSuite:(UDTestSuite *)suite;
+
+/// What runs its tests (UDProject -testCatalog gives it its project's),
+/// in order; a suite no runner listed is run by the first that runs it.
+@property (nonatomic, copy) NSArray<UDTestRunner *> *runners;
+- (nullable UDTestRunner *)runnerOfSuite:(UDTestSuite *)suite;
+/// The shell command running @a tests (nil: all of them), each by its
+/// suite's runner; nil when none of them can be run.
+- (nullable NSString *)commandRunningTests:(nullable NSArray<UDTest *> *)tests;
+/// How @a tests (nil: all) are debugged: by the first's runner, those of
+/// them it runs; nil, with @a reason, when they can't be.
+- (nullable UDTestDebugPlan *)debugPlanForTests:(nullable NSArray<UDTest *> *)tests
+                                         reason:(NSString *_Nullable *_Nullable)reason;
+
 /// Every test not run (a run of all of them begins), or @a tests.
 - (void)resetTests:(nullable NSArray<UDTest *> *)tests;
-/// One line of a run's output: the test it says passed or failed set so
-/// (one it names that the sources did not, added); a failure, returned.
+/// One line of a run's output — XCTest's (GNUstep's, Apple's), CTest's,
+/// GoogleTest's: the test it says passed or failed set so (one it names that
+/// the sources did not, added); a failure, returned (GoogleTest's when its
+/// message has ended).
 - (nullable UDTestFailure *)readLine:(NSString *)line;
 /// A file a failure names, as a path of the catalog's sources (by its
 /// trailing components): GNUstep's are relative to the bundle's folder.

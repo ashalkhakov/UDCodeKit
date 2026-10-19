@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDTests.h"
+#import "UDTestRunner.h"
 
 @interface UDTest ()
 @property (nonatomic, readwrite, copy) NSString *name;
@@ -30,6 +31,7 @@
 }
 
 - (NSString *)identifier {
+    if (_suite.kind == UDTestKindCTest) return _name;
     return [NSString stringWithFormat:@"%@.%@", _suite.name, _name];
 }
 
@@ -69,6 +71,8 @@
     NSMutableArray<UDTestSuite *> *_suites;
     NSMutableDictionary<NSString *, UDTestSuite *> *_suitesByName;
     NSArray<NSString *> *_paths;
+    UDTestFailure *_pendingFailure;     // GoogleTest's, its message's lines still coming
+    NSMutableDictionary<NSString *, UDTest *> *_ctestTests;
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +198,21 @@ static NSString *UDIdentifierAt(NSString *text) {
     return test;
 }
 
+- (UDTestSuite *)addSuiteNamed:(NSString *)name kind:(UDTestKind)kind {
+    UDTestSuite *suite = [self _suiteNamed:name create:YES];
+    suite.kind = kind;
+    return suite;
+}
+
+- (UDTest *)addTest:(NSString *)name toSuite:(UDTestSuite *)suite {
+    UDTest *test = [self _test:name inSuite:suite create:YES];
+    if (suite.kind == UDTestKindCTest) {
+        if (!_ctestTests) _ctestTests = [NSMutableDictionary dictionary];
+        _ctestTests[name] = test;
+    }
+    return test;
+}
+
 - (UDTestSuite *)suiteNamed:(NSString *)name {
     return _suitesByName[name];
 }
@@ -201,6 +220,52 @@ static NSString *UDIdentifierAt(NSString *text) {
 - (UDTest *)testNamed:(NSString *)name inSuite:(NSString *)suite {
     UDTestSuite *found = _suitesByName[suite];
     return found ? [self _test:name inSuite:found create:NO] : nil;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Who runs them
+// ---------------------------------------------------------------------------
+
+- (UDTestRunner *)runnerOfSuite:(UDTestSuite *)suite {
+    if (!suite.runner) {
+        for (UDTestRunner *runner in _runners) {
+            if ([runner runsSuite:suite]) {
+                suite.runner = runner;
+                break;
+            }
+        }
+    }
+    return suite.runner;
+}
+
+- (NSArray<UDTest *> *)_testsOf:(NSArray<UDTest *> *)tests runBy:(UDTestRunner *)runner {
+    NSMutableArray<UDTest *> *its = [NSMutableArray array];
+    for (UDTest *test in tests) {
+        if (test.suite && [self runnerOfSuite:test.suite] == runner) [its addObject:test];
+    }
+    return its;
+}
+
+- (NSString *)commandRunningTests:(NSArray<UDTest *> *)tests {
+    NSMutableArray<NSString *> *steps = [NSMutableArray array];
+    for (UDTestRunner *runner in _runners) {
+        if (runner.runsAlone && steps.count) continue;
+        NSArray<UDTest *> *its = tests ? [self _testsOf:tests runBy:runner] : nil;
+        if (tests && !its.count) continue;
+        NSString *command = [runner commandRunningTests:its];
+        if (command) [steps addObject:command];
+    }
+    return [UDTestRunner commandOfSteps:steps];
+}
+
+- (UDTestDebugPlan *)debugPlanForTests:(NSArray<UDTest *> *)tests reason:(NSString **)reason {
+    UDTest *first = (tests ?: self.allTests).firstObject;
+    UDTestRunner *runner = first ? [self runnerOfSuite:first.suite] : _runners.firstObject;
+    if (!runner) {
+        if (reason) *reason = @"Nothing runs these tests.";
+        return nil;
+    }
+    return [runner debugPlanForTests:tests ? [self _testsOf:tests runBy:runner] : nil reason:reason];
 }
 
 - (void)resetTests:(NSArray<UDTest *> *)tests {
@@ -257,8 +322,83 @@ static NSString *UDMethodNameIn(NSString *text) {
     return end.location == NSNotFound ? nil : [text substringWithRange:NSMakeRange(start.location, NSMaxRange(end) - start.location)];
 }
 
+/// GoogleTest's "[  FAILED  ] Suite.Test (3 ms)" and the like: the test named.
+- (nullable UDTest *)_googleTestNamed:(NSString *)said {
+    NSString *name = [said componentsSeparatedByString:@" "].firstObject;
+    NSRange dot = [name rangeOfString:@"."];
+    if (dot.location == NSNotFound) return nil;
+    UDTestSuite *suite = [self _suiteNamed:[name substringToIndex:dot.location] create:YES];
+    if (suite.tests.count == 0 && suite.kind == UDTestKindXCTest) suite.kind = UDTestKindGoogleTest;
+    return [self _test:[name substringFromIndex:NSMaxRange(dot)] inSuite:suite create:YES];
+}
+
+/// A GoogleTest failure whose message has ended: its test's.
+- (nullable UDTestFailure *)_endPendingFailure {
+    UDTestFailure *ended = _pendingFailure;
+    _pendingFailure = nil;
+    if (ended.test) [ended.test.failures addObject:ended.message];
+    return ended;
+}
+
 - (UDTestFailure *)readLine:(NSString *)line {
     line = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    // GoogleTest's: "[ RUN      ] Suite.Test", "[       OK ] ...", "[  FAILED  ] ...";
+    // a failure, "file:line: Failure" and its message's lines
+    if ([line hasPrefix:@"["] && line.length > 12 && [line characterAtIndex:11] == ']') {
+        UDTestFailure *ended = [self _endPendingFailure];
+        NSString *tag = [[line substringWithRange:NSMakeRange(1, 10)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        NSString *said = [[line substringFromIndex:12] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        UDTest *test = [tag isEqualToString:@"RUN"] || [tag isEqualToString:@"OK"] || [tag isEqualToString:@"FAILED"]
+                     ? [self _googleTestNamed:said] : nil;
+        if ([tag isEqualToString:@"RUN"]) test.status = UDTestStatusRunning;
+        else if ([tag isEqualToString:@"OK"]) test.status = UDTestStatusPassed;
+        else if ([tag isEqualToString:@"FAILED"] && test.status != UDTestStatusPassed) test.status = UDTestStatusFailed;
+        return ended;
+    }
+    NSRange gtestFailure = [line rangeOfString:@": Failure" options:NSBackwardsSearch];
+    if (gtestFailure.location != NSNotFound && NSMaxRange(gtestFailure) == line.length) {
+        NSString *place = [line substringToIndex:gtestFailure.location];
+        NSRange colon = [place rangeOfString:@":" options:NSBackwardsSearch];
+        if (colon.location != NSNotFound) {
+            UDTestFailure *ended = [self _endPendingFailure];
+            _pendingFailure = [[UDTestFailure alloc] init];
+            _pendingFailure.file = [place substringToIndex:colon.location];
+            _pendingFailure.line = [[place substringFromIndex:NSMaxRange(colon)] integerValue];
+            _pendingFailure.message = @"";
+            // the test running: the last marked so
+            for (UDTest *test in self.allTests) {
+                if (test.status == UDTestStatusRunning) _pendingFailure.test = test;
+            }
+            _pendingFailure.test.status = UDTestStatusFailed;
+            return ended;
+        }
+    }
+    if (_pendingFailure) {
+        _pendingFailure.message = _pendingFailure.message.length ? [_pendingFailure.message stringByAppendingFormat:@" %@", line] : line;
+        return nil;
+    }
+    // CTest's: "1/2 Test #1: adds ......   Passed    0.00 sec", "...***Failed"
+    NSRange ctest = [line rangeOfString:@" Test #"];
+    if (ctest.location != NSNotFound && _ctestTests.count) {
+        NSString *rest = [line substringFromIndex:NSMaxRange(ctest)];
+        NSRange colon = [rest rangeOfString:@": "];
+        if (colon.location != NSNotFound) {
+            NSString *after = [rest substringFromIndex:NSMaxRange(colon)];
+            NSString *name = [after componentsSeparatedByString:@" "].firstObject;
+            UDTest *test = _ctestTests[name];
+            if ([after rangeOfString:@"Passed"].location != NSNotFound) test.status = UDTestStatusPassed;
+            else if ([after rangeOfString:@"***"].location != NSNotFound || [after rangeOfString:@"Failed"].location != NSNotFound) {
+                test.status = UDTestStatusFailed;
+            }
+            return nil;
+        }
+    }
+    NSRange start = [line rangeOfString:@"Start "];
+    if (start.location == 0 && _ctestTests.count) {
+        NSRange colon = [line rangeOfString:@": "];
+        if (colon.location != NSNotFound) _ctestTests[[line substringFromIndex:NSMaxRange(colon)]].status = UDTestStatusRunning;
+        return nil;
+    }
     // GNUstep's xctest: NSLog's "date xctest[pid:tid] XCTest: ..."
     NSRange marker = [line rangeOfString:@"XCTest: "];
     if (marker.location != NSNotFound) {
@@ -300,8 +440,9 @@ static NSString *UDMethodNameIn(NSString *text) {
         }
         return nil;
     }
-    // Apple's: "Test Case '-[Suite test]' started." / "passed (0.001 seconds)." / "failed (...)."
-    if ([line hasPrefix:@"Test Case '"]) {
+    // Apple's: "Test Case '-[Suite test]' started." / "passed (0.001 seconds)." / "failed (...).";
+    // xcodebuild's since Xcode 16, "Test case '-[Suite test]' passed on 'My Mac - App (pid)' (0.001 seconds)"
+    if ([line rangeOfString:@"Test Case '" options:NSAnchoredSearch | NSCaseInsensitiveSearch].location == 0) {
         NSRange quote = [line rangeOfString:@"'" options:0 range:NSMakeRange(11, line.length - 11)];
         if (quote.location == NSNotFound) return nil;
         UDTest *test = [self _testOfMethodName:[line substringWithRange:NSMakeRange(11, quote.location - 11)]];

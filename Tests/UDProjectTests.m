@@ -85,6 +85,8 @@
     XCTAssertEqual(self.project.buildSystem, UDProjectBuildSystemGNUstepMake);
     XCTAssertEqualObjects(self.project.runProgram, [_folder stringByAppendingPathComponent:@"Hello.app/Hello"],
                           @"the application's executable");
+    XCTAssertEqualObjects(self.project.buildCommand, @"make debug=yes", @"unoptimized, for the debugger");
+    XCTAssertEqualObjects(self.project.cleanCommand, @"make debug=yes clean");
     XCTAssertNotNil(self.project.buildEnvironment[@"GNUSTEP_MAKEFILES"], @"GNUstep's environment, as GNUstep.sh has it");
 #else
     XCTAssertEqual(self.project.buildSystem, UDProjectBuildSystemMake, @"a GNUmakefile is GNUstep's: not on macOS");
@@ -167,6 +169,58 @@
     // not from an AppImage: as it is
     NSDictionary *plain = @{ @"PATH": @"/usr/bin", @"GNUSTEP_MAKEFILES": @"/opt/gnustep/System/Library/Makefiles" };
     XCTAssertEqualObjects([LSPTransport hostEnvironmentOf:plain], plain);
+}
+
+/// A GNUstep project whose GNUmakefile is in a folder of its own, beside an
+/// Xcode project (ProjectCenter's, as UDCalc's): its application's folder.
+- (void)testAGNUmakefileInAFolderOfItsOwn {
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nTOOL_NAME = CalculatorTests\n" to:@"CalculatorTests/GNUmakefile"];
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nAPP_NAME = Calculator\n" to:@"Calculator/GNUmakefile"];
+#ifdef GNUSTEP
+    XCTAssertEqual(self.project.buildSystem, UDProjectBuildSystemGNUstepMake);
+    XCTAssertEqualObjects(self.project.buildCommand, @"make -C Calculator debug=yes", @"the application's, not the tests'");
+    XCTAssertEqualObjects(self.project.runProgram, [_folder stringByAppendingPathComponent:@"Calculator/Calculator.app/Calculator"]);
+    XCTAssertEqualObjects(self.project.inferredProgram, @"Calculator/Calculator.app");
+#else
+    XCTAssertEqual(self.project.buildSystem, UDProjectBuildSystemNone, @"GNUstep's, not macOS's");
+#endif
+}
+
+/// A GNUstep project of several (UDQuakeTools'): what its SUBPROJECTS build
+/// that runs, applications first, each a scheme in the toolbar; the one
+/// chosen is run, and kept.
+- (void)testAProjectOfSeveralProgramsHasASchemeForEach {
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nSUBPROJECTS = Sources/Libraries Tools/paktool Sources/Launcher \\\n"
+                @"              Sources/Quarry\ninclude $(GNUSTEP_MAKEFILES)/aggregate.make\n" to:@"GNUmakefile"];
+    [self write:@"LIBRARY_NAME = libquake\n" to:@"Sources/Libraries/GNUmakefile"];
+    [self write:@"TOOL_NAME = paktool\n" to:@"Tools/paktool/GNUmakefile"];
+    [self write:@"APP_NAME = Launcher\n" to:@"Sources/Launcher/GNUmakefile"];
+    [self write:@"APP_NAME = Quarry # the editor\n" to:@"Sources/Quarry/GNUmakefile"];
+#ifdef GNUSTEP
+    XCTAssertEqualObjects(self.project.programs, (@[ @"Sources/Launcher/Launcher.app", @"Sources/Quarry/Quarry.app",
+                                                     @"Tools/paktool/obj/paktool" ]));
+    XCTAssertEqualObjects(self.project.inferredProgram, @"Sources/Launcher/Launcher.app", @"the first application");
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    controller.selectedProgram = nil;
+    NSPopUpButton *scheme = controller.schemePopUp;
+    XCTAssertEqualObjects(scheme.itemTitles, (@[ @"Launcher", @"Quarry", @"paktool" ]));
+    [scheme selectItemAtIndex:1];
+    [controller selectProgram:scheme];
+    XCTAssertEqualObjects(controller.project.runProgram,
+                          [_folder stringByAppendingPathComponent:@"Sources/Quarry/Quarry.app/Quarry"], @"the scheme chosen");
+    XCTAssertEqualObjects(scheme.titleOfSelectedItem, @"Quarry");
+    [controller close];
+    [workspace close];
+    // kept with the project
+    controller = [self openProject:&workspace];
+    XCTAssertEqualObjects(controller.project.inferredProgram, @"Sources/Quarry/Quarry.app");
+    controller.selectedProgram = nil;
+    [controller close];
+    [workspace close];
+#else
+    XCTAssertEqualObjects(self.project.programs, @[], @"GNUstep's, not macOS's");
+#endif
 }
 
 - (void)testOneFolderForBothSystems {

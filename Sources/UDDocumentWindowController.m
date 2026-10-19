@@ -200,6 +200,7 @@ static const NSInteger UDAfterBuildDebug = 2;
         _projectHost.hidden = NO;
         _filesTable.enclosingScrollView.hidden = YES;
         _breakpoints.autosaveName = [@"UDCode Debugger " stringByAppendingString:_project.folderURL.path];
+        _project.preferredProgram = [[NSUserDefaults standardUserDefaults] stringForKey:[self _programDefaultsKey]];
         _buildRunner = [[UDBuildRunner alloc] initWithProject:_project];
         _fileWatcher = [[UDFileWatcher alloc] initWithFolderURL:_project.folderURL ignoredNames:nil];
         _fileWatcher.delegate = self;
@@ -353,6 +354,29 @@ static const NSInteger UDAfterBuildDebug = 2;
     [self _updateSchemePopUp];
 }
 
+- (NSString *)_programDefaultsKey {
+    return [@"UDCode Program " stringByAppendingString:_project.folderURL.path ?: @""];
+}
+
+/// The program the scheme pop-up chose, among the project's (UDQuakeTools'
+/// apps and tools), kept with the project.
+- (void)setSelectedProgram:(nullable NSString *)program {
+    _project.preferredProgram = program;
+    if (program) [[NSUserDefaults standardUserDefaults] setObject:program forKey:[self _programDefaultsKey]];
+    else [[NSUserDefaults standardUserDefaults] removeObjectForKey:[self _programDefaultsKey]];
+    [self _updateSchemePopUp];
+}
+
+- (nullable NSString *)selectedProgram {
+    return _project.inferredProgram;
+}
+
+- (IBAction)selectProgram:(nullable id)sender {
+    if ([sender isKindOfClass:[NSPopUpButton class]]) sender = [sender selectedItem];
+    id program = [sender respondsToSelector:@selector(representedObject)] ? [sender representedObject] : nil;
+    if ([program isKindOfClass:[NSString class]]) self.selectedProgram = program;
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - The toolbar: the scheme, and what is going on (Xcode's activity view)
 // ---------------------------------------------------------------------------
@@ -369,12 +393,24 @@ static const NSInteger UDAfterBuildDebug = 2;
             _schemePopUp.lastItem.representedObject = configuration.name;
         }
         [_schemePopUp selectItemWithTitle:self.selectedLaunchConfiguration];
+        _schemePopUp.enabled = configurations.count > 1;
+        _schemePopUp.action = @selector(selectLaunchConfiguration:);
+    } else if (_project.programs.count > 1) {
+        // what the project builds that runs: Xcode's schemes, as it were
+        for (NSString *program in _project.programs) {
+            [_schemePopUp addItemWithTitle:program.lastPathComponent.stringByDeletingPathExtension];
+            _schemePopUp.lastItem.representedObject = program;
+            _schemePopUp.lastItem.toolTip = program;
+        }
+        NSInteger chosen = [_schemePopUp indexOfItemWithRepresentedObject:_project.inferredProgram];
+        if (chosen >= 0) [_schemePopUp selectItemAtIndex:chosen];
+        _schemePopUp.enabled = YES;
+        _schemePopUp.action = @selector(selectProgram:);
     } else {
         [_schemePopUp addItemWithTitle:_project ? _project.name : self.window.title];
+        _schemePopUp.enabled = NO;
     }
-    _schemePopUp.enabled = configurations.count > 1;
     _schemePopUp.target = self;
-    _schemePopUp.action = @selector(selectLaunchConfiguration:);
 }
 
 /// What the program run is called: the configuration's, else the project's program.

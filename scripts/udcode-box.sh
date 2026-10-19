@@ -83,6 +83,8 @@ inside() {
     curl -fsSL "https://github.com/ashalkhakov/FreeCoreData/releases/download/v$freecoredata/freecoredata-$freecoredata-ubuntu22.04-$arch.tar.xz" \
         | $sudo tar -C / --no-overwrite-dir -xJ
     echo "  $freecoredata"
+    # yours, as CI's runner has it: what a project builds on (udcode-deps) unpacks into it
+    $sudo chown -R "$(id -u):$(id -g)" /opt/gnustep
 
     echo "==> LLVM 18: clangd, lldb-dap"
     if [[ ! -f /etc/apt/sources.list.d/llvm.list ]]; then
@@ -95,8 +97,23 @@ inside() {
     $sudo apt-get -q -y install --no-install-recommends clangd-18 lldb-18
 
     echo "==> Building: make, cmake, ninja, gdb, ripgrep; the engines' libraries"
-    $sudo apt-get -q -y install --no-install-recommends make cmake ninja-build gdb ripgrep squashfs-tools python3 \
+    $sudo apt-get -q -y install --no-install-recommends make cmake ninja-build gdb ripgrep squashfs-tools python3 libsqlite3-dev \
         libsdl2-dev libopenal-dev libvorbis-dev libogg-dev libopus-dev libopusfile-dev libjpeg-dev zlib1g-dev
+
+    echo "==> udcode-deps: what a project builds on"
+    $sudo tee /usr/local/bin/udcode-deps >/dev/null << 'EOF'
+#!/bin/sh
+# What the project in this folder builds on, by the versions its
+# .github/pins.env names (UDCodeKit, FreeCoreData, the stack, ...), unpacked
+# into /opt/gnustep as its CI does: gnustep-release-actions' deps.sh.
+set -e
+[ -f .github/pins.env ] || { echo "udcode-deps: no .github/pins.env here; run it in a project's folder" >&2; exit 1; }
+script=$(mktemp)
+curl -fsSL -o "$script" https://raw.githubusercontent.com/ashalkhakov/gnustep-release-actions/v1/scripts/deps.sh
+bash "$script" linux
+rm -f "$script"
+EOF
+    $sudo chmod +x /usr/local/bin/udcode-deps
 
     echo "==> UDCode"
     local image=$APPIMAGE version
@@ -145,10 +162,12 @@ EOF
     local icon
     icon=$(find /opt/udcode -maxdepth 2 -name '*.png' | head -n 1)
     [[ -n "$icon" ]] && $sudo cp "$icon" /usr/share/icons/hicolor/256x256/apps/udcode.png
-    if command -v distrobox-export >/dev/null 2>&1; then
-        distrobox-export --app udcode >/dev/null 2>&1 || true
+    if command -v distrobox-export >/dev/null 2>&1 && distrobox-export --app udcode; then
+        echo "  done: UDCode is in the application menu, or 'distrobox enter $BOX -- udcode'"
+    else
+        echo "udcode-box: UDCode could not be put in the host's application menu (above: why);" >&2
+        echo "  start it with 'distrobox enter $BOX -- udcode'" >&2
     fi
-    echo "  done: UDCode is in the application menu, or 'distrobox enter $BOX -- udcode'"
 }
 
 if [[ -n "${INSIDE:-}" ]]; then

@@ -18,6 +18,7 @@ NSString * const UDProjectPlatformKey = @"macos";
 
 @implementation UDProject {
     NSDictionary *_settings;
+    NSString *_preferredProgram;
     NSString *_xcodeProduct;
     BOOL _xcodeProductAsked;
 }
@@ -111,7 +112,7 @@ static NSString *UDStringOrNil(id value);
 
 - (UDProjectBuildSystem)buildSystem {
 #ifdef GNUSTEP
-    if ([self _has:@"GNUmakefile"]) return UDProjectBuildSystemGNUstepMake;
+    if ([self _gnustepMakeFolder]) return UDProjectBuildSystemGNUstepMake;
 #else
     if ([self _has:@"Makefile.apple"]) return UDProjectBuildSystemAppleMake;
     for (NSString *entry in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]) {
@@ -144,27 +145,95 @@ static NSString *UDStringOrNil(id value);
 
 /// What a GNUmakefile builds first: an application (APP_NAME, its .app) or a
 /// tool (TOOL_NAME, in obj/), as GNUstep make names them.
-- (nullable NSString *)_gnustepMakeProduct {
-    NSString *text = [NSString stringWithContentsOfFile:[_folderURL.path stringByAppendingPathComponent:@"GNUmakefile"]
-                                               encoding:NSUTF8StringEncoding error:NULL];
+/// Where the GNUmakefile is: the folder itself (""), else the folder in it
+/// whose GNUmakefile builds an application (ProjectCenter's projects sit
+/// beside an Xcode project that way: UDCalc's Calculator/), else one that
+/// builds anything; nil when there is none.
+- (nullable NSString *)_gnustepMakeFolder {
+    if ([self _has:@"GNUmakefile"]) return @"";
+    NSString *tool = nil;
+    NSArray *entries = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:_folderURL.path error:NULL]
+                        sortedArrayUsingSelector:@selector(compare:)];
+    for (NSString *entry in entries) {
+        if ([entry hasPrefix:@"."] || ![self _has:[entry stringByAppendingPathComponent:@"GNUmakefile"]]) continue;
+        NSArray<NSString *> *products = [self _gnustepProductsIn:entry depth:0];
+        for (NSString *product in products) {
+            if ([product.pathExtension isEqualToString:@"app"]) return entry;
+        }
+        if (products.count && !tool) tool = entry;
+    }
+    return tool;
+}
+
+/// A GNUmakefile's text, its lines continued with a backslash joined.
+- (NSString *)_makefileIn:(NSString *)folder {
+    NSString *path = [[_folderURL.path stringByAppendingPathComponent:folder] stringByAppendingPathComponent:@"GNUmakefile"];
+    NSString *text = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL] ?: @"";
+    return [text stringByReplacingOccurrencesOfString:@"\\\n" withString:@" "];
+}
+
+/// The words a makefile assigns @a variable (APP_NAME = Quarry), as given.
+static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
         NSString *trimmed = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-        for (NSString *variable in @[ @"APP_NAME", @"TOOL_NAME" ]) {
-            if (![trimmed hasPrefix:variable]) continue;
-            NSRange equals = [trimmed rangeOfString:@"="];
-            if (equals.location == NSNotFound) continue;
-            NSString *between = [[trimmed substringWithRange:NSMakeRange(variable.length, equals.location - variable.length)]
-                                 stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" \t:+?"]];
-            if (between.length) continue;           // another variable, APP_NAME_FOO
-            NSString *name = [[[trimmed substringFromIndex:NSMaxRange(equals)]
-                               stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]
-                              componentsSeparatedByString:@" "].firstObject;
-            if (!name.length || [name hasPrefix:@"$"]) continue;
-            return [variable isEqualToString:@"APP_NAME"] ? [name stringByAppendingPathExtension:@"app"]
-                                                          : [@"obj" stringByAppendingPathComponent:name];
+        if (![trimmed hasPrefix:variable]) continue;
+        NSRange equals = [trimmed rangeOfString:@"="];
+        if (equals.location == NSNotFound) continue;
+        NSString *between = [[trimmed substringWithRange:NSMakeRange(variable.length, equals.location - variable.length)]
+                             stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@" \t:+?"]];
+        if (between.length) continue;           // another variable, APP_NAME_FOO
+        NSMutableArray<NSString *> *words = [NSMutableArray array];
+        for (NSString *word in [[trimmed substringFromIndex:NSMaxRange(equals)] componentsSeparatedByCharactersInSet:
+                                   [NSCharacterSet whitespaceCharacterSet]]) {
+            if (word.length && ![word hasPrefix:@"$"] && ![word hasPrefix:@"#"]) [words addObject:word];
+            if ([word hasPrefix:@"#"]) break;
+        }
+        return words;
+    }
+    return @[];
+}
+
+/// What the GNUmakefile in @a folder builds that runs, as gnustep-make
+/// names it (APP_NAME's .app, TOOL_NAME's obj/ tool), and what its
+/// SUBPROJECTS build, in their order, each as the project's folder names it.
+- (NSArray<NSString *> *)_gnustepProductsIn:(NSString *)folder depth:(NSUInteger)depth {
+    if (depth > 4) return @[];
+    NSString *text = [self _makefileIn:folder];
+    NSMutableArray<NSString *> *products = [NSMutableArray array];
+    for (NSString *name in UDMakeVariable(text, @"APP_NAME")) {
+        [products addObject:[folder stringByAppendingPathComponent:[name stringByAppendingPathExtension:@"app"]]];
+    }
+    for (NSString *name in UDMakeVariable(text, @"TOOL_NAME")) {
+        [products addObject:[folder stringByAppendingPathComponent:[@"obj" stringByAppendingPathComponent:name]]];
+    }
+    for (NSString *subproject in UDMakeVariable(text, @"SUBPROJECTS")) {
+        NSString *inner = [folder stringByAppendingPathComponent:subproject];
+        if ([self _has:[inner stringByAppendingPathComponent:@"GNUmakefile"]]) {
+            [products addObjectsFromArray:[self _gnustepProductsIn:inner depth:depth + 1]];
         }
     }
-    return nil;
+    return products;
+}
+
+- (NSArray<NSString *> *)programs {
+#ifdef GNUSTEP
+    NSString *folder = [self _gnustepMakeFolder];
+    if (!folder) return @[];
+    NSArray<NSString *> *products = [self _gnustepProductsIn:folder depth:0];
+    // the applications first, as they are what one runs
+    NSArray *apps = [products filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"pathExtension == 'app'"]];
+    NSArray *tools = [products filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"pathExtension != 'app'"]];
+    return [apps arrayByAddingObjectsFromArray:tools];
+#else
+    return @[];
+#endif
+}
+
+/// What runs: the program chosen among the project's, else its first.
+- (nullable NSString *)_gnustepMakeProduct {
+    NSArray<NSString *> *programs = self.programs;
+    if (_preferredProgram && [programs containsObject:_preferredProgram]) return _preferredProgram;
+    return programs.firstObject;
 }
 
 /// The project xcodebuild is to build, when the folder has more than one.
@@ -252,9 +321,14 @@ static NSString *UDStringOrNil(id value);
 - (NSDictionary *)inferredSettings {
     switch (self.buildSystem) {
         case UDProjectBuildSystemGNUstepMake: {
+            // debug=yes: unoptimized, with debug information (Xcode's Run builds Debug)
+            NSString *folder = [self _gnustepMakeFolder];
+            NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
+            NSString *build = [make stringByAppendingString:@" debug=yes"];
+            NSString *clean = [make stringByAppendingString:@" debug=yes clean"];
             NSString *product = [self _gnustepMakeProduct];
-            if (!product) return @{ @"build": @"make", @"clean": @"make clean" };
-            return @{ @"build": @"make", @"clean": @"make clean", @"run": @{ @"program": product } };
+            if (!product) return @{ @"build": build, @"clean": clean };
+            return @{ @"build": build, @"clean": clean, @"run": @{ @"program": product } };
         }
         case UDProjectBuildSystemMake:
             return @{ @"build": @"make", @"clean": @"make clean" };

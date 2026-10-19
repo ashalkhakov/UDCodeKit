@@ -65,6 +65,8 @@
 #import <UDCodeKit/UDBreakpointNavigatorViewController.h>
 #import <UDCodeKit/UDBreakpointEditorViewController.h>
 #import <UDCodeKit/UDDebugHoverViewController.h>
+#import <UDCodeKit/UDTestNavigatorViewController.h>
+#import <UDCodeKit/UDTests.h>
 #import <UDCodeKit/UDSemanticTokensHighlighter.h>
 #import <UDCodeKit/UDTerminalViewController.h>
 #import <UDCodeKit/UDTerminalView.h>

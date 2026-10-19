@@ -17,13 +17,15 @@ static const NSInteger UDDebugAreaPane = 1;
 // The navigator's segments.
 static const NSInteger UDFindNavigatorSegment = 1;
 static const NSInteger UDIssuesNavigatorSegment = 2;
-static const NSInteger UDDebugNavigatorSegment = 3;
-static const NSInteger UDBreakpointNavigatorSegment = 4;
-static const NSInteger UDBuildNavigatorSegment = 5;
+static const NSInteger UDTestNavigatorSegment = 3;
+static const NSInteger UDDebugNavigatorSegment = 4;
+static const NSInteger UDBreakpointNavigatorSegment = 5;
+static const NSInteger UDBuildNavigatorSegment = 6;
 // What follows a build.
 static const NSInteger UDAfterBuildNothing = 0;
 static const NSInteger UDAfterBuildRun = 1;
 static const NSInteger UDAfterBuildDebug = 2;
+static const NSInteger UDAfterBuildDebugTests = 3;
 
 // ---------------------------------------------------------------------------
 // MARK: - UDDocumentWindowController  (private extension)
@@ -32,7 +34,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
-                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate,
+                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -80,6 +82,14 @@ static const NSInteger UDAfterBuildDebug = 2;
 /// (one clangd for the project, as VS Code has it).
 @property (nonatomic, strong) NSMutableDictionary<NSArray<NSString *> *, LSPClient *> *projectServers;
 @property (nonatomic, weak) IBOutlet NSView             *issuesHost;
+@property (nonatomic, weak) IBOutlet NSView             *testsHost;
+@property (nonatomic, strong, readwrite) UDTestNavigatorViewController *testNavigator;
+@property (nonatomic, strong, nullable) UDTestCatalog *testCatalogStore;
+/// A test run is what the build runner runs: its output read for its tests.
+@property (nonatomic) BOOL testing;
+/// The last the runner ran was tests (the activity view says how they went).
+@property (nonatomic) BOOL testsRan;
+@property (nonatomic, strong, nullable) UDLaunchConfiguration *pendingTestConfiguration;
 @property (nonatomic, weak) IBOutlet NSView             *debugNavigatorHost;
 @property (nonatomic, weak) IBOutlet NSView             *breakpointNavigatorHost;
 @property (nonatomic, strong) IBOutlet UDPaneSplitController *debugSplit;
@@ -205,6 +215,9 @@ static const NSInteger UDAfterBuildDebug = 2;
         _fileWatcher = [[UDFileWatcher alloc] initWithFolderURL:_project.folderURL ignoredNames:nil];
         _fileWatcher.delegate = self;
     }
+    _testNavigator = [[UDTestNavigatorViewController alloc] init];
+    _testNavigator.delegate = self;
+    [self _putView:_testNavigator.view inHost:_testsHost];
     _searchResults = [[UDSearchResultsViewController alloc] init];
     _searchResults.delegate = self;
     _searchResults.folderURL = _project.folderURL;
@@ -378,6 +391,170 @@ static const NSInteger UDAfterBuildDebug = 2;
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Tests (Debug › Test, the Test navigator)
+// ---------------------------------------------------------------------------
+
+/// The project's tests, as its sources have them; what the last runs left
+/// marked stays marked.
+- (UDTestCatalog *)testCatalog {
+    if (!_testCatalogStore) [self reloadTests];
+    return _testCatalogStore;
+}
+
+- (void)reloadTests {
+    if (!_project) return;
+    UDTestCatalog *catalog = [UDTestCatalog catalogOfFiles:_project.sourceFiles];
+    for (UDTest *test in catalog.allTests) {
+        UDTest *before = [_testCatalogStore testNamed:test.name inSuite:test.suite.name];
+        if (!before) continue;
+        test.status = before.status;
+        [test.failures addObjectsFromArray:before.failures];
+    }
+    _testCatalogStore = catalog;
+    _testNavigator.catalog = catalog;
+}
+
+/// Debug › Test (⌘U): all the tests.
+- (IBAction)test:(nullable id)sender {
+    [self runTests:nil debugging:NO];
+}
+
+- (void)testNavigator:(UDTestNavigatorViewController *)navigator showPath:(NSString *)path line:(NSInteger)line {
+    [self _showURL:[NSURL fileURLWithPath:path] line:line column:0 length:0];
+}
+
+- (void)testNavigator:(UDTestNavigatorViewController *)navigator runTests:(NSArray<UDTest *> *)tests debugging:(BOOL)debugging {
+    [self runTests:tests debugging:debugging];
+}
+
+/// The bundle @a test is in: the one whose folder its file is in.
+- (nullable NSString *)_testBundleOf:(UDTest *)test {
+    NSString *folder = [_project.folderURL.path stringByAppendingString:@"/"];
+    for (NSString *bundle in _project.testBundles) {
+        NSString *inside = [folder stringByAppendingString:[bundle.stringByDeletingLastPathComponent stringByAppendingString:@"/"]];
+        if ([test.path hasPrefix:inside]) return bundle;
+    }
+    return _project.testBundles.count == 1 ? _project.testBundles.firstObject : nil;
+}
+
+/// What runs @a tests (nil: all): each XCTest bundle built (make debug=yes)
+/// and run by xctest, filtered to the tests asked for; else the project's
+/// test task or command, which runs them all.
+- (nullable NSString *)_testCommandFor:(nullable NSArray<UDTest *> *)tests {
+    NSArray<NSString *> *bundles = _project.testBundles;
+    if (bundles.count) {
+        NSMutableArray<NSString *> *steps = [NSMutableArray array];
+        for (NSString *bundle in bundles) {
+            NSMutableArray<NSString *> *filters = [NSMutableArray array];
+            for (UDTest *test in tests) {
+                if ([[self _testBundleOf:test] isEqualToString:bundle]) [filters addObject:test.identifier];
+            }
+            if (tests && !filters.count) continue;
+            NSString *folder = bundle.stringByDeletingLastPathComponent;
+            NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
+            NSString *filter = filters.count ? [@" -XCTest " stringByAppendingString:[UDProject quotedArgument:[filters componentsJoinedByString:@","]]] : @"";
+            [steps addObject:[NSString stringWithFormat:@"( %@ debug=yes && xctest%@ %@ ) || failed=1", make, filter,
+                              [UDProject quotedArgument:bundle]]];
+        }
+        if (!steps.count) return nil;
+        return [NSString stringWithFormat:@"failed=0; %@; exit $failed", [steps componentsJoinedByString:@"; "]];
+    }
+    UDTasks *tasks = [self tasks];
+    if (tasks.testTask) return [tasks commandLineRunning:tasks.testTask];
+    return _project.testCommand;
+}
+
+/// The path of a tool on the build's PATH (GNUstep's tools among them).
+- (nullable NSString *)_toolOnBuildPath:(NSString *)name {
+    for (NSString *folder in [_project.buildEnvironment[@"PATH"] componentsSeparatedByString:@":"]) {
+        NSString *candidate = [folder stringByAppendingPathComponent:name];
+        if (folder.length && [[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
+    }
+    return [UDToolLocator pathOfTool:name];
+}
+
+- (void)runTests:(nullable NSArray<UDTest *> *)tests debugging:(BOOL)debugging {
+    if (!_project || !_buildRunner || _buildRunner.running) {
+        NSBeep();
+        return;
+    }
+    UDTestCatalog *catalog = self.testCatalog;
+    [catalog resetTests:tests];
+    [_testNavigator reload];
+    [self showTestNavigator:nil];
+    if (debugging) {
+        // xctest, under the debugger, with the bundle and the tests asked for
+        UDTest *first = tests.firstObject ?: catalog.allTests.firstObject;
+        NSString *bundle = first ? [self _testBundleOf:first] : _project.testBundles.firstObject;
+        NSString *xctest = [self _toolOnBuildPath:@"xctest"];
+        if (!bundle || !xctest) {
+            [self _tell:@"These tests can't be debugged here"
+                 detail:@"Debugging a test runs xctest with its bundle under the debugger: a GNUstep project's XCTest bundle, and GNUstep's xctest."];
+            return;
+        }
+        NSMutableArray<NSString *> *arguments = [NSMutableArray array];
+        NSMutableArray<NSString *> *filters = [NSMutableArray array];
+        for (UDTest *test in tests) [filters addObject:test.identifier];
+        if (filters.count) [arguments addObjectsFromArray:@[ @"-XCTest", [filters componentsJoinedByString:@","] ]];
+        [arguments addObject:[_project.folderURL.path stringByAppendingPathComponent:bundle]];
+        _pendingTestConfiguration = [UDLaunchConfiguration configurationNamed:@"Tests" program:xctest arguments:arguments
+                                                                    directory:[_project.folderURL.path stringByAppendingPathComponent:bundle.stringByDeletingLastPathComponent]];
+        NSString *folder = bundle.stringByDeletingLastPathComponent;
+        NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
+        [self _build:[make stringByAppendingString:@" debug=yes"] then:UDAfterBuildDebugTests];
+        return;
+    }
+    NSString *command = [self _testCommandFor:tests];
+    if (!command) {
+        [self _tell:@"No tests to run"
+             detail:@"UDCode runs a GNUstep project's XCTest bundles with xctest, an Xcode project's with xcodebuild test, "
+                    @"CMake's with ctest, a Makefile's check or test target, or tasks.json's test task; "
+                    @"or the \"test\" command in Debug › Project Settings."];
+        return;
+    }
+    [self saveAllDocuments:nil];
+    _testing = YES;
+    _testsRan = YES;
+    if (![_buildRunner runCommand:command]) {
+        _testing = NO;
+        NSBeep();
+        return;
+    }
+    _buildLog.runner = _buildRunner;
+    [self _showBuildIssues];
+    [self _updateActivity];
+}
+
+/// A test run's line: its tests marked; a failure an issue at its place.
+- (void)buildRunner:(UDBuildRunner *)runner didReadLine:(NSString *)line {
+    if (!_testing) return;
+    UDTestFailure *failure = [_testCatalogStore readLine:line];
+    if (failure && !failure.compilerStyle) {
+        // GNUstep's: the file as the bundle's makefile compiled it
+        NSString *path = [_testCatalogStore pathOfFile:failure.file] ?: failure.test.path;
+        if (path) {
+            NSString *name = failure.test ? [NSString stringWithFormat:@"-[%@ %@]: ", failure.test.suite.name, failure.test.name] : @"";
+            [runner addDiagnostic:[[UDDiagnosticItem alloc] initWithLine:MAX(failure.line, 1) column:1
+                                                                 message:[name stringByAppendingString:failure.message]
+                                                                severity:UDDiagnosticSeverityError source:UDDiagnosticSourceBuild]
+                           atPath:path.stringByStandardizingPath];
+        }
+    }
+    [NSObject cancelPreviousPerformRequestsWithTarget:_testNavigator selector:@selector(reload) object:nil];
+    [_testNavigator performSelector:@selector(reload) withObject:nil afterDelay:0.1
+                            inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
+}
+
+- (NSString *)_testsActivity {
+    UDTestCatalog *catalog = _testCatalogStore;
+    NSUInteger passed = catalog.passedCount, failed = catalog.failedCount;
+    if (_buildRunner.running) return @"Testing…";
+    if (!failed && _buildRunner.succeeded) return [NSString stringWithFormat:@"Tests Succeeded | %lu passed", (unsigned long)passed];
+    if (!failed && !passed) return _buildRunner.errorCount ? @"Build Failed" : @"Tests Failed";
+    return [NSString stringWithFormat:@"Tests Failed | %lu failed, %lu passed", (unsigned long)failed, (unsigned long)passed];
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - The toolbar: the scheme, and what is going on (Xcode's activity view)
 // ---------------------------------------------------------------------------
 
@@ -424,7 +601,9 @@ static const NSInteger UDAfterBuildDebug = 2;
     NSString *name = _project.name ?: self.window.title;
     NSString *status = @"Ready";
     UDDebugSessionState state = _debugSession.state;
-    if (_buildRunner.running) {
+    if (_testsRan && (_buildRunner.running || !_debugSession) && _buildRunner.command) {
+        status = [self _testsActivity];
+    } else if (_buildRunner.running) {
         status = [NSString stringWithFormat:@"Building %@…", name];
     } else if (_debugSession && state != UDDebugSessionStateEnded) {
         status = state == UDDebugSessionStateStopped ? [NSString stringWithFormat:@"Paused %@", [self _programName]]
@@ -435,7 +614,7 @@ static const NSInteger UDAfterBuildDebug = 2;
         status = _buildRunner.succeeded && !_buildRunner.errorCount ? @"Build Succeeded" : @"Build Failed";
     }
     NSMutableArray<NSString *> *counts = [NSMutableArray array];
-    if (_buildRunner.command && !_buildRunner.running) {
+    if (_buildRunner.command && !_buildRunner.running && !_testsRan) {
         NSUInteger errors = _buildRunner.errorCount, warnings = _buildRunner.warningCount;
         if (errors) [counts addObject:[NSString stringWithFormat:@"%lu error%@", (unsigned long)errors, errors == 1 ? @"" : @"s"]];
         if (warnings) [counts addObject:[NSString stringWithFormat:@"%lu warning%@", (unsigned long)warnings, warnings == 1 ? @"" : @"s"]];
@@ -518,6 +697,7 @@ static const NSInteger UDAfterBuildDebug = 2;
         NSBeep();
         return;
     }
+    _testsRan = NO;
     _buildLog.runner = _buildRunner;
     [self showBuildNavigator:nil];
     [self _showBuildIssues];
@@ -529,6 +709,16 @@ static const NSInteger UDAfterBuildDebug = 2;
 }
 
 - (void)buildRunnerDidFinish:(UDBuildRunner *)runner {
+    if (_testing) {
+        // the tests' end: their marks, what failed, how it went
+        _testing = NO;
+        [self _showBuildIssues];
+        [_testNavigator reload];
+        [self _updateActivity];
+        [_fileNavigator reload];
+        if (!_testCatalogStore.failedCount && !_testCatalogStore.passedCount && runner.errorCount) [self showIssuesNavigator:nil];
+        return;
+    }
     [self _showBuildIssues];
     [self _updateActivity];
     [_fileNavigator reload];
@@ -545,6 +735,11 @@ static const NSInteger UDAfterBuildDebug = 2;
     _afterBuild = UDAfterBuildNothing;
     if (then == UDAfterBuildRun) [self _runProgramDebugging:NO];
     else if (then == UDAfterBuildDebug) [self _runProgramDebugging:YES];
+    else if (then == UDAfterBuildDebugTests && _pendingTestConfiguration) {
+        UDLaunchConfiguration *configuration = _pendingTestConfiguration;
+        _pendingTestConfiguration = nil;
+        [self _run:configuration debugging:YES];
+    }
 }
 
 /// The build's diagnostics: an open file's in its own store (where its
@@ -574,6 +769,10 @@ static const NSInteger UDAfterBuildDebug = 2;
 - (void)fileWatcher:(UDFileWatcher *)watcher didSeeChangesAtPaths:(NSSet<NSString *> *)paths {
     [_fileNavigator reload];
     [self _updateSchemePopUp];      // launch.json may have changed
+    // the tests again when their sources changed (not what a build made)
+    BOOL sources = NO;
+    for (NSString *path in paths) sources = sources || [@[ @"m", @"mm", @"h" ] containsObject:path.pathExtension];
+    if (sources && _testCatalogStore && !_buildRunner.running) [self reloadTests];
     NSMutableSet<NSString *> *changed = [NSMutableSet set];
     for (NSString *path in paths) [changed addObject:path.stringByStandardizingPath];
     for (UDCodeDocument *document in _workspaceModel.documents) {
@@ -1130,6 +1329,13 @@ static const NSInteger UDAfterBuildDebug = 2;
     [self navigatorChanged:nil];
 }
 
+- (IBAction)showTestNavigator:(nullable id)sender {
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = UDTestNavigatorSegment;
+    [self navigatorChanged:nil];
+    if (!_testCatalogStore) [self reloadTests];
+}
+
 - (IBAction)showDebugNavigator:(nullable id)sender {
     [_paneSplit setPane:UDNavigatorPane visible:YES];
     _navigatorControl.selectedSegment = UDDebugNavigatorSegment;
@@ -1163,6 +1369,8 @@ static const NSInteger UDAfterBuildDebug = 2;
     } else if (sel_isEqual(action, @selector(selectLaunchConfiguration:))) {
         item.state = [item.representedObject isEqual:self.selectedLaunchConfiguration] ? NSControlStateValueOn : NSControlStateValueOff;
         return _project != nil;
+    } else if (sel_isEqual(action, @selector(test:))) {
+        return _buildRunner != nil && !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
     } else if (sel_isEqual(action, @selector(runTask:))) {
         return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(showProjectSettings:))) {

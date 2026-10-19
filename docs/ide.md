@@ -103,6 +103,29 @@ The debugger is lldb-dap on macOS and gdb on Linux, each falling back on the
 other. lldb can't launch a program where address randomization can't be
 turned off, a container among them.
 
+## Tests
+
+Debug › Test (⌘U) runs the project's tests, as Xcode's Product › Test does,
+with the project's own tools:
+
+- a GNUstep project's XCTest bundles (a GNUmakefile's `BUNDLE_NAME` that links
+  XCTest, in its folder or one of its own, as UDCalc's `CalculatorTests/`):
+  each built with `make debug=yes` and run by `xctest`;
+- an Xcode project's `xcodebuild test`; CMake's `ctest`; a Makefile's `check`
+  (or `test`) target; tasks.json's default `"test"` task; or the settings'
+  own `"test"` command.
+
+The Test navigator (⌘6, the ◇ tab) lists the tests the project's sources
+have (`XCTestCase`'s subclasses, through classes of their own too, and their
+`test…` methods) before any run, and marks each as its last run left it:
+◇ not run, ✓ passed, ✗ failed (a failure's message in its tool tip). A failed
+assertion is an issue at its line, in Issues and in its file's editor. Run
+(▶) and Debug (the bug) do the tests selected — a suite's all — or every one;
+so does the row's menu. Debugging runs `xctest` with the bundle, filtered to
+the tests, under the debugger: its breakpoints stop, in the tests and in what
+they test. On GNUstep a single test or suite runs alone (`xctest -XCTest
+Suite.test`); other runners run them all.
+
 ## A project set up for VS Code
 
 A folder with `.vscode/tasks.json` and `.vscode/launch.json` works as it is,

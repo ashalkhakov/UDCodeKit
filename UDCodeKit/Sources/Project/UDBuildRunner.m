@@ -138,9 +138,13 @@ UDDiagnosticSource const UDDiagnosticSourceBuild = @"build";
         if (_folders.count > 1) [_folders removeLastObject];
         return;
     }
+    if ([_delegate respondsToSelector:@selector(buildRunner:didReadLine:)]) [_delegate buildRunner:self didReadLine:line];
     NSString *path = nil;
     UDDiagnosticItem *item = [UDBuildRunner diagnosticOfLine:line inFolder:_folders.lastObject path:&path];
-    if (!item) return;
+    if (item) [self addDiagnostic:item atPath:path];
+}
+
+- (void)addDiagnostic:(UDDiagnosticItem *)item atPath:(NSString *)path {
     if (item.severity == UDDiagnosticSeverityError) _errorCount++;
     else if (item.severity == UDDiagnosticSeverityWarning) _warningCount++;
     UDDiagnosticStore *store = _diagnostics[path];

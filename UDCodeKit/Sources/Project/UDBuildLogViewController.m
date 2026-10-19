@@ -83,6 +83,10 @@
     if ([_forward respondsToSelector:@selector(buildRunner:didOutput:)]) [_forward buildRunner:runner didOutput:text];
 }
 
+- (void)buildRunner:(UDBuildRunner *)runner didReadLine:(NSString *)line {
+    if ([_forward respondsToSelector:@selector(buildRunner:didReadLine:)]) [_forward buildRunner:runner didReadLine:line];
+}
+
 - (void)buildRunnerDidFinish:(UDBuildRunner *)runner {
     if (_pendingLine.length) [self _append:@"\n"];
     _statusLabel.stringValue = [UDBuildLogViewController statusOfRunner:runner];

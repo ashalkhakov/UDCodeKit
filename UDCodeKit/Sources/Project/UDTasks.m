@@ -39,6 +39,20 @@ static NSString * const UDVSCodePlatformKey = @"linux";
 @end
 
 @implementation UDLaunchConfiguration
+
++ (instancetype)configurationNamed:(NSString *)name program:(NSString *)program arguments:(NSArray<NSString *> *)arguments
+                         directory:(NSString *)directory {
+    UDLaunchConfiguration *configuration = [[self alloc] init];
+    configuration.name = name;
+    configuration.request = @"launch";
+    configuration.type = @"";
+    configuration.program = program;
+    configuration.arguments = arguments ?: @[];
+    configuration.directory = directory;
+    configuration.environment = @{};
+    return configuration;
+}
+
 @end
 
 @implementation UDTasks {
@@ -260,6 +274,16 @@ static NSString *UDShellQuoted(NSString *word) {
     UDTask *first = nil;
     for (UDTask *task in _tasks) {
         if (![task.group isEqualToString:@"build"]) continue;
+        if (task.defaultOfGroup) return task;
+        if (!first) first = task;
+    }
+    return first;
+}
+
+- (UDTask *)testTask {
+    UDTask *first = nil;
+    for (UDTask *task in _tasks) {
+        if (![task.group isEqualToString:@"test"]) continue;
         if (task.defaultOfGroup) return task;
         if (!first) first = task;
     }

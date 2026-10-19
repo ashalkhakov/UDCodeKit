@@ -39,7 +39,7 @@ all: fetched
 
 # The runtime and the grammars' C sources, the first time.
 fetched:
-	@ls tree-sitter/src/lib.c tree-sitter-*/src/parser.c > /dev/null 2>&1 || bash scripts/update-grammars.sh
+	@ls tree-sitter/src/lib.c libvterm/src/vterm.c tree-sitter-*/src/parser.c > /dev/null 2>&1 || bash scripts/update-grammars.sh
 
 # The test bundles are not signed: nothing ships from them.
 check: fetched

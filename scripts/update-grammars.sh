@@ -84,6 +84,10 @@ echo "==> Refreshing shared tree-sitter runtime → tree-sitter/"
 bash "$REPO_ROOT/scripts/fetch-tree-sitter.sh"
 echo
 
+# And libvterm, the terminal's emulation, compiled into UDCodeKit beside it
+bash "$REPO_ROOT/scripts/fetch-libvterm.sh"
+echo
+
 echo "Done."
 echo "Remember to:"
 echo "  1. Add the bundle to UDCode.xcodeproj (a target dependency, and Embed PlugIns)."

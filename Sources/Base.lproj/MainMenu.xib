@@ -745,6 +745,12 @@
                                     <action selector="toggleDebugArea:" target="-1" id="UDM-debugarea-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Terminal" keyEquivalent="`" id="UDM-terminal">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES"/>
+                                <connections>
+                                    <action selector="showTerminal:" target="-1" id="UDM-terminal-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="UDM-view-sep2"/>
                             <menuItem title="Enter Full Screen" keyEquivalent="f" id="4J7-dP-txa">
                                 <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>

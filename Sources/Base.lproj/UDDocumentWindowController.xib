@@ -22,6 +22,8 @@
                 <outlet property="debugSplit" destination="WS-debug-split-controller" id="WS-o-debug-split"/>
                 <outlet property="debugBarHost" destination="WS-debug-bar-host" id="WS-o-debug-bar"/>
                 <outlet property="debugAreaHost" destination="WS-debug-area-host" id="WS-o-debug-area"/>
+                <outlet property="terminalHost" destination="WS-terminal-host" id="WS-o-terminal-host"/>
+                <outlet property="bottomAreaControl" destination="WS-bottom-control" id="WS-o-bottom-control"/>
                 <outlet property="inspectorName" destination="WS-insp-name" id="WS-o-insp-name"/>
                 <outlet property="inspectorPath" destination="WS-insp-path" id="WS-o-insp-path"/>
                 <outlet property="inspectorLanguage" destination="WS-insp-language" id="WS-o-insp-language"/>
@@ -239,6 +241,24 @@
                                                         <rect key="frame" x="0.0" y="0.0" width="698" height="214"/>
                                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                     </customView>
+                                                    <customView hidden="YES" id="WS-terminal-host" userLabel="Terminal Host">
+                                                        <rect key="frame" x="0.0" y="0.0" width="698" height="214"/>
+                                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    </customView>
+                                                    <segmentedControl verticalHuggingPriority="750" id="WS-bottom-control" userLabel="Debug | Terminal">
+                                                        <rect key="frame" x="630" y="215" width="64" height="24"/>
+                                                        <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                                        <segmentedCell key="cell" borderStyle="border" alignment="left" style="texturedSquare" trackingMode="selectOne" id="WS-bottom-control-cell">
+                                                            <font key="font" metaFont="smallSystem"/>
+                                                            <segments>
+                                                                <segment toolTip="The debugger's variables and console" image="ladybug" catalog="system" width="30" selected="YES"/>
+                                                                <segment toolTip="Terminal (⌃`)" image="terminal" catalog="system" width="30" tag="1"/>
+                                                            </segments>
+                                                        </segmentedCell>
+                                                        <connections>
+                                                            <action selector="bottomAreaChanged:" target="-2" id="WS-a-bottom"/>
+                                                        </connections>
+                                                    </segmentedControl>
                                                 </subviews>
                                             </customView>
                                         </subviews>
@@ -451,5 +471,7 @@
         <image name="gauge.with.dots.needle.33percent" catalog="system" width="16" height="16"/>
         <image name="arrowshape.right" catalog="system" width="16" height="16"/>
         <image name="text.bubble" catalog="system" width="16" height="16"/>
+        <image name="ladybug" catalog="system" width="16" height="16"/>
+        <image name="terminal" catalog="system" width="16" height="16"/>
     </resources>
 </document>

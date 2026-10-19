@@ -19,7 +19,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController,
-       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDLinkedEditing, UDIssuePopupController;
+       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDLinkedEditing, UDIssuePopupController, UDTerminalViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -132,6 +132,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)startDebugging:(nullable id)sender;
 - (IBAction)stopDebugging:(nullable id)sender;
 - (IBAction)toggleDebugArea:(nullable id)sender;
+/// View > Terminal (⌃`): a shell in the bottom area, in the project's folder.
+- (IBAction)showTerminal:(nullable id)sender;
+/// The bottom area's switch, Debug | Terminal.
+- (IBAction)bottomAreaChanged:(nullable id)sender;
+@property (nonatomic, strong, readonly, nullable) UDTerminalViewController *terminal;
 - (IBAction)showDebugNavigator:(nullable id)sender;
 - (IBAction)showBreakpointNavigator:(nullable id)sender;
 

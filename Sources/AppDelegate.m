@@ -68,6 +68,10 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     BOOL configurations = [menu.title isEqualToString:@"Launch Configuration"];
     if (!configurations && ![menu.title isEqualToString:@"Run Task"]) return;
+    // GNUstep updates a menu as its items change, which asks again: once is enough
+    static BOOL updating = NO;
+    if (updating) return;
+    updating = YES;
     [menu removeAllItems];
     // the key window's project, else the main window's, else the frontmost one's
     UDTasks *tasks = nil;
@@ -88,9 +92,10 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
         item.representedObject = name;
     }
     if (!names.count) {
-        NSMenuItem *none = [menu addItemWithTitle:configurations ? @"No launch.json" : @"No tasks.json" action:NULL keyEquivalent:@""];
-        none.enabled = NO;
+        // no action: disabled
+        [menu addItemWithTitle:configurations ? @"No launch.json" : @"No tasks.json" action:NULL keyEquivalent:@""];
     }
+    updating = NO;
 }
 
 - (IBAction)checkForUpdates:(id)sender {

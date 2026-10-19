@@ -104,6 +104,19 @@ Typing `(` or `,` in a call shows the function's signature, the parameter
 there in bold. Resting the caret on a symbol highlights it wherever it occurs
 in the file, the places it is assigned to in a warmer colour.
 
+## The terminal
+
+View › Terminal (⌃`) opens a shell in the bottom area: the switch at the
+right of its bar goes between the debugger's variables and console, and the
+terminal. The shell is your login shell (`$SHELL`), in the project's folder;
+on GNUstep it gets the build's environment (GNUstep.sh's), so `make` there
+works as Build does. It is xterm's terminal, as libvterm reads it (Neovim's
+terminal library, compiled in, fetched at the commit `scripts/grammars.lock`
+names): colours, a full-screen program's own screen (vim, less, top), the
+lines that scroll off kept above. A drag selects, ⌘C copies, ⌘V pastes (in
+brackets, when the shell asks). When the shell ends, the screen says so, and
+⌃` starts another.
+
 ## Changes made elsewhere
 
 The folder is watched (FSEvents on macOS, inotify on Linux): the navigator
@@ -167,6 +180,9 @@ the SDK on macOS, and the folder's headers.
 | `UDOccurrencesHighlighter` | UDCodeKit `Highlighters/` | the caret's symbol, where it occurs |
 | `UDLinkedEditing` | UDCodeKit `Highlighters/` | places edited together (Rename Symbol's) |
 | `UDIssuePopupController` | UDCodeKit `Workbench/`, `UDIssuePopup.xib` | an issue's Fix-its |
+| `UDTerminalViewController` | UDCodeKit `Terminal/`, `UDTerminal.xib` | a shell in a terminal |
+| `UDTerminalView` | UDCodeKit `Terminal/` | libvterm's screen, drawn; keys, selection, paste |
+| `UDPseudoTerminal` | UDCodeKit `Terminal/` | a program on a pseudo-terminal of its own (forkpty) |
 | `UDDocumentWindowController` | UDCode | the project window: navigator, tabs, the menus' actions |
 
 How this compares with VS Code: [architecture.md](architecture.md).

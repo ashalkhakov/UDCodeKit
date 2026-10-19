@@ -85,6 +85,9 @@ static const NSInteger UDAfterBuildDebug = 2;
 @property (nonatomic, strong) IBOutlet UDPaneSplitController *debugSplit;
 @property (nonatomic, weak) IBOutlet NSView             *debugBarHost;
 @property (nonatomic, weak) IBOutlet NSView             *debugAreaHost;
+@property (nonatomic, weak) IBOutlet NSView             *terminalHost;
+@property (nonatomic, weak) IBOutlet NSSegmentedControl *bottomAreaControl;
+@property (nonatomic, strong, readwrite, nullable) UDTerminalViewController *terminal;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorName;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorPath;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorLanguage;
@@ -1002,8 +1005,55 @@ static const NSInteger UDAfterBuildDebug = 2;
     NSRect bounds = _debugBarHost.superview.bounds;
     CGFloat bar = NSHeight(_debugBarHost.frame);
     if (NSHeight(bounds) < bar + 20) return;
-    _debugBarHost.frame = NSMakeRect(0, NSMaxY(bounds) - bar, NSWidth(bounds), bar);
-    _debugAreaHost.frame = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - bar);
+    // the bar, and at its right the Debug | Terminal switch
+    NSRect control = _bottomAreaControl.frame;
+    control.origin.x = NSWidth(bounds) - NSWidth(control) - 4;
+    control.origin.y = NSMaxY(bounds) - bar + floor((bar - NSHeight(control)) / 2);
+    _bottomAreaControl.frame = control;
+    _debugBarHost.frame = NSMakeRect(0, NSMaxY(bounds) - bar, MAX(0, NSMinX(control) - 4), bar);
+    NSRect area = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - bar);
+    _debugAreaHost.frame = area;
+    _terminalHost.frame = area;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - The terminal, in the bottom area
+// ---------------------------------------------------------------------------
+
+/// The bottom area's switch: the debugger's (0) or the terminal (1).
+- (IBAction)bottomAreaChanged:(nullable id)sender {
+    if (_bottomAreaControl.selectedSegment == 1) [self showTerminal:sender];
+    else [self _showBottomArea:0];
+}
+
+- (void)_showBottomArea:(NSInteger)which {
+    [_bottomAreaControl setSelectedSegment:which];
+    [_debugAreaHost setHidden:which != 0];
+    [_terminalHost setHidden:which != 1];
+    [_debugSplit setPane:UDDebugAreaPane visible:YES];
+}
+
+/// The terminal's folder: the project's, else the selected file's, else home.
+- (NSString *)_terminalDirectory {
+    if (_project) return _project.folderURL.path;
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    return document.fileURL ? document.fileURL.path.stringByDeletingLastPathComponent : NSHomeDirectory();
+}
+
+/// View > Terminal (⌃`): the bottom area's terminal, a shell started in it
+/// (the project's environment, GNUstep's included) when none runs.
+- (IBAction)showTerminal:(nullable id)sender {
+    if (!_terminal) {
+        _terminal = [[UDTerminalViewController alloc] init];
+        [self _putView:_terminal.view inHost:_terminalHost];
+    }
+    [self _showBottomArea:1];
+    [self _layoutDebugPane];
+    if (!_terminal.running) {
+        NSDictionary *environment = _project ? _project.buildEnvironment : nil;
+        if (![_terminal startShellInDirectory:[self _terminalDirectory] environment:environment]) NSBeep();
+    }
+    [self.window makeFirstResponder:_terminal.terminalView];
 }
 
 - (void)_debugPaneDidResize:(NSNotification *)note {
@@ -1485,6 +1535,7 @@ static const NSInteger UDAfterBuildDebug = 2;
     _debugBar.session = session;
     _debugNavigator.session = session;
     _debugArea.session = session;
+    if (session) [self _showBottomArea:0];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UDDebugSessionDidChangeStateNotification object:nil];
     if (session) {
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_debugSessionDidChangeState:)
@@ -1710,6 +1761,7 @@ static const NSInteger UDAfterBuildDebug = 2;
     [_hover close];
     [_issuePopup close];
     [_rename cancel];
+    [_terminal stop];
     [_debugSession stop];
     [_fileWatcher stop];
     // the project's language servers go with its window

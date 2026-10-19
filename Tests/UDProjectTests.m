@@ -762,4 +762,29 @@
     [workspace close];
 }
 
+
+/// View > Terminal: a shell in the bottom area, in the project's folder.
+- (void)testTheTerminalOpensInTheProjectsFolder {
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller showTerminal:nil];
+    UDTerminalViewController *terminal = controller.terminal;
+    XCTAssertTrue(terminal.running);
+    XCTAssertFalse(terminal.view.superview.isHidden, @"the terminal shown");
+    XCTAssertEqual(controller.window.firstResponder, terminal.terminalView);
+    [terminal.pseudoTerminal writeData:[@"echo \"at:$(pwd -P)\"\r" dataUsingEncoding:NSUTF8StringEncoding]];
+    NSString *expected = [@"at:" stringByAppendingString:_folder];
+    UDRunUntil([terminal.terminalView.screenText containsString:expected], 30);
+    XCTAssertTrue([terminal.terminalView.screenText containsString:expected], @"%@", terminal.terminalView.screenText);
+
+    // the switch back to the debugger's area, and the terminal's again
+    [controller.window makeFirstResponder:nil];
+    [controller showTerminal:nil];
+    XCTAssertTrue(terminal.running, @"the same shell");
+    [controller close];
+    UDRunUntil(!terminal.running, 10);
+    XCTAssertFalse(terminal.running, @"hung up on with its window");
+    [workspace close];
+}
+
 @end

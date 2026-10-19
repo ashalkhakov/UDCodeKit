@@ -130,4 +130,22 @@ image("text.bubble", size: 16) {
     line(4.5, 10.5, 11.5, 10.5, 1)
     line(4.5, 7.5, 9.5, 7.5, 1)
 }
+image("ladybug", size: 16) {
+    stroke(NSBezierPath(ovalIn: NSRect(x: 3.5, y: 1.5, width: 9, height: 10)))
+    stroke(NSBezierPath(ovalIn: NSRect(x: 5.5, y: 10.5, width: 5, height: 4)))
+    line(8, 1.5, 8, 11.5, 1)
+    line(1.5, 8, 3.5, 7, 1)
+    line(14.5, 8, 12.5, 7, 1)
+    line(1.5, 3, 3.8, 4, 1)
+    line(14.5, 3, 12.2, 4, 1)
+}
+image("terminal", size: 16) {
+    stroke(NSBezierPath(roundedRect: NSRect(x: 1.5, y: 2.5, width: 13, height: 11), xRadius: 2, yRadius: 2))
+    let prompt = NSBezierPath()
+    prompt.move(to: NSPoint(x: 4, y: 10))
+    prompt.line(to: NSPoint(x: 6.5, y: 8))
+    prompt.line(to: NSPoint(x: 4, y: 6))
+    stroke(prompt)
+    line(8, 5.5, 11.5, 5.5)
+}
 print("drawn in \(out)")

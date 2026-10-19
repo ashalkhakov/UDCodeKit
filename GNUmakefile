@@ -22,7 +22,7 @@ include $(GNUSTEP_MAKEFILES)/aggregate.make
 
 # The tree-sitter runtime and the grammars' C sources are fetched, at the
 # commits in scripts/grammars.lock, the first time.
-UD_FETCHED = tree-sitter/src/lib.c $(foreach g,$(UD_GRAMMAR_DIRS),$(g)/src/parser.c)
+UD_FETCHED = tree-sitter/src/lib.c libvterm/src/vterm.c $(foreach g,$(UD_GRAMMAR_DIRS),$(g)/src/parser.c)
 before-all::
 	@if ! ls $(UD_FETCHED) >/dev/null 2>&1; then bash scripts/update-grammars.sh; fi
 

@@ -60,3 +60,6 @@ build/
 
 # What the release workflows fetch by .github/pins.env (Sparkle)
 .deps/
+
+# libvterm, fetched by scripts/fetch-libvterm.sh
+libvterm/

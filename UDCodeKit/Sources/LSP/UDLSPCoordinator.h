@@ -84,6 +84,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// The occurrences highlighted (none when fewer than two).
 @property (nonatomic, readonly, copy) NSArray<NSValue *> *occurrenceRanges;
 
+/// The server's semantic tokens, asked for once the document is open and
+/// again when the typing pauses, coloured over the syntax's: the style name
+/// of the one at @a index ("variable.parameter", "constant.macro"), nil when
+/// none is; how many there are.
+- (nullable NSString *)semanticTokenAtIndex:(NSUInteger)index;
+@property (nonatomic, readonly) NSUInteger semanticTokenCount;
+
 /// Where a server's own edit (workspace/applyEdit: a command's) is applied:
 /// the open files' models, else on disk. Nil: this document's coordinator
 /// does not apply them.

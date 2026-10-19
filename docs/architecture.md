@@ -60,11 +60,9 @@ native, embeddable, Xcode-like shell, using existing tools and adding no
 formats of our own. What VS Code has that we don't, roughly in the order it
 would matter for the IDE:
 
-1. **Semantic tokens**, the one part of LSP's editing support not yet used
-   (tree-sitter colours the code meanwhile).
-2. **Source control**: GitX ported to GNUstep, rather than a git UI of our
+1. **Source control**: GitX ported to GNUstep, rather than a git UI of our
    own (postponed).
-3. **Multi-root workspaces** and **remote development**, the last of these.
+2. **Multi-root workspaces** and **remote development**, the last of these.
 
 Done since this was first written: file watching; VS Code's `tasks.json`
 and `launch.json` (several launch configurations, preLaunchTask, Run Task);
@@ -73,7 +71,8 @@ and the rest of LSP's editing support, in Xcode's menus: Open Quickly
 in Workspace in a Find navigator, Rename Symbol, Format Document, Fix Issue
 (code actions, with the server's own edits through `workspace/applyEdit`),
 signature help, and the caret's symbol highlighted where it occurs; and a
-terminal in the bottom area (libvterm, compiled in).
+terminal in the bottom area (libvterm, compiled in); and semantic tokens,
+coloured over tree-sitter's.
 
 An extension host is not on the list: if bundles ever run third-party code
 of size, it is the way to keep the app responsive, but not before.

@@ -1,6 +1,7 @@
 #import "UDLSPCoordinator.h"
 #import "UDTextModel+LSPTextBuffer.h"
 #import "UDOccurrencesHighlighter.h"
+#import "UDSemanticTokensHighlighter.h"
 
 @interface UDLSPCoordinator ()
 @property (nonatomic, weak)   UDTextModelTextStorage     *textStorage;
@@ -10,12 +11,16 @@
 @property (nonatomic, assign) BOOL                        clientInitialized;
 @property (nonatomic, weak)   UDTextModel                *openContent;   // for didOpen, once initialized
 @property (nonatomic, strong) UDOccurrencesHighlighter   *occurrences;
+@property (nonatomic, strong) UDSemanticTokensHighlighter *semanticTokens;
 @property (nonatomic, copy)   NSArray<NSDictionary *>    *diagnostics;
 @end
 
 @implementation UDLSPCoordinator {
     NSUInteger _occurrencesIndex;
     NSInteger _occurrencesRequest;
+    NSUInteger _edits;                  // the text's changes, counted: a reply about older text is stale
+    NSUInteger _semanticTokensEdits;
+    NSInteger _semanticTokensRequest;
 }
 
 // ---------------------------------------------------------------------------
@@ -35,6 +40,7 @@
     _clientInitialized      = NO;
     _diagnostics            = @[];
     _occurrences = [[UDOccurrencesHighlighter alloc] initWithTextStorage:textStorage highlighter:textStorage.highlighter];
+    _semanticTokens = [[UDSemanticTokensHighlighter alloc] initWithTextStorage:textStorage highlighter:textStorage.highlighter];
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(_textModelDidChange:)
@@ -49,7 +55,9 @@
 }
 
 - (void)_textModelDidChange:(NSNotification *)note {
+    _edits++;
     if (!_clientInitialized) return;
+    [self _requestSemanticTokensSoon];
 
     UDTextModel *textModel = note.object;
     if (![textModel isKindOfClass:[UDTextModel class]]) return;
@@ -86,6 +94,7 @@
     }
     _clientInitialized = YES;
     [_client documentDidOpen:_documentURL content:_openContent];
+    [self _requestSemanticTokens];
 }
 
 /// The server ended and was started again: open the document again.
@@ -114,6 +123,7 @@
     // Clear LSP diagnostics and decorations on close.
     [_diagnosticHighlighter applyDiagnostics:@[]];
     [NSObject cancelPreviousPerformRequestsWithTarget:self];
+    [_semanticTokens showTokens:@[] types:@[] modifiers:@[]];
     [_occurrences showRanges:@[] writes:[NSIndexSet indexSet]];
 }
 
@@ -235,6 +245,41 @@
 
 - (NSArray<NSValue *> *)occurrenceRanges {
     return _occurrences.ranges;
+}
+
+// ---------------------------------------------------------------------------
+#pragma mark - Semantic tokens: what each name is, as the compiler knows it
+// ---------------------------------------------------------------------------
+
+/// Once the typing pauses: the tokens of the text as it is then.
+- (void)_requestSemanticTokensSoon {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_requestSemanticTokens) object:nil];
+    [self performSelector:@selector(_requestSemanticTokens) withObject:nil afterDelay:0.4
+                  inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
+}
+
+- (void)_requestSemanticTokens {
+    if (!_clientInitialized || !_client.semanticTokensProvider) return;
+    _semanticTokensEdits = _edits;
+    _semanticTokensRequest = [self request:@"textDocument/semanticTokens/full" extra:nil
+                                    target:self action:@selector(_didReceiveSemanticTokens:)];
+}
+
+- (void)_didReceiveSemanticTokens:(LSPResponse *)response {
+    // about older text, or an older request: the next one brings the tokens
+    if (response.requestID != _semanticTokensRequest || _edits != _semanticTokensEdits) return;
+    NSDictionary *result = [response.result isKindOfClass:[NSDictionary class]] ? response.result : nil;
+    NSArray *data = [result[@"data"] isKindOfClass:[NSArray class]] ? result[@"data"] : nil;
+    if (!data) return;
+    [_semanticTokens showTokens:data types:_client.semanticTokenTypes modifiers:_client.semanticTokenModifiers];
+}
+
+- (NSString *)semanticTokenAtIndex:(NSUInteger)index {
+    return [_semanticTokens styleNameAtIndex:index];
+}
+
+- (NSUInteger)semanticTokenCount {
+    return _semanticTokens.tokenCount;
 }
 
 // ---------------------------------------------------------------------------

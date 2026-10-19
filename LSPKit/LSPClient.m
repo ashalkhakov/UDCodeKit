@@ -586,6 +586,18 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
             @"signatureHelp": @{ @"signatureInformation": @{ @"parameterInformation": @{ @"labelOffsetSupport": @YES } } },
             @"references": @{},
             @"formatting": @{},
+            @"semanticTokens": @{
+                @"requests": @{ @"full": @YES },
+                @"tokenTypes": @[ @"namespace", @"type", @"class", @"enum", @"interface", @"struct", @"typeParameter",
+                                  @"parameter", @"variable", @"property", @"enumMember", @"event", @"function", @"method",
+                                  @"macro", @"keyword", @"modifier", @"comment", @"string", @"number", @"regexp",
+                                  @"operator", @"decorator", @"label", @"concept" ],
+                @"tokenModifiers": @[ @"declaration", @"definition", @"readonly", @"static", @"deprecated", @"abstract",
+                                      @"async", @"modification", @"documentation", @"defaultLibrary" ],
+                @"formats": @[ @"relative" ],
+                @"multilineTokenSupport": @NO,
+                @"overlappingTokenSupport": @NO,
+                @"augmentsSyntaxTokens": @YES },
             @"publishDiagnostics": @{ @"relatedInformation": @YES } },
     };
     [params setObject:pid forKey:@"processId"];
@@ -647,6 +659,14 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
     _documentHighlightProvider = [[capabilities objectForKey:@"documentHighlightProvider"] boolValue];
     _documentSymbolProvider = [[capabilities objectForKey:@"documentSymbolProvider"] boolValue];
     _workspaceSymbolProvider = [[capabilities objectForKey:@"workspaceSymbolProvider"] boolValue];
+    NSDictionary *semanticTokensProvider = [capabilities objectForKey:@"semanticTokensProvider"];
+    if ([semanticTokensProvider isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *legend = [semanticTokensProvider objectForKey:@"legend"];
+        id full = [semanticTokensProvider objectForKey:@"full"];
+        _semanticTokensProvider = full != nil && ![full isEqual:@NO] && [legend isKindOfClass:[NSDictionary class]];
+        _semanticTokenTypes = [[legend objectForKey:@"tokenTypes"] copy] ?: @[];
+        _semanticTokenModifiers = [[legend objectForKey:@"tokenModifiers"] copy] ?: @[];
+    }
     NSDictionary *codeLensProvider = [capabilities objectForKey:@"codeLensProvider"];
     if ([codeLensProvider isKindOfClass:[NSDictionary class]]) {
         _codeLensProvider = YES;

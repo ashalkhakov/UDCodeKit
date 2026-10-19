@@ -787,4 +787,56 @@
     [workspace close];
 }
 
+
+/// clangd's semantic tokens, coloured over tree-sitter's: a macro, a
+/// parameter, a field, a typedef's name, code an #if leaves out.
+- (void)testClangdColoursWhatOnlyTheCompilerKnows {
+    if (![UDToolLocator clangdPath]) {
+        NSLog(@"UDProjectTests: no clangd here; its case checks nothing");
+        return;
+    }
+    [self write:@"#define SQUARE(x) ((x) * (x))\n"
+                @"struct point { int x; int y; };\n"
+                @"typedef struct point point_t;\n"
+                @"static int area(point_t p, int scale) {\n"
+                @"    return SQUARE(p.x) * scale;\n"
+                @"}\n"
+                @"#if 0\n"
+                @"int left_out;\n"
+                @"#endif\n"
+                @"int main(void) { point_t q = { 1, 2 }; return area(q, 3); }\n" to:@"shapes.c"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"shapes.c"]]];
+    UDCodeDocument *document = controller.editorTabs.selectedItem.representedObject;
+    UDEditorSession *session = [[controller valueForKey:@"sessions"] objectForKey:document];
+    UDLSPCoordinator *lsp = session.lspCoordinator;
+    UDRunUntil(lsp.semanticTokenCount > 0, 30);
+    XCTAssertGreaterThan(lsp.semanticTokenCount, 0u, @"clangd's tokens");
+
+    NSString *text = [document.textModel getValue];
+    NSUInteger (^at)(NSString *, NSUInteger) = ^NSUInteger(NSString *word, NSUInteger nth) {
+        NSRange found = NSMakeRange(0, 0);
+        NSUInteger from = 0;
+        for (NSUInteger i = 0; i <= nth; i++) {
+            found = [text rangeOfString:word options:0 range:NSMakeRange(from, text.length - from)];
+            from = NSMaxRange(found);
+        }
+        return found.location;
+    };
+    XCTAssertEqualObjects([lsp semanticTokenAtIndex:at(@"SQUARE", 1)], @"constant.macro", @"the macro, where it is used");
+    XCTAssertEqualObjects([lsp semanticTokenAtIndex:at(@"scale", 1)], @"variable.parameter");
+    XCTAssertEqualObjects([lsp semanticTokenAtIndex:at(@"p.x", 0) + 2], @"property", @"the field");
+    XCTAssertEqualObjects([lsp semanticTokenAtIndex:at(@"point_t", 2)], @"type", @"the typedef's name");
+    XCTAssertEqualObjects([lsp semanticTokenAtIndex:at(@"left_out", 0)], @"comment", @"what #if 0 leaves out");
+
+    // drawn in the theme's colour for it
+    TreeSitterTheme *theme = [controller valueForKey:@"currentTheme"];
+    NSColor *parameter = [theme styleAttributesForName:@"variable.parameter"][NSForegroundColorAttributeName];
+    NSColor *drawn = [session.textStorage attribute:NSForegroundColorAttributeName atIndex:at(@"scale", 1) effectiveRange:NULL];
+    XCTAssertEqualObjects(drawn, parameter);
+    [controller close];
+    [workspace close];
+}
+
 @end

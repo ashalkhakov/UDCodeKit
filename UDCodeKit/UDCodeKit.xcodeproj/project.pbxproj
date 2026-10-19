@@ -41,6 +41,7 @@
 		C0DEC0DE0000000000000006 /* Exceptions for "Sources" folder in "UDCodeKit" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			publicHeaders = (
+				Highlighters/UDSemanticTokensHighlighter.h,
 				Terminal/UDTerminalViewController.h,
 				Terminal/UDTerminalView.h,
 				Terminal/UDPseudoTerminal.h,

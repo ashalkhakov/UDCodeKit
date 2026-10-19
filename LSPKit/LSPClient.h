@@ -160,6 +160,13 @@ typedef struct _LSPTextDocumentSyncOptions {
  */
 @property (readonly) BOOL workspaceSymbolProvider;
 /**
+ * The server gives a document's semantic tokens (textDocument/semanticTokens/full),
+ * their types and modifiers named by these, its legend.
+ */
+@property (readonly) BOOL semanticTokensProvider;
+@property (readonly, copy) NSArray<NSString *> *semanticTokenTypes;
+@property (readonly, copy) NSArray<NSString *> *semanticTokenModifiers;
+/**
  * The server provides code actions. The `CodeActionOptions` return type is only
  * valid if the client signals code action literal support via the property
  * `textDocument.codeAction.codeActionLiteralSupport`.

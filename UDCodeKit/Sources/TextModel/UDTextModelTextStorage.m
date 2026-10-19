@@ -1,4 +1,5 @@
 #import "UDTextModelTextStorage.h"
+#import "UDSemanticTokensHighlighter.h"
 #import "UDTextModelString.h"
 #import "UDTreeSitterHighlighter.h"
 #import "UDSyntaxHighlighter.h"
@@ -545,6 +546,7 @@ static int UDCompareOffsets(const void *x, const void *y) {
         [NSMutableDictionary dictionaryWithDictionary:BaseAttributes()];
 
     NSMutableArray<UDIntervalNode *> *nonTheme = nil;
+    NSMutableArray<UDIntervalNode *> *semantic = nil;
 
     for (UDIntervalNode *node in covering) {
         if ([node.owner isEqualToString:UDHighlightDecorationOwner]) {
@@ -553,10 +555,26 @@ static int UDCompareOffsets(const void *x, const void *y) {
                     [_theme styleAttributesForName:node.options.className];
                 if (themeAttrs) [merged addEntriesFromDictionary:themeAttrs];
             }
+        } else if ([node.owner isEqualToString:UDSemanticTokensDecorationOwner]) {
+            if (!semantic) semantic = [NSMutableArray array];
+            [semantic addObject:node];
         } else {
             if (!nonTheme) nonTheme = [NSMutableArray array];
             [nonTheme addObject:node];
         }
+    }
+
+    // A language server's semantic tokens, over the syntax's colours: the
+    // theme's style for the name, else for a shorter one ("constant.macro",
+    // then "constant").
+    for (UDIntervalNode *node in semantic) {
+        NSString *name = node.options.className;
+        NSDictionary *themeAttrs = nil;
+        while (_theme && name.length && !(themeAttrs = [_theme styleAttributesForName:name])) {
+            NSRange dot = [name rangeOfString:@"." options:NSBackwardsSearch];
+            name = dot.location == NSNotFound ? nil : [name substringToIndex:dot.location];
+        }
+        if (themeAttrs) [merged addEntriesFromDictionary:themeAttrs];
     }
 
     if (nonTheme.count > 0) {

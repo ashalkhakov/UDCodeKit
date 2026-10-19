@@ -100,6 +100,11 @@ As in Xcode, with the language server doing the work:
 | Editor › Format Document | ⌃⇧I | the server's formatting (clangd follows the project's `.clang-format`) |
 | Editor › Fix Issue at Cursor | ⌃⌥⌘F | the caret's issue and the server's fixes for it (then its refactorings), in a Fix-its panel at the issue, as Xcode's: Return or a click applies one, the arrows choose, Escape puts it away |
 
+What only the compiler knows is coloured too: clangd's semantic tokens, over
+tree-sitter's colours. A macro, a parameter, a field, a type behind a typedef
+each get their own colour, and code an `#if` leaves out is greyed as a
+comment. They come again whenever the typing pauses.
+
 Typing `(` or `,` in a call shows the function's signature, the parameter
 there in bold. Resting the caret on a symbol highlights it wherever it occurs
 in the file, the places it is assigned to in a warmer colour.
@@ -178,6 +183,7 @@ the SDK on macOS, and the folder's headers.
 | `UDOpenQuicklyController` | UDCodeKit `Project/`, `UDOpenQuickly.xib` | Open Quickly |
 | `UDWorkspaceEdit` | UDCodeKit `LSP/` | a server's WorkspaceEdit or TextEdits, applied |
 | `UDOccurrencesHighlighter` | UDCodeKit `Highlighters/` | the caret's symbol, where it occurs |
+| `UDSemanticTokensHighlighter` | UDCodeKit `Highlighters/` | a server's semantic tokens, named as tree-sitter's captures |
 | `UDLinkedEditing` | UDCodeKit `Highlighters/` | places edited together (Rename Symbol's) |
 | `UDIssuePopupController` | UDCodeKit `Workbench/`, `UDIssuePopup.xib` | an issue's Fix-its |
 | `UDTerminalViewController` | UDCodeKit `Terminal/`, `UDTerminal.xib` | a shell in a terminal |

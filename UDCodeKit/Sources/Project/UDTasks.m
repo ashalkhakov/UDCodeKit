@@ -36,12 +36,36 @@ static NSString * const UDVSCodePlatformKey = @"linux";
 @property (nonatomic, readwrite, copy) NSDictionary<NSString *, NSString *> *environment;
 @property (nonatomic, readwrite, copy, nullable) NSString *preLaunchTask;
 @property (nonatomic, readwrite) NSInteger processID;
+@property (nonatomic, readwrite) BOOL waitFor;
 @end
 
 @implementation UDLaunchConfiguration
+
++ (instancetype)configurationNamed:(NSString *)name program:(NSString *)program arguments:(NSArray<NSString *> *)arguments
+                         directory:(NSString *)directory {
+    UDLaunchConfiguration *configuration = [[self alloc] init];
+    configuration.name = name;
+    configuration.request = @"launch";
+    configuration.type = @"";
+    configuration.program = program;
+    configuration.arguments = arguments ?: @[];
+    configuration.directory = directory;
+    configuration.environment = @{};
+    return configuration;
+}
+
++ (instancetype)configurationAttachingTo:(NSString *)program {
+    UDLaunchConfiguration *configuration = [self configurationNamed:program.lastPathComponent program:program arguments:@[] directory:nil];
+    configuration.request = @"attach";
+    configuration.debugger = @"lldb";
+    configuration.waitFor = YES;
+    return configuration;
+}
+
 @end
 
 @implementation UDTasks {
+    NSArray *_launchItems;
     NSURL *_folderURL;
     NSURL *_fileURL;
 }
@@ -55,6 +79,10 @@ static NSString * const UDVSCodePlatformKey = @"linux";
     id launch = [UDTasks objectOfJSONC:[NSData dataWithContentsOfURL:[vscode URLByAppendingPathComponent:@"launch.json"]] ?: [NSData data]];
     _tasks = [self _readTasks:[tasks isKindOfClass:[NSDictionary class]] ? tasks : @{}];
     _configurations = [self _readConfigurations:[launch isKindOfClass:[NSDictionary class]] ? launch : @{}];
+    id settings = [UDTasks objectOfJSONC:[NSData dataWithContentsOfURL:[vscode URLByAppendingPathComponent:@"settings.json"]] ?: [NSData data]];
+    _settings = [settings isKindOfClass:[NSDictionary class]] ? settings : @{};
+    _launchItems = [launch isKindOfClass:[NSDictionary class]] && [launch[@"configurations"] isKindOfClass:[NSArray class]]
+                 ? launch[@"configurations"] : @[];
     return self;
 }
 
@@ -266,6 +294,16 @@ static NSString *UDShellQuoted(NSString *word) {
     return first;
 }
 
+- (UDTask *)testTask {
+    UDTask *first = nil;
+    for (UDTask *task in _tasks) {
+        if (![task.group isEqualToString:@"test"]) continue;
+        if (task.defaultOfGroup) return task;
+        if (!first) first = task;
+    }
+    return first;
+}
+
 - (NSString *)commandLineRunning:(UDTask *)task {
     NSMutableArray<NSString *> *lines = [NSMutableArray array];
     [self _add:task to:lines seen:[NSMutableSet set]];
@@ -297,6 +335,14 @@ static NSString *UDShellQuoted(NSString *word) {
     NSMutableArray<UDLaunchConfiguration *> *configurations = [NSMutableArray array];
     for (NSDictionary *raw in [file[@"configurations"] isKindOfClass:[NSArray class]] ? file[@"configurations"] : @[]) {
         if (![raw isKindOfClass:[NSDictionary class]]) continue;
+        [configurations addObject:[self _configurationOf:raw]];
+    }
+    return configurations;
+}
+
+/// A launch.json configuration, as VS Code reads it.
+- (UDLaunchConfiguration *)_configurationOf:(NSDictionary *)raw {
+    {
         NSDictionary *item = UDOnThisSystem(raw);
         UDLaunchConfiguration *configuration = [[UDLaunchConfiguration alloc] init];
         configuration.name = [item[@"name"] isKindOfClass:[NSString class]] ? item[@"name"] : @"Launch";
@@ -329,9 +375,53 @@ static NSString *UDShellQuoted(NSString *word) {
         configuration.preLaunchTask = [item[@"preLaunchTask"] isKindOfClass:[NSString class]] ? item[@"preLaunchTask"] : nil;
         id pid = item[@"processId"] ?: item[@"pid"];
         configuration.processID = [pid respondsToSelector:@selector(integerValue)] ? [pid integerValue] : 0;
-        [configurations addObject:configuration];
+        return configuration;
     }
-    return configurations;
+}
+
+/// @a value with TestMate's ${exec}, ${argsArray} and ${cwd} put in.
+static id UDFilledTemplate(id value, NSString *exec, NSArray<NSString *> *arguments, NSString *cwd) {
+    if ([value isKindOfClass:[NSString class]]) {
+        if ([value isEqualToString:@"${argsArray}"]) return arguments;
+        NSString *text = [value stringByReplacingOccurrencesOfString:@"${exec}" withString:exec];
+        text = [text stringByReplacingOccurrencesOfString:@"${cwd}" withString:cwd ?: @""];
+        return [text stringByReplacingOccurrencesOfString:@"${argsStr}" withString:[arguments componentsJoinedByString:@" "]];
+    }
+    if ([value isKindOfClass:[NSArray class]]) {
+        NSMutableArray *filled = [NSMutableArray array];
+        for (id item in value) {
+            id one = UDFilledTemplate(item, exec, arguments, cwd);
+            if ([item isEqual:@"${argsArray}"]) [filled addObjectsFromArray:one];
+            else [filled addObject:one];
+        }
+        return filled;
+    }
+    if ([value isKindOfClass:[NSDictionary class]]) {
+        NSMutableDictionary *filled = [NSMutableDictionary dictionary];
+        for (id key in value) filled[key] = UDFilledTemplate(value[key], exec, arguments, cwd);
+        return filled;
+    }
+    return value;
+}
+
+- (UDLaunchConfiguration *)testDebugConfigurationForExecutable:(NSString *)executable arguments:(NSArray<NSString *> *)arguments
+                                                     directory:(NSString *)directory {
+    id template = _settings[@"testMate.cpp.debug.configTemplate"];
+    if ([template isKindOfClass:[NSString class]] && [template hasPrefix:@"name:"]) {
+        NSString *name = [template substringFromIndex:5];
+        template = nil;
+        for (NSDictionary *item in _launchItems) {
+            if ([item isKindOfClass:[NSDictionary class]] && [item[@"name"] isEqual:name]) template = item;
+        }
+    }
+    if (![template isKindOfClass:[NSDictionary class]]) return nil;
+    NSMutableDictionary *item = [UDFilledTemplate(template, executable, arguments, directory) mutableCopy];
+    // TestMate's own keys, what a launch.json entry says otherwise
+    if (!item[@"program"]) item[@"program"] = executable;
+    if (!item[@"args"]) item[@"args"] = arguments;
+    if (!item[@"cwd"] && directory) item[@"cwd"] = directory;
+    if (!item[@"name"]) item[@"name"] = @"Test";
+    return [self _configurationOf:item];
 }
 
 @end

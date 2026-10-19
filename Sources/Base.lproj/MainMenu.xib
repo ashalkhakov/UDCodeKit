@@ -404,7 +404,7 @@
                                                 <action selector="addFontTrait:" target="YLy-65-1bz" id="IHV-OB-c03"/>
                                             </connections>
                                         </menuItem>
-                                        <menuItem title="Underline" keyEquivalent="u" id="WRG-CD-K1S">
+                                        <menuItem title="Underline" id="WRG-CD-K1S">
                                             <connections>
                                                 <action selector="underline:" target="-1" id="FYS-2b-JAY"/>
                                             </connections>
@@ -723,6 +723,11 @@
                                     <action selector="showIssuesNavigator:" target="-1" id="UDM-issues-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Tests" keyEquivalent="6" id="UDM-testsnav">
+                                <connections>
+                                    <action selector="showTestNavigator:" target="-1" id="UDM-testsnav-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem title="Debug" keyEquivalent="7" id="UDM-debugnav">
                                 <connections>
                                     <action selector="showDebugNavigator:" target="-1" id="UDM-debugnav-a"/>
@@ -785,6 +790,11 @@
                                 <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
                                 <connections>
                                     <action selector="runWithoutDebugging:" target="-1" id="UDM-runplain-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Test" keyEquivalent="u" id="UDM-test">
+                                <connections>
+                                    <action selector="test:" target="-1" id="UDM-test-a"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Launch Configuration" id="UDM-launchconfig">

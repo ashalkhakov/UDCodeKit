@@ -79,7 +79,7 @@ system it runs on:
 | `Makefile.apple` | macOS | `make -f Makefile.apple` | asked |
 | an `.xcodeproj` | macOS | `xcodebuild -configuration Debug build` (Debug, as Xcode's Run) | its first application or tool, where the Debug build puts it (`xcodebuild -showBuildSettings`) |
 | `Makefile` | both | `make` | asked |
-| `CMakeLists.txt` | both | `cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build` (`-G Ninja` where there is no make) | asked |
+| `CMakeLists.txt` | both | `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build` (`-G Ninja` where there is no make) | asked |
 
 "Asked": the first Run opens Debug › Project Settings…, where the program is
 named once.
@@ -102,6 +102,29 @@ settings can say otherwise.
 The debugger is lldb-dap on macOS and gdb on Linux, each falling back on the
 other. lldb can't launch a program where address randomization can't be
 turned off, a container among them.
+
+## Tests
+
+Debug › Test (⌘U) runs the project's tests, as Xcode's Product › Test does,
+each kind by the tool that runs it:
+
+| Tests | Found | Run | One alone | Debugged |
+|---|---|---|---|---|
+| a GNUstep project's XCTest bundles (a GNUmakefile's `BUNDLE_NAME` that links XCTest, in its folder or one of its own, as UDCalc's `CalculatorTests/`) | the sources' `XCTestCase`s | `make debug=yes`, then `xctest` | `xctest -XCTest Suite.test` | `xctest` under the debugger |
+| an Xcode project's (its first scheme's test targets) | the sources' `XCTestCase`s | `xcodebuild test` | `-only-testing:Target/Suite/test` | built for testing, the debugger waiting for the test host (or `xctest`), then `test-without-building` |
+| CMake's (`add_test`, GoogleTest's discovered ones among them) | `ctest --show-only=json-v1`, in the build folder (CMake Tools' `cmake.buildDirectory`, else `build/`) | `ctest` | `ctest -R '^(a\|b)$'` | one test's command, in its folder |
+| GoogleTest executables, found as C++ TestMate finds them (its `testMate.cpp.test.executables` glob, else its default, `{build,out}/**/*test*`) | each asked (`--help`, `--gtest_list_tests`) | each, in its folder | `--gtest_filter=Suite.Test` | the executable, as TestMate's `testMate.cpp.debug.configTemplate` says if there is one |
+
+When none of these runs anything, tasks.json's default `"test"` task, the
+settings' own `"test"` command, or a Makefile's `check` (or `test`) target
+runs them all.
+
+The Test navigator (⌘6, the ◇ tab) lists the tests before any run, and marks
+each as its last run left it: ◇ not run, ✓ passed, ✗ failed (a failure's
+message in its tool tip). A failed assertion is an issue at its line, in
+Issues and in its file's editor. Run (▶) and Debug (the bug) do the tests
+selected — a suite's all — or every one; so does the row's menu. A debugged
+test's breakpoints stop, in the tests and in what they test.
 
 ## A project set up for VS Code
 
@@ -209,8 +232,11 @@ the SDK on macOS, and the folder's headers.
 
 | Piece | Where | What |
 |---|---|---|
-| `UDProject` | UDCodeKit `Project/` | a folder's settings, what is guessed, the build's environment, clangd's fallback flags |
-| `UDToolLocator` | UDCodeKit `Project/` | where clangd, lldb-dap and gdb are, and how each debugger is asked to launch |
+| `UDProject` | UDCodeKit `Project/` | a folder's settings, the build's environment; the rest its build system's and the extensions' |
+| `UDBuildSystem`, `UDTestRunner`, `UDDebugger` | UDCodeKit `Project/`, `Debug/` | what a build system, a test runner and a debugger are: the extensions bring them (`UDExtension`), the core knows none; `UDCommandTestRunner` runs the project's test command |
+| `UDCFamilyPlugin` | `Plugins/CFamily` (CFamily.bundle, in UDCode's PlugIns) | the C family: GNUstep make, Makefile.apple, Xcode, make, CMake; XCTest bundles, Xcode's test targets, CTest, GoogleTest (found as C++ TestMate finds them), and their runs' output; lldb-dap, gdb; GNUstep's environment; clangd's fallback flags |
+| `UDTestCatalog` | UDCodeKit `Project/` | the tests, each suite's runner, a run of several kinds |
+| `UDToolLocator` | UDCodeKit `Project/` | where tools are: PATH, Xcode's toolchain, Homebrew's, a distribution's versioned LLVM names |
 | `UDFileNavigatorViewController` | UDCodeKit `Project/`, `UDFileNavigator.xib` | the folder's files |
 | `UDBuildRunner` | UDCodeKit `Project/` | the build command, its output, its diagnostics by file |
 | `UDBuildLogViewController` | UDCodeKit `Project/`, `UDBuildLog.xib` | the build's log and how it went |

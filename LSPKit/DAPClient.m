@@ -145,6 +145,14 @@ NSErrorDomain const DAPErrorDomain = @"DAPErrorDomain";
     }
 }
 
+/// The debuggee's own output, which the adapter let through: as its output event would say it.
+- (void)transport:(LSPTransport *)transport didReceiveOutputBetweenMessages:(NSString *)text {
+    id<DAPClientDelegate> delegate = _delegate;
+    if ([delegate respondsToSelector:@selector(debugAdapter:didOutput:)]) {
+        [delegate debugAdapter:self didOutput:@{ @"category": @"stdout", @"output": text }];
+    }
+}
+
 - (void)transportDidClose:(LSPTransport *)transport {
     if (_ended) return;
     _ended = YES;

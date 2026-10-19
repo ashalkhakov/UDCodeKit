@@ -19,7 +19,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController,
-       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDLinkedEditing, UDIssuePopupController, UDTerminalViewController;
+       UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDLinkedEditing, UDIssuePopupController, UDTerminalViewController, UDTest, UDTestCatalog, UDTestNavigatorViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -138,6 +138,15 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)toggleDebugArea:(nullable id)sender;
 /// View > Terminal (⌃`): a shell in the bottom area, in the project's folder.
 - (IBAction)showTerminal:(nullable id)sender;
+/// Debug › Test (⌘U): the project's tests, run; the Test navigator says how they went.
+- (IBAction)test:(nullable id)sender;
+- (IBAction)showTestNavigator:(nullable id)sender;
+/// Runs (or debugs) @a tests; nil: all of them.
+- (void)runTests:(nullable NSArray<UDTest *> *)tests debugging:(BOOL)debugging;
+/// The project's tests, as its sources have them (found when first asked).
+@property (nonatomic, readonly, nullable) UDTestCatalog *testCatalog;
+- (void)reloadTests;
+@property (nonatomic, strong, readonly) UDTestNavigatorViewController *testNavigator;
 /// The bottom area's switch, Debug | Terminal.
 - (IBAction)bottomAreaChanged:(nullable id)sender;
 @property (nonatomic, strong, readonly, nullable) UDTerminalViewController *terminal;

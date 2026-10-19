@@ -74,6 +74,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// All registered modes in registration order (built-ins first, then custom).
 @property (nonatomic, strong, readonly) NSArray<UDLanguageMode *> *allModes;
 
+/// The extensions the bundles loaded, in load order: what is asked for
+/// what they contribute besides language modes (UDExtension's projects part).
+@property (nonatomic, readonly, copy) NSArray<id<UDExtension>> *extensions;
+
 // ---------------------------------------------------------------------------
 // MARK: - Lifecycle
 // ---------------------------------------------------------------------------

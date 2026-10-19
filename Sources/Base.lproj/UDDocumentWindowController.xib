@@ -17,6 +17,7 @@
                 <outlet property="buildLogHost" destination="WS-build-host" id="WS-o-build-host"/>
                 <outlet property="findHost" destination="WS-find-host" id="WS-o-find-host"/>
                 <outlet property="issuesHost" destination="WS-issues-host" id="WS-o-issues"/>
+                <outlet property="testsHost" destination="WS-tests-host" id="WS-o-tests"/>
                 <outlet property="debugNavigatorHost" destination="WS-debug-nav-host" id="WS-o-debug-nav"/>
                 <outlet property="breakpointNavigatorHost" destination="WS-breakpoint-nav-host" id="WS-o-breakpoint-nav"/>
                 <outlet property="debugSplit" destination="WS-debug-split-controller" id="WS-o-debug-split"/>
@@ -76,12 +77,13 @@
                                         <segmentedCell key="cell" borderStyle="border" alignment="left" style="texturedSquare" trackingMode="selectOne" id="WS-nav-control-cell">
                                             <font key="font" metaFont="smallSystem"/>
                                             <segments>
-                                                <segment toolTip="Files navigator (⌘1)" image="folder" catalog="system" width="34" selected="YES"/>
-                                                <segment toolTip="Find navigator (⌘3)" image="magnifyingglass" catalog="system" width="34" tag="1"/>
-                                                <segment toolTip="Issues navigator (⌘5)" image="exclamationmark.triangle" catalog="system" width="34" tag="2"/>
-                                                <segment toolTip="Debug navigator (⌘7)" image="gauge.with.dots.needle.33percent" catalog="system" width="34" tag="3"/>
-                                                <segment toolTip="Breakpoint navigator (⌘8)" image="arrowshape.right" catalog="system" width="34" tag="4"/>
-                                                <segment toolTip="Build log (⌘9)" image="text.bubble" catalog="system" width="34" tag="5"/>
+                                                <segment toolTip="Files navigator (⌘1)" image="folder" catalog="system" width="30" selected="YES"/>
+                                                <segment toolTip="Find navigator (⌘3)" image="magnifyingglass" catalog="system" width="30" tag="1"/>
+                                                <segment toolTip="Issues navigator (⌘5)" image="exclamationmark.triangle" catalog="system" width="30" tag="2"/>
+                                                <segment toolTip="Test navigator (⌘6)" image="checkmark.diamond" catalog="system" width="30" tag="3"/>
+                                                <segment toolTip="Debug navigator (⌘7)" image="gauge.with.dots.needle.33percent" catalog="system" width="30" tag="4"/>
+                                                <segment toolTip="Breakpoint navigator (⌘8)" image="arrowshape.right" catalog="system" width="30" tag="5"/>
+                                                <segment toolTip="Build log (⌘9)" image="text.bubble" catalog="system" width="30" tag="6"/>
                                             </segments>
                                         </segmentedCell>
                                         <connections>
@@ -166,6 +168,18 @@
                                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                     <subviews>
                                                         <customView id="WS-issues-host" userLabel="Issues Host">
+                                                            <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                        </customView>
+                                                    </subviews>
+                                                </view>
+                                            </tabViewItem>
+                                            <tabViewItem label="Tests" identifier="tests" id="WS-nav-tests">
+                                                <view key="view" id="WS-nav-tests-view">
+                                                    <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    <subviews>
+                                                        <customView id="WS-tests-host" userLabel="Tests Host">
                                                             <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
                                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                         </customView>
@@ -471,6 +485,7 @@
         <image name="gauge.with.dots.needle.33percent" catalog="system" width="16" height="16"/>
         <image name="arrowshape.right" catalog="system" width="16" height="16"/>
         <image name="text.bubble" catalog="system" width="16" height="16"/>
+        <image name="checkmark.diamond" catalog="system" width="16" height="16"/>
         <image name="ladybug" catalog="system" width="16" height="16"/>
         <image name="terminal" catalog="system" width="16" height="16"/>
     </resources>

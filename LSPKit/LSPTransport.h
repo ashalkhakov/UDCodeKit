@@ -29,6 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)transportDidClose:(LSPTransport *)transport;
 /// What the process wrote to its standard error. Without this, logged.
 - (void)transport:(LSPTransport *)transport didReceiveErrorOutput:(NSString *)text;
+/// What came between messages, not a message's: a debuggee's own output an
+/// adapter let through to its standard output (lldb-dap's, at times). The
+/// messages after it are read as they are. Without this, logged.
+- (void)transport:(LSPTransport *)transport didReceiveOutputBetweenMessages:(NSString *)text;
 @end
 
 @interface LSPTransport : NSObject

@@ -17,13 +17,15 @@ static const NSInteger UDDebugAreaPane = 1;
 // The navigator's segments.
 static const NSInteger UDFindNavigatorSegment = 1;
 static const NSInteger UDIssuesNavigatorSegment = 2;
-static const NSInteger UDDebugNavigatorSegment = 3;
-static const NSInteger UDBreakpointNavigatorSegment = 4;
-static const NSInteger UDBuildNavigatorSegment = 5;
+static const NSInteger UDTestNavigatorSegment = 3;
+static const NSInteger UDDebugNavigatorSegment = 4;
+static const NSInteger UDBreakpointNavigatorSegment = 5;
+static const NSInteger UDBuildNavigatorSegment = 6;
 // What follows a build.
 static const NSInteger UDAfterBuildNothing = 0;
 static const NSInteger UDAfterBuildRun = 1;
 static const NSInteger UDAfterBuildDebug = 2;
+static const NSInteger UDAfterBuildDebugTests = 3;
 
 // ---------------------------------------------------------------------------
 // MARK: - UDDocumentWindowController  (private extension)
@@ -32,7 +34,7 @@ static const NSInteger UDAfterBuildDebug = 2;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
-                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate,
+                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
                                           NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -80,6 +82,17 @@ static const NSInteger UDAfterBuildDebug = 2;
 /// (one clangd for the project, as VS Code has it).
 @property (nonatomic, strong) NSMutableDictionary<NSArray<NSString *> *, LSPClient *> *projectServers;
 @property (nonatomic, weak) IBOutlet NSView             *issuesHost;
+@property (nonatomic, weak) IBOutlet NSView             *testsHost;
+@property (nonatomic, strong, readwrite) UDTestNavigatorViewController *testNavigator;
+@property (nonatomic, strong, nullable) UDTestCatalog *testCatalogStore;
+/// A test run is what the build runner runs: its output read for its tests.
+@property (nonatomic) BOOL testing;
+/// The last the runner ran was tests (the activity view says how they went).
+@property (nonatomic) BOOL testsRan;
+/// Tests being debugged: built, then debugged.
+@property (nonatomic, strong, nullable) UDTestDebugPlan *pendingTestPlan;
+/// What runs them once the debugger waits for it (an Xcode project's).
+@property (nonatomic, copy, nullable) NSString *pendingAttachedTestCommand;
 @property (nonatomic, weak) IBOutlet NSView             *debugNavigatorHost;
 @property (nonatomic, weak) IBOutlet NSView             *breakpointNavigatorHost;
 @property (nonatomic, strong) IBOutlet UDPaneSplitController *debugSplit;
@@ -205,6 +218,9 @@ static const NSInteger UDAfterBuildDebug = 2;
         _fileWatcher = [[UDFileWatcher alloc] initWithFolderURL:_project.folderURL ignoredNames:nil];
         _fileWatcher.delegate = self;
     }
+    _testNavigator = [[UDTestNavigatorViewController alloc] init];
+    _testNavigator.delegate = self;
+    [self _putView:_testNavigator.view inHost:_testsHost];
     _searchResults = [[UDSearchResultsViewController alloc] init];
     _searchResults.delegate = self;
     _searchResults.folderURL = _project.folderURL;
@@ -271,9 +287,9 @@ static const NSInteger UDAfterBuildDebug = 2;
                             currentDirectoryPath:_project.folderURL.path
                                       languageID:mode.lspLanguageID];
         client.rootURL = _project.folderURL;
-        if ([path.lastPathComponent hasPrefix:@"clangd"]) {
-            client.initializationOptions = @{ @"fallbackFlags": _project.fallbackCompileFlags };
-        }
+        // the extensions' (clangd's fallbackFlags, from CFamily)
+        client.initializationOptions = [_project initializationOptionsForLanguageServer:
+                                        [@[ path ] arrayByAddingObjectsFromArray:[command subarrayWithRange:NSMakeRange(1, command.count - 1)]]];
         _projectServers[command] = client;
     }
     [session startLanguageServerWithClient:client documentURL:document.fileURL];
@@ -378,6 +394,120 @@ static const NSInteger UDAfterBuildDebug = 2;
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Tests (Debug › Test, the Test navigator)
+// ---------------------------------------------------------------------------
+
+/// The project's tests, as its sources have them; what the last runs left
+/// marked stays marked.
+- (UDTestCatalog *)testCatalog {
+    if (!_testCatalogStore) [self reloadTests];
+    return _testCatalogStore;
+}
+
+- (void)reloadTests {
+    if (!_project) return;
+    UDTestCatalog *catalog = [_project testCatalog];
+    for (UDTest *test in catalog.allTests) {
+        UDTest *before = [_testCatalogStore testNamed:test.name inSuite:test.suite.name];
+        if (!before) continue;
+        test.status = before.status;
+        [test.failures addObjectsFromArray:before.failures];
+    }
+    _testCatalogStore = catalog;
+    _testNavigator.catalog = catalog;
+}
+
+/// Debug › Test (⌘U): all the tests.
+- (IBAction)test:(nullable id)sender {
+    [self runTests:nil debugging:NO];
+}
+
+- (void)testNavigator:(UDTestNavigatorViewController *)navigator showPath:(NSString *)path line:(NSInteger)line {
+    [self _showURL:[NSURL fileURLWithPath:path] line:line column:0 length:0];
+}
+
+- (void)testNavigator:(UDTestNavigatorViewController *)navigator runTests:(NSArray<UDTest *> *)tests debugging:(BOOL)debugging {
+    [self runTests:tests debugging:debugging];
+}
+
+- (void)runTests:(nullable NSArray<UDTest *> *)tests debugging:(BOOL)debugging {
+    if (!_project || !_buildRunner || _buildRunner.running) {
+        NSBeep();
+        return;
+    }
+    UDTestCatalog *catalog = self.testCatalog;
+    [catalog resetTests:tests];
+    [_testNavigator reload];
+    [self showTestNavigator:nil];
+    if (debugging) {
+        [self _debugTests:tests];
+        return;
+    }
+    NSString *command = [catalog commandRunningTests:tests];
+    if (!command) {
+        [self _tell:@"No tests to run"
+             detail:@"UDCode runs a GNUstep project's XCTest bundles with xctest, an Xcode project's with xcodebuild test, "
+                    @"CMake's with ctest, a Makefile's check or test target, or tasks.json's test task; "
+                    @"or the \"test\" command in Debug › Project Settings."];
+        return;
+    }
+    [self saveAllDocuments:nil];
+    _testing = YES;
+    _testsRan = YES;
+    if (![_buildRunner runCommand:command]) {
+        _testing = NO;
+        NSBeep();
+        return;
+    }
+    _buildLog.runner = _buildRunner;
+    [self _showBuildIssues];
+    [self _updateActivity];
+}
+
+/// Debugs @a tests (nil: all), as their runner says: built, then what runs
+/// them under the debugger (or, an Xcode project's, the debugger waiting to
+/// attach to what xcodebuild then starts).
+- (void)_debugTests:(nullable NSArray<UDTest *> *)tests {
+    NSString *reason = nil;
+    UDTestDebugPlan *plan = [self.testCatalog debugPlanForTests:tests reason:&reason];
+    if (!plan) {
+        [self _tell:@"These tests can't be debugged here" detail:reason ?: @""];
+        return;
+    }
+    _pendingTestPlan = plan;
+    [self _build:plan.buildCommand then:UDAfterBuildDebugTests];
+}
+
+/// A test run's line: its tests marked; a failure an issue at its place.
+- (void)buildRunner:(UDBuildRunner *)runner didReadLine:(NSString *)line {
+    if (!_testing) return;
+    UDTestFailure *failure = [_testCatalogStore readLine:line];
+    if (failure && !failure.compilerStyle) {
+        // GNUstep's: the file as the bundle's makefile compiled it
+        NSString *path = [_testCatalogStore pathOfFile:failure.file] ?: failure.test.path;
+        if (path) {
+            NSString *name = failure.test ? [NSString stringWithFormat:@"-[%@ %@]: ", failure.test.suite.name, failure.test.name] : @"";
+            [runner addDiagnostic:[[UDDiagnosticItem alloc] initWithLine:MAX(failure.line, 1) column:1
+                                                                 message:[name stringByAppendingString:failure.message]
+                                                                severity:UDDiagnosticSeverityError source:UDDiagnosticSourceBuild]
+                           atPath:path.stringByStandardizingPath];
+        }
+    }
+    [NSObject cancelPreviousPerformRequestsWithTarget:_testNavigator selector:@selector(reload) object:nil];
+    [_testNavigator performSelector:@selector(reload) withObject:nil afterDelay:0.1
+                            inModes:@[ NSDefaultRunLoopMode, NSModalPanelRunLoopMode ]];
+}
+
+- (NSString *)_testsActivity {
+    UDTestCatalog *catalog = _testCatalogStore;
+    NSUInteger passed = catalog.passedCount, failed = catalog.failedCount;
+    if (_buildRunner.running) return @"Testing…";
+    if (!failed && _buildRunner.succeeded) return [NSString stringWithFormat:@"Tests Succeeded | %lu passed", (unsigned long)passed];
+    if (!failed && !passed) return _buildRunner.errorCount ? @"Build Failed" : @"Tests Failed";
+    return [NSString stringWithFormat:@"Tests Failed | %lu failed, %lu passed", (unsigned long)failed, (unsigned long)passed];
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - The toolbar: the scheme, and what is going on (Xcode's activity view)
 // ---------------------------------------------------------------------------
 
@@ -424,7 +554,9 @@ static const NSInteger UDAfterBuildDebug = 2;
     NSString *name = _project.name ?: self.window.title;
     NSString *status = @"Ready";
     UDDebugSessionState state = _debugSession.state;
-    if (_buildRunner.running) {
+    if (_testsRan && (_buildRunner.running || !_debugSession) && _buildRunner.command) {
+        status = [self _testsActivity];
+    } else if (_buildRunner.running) {
         status = [NSString stringWithFormat:@"Building %@…", name];
     } else if (_debugSession && state != UDDebugSessionStateEnded) {
         status = state == UDDebugSessionStateStopped ? [NSString stringWithFormat:@"Paused %@", [self _programName]]
@@ -435,7 +567,7 @@ static const NSInteger UDAfterBuildDebug = 2;
         status = _buildRunner.succeeded && !_buildRunner.errorCount ? @"Build Succeeded" : @"Build Failed";
     }
     NSMutableArray<NSString *> *counts = [NSMutableArray array];
-    if (_buildRunner.command && !_buildRunner.running) {
+    if (_buildRunner.command && !_buildRunner.running && !_testsRan) {
         NSUInteger errors = _buildRunner.errorCount, warnings = _buildRunner.warningCount;
         if (errors) [counts addObject:[NSString stringWithFormat:@"%lu error%@", (unsigned long)errors, errors == 1 ? @"" : @"s"]];
         if (warnings) [counts addObject:[NSString stringWithFormat:@"%lu warning%@", (unsigned long)warnings, warnings == 1 ? @"" : @"s"]];
@@ -518,6 +650,7 @@ static const NSInteger UDAfterBuildDebug = 2;
         NSBeep();
         return;
     }
+    _testsRan = NO;
     _buildLog.runner = _buildRunner;
     [self showBuildNavigator:nil];
     [self _showBuildIssues];
@@ -529,6 +662,16 @@ static const NSInteger UDAfterBuildDebug = 2;
 }
 
 - (void)buildRunnerDidFinish:(UDBuildRunner *)runner {
+    if (_testing) {
+        // the tests' end: their marks, what failed, how it went
+        _testing = NO;
+        [self _showBuildIssues];
+        [_testNavigator reload];
+        [self _updateActivity];
+        [_fileNavigator reload];
+        if (!_testCatalogStore.failedCount && !_testCatalogStore.passedCount && runner.errorCount) [self showIssuesNavigator:nil];
+        return;
+    }
     [self _showBuildIssues];
     [self _updateActivity];
     [_fileNavigator reload];
@@ -545,6 +688,38 @@ static const NSInteger UDAfterBuildDebug = 2;
     _afterBuild = UDAfterBuildNothing;
     if (then == UDAfterBuildRun) [self _runProgramDebugging:NO];
     else if (then == UDAfterBuildDebug) [self _runProgramDebugging:YES];
+    else if (then == UDAfterBuildDebugTests && _pendingTestPlan) {
+        UDTestDebugPlan *plan = _pendingTestPlan;
+        _pendingTestPlan = nil;
+        [self _run:plan.configuration debugging:YES];
+        if (plan.testCommand) {
+            // what runs the tests, started once the debugger waits for it
+            // (lldb-dap says so; a process started before it waits isn't
+            // the one it waits for), or in a while if it doesn't say
+            _pendingAttachedTestCommand = plan.testCommand;
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_debuggerSaid:)
+                                                         name:UDDebugSessionDidOutputNotification object:self.debugSession];
+            [self performSelector:@selector(_startAttachedTests) withObject:nil afterDelay:10];
+        }
+    }
+}
+
+- (void)_debuggerSaid:(NSNotification *)notification {
+    if (![notification.userInfo[UDDebugSessionOutputKey] containsString:@"Waiting to attach"]) return;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_startAttachedTests) object:nil];
+    [self performSelector:@selector(_startAttachedTests) withObject:nil afterDelay:0.5];
+}
+
+- (void)_startAttachedTests {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_startAttachedTests) object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UDDebugSessionDidOutputNotification object:nil];
+    NSString *command = _pendingAttachedTestCommand;
+    _pendingAttachedTestCommand = nil;
+    if (!command || self.debugSession.state == UDDebugSessionStateEnded) return;
+    _testing = YES;
+    _testsRan = YES;
+    if (![_buildRunner runCommand:command]) _testing = NO;
+    [self _updateActivity];
 }
 
 /// The build's diagnostics: an open file's in its own store (where its
@@ -574,6 +749,10 @@ static const NSInteger UDAfterBuildDebug = 2;
 - (void)fileWatcher:(UDFileWatcher *)watcher didSeeChangesAtPaths:(NSSet<NSString *> *)paths {
     [_fileNavigator reload];
     [self _updateSchemePopUp];      // launch.json may have changed
+    // the tests again when their sources changed (not what a build made)
+    BOOL sources = NO;
+    for (NSString *path in paths) sources = sources || [@[ @"m", @"mm", @"h" ] containsObject:path.pathExtension];
+    if (sources && _testCatalogStore && !_buildRunner.running) [self reloadTests];
     NSMutableSet<NSString *> *changed = [NSMutableSet set];
     for (NSString *path in paths) [changed addObject:path.stringByStandardizingPath];
     for (UDCodeDocument *document in _workspaceModel.documents) {
@@ -1130,6 +1309,13 @@ static const NSInteger UDAfterBuildDebug = 2;
     [self navigatorChanged:nil];
 }
 
+- (IBAction)showTestNavigator:(nullable id)sender {
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = UDTestNavigatorSegment;
+    [self navigatorChanged:nil];
+    if (!_testCatalogStore) [self reloadTests];
+}
+
 - (IBAction)showDebugNavigator:(nullable id)sender {
     [_paneSplit setPane:UDNavigatorPane visible:YES];
     _navigatorControl.selectedSegment = UDDebugNavigatorSegment;
@@ -1163,6 +1349,8 @@ static const NSInteger UDAfterBuildDebug = 2;
     } else if (sel_isEqual(action, @selector(selectLaunchConfiguration:))) {
         item.state = [item.representedObject isEqual:self.selectedLaunchConfiguration] ? NSControlStateValueOn : NSControlStateValueOff;
         return _project != nil;
+    } else if (sel_isEqual(action, @selector(test:))) {
+        return _buildRunner != nil && !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
     } else if (sel_isEqual(action, @selector(runTask:))) {
         return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(showProjectSettings:))) {
@@ -1637,23 +1825,23 @@ static const NSInteger UDAfterBuildDebug = 2;
         [self _tell:@"The program isn't there" detail:[NSString stringWithFormat:@"%@ wasn't made by the build.", program]];
         return;
     }
-    NSArray<NSString *> *command = [UDToolLocator debugAdapterCommandForDebugger:_project.debugger];
+    NSArray<NSString *> *command = [UDDebugger adapterCommandForDebugger:_project.debugger];
     if (!command) {
-        [self _tell:@"No debugger" detail:@"Neither lldb-dap nor gdb (14 or later) was found. Install LLVM's lldb, or gdb, "
-                                          @"or name a debug adapter in the project's settings (\"debugger\")."];
+        [self _tell:@"No debugger" detail:[NSString stringWithFormat:@"None of the debuggers UDCode knows (%@) was found. "
+                                           @"Install one, or name a debug adapter in the project's settings (\"debugger\").",
+                                           [self _debuggerNames]]];
         return;
     }
-    NSString *kind = [UDToolLocator kindOfDebugAdapterCommand:command];
-    NSMutableDictionary *arguments = [[UDToolLocator launchArgumentsForDebugger:kind program:program
-                                                                      arguments:_project.runArguments
-                                                                      directory:_project.runDirectory
-                                                                    environment:_project.buildEnvironment] mutableCopy];
+    Class debugger = [UDDebugger classOfAdapterCommand:command] ?: [UDDebugger class];
+    NSMutableDictionary *arguments = [[debugger launchArgumentsForProgram:program arguments:_project.runArguments
+                                                                directory:_project.runDirectory
+                                                              environment:_project.buildEnvironment] mutableCopy];
     if (!debugging) arguments[@"noDebug"] = @YES;
     // run alone: no breakpoints for it to stop at (not every adapter honours noDebug)
     UDDebugSession *session = [[UDDebugSession alloc] initWithAdapterCommand:command
                                                         currentDirectoryPath:_project.folderURL.path
                                                                  breakpoints:debugging ? _breakpoints : [[UDBreakpointStore alloc] init]];
-    session.adapterID = kind ?: @"udcode";
+    session.adapterID = debugger != [UDDebugger class] ? [debugger name] : @"udcode";
     self.debugSession = session;
     [_debugSplit setPane:UDDebugAreaPane visible:YES];
     if (debugging) [self showDebugNavigator:nil];
@@ -1688,40 +1876,45 @@ static const NSInteger UDAfterBuildDebug = 2;
              detail:@"Its launch configuration names no program."];
         return;
     }
-    NSArray<NSString *> *command = nil;
-    if (configuration.debuggerPath && [configuration.debugger isEqualToString:UDDebuggerGDB]) {
-        command = @[ configuration.debuggerPath, @"-i", @"dap" ];
-    } else {
-        command = [UDToolLocator debugAdapterCommandForDebugger:configuration.debugger ?: _project.debugger];
-    }
+    // its debugger's adapter, from where it says (miDebuggerPath), or as found
+    Class named = configuration.debugger ? [UDDebugger classNamed:configuration.debugger] : Nil;
+    NSArray<NSString *> *command = configuration.debuggerPath && named
+        ? [named adapterCommandWithExecutable:configuration.debuggerPath]
+        : [UDDebugger adapterCommandForDebugger:configuration.debugger ?: _project.debugger];
     if (!command) {
         [self _tell:@"No debugger" detail:[NSString stringWithFormat:@"“%@” wants %@, which wasn't found.", configuration.name,
-                                           configuration.debugger ?: @"lldb-dap or gdb"]];
+                                           configuration.debugger ?: [self _debuggerNames]]];
         return;
     }
-    NSString *kind = [UDToolLocator kindOfDebugAdapterCommand:command];
+    Class debugger = [UDDebugger classOfAdapterCommand:command] ?: [UDDebugger class];
     NSMutableDictionary *environment = [_project.buildEnvironment mutableCopy];
     [environment addEntriesFromDictionary:configuration.environment];
     NSMutableDictionary *arguments = nil;
     if (attach) {
-        arguments = [@{ @"pid": @(configuration.processID) } mutableCopy];
+        arguments = configuration.waitFor ? [@{ @"waitFor": @YES } mutableCopy]
+                                          : [@{ @"pid": @(configuration.processID) } mutableCopy];
         if (configuration.program) arguments[@"program"] = configuration.program;
     } else {
-        arguments = [[UDToolLocator launchArgumentsForDebugger:kind program:configuration.program
-                                                     arguments:configuration.arguments
-                                                     directory:configuration.directory ?: _project.folderURL.path
-                                                   environment:environment] mutableCopy];
+        arguments = [[debugger launchArgumentsForProgram:configuration.program arguments:configuration.arguments
+                                               directory:configuration.directory ?: _project.folderURL.path
+                                             environment:environment] mutableCopy];
     }
     if (!debugging) arguments[@"noDebug"] = @YES;
     UDDebugSession *session = [[UDDebugSession alloc] initWithAdapterCommand:command
                                                         currentDirectoryPath:_project.folderURL.path
                                                                  breakpoints:debugging ? _breakpoints : [[UDBreakpointStore alloc] init]];
-    session.adapterID = kind ?: configuration.type;
+    session.adapterID = debugger != [UDDebugger class] ? [debugger name] : configuration.type;
     self.debugSession = session;
     [_debugSplit setPane:UDDebugAreaPane visible:YES];
     if (debugging) [self showDebugNavigator:nil];
     if (attach) [session attachWithArguments:arguments];
     else [session launchWithArguments:arguments];
+}
+
+/// The debuggers known, as the settings sheet names them ("LLDB or GDB").
+- (NSString *)_debuggerNames {
+    NSArray *names = [[UDDebugger classes] valueForKey:@"displayName"];
+    return names.count ? [names componentsJoinedByString:@" or "] : @"none";
 }
 
 /// A sheet saying what went wrong.

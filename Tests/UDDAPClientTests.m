@@ -14,6 +14,7 @@
 #import <XCTest/XCTest.h>
 #import "UDCodeTestCase.h"
 #import "UDDemoDebugAdapter.h"
+#import <UDCodeKit/UDShell.h>
 
 @interface UDDAPClientTests : UDCodeTestCase <LSPTransportDelegate, DAPClientDelegate>
 @property (nonatomic, strong) NSMutableArray<NSDictionary *> *messages;
@@ -102,7 +103,10 @@
 }
 
 - (void)testTheTransportOverAProcess {
-    LSPTransport *transport = [[LSPTransport alloc] initWithLaunchPath:@"/bin/cat" arguments:@[]
+    // cat, as the system's shell finds it
+    NSArray *cat = UDShellCommandArguments(@"cat");
+    LSPTransport *transport = [[LSPTransport alloc] initWithLaunchPath:cat.firstObject
+                                                             arguments:[cat subarrayWithRange:NSMakeRange(1, cat.count - 1)]
                                                   currentDirectoryPath:nil];
     transport.delegate = self;
     XCTAssertNil(transport.launchError);

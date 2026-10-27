@@ -15,7 +15,8 @@ APP_DIR = ../Sources
 
 # The app's objects are compiled in directly (there is no host app): all of
 # UDCode but main.m, whose main() would collide with the test runner's.
-UDCodeTests_OBJC_FILES = $(wildcard *.m) \
+# This system's tests: posix/ holds what only a POSIX system runs (gnustep.make's UD_SOURCES).
+UDCodeTests_OBJC_FILES = $(call UD_SOURCES,$(wildcard *.m) $(wildcard posix/*.m) $(wildcard windows/*.m)) \
     $(filter-out $(APP_DIR)/main.m,$(shell find $(APP_DIR) -name '*.m' | sort))
 # Its nibs, which it loads from the main bundle or its classes' bundle: this
 # one, where those classes now live.

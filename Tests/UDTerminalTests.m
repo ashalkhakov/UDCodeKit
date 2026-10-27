@@ -122,7 +122,7 @@
     [(NSView *)window.contentView addSubview:terminal.view];
     UDTerminalView *view = terminal.terminalView;
     XCTAssertGreaterThan(view.columns, 40u);
-    NSArray *script = @[ @"/bin/sh", @"-c", @"printf 'hi there\\n'; stty size; exit 3" ];
+    NSArray *script = UDShellCommandArguments(@"printf 'hi there\\n'; stty size; exit 3");
     XCTAssertTrue([terminal startArguments:script directory:NSTemporaryDirectory() environment:nil]);
     UDRunUntil(!terminal.running, 10);
     XCTAssertFalse(terminal.running);
@@ -136,7 +136,7 @@
     XCTAssertTrue([view.screenText containsString:completed], @"%@", view.screenText);
 
     // typed, echoed by the terminal and by cat; ^D ends it
-    NSArray *cat = @[ @"/bin/cat" ];
+    NSArray *cat = UDShellCommandArguments(@"exec cat");
     XCTAssertTrue([terminal startArguments:cat directory:nil environment:nil]);
     XCTAssertEqualObjects(view.screenText, @"", @"started afresh");
     for (NSString *c in @[ @"a", @"b", @"c", @"\r" ]) [view keyDown:[self key:c bare:c modifiers:0]];

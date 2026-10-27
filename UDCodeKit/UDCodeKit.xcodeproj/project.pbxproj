@@ -43,7 +43,9 @@
 			membershipExceptions = (
 				Terminal/windows/UDPseudoTerminal.m,
 				Terminal/windows/UDShell.m,
-				Debug/windows/UDRealPath.m,
+				Project/windows/UDRealPath.m,
+				Project/linux/UDFileWatcherSystem.m,
+				Project/windows/UDFileWatcherSystem.m,
 			);
 			publicHeaders = (
 				Debug/UDDebugger.h,

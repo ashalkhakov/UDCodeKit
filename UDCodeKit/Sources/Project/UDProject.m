@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDProject.h"
+#import "UDRealPath.h"
 #import "UDToolLocator.h"
 #import "UDTasks.h"
 #import "UDTests.h"
@@ -33,11 +34,7 @@ NSString * const UDProjectPlatformKey = @"macos";
     // its real path: what a compiler records in its debug information, and
     // so what a debugger's breakpoints are matched against (a folder opened
     // through a link, or macOS's /var, would match nothing)
-    char resolved[PATH_MAX];
-    _folderURL = realpath(folderURL.path.fileSystemRepresentation, resolved)
-        ? [NSURL fileURLWithPath:[[NSFileManager defaultManager] stringWithFileSystemRepresentation:resolved length:strlen(resolved)]
-                     isDirectory:YES]
-        : [folderURL.URLByStandardizingPath copy];
+    _folderURL = [NSURL fileURLWithPath:UDRealPath(folderURL.URLByStandardizingPath.path) isDirectory:YES];
     _settingsURL = [[_folderURL URLByAppendingPathComponent:@".udcode"] URLByAppendingPathComponent:@"settings.json"];
     [self _readSettings];
     return self;

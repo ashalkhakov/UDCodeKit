@@ -321,13 +321,16 @@ static NSInteger UDInteger(id value) {
 
 - (void)_configurationDone {
     if (_state == UDDebugSessionStateEnded) return;
+    // gdb's launch, held for the breakpoints, goes now, before configurationDone:
+    // gdb 18 refuses configurationDone before it ("launch or attach not
+    // specified"), and answers the launch only after it, so neither waits
+    if (!_launchSent) [self _sendLaunch];
     if ([_client configurationDoneWithTarget:self action:@selector(_didConfigure:)] == 0) {
         [self _didConfigure:nil];
     }
 }
 
 - (void)_didConfigure:(DAPResponse *)response {
-    if (!_launchSent) [self _sendLaunch];
     if (_state == UDDebugSessionStateStarting) self.state = UDDebugSessionStateRunning;
 }
 

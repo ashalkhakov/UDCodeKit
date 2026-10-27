@@ -4,9 +4,10 @@ name: Build
 # make check, make install; Makefile.apple on macOS) by gnustep-release-
 # actions' workflows, the same as every repository's. Every push is built,
 # tested and uploaded as artifacts: UDCodeKit as a library (the installed
-# frameworks and grammar bundles for Linux, x86_64 and aarch64; the
-# XCFrameworks for Apple) for what builds on it, and UDCode as an AppImage
-# (started on a clean Ubuntu) and a Mac app. A v* tag (or a run started by
+# frameworks and grammar bundles for Linux, x86_64 and aarch64, and for
+# Windows; the XCFrameworks for Apple) for what builds on it, and UDCode as
+# an AppImage (started on a clean Ubuntu), a Windows installer (installed and
+# started on a clean Windows) and a Mac app. A v* tag (or a run started by
 # hand with one) is also released: the AppImage with its update information,
 # the Windows installer, the Mac app signed and notarized with its Sparkle appcast, attached to the
 # tag's release (a pre-release when the tag has a '-'). What it builds on is

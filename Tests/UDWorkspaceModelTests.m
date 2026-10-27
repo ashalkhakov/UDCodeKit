@@ -180,7 +180,8 @@
     id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     NSArray *files = obj[@"openFiles"];
     XCTAssertEqual(files.count, (NSUInteger)1);
-    XCTAssertEqualObjects(files[0][@"path"], @"/tmp/saved.json");
+    // the URL's path (on Windows /tmp/saved.json is relative to the current drive)
+    XCTAssertEqualObjects(files[0][@"path"], url.path);
 }
 
 - (void)testDeserializeMalformedDataReturnsNil {

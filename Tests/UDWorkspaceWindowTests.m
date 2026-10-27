@@ -78,12 +78,15 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     XCTAssertEqualWithAccuracy(NSWidth([self pane:0].frame), 240, 1);
     XCTAssertEqualWithAccuracy(NSWidth([self pane:2].frame), 260, 1);
 
-    // A wider window: the editors take it.
+    // A wider window: the editors take it. As wide as the screen lets it be:
+    // Windows keeps a window within its screen (CI's is 1024 wide).
+    [_controller.window setFrame:NSMakeRect(0, 0, 900, 760) display:NO];
     CGFloat editors = NSWidth([self pane:1].frame);
-    [_controller.window setFrame:NSMakeRect(0, 0, 1400, 760) display:NO];
+    CGFloat wider = MIN(1400, NSWidth([NSScreen mainScreen].frame));
+    [_controller.window setFrame:NSMakeRect(0, 0, wider, 760) display:NO];
     XCTAssertEqualWithAccuracy(NSWidth([self pane:0].frame), 240, 1);
     XCTAssertEqualWithAccuracy(NSWidth([self pane:2].frame), 260, 1);
-    XCTAssertGreaterThan(NSWidth([self pane:1].frame), editors + 150);
+    XCTAssertEqualWithAccuracy(NSWidth([self pane:1].frame), editors + (wider - 900), 2);
 
     // The navigator hidden: its room goes to the editors; shown again, at its width.
     editors = NSWidth([self pane:1].frame);

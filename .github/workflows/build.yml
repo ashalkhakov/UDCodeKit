@@ -44,6 +44,8 @@ jobs:
     with:
       tag: ${{ inputs.tag }}
       library: true
+      # gdb, which speaks DAP: the tests run and debug programs with it, as on Linux
+      extra-packages: gdb
 
   macos:
     uses: ashalkhakov/gnustep-release-actions/.github/workflows/macos.yml@v1

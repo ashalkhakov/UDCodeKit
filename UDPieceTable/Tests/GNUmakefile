@@ -16,7 +16,7 @@ UD_LIBS = $(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable)
 UDPieceTableTests_INCLUDE_DIRS = -I$(UD_INCLUDE) -I../Sources
 ADDITIONAL_LIB_DIRS += -L$(UD_LIBS)
 # Libraries, not linker flags: on Windows the flags are linked whole.
-UDPieceTableTests_BUNDLE_LIBS += -lUDPieceTable -lXCTest -ldispatch -lBlocksRuntime
+UDPieceTableTests_BUNDLE_LIBS += -lUDPieceTable -lXCTest -ldispatch $(UD_BLOCKS_LIBS)
 
 XCTEST ?= xctest
 TEST_TIMEOUT ?= 900

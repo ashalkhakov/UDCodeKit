@@ -108,7 +108,7 @@ UDCodeKit_INCLUDE_DIRS = $(addprefix -I,$(filter-out $(foreach d,$(UD_OTHER_DIRS
 UDCodeKit_LIB_DIRS = -L$(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \
     -L$(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)
 UDCodeKit_LIBRARIES_DEPEND_UPON = -lUDPieceTable -lLSPKit $(GUI_LIBS) $(FND_LIBS) $(OBJC_LIBS) \
-    -ldispatch -lBlocksRuntime $(UD_PTY_LIBS)
+    -ldispatch $(UD_BLOCKS_LIBS) $(UD_PTY_LIBS)
 # tree-sitter's and libvterm's C want C11 (and C99's features) and their own warnings left alone.
 ADDITIONAL_CFLAGS += -std=gnu11 -w
 

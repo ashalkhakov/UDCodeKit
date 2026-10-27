@@ -21,7 +21,7 @@ UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
 ADDITIONAL_LIB_DIRS += $(addprefix -L,$(UD_LIBS))
 # Libraries, not linker flags: on Windows the flags are linked whole, and
 # import libraries linked whole collide.
-UDCode_GUI_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -ldispatch -lBlocksRuntime
+UDCode_GUI_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -ldispatch $(UD_BLOCKS_LIBS)
 # Found beside it, relative to the executable: in the tree (build/gnustep/)
 # and installed (Local/Applications beside Local/Library/Libraries). Windows
 # finds DLLs on PATH instead.

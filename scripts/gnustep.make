@@ -27,14 +27,18 @@ override GNUSTEP_BUILD_DIR := $(UD_BUILD)/$(patsubst $(UD_ROOT)/%,%,$(abspath $(
 # windows/. UD_SYSTEM_DIRS are this system's; $(call UD_SOURCES,<list>)
 # drops the others' from a list of sources.
 #
-# Linux: forkpty is libutil's, and a program finds the tree's libraries by
-# its rpath. Windows: a DLL is found on PATH, and there is no forkpty.
+# Linux: forkpty is libutil's, the blocks runtime libBlocksRuntime, and a
+# program finds the tree's libraries by its rpath. Windows: a DLL is found on
+# PATH, there is no forkpty, and the blocks runtime is libobjc's own (the
+# stack's libBlocksRuntime.dll is libdispatch's: its blocks' class is not
+# one the Objective-C runtime knows, and a block of its retained crashes).
 ifeq ($(OS),Windows_NT)
 UD_FRAMEWORK_LIB = $(UD_BUILD)/$(1)/$(2).framework
 UD_SYSTEM = windows
 UD_SYSTEM_DIRS = windows
 UD_OTHER_DIRS = posix linux apple
 UD_PTY_LIBS =
+UD_BLOCKS_LIBS =
 UD_WINDOWS = yes
 else
 UD_FRAMEWORK_LIB = $(UD_BUILD)/$(1)/$(2).framework/Versions/Current
@@ -42,6 +46,7 @@ UD_SYSTEM = posix
 UD_SYSTEM_DIRS = posix linux
 UD_OTHER_DIRS = windows apple
 UD_PTY_LIBS = -lutil
+UD_BLOCKS_LIBS = -lBlocksRuntime
 UD_WINDOWS =
 endif
 UD_SOURCES = $(foreach f,$(1),$(if $(filter $(UD_OTHER_DIRS),$(subst /, ,$(dir $(f)))),,$(f)))
@@ -50,7 +55,7 @@ UD_SOURCES = $(foreach f,$(1),$(if $(filter $(UD_OTHER_DIRS),$(subst /, ,$(dir $
 # library: libstdc++ there, LLVM's libc++ in MSYS2's CLANG64.
 ifneq ($(UD_WINDOWS),)
 UD_PLUGIN_LIBS = $(foreach f,UDCodeKit UDPieceTable LSPKit,-L$(call UD_FRAMEWORK_LIB,$(f),$(f))) \
-    -lUDCodeKit -lUDPieceTable -lLSPKit -ldispatch -lBlocksRuntime
+    -lUDCodeKit -lUDPieceTable -lLSPKit -ldispatch
 UD_CXX_LIB = -lc++
 else
 UD_PLUGIN_LIBS =

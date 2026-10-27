@@ -30,7 +30,7 @@ UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
           $(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)
 ADDITIONAL_LIB_DIRS += $(addprefix -L,$(UD_LIBS))
 # Libraries, not linker flags: on Windows the flags are linked whole.
-UDCodeTests_BUNDLE_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -lXCTest -ldispatch -lBlocksRuntime
+UDCodeTests_BUNDLE_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -lXCTest -ldispatch $(UD_BLOCKS_LIBS)
 
 # The grammars: UDCode.app's, built before this (the root GNUmakefile).
 UD_PLUGINS = $(UD_BUILD)/Sources/UDCode.app/PlugIns

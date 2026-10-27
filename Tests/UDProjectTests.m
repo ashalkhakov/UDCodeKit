@@ -641,7 +641,7 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(build.commandLine, @"make -j2", @"linux's args over the rest");
 #endif
     XCTAssertEqualObjects(build.directory, [_folder stringByAppendingPathComponent:@"sub"], @"${workspaceFolder}");
-    XCTAssertEqualObjects(build.environment[@"FLAVOR"], NSHomeDirectory(), @"${env:HOME}");
+    XCTAssertEqualObjects(build.environment[@"FLAVOR"], NSProcessInfo.processInfo.environment[@"HOME"], @"${env:HOME}");
     NSString *line = [tasks commandLineRunning:build];
     XCTAssertTrue([line rangeOfString:@"echo prep"].location < [line rangeOfString:@"make -j"].location, @"dependsOn first: %@", line);
     XCTAssertEqualObjects([tasks taskLabelled:@"test"].commandLine, @"'./run tests'", @"a process's program, quoted");
@@ -1339,11 +1339,14 @@ static Class UDPluginClass(NSString *name) {
                 @" \"testMate.cpp.test.executables\": \"bin/*.test\", \"cmake.buildDirectory\": \"${workspaceFolder}/out\" }\n"
              to:@".vscode/settings.json"];
     UDTasks *tasks = [[UDTasks alloc] initWithFolderURL:[NSURL fileURLWithPath:_folder] currentFileURL:nil];
-    UDLaunchConfiguration *debug = [tasks testDebugConfigurationForExecutable:@"/b/calc_test" arguments:@[ @"--gtest_filter=Calc.Adds" ]
-                                                                    directory:@"/b"];
-    XCTAssertEqualObjects(debug.program, @"/b/calc_test");
+    // an absolute folder as the system writes one (/b is not, on Windows)
+    NSString *b = [_folder stringByAppendingPathComponent:@"b"];
+    NSString *calcTest = [b stringByAppendingPathComponent:@"calc_test"];
+    UDLaunchConfiguration *debug = [tasks testDebugConfigurationForExecutable:calcTest arguments:@[ @"--gtest_filter=Calc.Adds" ]
+                                                                    directory:b];
+    XCTAssertEqualObjects(debug.program, calcTest);
     XCTAssertEqualObjects(debug.arguments, @[ @"--gtest_filter=Calc.Adds" ]);
-    XCTAssertEqualObjects(debug.directory, @"/b");
+    XCTAssertEqualObjects(debug.directory, b);
     XCTAssertEqualObjects(debug.debugger, @"gdb", @"cppdbg with gdb");
     XCTAssertEqualObjects([[[UDPlugin(UDGoogleTestRunner) alloc] initWithProject:self.project] globs], @[ @"bin/*.test" ], @"TestMate's own setting");
     XCTAssertEqualObjects([[[UDPlugin(UDCMakeBuildSystem) alloc] initWithProject:self.project] buildDirectory],

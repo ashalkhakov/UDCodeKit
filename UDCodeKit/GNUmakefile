@@ -98,7 +98,12 @@ UDCodeKit_HEADER_FILES = \
 
 UDCodeKit_RESOURCE_FILES = $(shell find Sources -name '*.xib' | sort)
 
-UDCodeKit_INCLUDE_DIRS = -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit \
+# Its own folders first: a header a source imports by its name, from a
+# folder that is not its own, is then reached by one path, the one its
+# folder's sources reach it by (on Windows the include folder's link
+# would be another file to #import).
+UDCodeKit_INCLUDE_DIRS = $(addprefix -I,$(filter-out $(foreach d,$(UD_OTHER_DIRS),%/$(d)),$(shell find Sources -type d | sort))) \
+    -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit \
     -I../tree-sitter/include -I../tree-sitter/src -I../libvterm/include
 UDCodeKit_LIB_DIRS = -L$(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \
     -L$(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)

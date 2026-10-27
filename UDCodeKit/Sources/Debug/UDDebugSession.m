@@ -8,8 +8,7 @@
 
 #import <AppKit/AppKit.h>
 #import "UDDebugSession.h"
-#include <limits.h>
-#include <stdlib.h>
+#import "UDRealPath.h"
 #import "UDLanguageMode.h"
 
 NSNotificationName const UDDebugSessionDidChangeStateNotification = @"UDDebugSessionDidChangeStateNotification";
@@ -390,10 +389,7 @@ static NSInteger UDInteger(id value) {
     // the file's real path, as a compiler records it (a debugger matches its
     // breakpoints against that: macOS's /var is /private/var, a project may
     // be opened through a link)
-    // (realpath(3): Foundation's resolving takes /private off again)
-    char resolved[PATH_MAX];
-    NSString *real = realpath(path.fileSystemRepresentation, resolved)
-        ? [[NSFileManager defaultManager] stringWithFileSystemRepresentation:resolved length:strlen(resolved)] : path;
+    NSString *real = UDRealPath(path);
     NSInteger seq = [_client setBreakpointsInFile:real breakpoints:sourceBreakpoints
                                            target:self action:@selector(_didSetBreakpoints:)];
     if (seq) _breakpointRequests[@(seq)] = @[ sentFor, unsupported, action ? NSStringFromSelector(action) : @"" ];

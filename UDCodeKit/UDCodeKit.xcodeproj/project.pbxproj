@@ -43,6 +43,7 @@
 			membershipExceptions = (
 				Terminal/windows/UDPseudoTerminal.m,
 				Terminal/windows/UDShell.m,
+				Debug/windows/UDRealPath.m,
 			);
 			publicHeaders = (
 				Debug/UDDebugger.h,

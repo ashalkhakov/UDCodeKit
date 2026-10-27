@@ -43,7 +43,7 @@
 			membershipExceptions = (
 				Terminal/windows/UDPseudoTerminal.m,
 				Terminal/windows/UDShell.m,
-				Project/windows/UDRealPath.m,
+				Project/windows/UDPaths.m,
 				Project/linux/UDFileWatcherSystem.m,
 				Project/windows/UDFileWatcherSystem.m,
 			);
@@ -59,6 +59,7 @@
 				Terminal/UDTerminalView.h,
 				Terminal/UDPseudoTerminal.h,
 				Terminal/UDShell.h,
+				Project/UDPaths.h,
 				Debug/UDBreakpointEditorViewController.h,
 				Debug/UDBreakpointNavigatorViewController.h,
 				Debug/UDBreakpointStore.h,

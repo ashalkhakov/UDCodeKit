@@ -4,6 +4,7 @@
 
 #import "UDLanguageModeRegistry.h"
 #import "UDExtension.h"
+#import "UDPaths.h"
 
 // ---------------------------------------------------------------------------
 // MARK: - Default new-document text (app-level UX, not grammar metadata)
@@ -335,13 +336,13 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 
     // Every grammar bundle in the app's PlugIns folder: UDCodeKit's, and any
     // the app adds of its own (UDQuakeTools' idScript). Or in the folders
-    // $UD_PLUGINS_PATH names, ':'-separated: a test runner (xctest on
+    // $UD_PLUGINS_PATH names, as PATH separates them (':', Windows' ';'): a test runner (xctest on
     // GNUstep) is no app. Sorted by name, so the order does not depend on
     // the file system's. LanguageInfo.plist in each bundle is read before
     // any bundle code runs.
     NSString *searchPath = [[NSProcessInfo processInfo] environment][@"UD_PLUGINS_PATH"]
         ?: [[NSBundle mainBundle] builtInPlugInsPath];
-    for (NSString *plugInsPath in [searchPath componentsSeparatedByString:@":"]) {
+    for (NSString *plugInsPath in [searchPath componentsSeparatedByString:UDPathListSeparator()]) {
         if (plugInsPath.length == 0) continue;
         NSArray<NSString *> *names = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:plugInsPath error:NULL]
             sortedArrayUsingSelector:@selector(compare:)];

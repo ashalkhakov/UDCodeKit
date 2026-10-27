@@ -8,7 +8,7 @@
 
 #import <AppKit/AppKit.h>
 #import "UDDebugSession.h"
-#import "UDRealPath.h"
+#import "UDPaths.h"
 #import "UDLanguageMode.h"
 
 NSNotificationName const UDDebugSessionDidChangeStateNotification = @"UDDebugSessionDidChangeStateNotification";

@@ -33,6 +33,7 @@ UDCodeKit_HEADER_FILES = \
     UDTerminalView.h \
     UDPseudoTerminal.h \
     UDShell.h \
+    UDPaths.h \
     UDIssuePopupController.h \
     UDLinkedEditing.h \
     UDOpenQuicklyController.h \

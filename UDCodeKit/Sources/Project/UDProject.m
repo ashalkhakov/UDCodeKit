@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDProject.h"
-#import "UDRealPath.h"
+#import "UDPaths.h"
 #import "UDToolLocator.h"
 #import "UDTasks.h"
 #import "UDTests.h"

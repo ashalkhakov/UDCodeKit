@@ -1,12 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  UDRealPath.m (Windows)
+ *  UDPaths.m (Windows)
  *--------------------------------------------------------------------------------------------*/
 
-#import "../UDRealPath.h"
+#import "../UDPaths.h"
 #include <windows.h>
 
 /* The path Windows opens the file by, its links and junctions followed
-   (GetFinalPathNameByHandleW), without the \\?\ it starts with. */
+   (GetFinalPathNameByHandleW), without the \\?\ it starts with, and with
+   GNUstep's forward slashes: the path a source's breakpoints are kept by is
+   written so, and a backslashed one would match none of them. */
 NSString *UDRealPath(NSString *path) {
     NSUInteger length = path.length;
     unichar *wide = calloc(length + 1, sizeof(unichar));
@@ -20,7 +22,11 @@ NSString *UDRealPath(NSString *path) {
     CloseHandle(file);
     if (got == 0 || got >= sizeof resolved / sizeof resolved[0]) return path;
     NSString *real = [NSString stringWithCharacters:(const unichar *)resolved length:got];
-    if ([real hasPrefix:@"\\\\?\\UNC\\"]) return [@"\\\\" stringByAppendingString:[real substringFromIndex:8]];
-    if ([real hasPrefix:@"\\\\?\\"]) return [real substringFromIndex:4];
-    return real;
+    if ([real hasPrefix:@"\\\\?\\UNC\\"]) real = [@"\\\\" stringByAppendingString:[real substringFromIndex:8]];
+    else if ([real hasPrefix:@"\\\\?\\"]) real = [real substringFromIndex:4];
+    return [real stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
+}
+
+NSString *UDPathListSeparator(void) {
+    return @";";
 }

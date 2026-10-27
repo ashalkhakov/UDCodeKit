@@ -59,14 +59,15 @@ endif
 # A test run with the tree's libraries found: $(call UD_RUN_WITH,<dirs, :-separated>).
 UD_RUN_WITH = LD_LIBRARY_PATH="$(1)$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}" PATH="$(1):$$PATH"
 
-# The include link for a framework: $(call UD_LINK_HEADERS,<Name>,<source folder>).
-# On Windows a directory junction: MSYS2's ln -s copies the folder, and the
-# copy's headers are other files to #import. A junction needs no privilege,
-# and rmdir takes one (or an old copy) away without touching its folder.
+# The include link for a framework, made as its makefile is read (before
+# make -j compiles anything that needs it):
+#   UD_LINKED := $(shell $(call UD_LINK_HEADERS,<Name>,<source folder>))
+# On Windows a directory junction, made when it is not there yet: MSYS2's
+# ln -s copies the folder, and the copy's headers are other files to
+# #import. A junction needs no privilege.
 ifeq ($(OS),Windows_NT)
-UD_LINK_HEADERS = mkdir -p $(UD_INCLUDE) \
-  && { [ ! -e $(UD_INCLUDE)/$(1) ] || cmd //c "rmdir /s /q $$(cygpath -w $(UD_INCLUDE)/$(1))"; } \
-  && cmd //c "mklink /J $$(cygpath -w $(UD_INCLUDE)/$(1)) $$(cygpath -w $(2))" > /dev/null
+UD_LINK_HEADERS = mkdir -p $(UD_INCLUDE) && { [ -e $(UD_INCLUDE)/$(1) ] \
+  || cmd //c "mklink /J $$(cygpath -w $(UD_INCLUDE)/$(1)) $$(cygpath -w $(2))" > /dev/null; }
 else
 UD_LINK_HEADERS = mkdir -p $(UD_INCLUDE) && ln -sfn $(2) $(UD_INCLUDE)/$(1)
 endif

@@ -6,6 +6,9 @@ FRAMEWORK_NAME = LSPKit
 include ../scripts/gnustep.make
 include $(GNUSTEP_MAKEFILES)/common.make
 
+# <LSPKit/X.h> from the tree (gnustep.make's UD_LINK_HEADERS).
+UD_LINKED := $(shell $(call UD_LINK_HEADERS,LSPKit,$(CURDIR)))
+
 # The system's half (LSPSystem.h): posix/ or windows/, as gnustep.make says.
 LSPKit_OBJC_FILES = $(wildcard *.m) $(wildcard $(UD_SYSTEM)/*.m)
 LSPKit_HEADER_FILES = $(filter-out LSPSystem.h,$(wildcard *.h))
@@ -19,6 +22,3 @@ LSPKit_CPPFLAGS += "-DLSPKIT_EXPORT=__declspec(dllexport) extern"
 endif
 
 include $(GNUSTEP_MAKEFILES)/framework.make
-
-before-all::
-	@$(call UD_LINK_HEADERS,LSPKit,$(CURDIR))

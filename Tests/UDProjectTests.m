@@ -973,7 +973,9 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertTrue(terminal.running);
     XCTAssertFalse(terminal.view.superview.isHidden, @"the terminal shown");
     XCTAssertEqual(controller.window.firstResponder, terminal.terminalView);
-    [terminal.pseudoTerminal writeData:[@"echo \"at:$(pwd -P)\"\r" dataUsingEncoding:NSUTF8StringEncoding]];
+    // MSYS2's bash says its folder as Windows has it with pwd -W (/tmp/x is
+    // C:/msys64/tmp/x); other shells have no -W
+    [terminal.pseudoTerminal writeData:[@"echo \"at:$( (pwd -W || pwd -P) 2>/dev/null)\"\r" dataUsingEncoding:NSUTF8StringEncoding]];
     NSString *expected = [@"at:" stringByAppendingString:_folder];
     UDRunUntil([terminal.terminalView.screenText containsString:expected], 30);
     XCTAssertTrue([terminal.terminalView.screenText containsString:expected], @"%@", terminal.terminalView.screenText);
@@ -1192,7 +1194,7 @@ static Class UDPluginClass(NSString *name) {
                 @"include $(GNUSTEP_MAKEFILES)/tool.make\n" to:@"Calc/GNUmakefile"];
     [self write:@"int main(void) { return 0; }\n" to:@"Calc/main.m"];
     [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nBUNDLE_NAME = CalcTests\nCalcTests_OBJC_FILES = CalcTests.m\n"
-                @"ADDITIONAL_LDFLAGS += -lXCTest\ninclude $(GNUSTEP_MAKEFILES)/bundle.make\n" to:@"CalcTests/GNUmakefile"];
+                @"CalcTests_BUNDLE_LIBS += -lXCTest\ninclude $(GNUSTEP_MAKEFILES)/bundle.make\n" to:@"CalcTests/GNUmakefile"];
     [self write:@"#import <XCTest/XCTest.h>\n"
                 @"@interface CalcTests : XCTestCase\n@end\n\n"
                 @"@implementation CalcTests\n\n"

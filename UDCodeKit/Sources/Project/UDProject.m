@@ -293,10 +293,8 @@ static NSString *UDStringOrNil(id value) {
 
 - (NSString *)pathOfToolOnBuildPath:(NSString *)name {
     for (NSString *folder in [self.buildEnvironment[@"PATH"] componentsSeparatedByString:UDPathListSeparator()]) {
-        for (NSString *fileName in UDExecutableFileNames(name)) {
-            NSString *candidate = [folder stringByAppendingPathComponent:fileName];
-            if (folder.length && [[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
-        }
+        NSString *found = folder.length ? UDExecutableAtPath([folder stringByAppendingPathComponent:name]) : nil;
+        if (found) return found;
     }
     return [UDToolLocator pathOfTool:name];
 }

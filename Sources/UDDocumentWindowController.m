@@ -1821,7 +1821,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         [self showProjectSettings:nil];
         return;
     }
-    if (![[NSFileManager defaultManager] isExecutableFileAtPath:program]) {
+    // the file the build made (on Windows hello.exe for hello)
+    NSString *executable = UDExecutableAtPath(program);
+    if (!executable) {
         [self _tell:@"The program isn't there" detail:[NSString stringWithFormat:@"%@ wasn't made by the build.", program]];
         return;
     }
@@ -1833,7 +1835,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return;
     }
     Class debugger = [UDDebugger classOfAdapterCommand:command] ?: [UDDebugger class];
-    NSMutableDictionary *arguments = [[debugger launchArgumentsForProgram:program arguments:_project.runArguments
+    NSMutableDictionary *arguments = [[debugger launchArgumentsForProgram:executable arguments:_project.runArguments
                                                                 directory:_project.runDirectory
                                                               environment:_project.buildEnvironment] mutableCopy];
     if (!debugging) arguments[@"noDebug"] = @YES;

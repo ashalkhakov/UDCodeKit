@@ -12,14 +12,9 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
 
 @implementation UDToolLocator
 
-+ (BOOL)_isExecutable:(NSString *)path {
-    BOOL directory = NO;
-    return path.length && [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&directory] && !directory
-        && [[NSFileManager defaultManager] isExecutableFileAtPath:path];
-}
-
 + (NSString *)outputOf:(NSString *)launchPath arguments:(NSArray<NSString *> *)arguments {
-    if (![self _isExecutable:launchPath]) return nil;
+    launchPath = UDExecutableAtPath(launchPath);
+    if (!launchPath) return nil;
     NSTask *task = [[NSTask alloc] init];
     NSPipe *pipe = [NSPipe pipe];
     task.launchPath = launchPath;
@@ -60,17 +55,15 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
 }
 
 + (NSString *)pathOfTool:(NSString *)name {
-    if (name.isAbsolutePath) return [self _isExecutable:name] ? name : nil;
+    if (name.isAbsolutePath) return UDExecutableAtPath(name);
     for (NSString *folder in [self _folders]) {
-        for (NSString *fileName in UDExecutableFileNames(name)) {
-            NSString *candidate = [folder stringByAppendingPathComponent:fileName];
-            if ([self _isExecutable:candidate]) return candidate;
-        }
+        NSString *found = UDExecutableAtPath([folder stringByAppendingPathComponent:name]);
+        if (found) return found;
     }
 #ifdef __APPLE__
     // Xcode's toolchain: clangd, lldb-dap
     NSString *found = [self outputOf:@"/usr/bin/xcrun" arguments:@[ @"-f", name ]];
-    if ([self _isExecutable:found]) return found;
+    if (found.length) return UDExecutableAtPath(found);
 #endif
     return nil;
 }
@@ -82,7 +75,8 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
         found = [self pathOfTool:[NSString stringWithFormat:@"%@-%d", name, version]];
         if (found) return found;
         NSString *inLLVM = [NSString stringWithFormat:@"/usr/lib/llvm-%d/bin/%@", version, name];
-        if ([self _isExecutable:inLLVM]) return inLLVM;
+        found = UDExecutableAtPath(inLLVM);
+        if (found) return found;
     }
     return nil;
 }

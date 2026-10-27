@@ -31,7 +31,16 @@ NSString *UDPathListSeparator(void) {
     return @";";
 }
 
-NSArray<NSString *> *UDExecutableFileNames(NSString *name) {
-    if (name.pathExtension.length) return @[ name ];
-    return @[ [name stringByAppendingPathExtension:@"exe"], name ];
+static BOOL UDIsProgram(NSString *path) {
+    BOOL directory = NO;
+    return path.length && [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&directory] && !directory
+        && [[NSFileManager defaultManager] isExecutableFileAtPath:path];
+}
+
+NSString *UDExecutableAtPath(NSString *path) {
+    if (!path.pathExtension.length) {
+        NSString *exe = [path stringByAppendingPathExtension:@"exe"];
+        if (UDIsProgram(exe)) return exe;
+    }
+    return UDIsProgram(path) ? path : nil;
 }

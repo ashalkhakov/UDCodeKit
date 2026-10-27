@@ -5,8 +5,8 @@
  *  it and a debugger matches breakpoints against, its links followed
  *  (macOS's /var is /private/var; a project may be opened through a link or
  *  a junction); what separates the folders of a path list ($PATH's ':',
- *  Windows' ';'); and the file names a program goes by (Windows' end in
- *  .exe). One implementation for each system, in a folder of its
+ *  Windows' ';'); and the file a program is (Windows' ends in .exe, which
+ *  a build adds and a command leaves out). One implementation for each system, in a folder of its
  *  own (posix/, windows/).
  *--------------------------------------------------------------------------------------------*/
 
@@ -24,6 +24,6 @@ UDCODEKIT_EXPORT NSString *UDRealPath(NSString *path);
 /// What separates the folders of a list of them (UD_PLUGINS_PATH, PATH).
 UDCODEKIT_EXPORT NSString *UDPathListSeparator(void);
 
-/// The names of the files program @a name may be: @a name itself, and on
-/// Windows @a name.exe first.
-UDCODEKIT_EXPORT NSArray<NSString *> *UDExecutableFileNames(NSString *name);
+/// The program at @a path: the file there, or on Windows @a path.exe first;
+/// nil when there is none to run.
+UDCODEKIT_EXPORT NSString *UDExecutableAtPath(NSString *path);

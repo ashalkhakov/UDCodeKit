@@ -17,6 +17,12 @@ NSString *UDPathListSeparator(void) {
     return @":";
 }
 
-NSArray<NSString *> *UDExecutableFileNames(NSString *name) {
-    return @[ name ];
+static BOOL UDIsProgram(NSString *path) {
+    BOOL directory = NO;
+    return path.length && [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&directory] && !directory
+        && [[NSFileManager defaultManager] isExecutableFileAtPath:path];
+}
+
+NSString *UDExecutableAtPath(NSString *path) {
+    return UDIsProgram(path) ? path : nil;
 }

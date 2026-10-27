@@ -81,6 +81,11 @@ static NSString *UDQuotedArgument(NSString *argument) {
     STARTUPINFOEXW startup;
     memset(&startup, 0, sizeof startup);
     startup.StartupInfo.cb = sizeof startup;
+    /* No standard handles of its own: the program's are the pseudo console's.
+       Without this it gets this process's, where they are redirected (a pipe,
+       a file: an app started so, a test run), and the pseudo console sees
+       nothing of it. */
+    startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
     SIZE_T listSize = 0;
     InitializeProcThreadAttributeList(NULL, 1, 0, &listSize);
     startup.lpAttributeList = malloc(listSize);

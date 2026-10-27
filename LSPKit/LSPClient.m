@@ -13,6 +13,7 @@
 
 #import "LSPCommon.h"
 #import "LSPTransport.h"
+#import "LSPSystem.h"
 
 
 NSNotificationName const LSPDocumentDidChangeNotification = @"LSPDocumentDidChange";
@@ -721,9 +722,9 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
     // The one notification where we don't check for if (_initialize == NO) return;
     // This will allow the exit of a server without an initialize request.
     _shouldTerminate = YES;
-    NSTask *task = _pipeline.transport.task;
+    int pid = [_pipeline.transport.task processIdentifier];
     [_pipeline sendNotification:@"exit" params:nil];
-    [task waitUntilExit];
+    if (pid > 0) LSPWaitForProcess(pid);
 }
 
 #pragma mark Text Synchronization

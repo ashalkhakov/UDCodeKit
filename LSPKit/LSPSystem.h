@@ -12,3 +12,7 @@
 /// Writing to a pipe whose reader has gone (a language server that ended)
 /// fails, as an error, instead of ending the app: POSIX's SIGPIPE ignored.
 void LSPIgnoreBrokenPipes(void);
+
+/// Waits until the process @a processIdentifier has ended, blocking: no run
+/// loop turns meanwhile (what it would deliver may be to objects going away).
+void LSPWaitForProcess(int processIdentifier);

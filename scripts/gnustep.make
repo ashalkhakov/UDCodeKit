@@ -44,7 +44,7 @@ UD_OTHER_DIRS = windows apple
 UD_PTY_LIBS = -lutil
 UD_WINDOWS =
 endif
-UD_SOURCES = $(filter-out $(foreach d,$(UD_OTHER_DIRS),%/$(d)/%),$(1))
+UD_SOURCES = $(foreach f,$(1),$(if $(filter $(UD_OTHER_DIRS),$(subst /, ,$(dir $(f)))),,$(f)))
 # A plugin bundle's references to the frameworks: left for the application
 # that loads it on Linux; a Windows DLL is linked against all it uses. C++'s
 # library: libstdc++ there, LLVM's libc++ in MSYS2's CLANG64.

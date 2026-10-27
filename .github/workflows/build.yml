@@ -8,7 +8,7 @@ name: Build
 # XCFrameworks for Apple) for what builds on it, and UDCode as an AppImage
 # (started on a clean Ubuntu) and a Mac app. A v* tag (or a run started by
 # hand with one) is also released: the AppImage with its update information,
-# the Mac app signed and notarized with its Sparkle appcast, attached to the
+# the Windows installer, the Mac app signed and notarized with its Sparkle appcast, attached to the
 # tag's release (a pre-release when the tag has a '-'). What it builds on is
 # in .github/pins.env.
 on:
@@ -35,6 +35,12 @@ permissions:
 jobs:
   linux:
     uses: ashalkhakov/gnustep-release-actions/.github/workflows/linux.yml@v1
+    with:
+      tag: ${{ inputs.tag }}
+      library: true
+
+  windows:
+    uses: ashalkhakov/gnustep-release-actions/.github/workflows/windows.yml@v1
     with:
       tag: ${{ inputs.tag }}
       library: true

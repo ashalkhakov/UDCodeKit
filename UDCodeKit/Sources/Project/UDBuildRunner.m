@@ -133,7 +133,7 @@ UDDiagnosticSource const UDDiagnosticSourceBuild = @"build";
     if (entering.location != NSNotFound) {
         NSString *folder = [[line substringFromIndex:NSMaxRange(entering)]
                             stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"'`\" \r"]];
-        if (folder.length) [_folders addObject:folder];
+        if (folder.length) [_folders addObject:UDShellNativePath(folder)];
         return;
     }
     if (leaving.location != NSNotFound) {

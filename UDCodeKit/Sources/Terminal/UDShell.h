@@ -28,4 +28,9 @@ UDCODEKIT_EXPORT NSArray<NSString *> *UDShellCommandArguments(NSString *command)
 /// told to stay in the folder it starts in).
 UDCODEKIT_EXPORT NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDictionary<NSString *, NSString *> *environment);
 
+/// @a path as a program the shell runs wrote it (make's "Entering
+/// directory"), as the system has it: on Windows MSYS2's /tmp/x or /c/x is
+/// a Windows path; elsewhere @a path itself.
+UDCODEKIT_EXPORT NSString *UDShellNativePath(NSString *path);
+
 NS_ASSUME_NONNULL_END

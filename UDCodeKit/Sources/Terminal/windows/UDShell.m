@@ -34,6 +34,30 @@ NSArray<NSString *> *UDShellCommandArguments(NSString *command) {
     return bash ? @[ bash, @"-c", command ] : @[ UDCommandPrompt(), @"/c", command ];
 }
 
+/* MSYS2's cygpath, beside its bash, says where its /tmp and /c are. */
+NSString *UDShellNativePath(NSString *path) {
+    if (![path hasPrefix:@"/"] || [path hasPrefix:@"//"]) return path;
+    NSString *bash = UDBash();
+    NSString *cygpath = [[bash stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"cygpath.exe"];
+    if (!bash || ![[NSFileManager defaultManager] isExecutableFileAtPath:cygpath]) return path;
+    NSTask *task = [[NSTask alloc] init];
+    NSPipe *pipe = [NSPipe pipe];
+    task.launchPath = cygpath;
+    task.arguments = @[ @"-m", path ];
+    task.standardOutput = pipe;
+    task.standardError = [NSFileHandle fileHandleWithNullDevice];
+    @try {
+        [task launch];
+    } @catch (NSException *exception) {
+        return path;
+    }
+    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    NSString *native = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]
+                        stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return task.terminationStatus == 0 && native.length ? native : path;
+}
+
 /* MSYS2's /etc/profile goes to $HOME unless CHERE_INVOKING is set. */
 NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDictionary<NSString *, NSString *> *environment) {
     NSMutableDictionary *changed = [environment mutableCopy];

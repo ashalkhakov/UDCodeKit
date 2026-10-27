@@ -24,3 +24,7 @@ NSArray<NSString *> *UDShellCommandArguments(NSString *command) {
 NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDictionary<NSString *, NSString *> *environment) {
     return environment;
 }
+
+NSString *UDShellNativePath(NSString *path) {
+    return path;
+}

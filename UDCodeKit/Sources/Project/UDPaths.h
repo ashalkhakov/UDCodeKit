@@ -4,8 +4,9 @@
  *  Paths as the system has them: a file's real path, as a compiler records
  *  it and a debugger matches breakpoints against, its links followed
  *  (macOS's /var is /private/var; a project may be opened through a link or
- *  a junction); and what separates the folders of a path list ($PATH's ':',
- *  Windows' ';'). One implementation for each system, in a folder of its
+ *  a junction); what separates the folders of a path list ($PATH's ':',
+ *  Windows' ';'); and the file names a program goes by (Windows' end in
+ *  .exe). One implementation for each system, in a folder of its
  *  own (posix/, windows/).
  *--------------------------------------------------------------------------------------------*/
 
@@ -22,3 +23,7 @@ UDCODEKIT_EXPORT NSString *UDRealPath(NSString *path);
 
 /// What separates the folders of a list of them (UD_PLUGINS_PATH, PATH).
 UDCODEKIT_EXPORT NSString *UDPathListSeparator(void);
+
+/// The names of the files program @a name may be: @a name itself, and on
+/// Windows @a name.exe first.
+UDCODEKIT_EXPORT NSArray<NSString *> *UDExecutableFileNames(NSString *name);

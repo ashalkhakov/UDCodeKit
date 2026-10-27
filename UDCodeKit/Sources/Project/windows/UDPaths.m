@@ -30,3 +30,8 @@ NSString *UDRealPath(NSString *path) {
 NSString *UDPathListSeparator(void) {
     return @";";
 }
+
+NSArray<NSString *> *UDExecutableFileNames(NSString *name) {
+    if (name.pathExtension.length) return @[ name ];
+    return @[ [name stringByAppendingPathExtension:@"exe"], name ];
+}

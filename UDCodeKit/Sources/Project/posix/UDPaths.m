@@ -16,3 +16,7 @@ NSString *UDRealPath(NSString *path) {
 NSString *UDPathListSeparator(void) {
     return @":";
 }
+
+NSArray<NSString *> *UDExecutableFileNames(NSString *name) {
+    return @[ name ];
+}

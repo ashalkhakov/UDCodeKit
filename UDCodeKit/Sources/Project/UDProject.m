@@ -281,20 +281,22 @@ static NSString *UDStringOrNil(id value) {
     }
     // an app started from a desktop or the Dock has a short PATH: the folders
     // the tools are found in (Homebrew's among them), so the shell finds them too
-    NSMutableArray<NSString *> *path = [[environment[@"PATH"] ?: @"" componentsSeparatedByString:@":"] mutableCopy];
+    NSMutableArray<NSString *> *path = [[environment[@"PATH"] ?: @"" componentsSeparatedByString:UDPathListSeparator()] mutableCopy];
     [path removeObject:@""];
     for (NSString *folder in [UDToolLocator searchedFolders]) {
         if (![path containsObject:folder] && [[NSFileManager defaultManager] fileExistsAtPath:folder]) [path addObject:folder];
     }
-    environment[@"PATH"] = [path componentsJoinedByString:@":"];
+    environment[@"PATH"] = [path componentsJoinedByString:UDPathListSeparator()];
     [environment addEntriesFromDictionary:self.runEnvironment];
     return environment;
 }
 
 - (NSString *)pathOfToolOnBuildPath:(NSString *)name {
-    for (NSString *folder in [self.buildEnvironment[@"PATH"] componentsSeparatedByString:@":"]) {
-        NSString *candidate = [folder stringByAppendingPathComponent:name];
-        if (folder.length && [[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
+    for (NSString *folder in [self.buildEnvironment[@"PATH"] componentsSeparatedByString:UDPathListSeparator()]) {
+        for (NSString *fileName in UDExecutableFileNames(name)) {
+            NSString *candidate = [folder stringByAppendingPathComponent:fileName];
+            if (folder.length && [[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
+        }
     }
     return [UDToolLocator pathOfTool:name];
 }

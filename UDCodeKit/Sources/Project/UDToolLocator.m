@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDToolLocator.h"
+#import "UDPaths.h"
 #import <LSPKit/LSPKit.h>
 
 /// The newest LLVM a distribution is likely to have, down to the oldest
@@ -43,7 +44,7 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
     NSMutableArray<NSString *> *folders = [NSMutableArray array];
     // the machine's PATH, not an AppImage's
     NSString *path = [LSPTransport hostEnvironment][@"PATH"];
-    for (NSString *folder in [path componentsSeparatedByString:@":"]) {
+    for (NSString *folder in [path componentsSeparatedByString:UDPathListSeparator()]) {
         if (folder.length) [folders addObject:folder];
     }
     // an app started from a desktop or the Dock has a short PATH
@@ -61,8 +62,10 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
 + (NSString *)pathOfTool:(NSString *)name {
     if (name.isAbsolutePath) return [self _isExecutable:name] ? name : nil;
     for (NSString *folder in [self _folders]) {
-        NSString *candidate = [folder stringByAppendingPathComponent:name];
-        if ([self _isExecutable:candidate]) return candidate;
+        for (NSString *fileName in UDExecutableFileNames(name)) {
+            NSString *candidate = [folder stringByAppendingPathComponent:fileName];
+            if ([self _isExecutable:candidate]) return candidate;
+        }
     }
 #ifdef __APPLE__
     // Xcode's toolchain: clangd, lldb-dap

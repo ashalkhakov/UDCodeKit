@@ -22,7 +22,16 @@ override GNUSTEP_BUILD_DIR := $(UD_BUILD)/$(patsubst $(UD_ROOT)/%,%,$(abspath $(
 UD_FRAMEWORK_LIB = $(UD_BUILD)/$(1)/$(2).framework/Versions/Current
 
 # The include link for a framework: $(call UD_LINK_HEADERS,<Name>,<source folder>).
+# On Windows a directory junction: MSYS2's ln -s copies the folder, and the
+# copy's headers are other files to #import. A junction needs no privilege,
+# and rmdir takes one (or an old copy) away without touching its folder.
+ifeq ($(OS),Windows_NT)
+UD_LINK_HEADERS = mkdir -p $(UD_INCLUDE) \
+  && { [ ! -e $(UD_INCLUDE)/$(1) ] || cmd //c "rmdir /s /q $$(cygpath -w $(UD_INCLUDE)/$(1))"; } \
+  && cmd //c "mklink /J $$(cygpath -w $(UD_INCLUDE)/$(1)) $$(cygpath -w $(2))" > /dev/null
+else
 UD_LINK_HEADERS = mkdir -p $(UD_INCLUDE) && ln -sfn $(2) $(UD_INCLUDE)/$(1)
+endif
 
 OBJC_RUNTIME_LIB = ng
 RUNTIME_VERSION = gnustep-2.0

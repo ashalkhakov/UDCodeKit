@@ -40,6 +40,10 @@
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		C0DEC0DE0000000000000006 /* Exceptions for "Sources" folder in "UDCodeKit" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Terminal/windows/UDPseudoTerminal.m,
+				Terminal/windows/UDShell.m,
+			);
 			publicHeaders = (
 				Debug/UDDebugger.h,
 				Project/UDTestRunner.h,
@@ -51,6 +55,7 @@
 				Terminal/UDTerminalViewController.h,
 				Terminal/UDTerminalView.h,
 				Terminal/UDPseudoTerminal.h,
+				Terminal/UDShell.h,
 				Debug/UDBreakpointEditorViewController.h,
 				Debug/UDBreakpointNavigatorViewController.h,
 				Debug/UDBreakpointStore.h,

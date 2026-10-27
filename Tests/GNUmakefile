@@ -29,7 +29,8 @@ UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
           $(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \
           $(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)
 ADDITIONAL_LIB_DIRS += $(addprefix -L,$(UD_LIBS))
-ADDITIONAL_LDFLAGS += -lUDCodeKit -lUDPieceTable -lLSPKit -lXCTest -ldispatch -lBlocksRuntime
+# Libraries, not linker flags: on Windows the flags are linked whole.
+UDCodeTests_BUNDLE_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -lXCTest -ldispatch -lBlocksRuntime
 
 # The grammars: UDCode.app's, built before this (the root GNUmakefile).
 UD_PLUGINS = $(UD_BUILD)/Sources/UDCode.app/PlugIns
@@ -44,7 +45,7 @@ include $(GNUSTEP_MAKEFILES)/bundle.make
 .PHONY: run-tests
 run-tests: all
 	. $(GNUSTEP_MAKEFILES)/GNUstep.sh; \
-	LD_LIBRARY_PATH="$(subst $(space),:,$(UD_LIBS))$${LD_LIBRARY_PATH:+:$$LD_LIBRARY_PATH}" \
+	$(call UD_RUN_WITH,$(subst $(space),:,$(UD_LIBS))) \
 	UD_PLUGINS_PATH="$(UD_PLUGINS)" \
 	timeout -s ABRT $(TEST_TIMEOUT) $(XCTEST) "$(GNUSTEP_BUILD_DIR)/$(BUNDLE_NAME).bundle"
 space := $(empty) $(empty)

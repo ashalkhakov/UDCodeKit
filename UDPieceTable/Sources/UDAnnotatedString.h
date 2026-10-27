@@ -8,11 +8,17 @@
 
 #import <Foundation/Foundation.h>
 
+/* UDPieceTable's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDPIECETABLE_EXPORT
+#define UDPIECETABLE_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// The NSAttributedString attribute key used to store annotation values.
 /// The value can be any Objective-C object.
-extern NSAttributedStringKey const UDAnnotationAttributeName;
+UDPIECETABLE_EXPORT NSAttributedStringKey const UDAnnotationAttributeName;
 
 // MARK: - UDAnnotatedString
 

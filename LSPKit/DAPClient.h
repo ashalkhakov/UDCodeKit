@@ -28,13 +28,19 @@
 
 #import <LSPKit/LSPTransport.h>
 
+/* LSPKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef LSPKIT_EXPORT
+#define LSPKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class DAPClient;
 
 /// Errors: a request the adapter answered unsuccessfully, or one it never
 /// answered because it ended.
-FOUNDATION_EXPORT NSErrorDomain const DAPErrorDomain;
+LSPKIT_EXPORT NSErrorDomain const DAPErrorDomain;
 
 typedef NS_ENUM(NSInteger, DAPErrorCode) {
     /// The adapter answered success: false; the error's description is its message.

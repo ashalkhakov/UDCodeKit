@@ -14,6 +14,7 @@
 		D14C4CEA21EDDE7000278697 /* LSPCommon.m in Sources */ = {isa = PBXBuildFile; fileRef = D14C4CE821EDDE7000278697 /* LSPCommon.m */; };
 		DA0000000000000000000003 /* LSPTransport.h in Headers */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000001 /* LSPTransport.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		DA0000000000000000000004 /* LSPTransport.m in Sources */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000002 /* LSPTransport.m */; };
+		DA00000000000000000000F3 /* LSPSystem.m in Sources */ = {isa = PBXBuildFile; fileRef = DA00000000000000000000F2 /* LSPSystem.m */; };
 		DA0000000000000000000013 /* DAPClient.h in Headers */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000011 /* DAPClient.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		DA0000000000000000000014 /* DAPClient.m in Sources */ = {isa = PBXBuildFile; fileRef = DA0000000000000000000012 /* DAPClient.m */; };
 /* End PBXBuildFile section */
@@ -27,6 +28,8 @@
 		D14C4CE821EDDE7000278697 /* LSPCommon.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LSPCommon.m; sourceTree = "<group>"; };
 		DA0000000000000000000001 /* LSPTransport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LSPTransport.h; sourceTree = "<group>"; };
 		DA0000000000000000000002 /* LSPTransport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LSPTransport.m; sourceTree = "<group>"; };
+		DA00000000000000000000F1 /* LSPSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LSPSystem.h; sourceTree = "<group>"; };
+		DA00000000000000000000F2 /* LSPSystem.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LSPSystem.m; path = posix/LSPSystem.m; sourceTree = "<group>"; };
 		DA0000000000000000000011 /* DAPClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DAPClient.h; sourceTree = "<group>"; };
 		DA0000000000000000000012 /* DAPClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DAPClient.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -68,6 +71,8 @@
 				D14C4CE821EDDE7000278697 /* LSPCommon.m */,
 				DA0000000000000000000001 /* LSPTransport.h */,
 				DA0000000000000000000002 /* LSPTransport.m */,
+				DA00000000000000000000F1 /* LSPSystem.h */,
+				DA00000000000000000000F2 /* LSPSystem.m */,
 				DA0000000000000000000011 /* DAPClient.h */,
 				DA0000000000000000000012 /* DAPClient.m */,
 			);
@@ -159,6 +164,7 @@
 				D14C4CEA21EDDE7000278697 /* LSPCommon.m in Sources */,
 				D13EB17D21EA5CE500E56DC9 /* LSPClient.m in Sources */,
 				DA0000000000000000000004 /* LSPTransport.m in Sources */,
+				DA00000000000000000000F3 /* LSPSystem.m in Sources */,
 				DA0000000000000000000014 /* DAPClient.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

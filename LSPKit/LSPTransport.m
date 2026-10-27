@@ -4,8 +4,7 @@
 //
 
 #import "LSPTransport.h"
-
-#include <signal.h>
+#import "LSPSystem.h"
 
 /// The modes the streams are read in: a menu being tracked or a modal panel
 /// does not hold the messages back.
@@ -52,7 +51,7 @@ static NSArray<NSString *> *LSPTransportModes(void) {
     if (!self) return nil;
     // A process that has ended must not end the app with it: writing to its
     // pipe then fails (and -sendMessage: says so) instead of raising SIGPIPE.
-    signal(SIGPIPE, SIG_IGN);
+    LSPIgnoreBrokenPipes();
     NSPipe *input = [NSPipe pipe], *output = [NSPipe pipe], *error = [NSPipe pipe];
     _task = [[NSTask alloc] init];
     [_task setStandardInput:input];
@@ -86,7 +85,7 @@ static NSArray<NSString *> *LSPTransportModes(void) {
 - (instancetype)initWithReadHandle:(NSFileHandle *)readHandle writeHandle:(NSFileHandle *)writeHandle {
     self = [super init];
     if (!self) return nil;
-    signal(SIGPIPE, SIG_IGN);
+    LSPIgnoreBrokenPipes();
     [self _openReading:readHandle writing:writeHandle];
     return self;
 }

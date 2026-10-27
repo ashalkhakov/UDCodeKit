@@ -6,6 +6,7 @@
 #import "UDXCTestBundleRunner.h"
 #import "UDGoogleTestRunner.h"
 #import <LSPKit/LSPKit.h>
+#import <UDCodeKit/UDShell.h>
 
 @implementation UDGNUstepMakeBuildSystem
 
@@ -173,8 +174,10 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
         NSTask *task = [[NSTask alloc] init];
         task.environment = [LSPTransport hostEnvironment];
         NSPipe *pipe = [NSPipe pipe];
-        task.launchPath = @"/bin/sh";
-        task.arguments = @[ @"-c", @". \"$1\" >/dev/null 2>&1; env", @"sh", script ];
+        NSArray *shell = [UDShellCommandArguments(@". \"$1\" >/dev/null 2>&1; env") arrayByAddingObjectsFromArray:@[ @"sh", script ]];
+        task.launchPath = shell.firstObject;
+        task.arguments = [shell subarrayWithRange:NSMakeRange(1, shell.count - 1)];
+        task.environment = UDShellEnvironment([LSPTransport hostEnvironment]);
         task.standardOutput = pipe;
         @try {
             [task launch];

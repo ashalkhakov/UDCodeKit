@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  UDShell.h
+ *
+ *  The system's shell: the one a terminal starts, and the one a command line
+ *  (a build's) is run by. On macOS and Linux $SHELL, else zsh, bash or sh,
+ *  and /bin/sh for commands; on Windows MSYS2's bash, which GNUstep's tools
+ *  are built and run from, else cmd.exe. One implementation for each system,
+ *  in a folder of its own (posix/, windows/).
+ *--------------------------------------------------------------------------------------------*/
+
+#import <Foundation/Foundation.h>
+
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
+NS_ASSUME_NONNULL_BEGIN
+
+/// The program and arguments that start an interactive (login) shell.
+UDCODEKIT_EXPORT NSArray<NSString *> *UDLoginShellArguments(void);
+
+/// The program and arguments that run @a command (a shell command line).
+UDCODEKIT_EXPORT NSArray<NSString *> *UDShellCommandArguments(NSString *command);
+
+/// @a environment as the shell wants it (on Windows, MSYS2's login shell
+/// told to stay in the folder it starts in).
+UDCODEKIT_EXPORT NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDictionary<NSString *, NSString *> *environment);
+
+NS_ASSUME_NONNULL_END

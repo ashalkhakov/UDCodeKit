@@ -75,6 +75,7 @@
 #import <UDCodeKit/UDTerminalViewController.h>
 #import <UDCodeKit/UDTerminalView.h>
 #import <UDCodeKit/UDPseudoTerminal.h>
+#import <UDCodeKit/UDShell.h>
 #import <UDCodeKit/UDIssuePopupController.h>
 #import <UDCodeKit/UDLinkedEditing.h>
 #import <UDCodeKit/UDOpenQuicklyController.h>

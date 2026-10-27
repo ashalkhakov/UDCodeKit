@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDTerminalViewController.h"
+#import "UDShell.h"
 #import <LSPKit/LSPKit.h>
 
 @interface UDTerminalViewController ()
@@ -21,12 +22,7 @@
 }
 
 + (NSString *)defaultShell {
-    NSString *shell = NSProcessInfo.processInfo.environment[@"SHELL"];
-    if (shell.length && [[NSFileManager defaultManager] isExecutableFileAtPath:shell]) return shell;
-    for (NSString *candidate in @[ @"/bin/zsh", @"/bin/bash", @"/bin/sh" ]) {
-        if ([[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
-    }
-    return @"/bin/sh";
+    return UDLoginShellArguments().firstObject;
 }
 
 - (BOOL)isRunning {
@@ -34,7 +30,7 @@
 }
 
 - (BOOL)startShellInDirectory:(NSString *)directory environment:(NSDictionary<NSString *, NSString *> *)environment {
-    return [self startArguments:@[ [[self class] defaultShell], @"-l" ] directory:directory environment:environment];
+    return [self startArguments:UDLoginShellArguments() directory:directory environment:environment];
 }
 
 - (BOOL)startArguments:(NSArray<NSString *> *)arguments directory:(NSString *)directory
@@ -42,7 +38,7 @@
     (void)self.view;
     if (_pseudoTerminal.running) return NO;
     [_terminalView reset];
-    NSMutableDictionary *env = [(environment ?: [LSPTransport hostEnvironment]) mutableCopy];
+    NSMutableDictionary *env = [UDShellEnvironment(environment ?: [LSPTransport hostEnvironment]) mutableCopy];
     env[@"TERM"] = @"xterm-256color";
     env[@"COLORTERM"] = @"truecolor";
     env[@"TERM_PROGRAM"] = @"UDCode";

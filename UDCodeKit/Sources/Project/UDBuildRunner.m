@@ -5,6 +5,7 @@
 #import "UDBuildRunner.h"
 #import "UDProject.h"
 #import "UDDiagnosticItem.h"
+#import <UDCodeKit/UDShell.h>
 #include <signal.h>
 
 UDDiagnosticSource const UDDiagnosticSourceBuild = @"build";
@@ -64,10 +65,11 @@ UDDiagnosticSource const UDDiagnosticSourceBuild = @"build";
     NSTask *task = [[NSTask alloc] init];
     NSPipe *pipe = [NSPipe pipe];
     // exec: the shell is the command, so stopping it stops make
-    task.launchPath = @"/bin/sh";
-    task.arguments = @[ @"-c", [@"exec 2>&1; " stringByAppendingString:command] ];
+    NSArray *shell = UDShellCommandArguments([@"exec 2>&1; " stringByAppendingString:command]);
+    task.launchPath = shell.firstObject;
+    task.arguments = [shell subarrayWithRange:NSMakeRange(1, shell.count - 1)];
     task.currentDirectoryPath = _project.folderURL.path;
-    task.environment = [_project buildEnvironment];
+    task.environment = UDShellEnvironment([_project buildEnvironment]);
     task.standardOutput = pipe;
     task.standardError = pipe;
     task.standardInput = [NSFileHandle fileHandleWithNullDevice];

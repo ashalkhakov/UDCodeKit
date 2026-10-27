@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  UDPseudoTerminal.m
+ *  UDPseudoTerminal.m (POSIX: forkpty)
  *--------------------------------------------------------------------------------------------*/
 
-#import "UDPseudoTerminal.h"
+#import "../UDPseudoTerminal.h"
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>

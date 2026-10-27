@@ -37,15 +37,21 @@
 
 #import <Foundation/Foundation.h>
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Posted when a project's settings change (set, or read again).
-extern NSNotificationName const UDProjectSettingsDidChangeNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDProjectSettingsDidChangeNotification;
 
 @class UDBuildSystem, UDTestCatalog;
 
 /// The system's key in the settings: "macos" or "gnustep".
-extern NSString * const UDProjectPlatformKey;
+UDCODEKIT_EXPORT NSString * const UDProjectPlatformKey;
 
 @interface UDProject : NSObject
 

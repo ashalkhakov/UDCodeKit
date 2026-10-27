@@ -19,12 +19,18 @@
 #import <Foundation/Foundation.h>
 #import "UDDiagnosticStore.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class UDProject, UDBuildRunner;
 
 /// A build's diagnostics' source.
-extern UDDiagnosticSource const UDDiagnosticSourceBuild;
+UDCODEKIT_EXPORT UDDiagnosticSource const UDDiagnosticSourceBuild;
 
 @protocol UDBuildRunnerDelegate <NSObject>
 @optional

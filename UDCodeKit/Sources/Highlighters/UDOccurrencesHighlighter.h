@@ -9,9 +9,15 @@
 
 #import "UDDecorationHighlighter.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
-extern NSString * const UDOccurrencesDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDOccurrencesDecorationOwner;
 
 @interface UDOccurrencesHighlighter : UDDecorationHighlighter
 

@@ -41,6 +41,12 @@
 #import <LSPKit/LSPKit.h>
 #import "UDBreakpointStore.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 @class UDDebugSession, UDDebugThread, UDLanguageMode;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -54,25 +60,25 @@ typedef NS_ENUM(NSInteger, UDDebugSessionState) {
 };
 
 /// The state changed.
-extern NSNotificationName const UDDebugSessionDidChangeStateNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDDebugSessionDidChangeStateNotification;
 /// The threads changed, or a thread's frames loaded.
-extern NSNotificationName const UDDebugSessionDidChangeThreadsNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDDebugSessionDidChangeThreadsNotification;
 /// Another frame (or none) is selected; its scopes are on their way.
-extern NSNotificationName const UDDebugSessionDidSelectFrameNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDDebugSessionDidSelectFrameNotification;
 /// Variables loaded: the selected frame's scopes (no UDDebugSessionVariableKey),
 /// or a variable's children (the variable under UDDebugSessionVariableKey).
-extern NSNotificationName const UDDebugSessionDidLoadVariablesNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDDebugSessionDidLoadVariablesNotification;
 /// The watch expressions were evaluated (or their values went: the session
 /// runs, or ended).
-extern NSNotificationName const UDDebugSessionDidEvaluateWatchesNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDDebugSessionDidEvaluateWatchesNotification;
 /// Text went to the console: UDDebugSessionOutputKey, and its category
 /// (DAP's: "console", "stdout", "stderr"; "input" for what was evaluated,
 /// "result" for its answer) under UDDebugSessionOutputCategoryKey.
-extern NSNotificationName const UDDebugSessionDidOutputNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDDebugSessionDidOutputNotification;
 
-extern NSString * const UDDebugSessionVariableKey;
-extern NSString * const UDDebugSessionOutputKey;
-extern NSString * const UDDebugSessionOutputCategoryKey;
+UDCODEKIT_EXPORT NSString * const UDDebugSessionVariableKey;
+UDCODEKIT_EXPORT NSString * const UDDebugSessionOutputKey;
+UDCODEKIT_EXPORT NSString * const UDDebugSessionOutputCategoryKey;
 
 /// A frame of a thread's call stack.
 @interface UDDebugStackFrame : NSObject

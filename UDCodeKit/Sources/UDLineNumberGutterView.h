@@ -18,6 +18,12 @@
 #import <AppKit/AppKit.h>
 #import <UDPieceTable/UDPieceTable.h>
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class UDLineNumberGutterView;
@@ -67,7 +73,7 @@ typedef NS_ENUM(NSInteger, UDGutterBreakpoint) {
 @end
 
 /// Preferred width of the line-number gutter view.
-extern const CGFloat UDLineNumberGutterWidth;
+UDCODEKIT_EXPORT const CGFloat UDLineNumberGutterWidth;
 
 @interface UDLineNumberGutterView : NSView
 

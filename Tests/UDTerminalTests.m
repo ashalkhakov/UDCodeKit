@@ -79,6 +79,23 @@
     XCTAssertEqualObjects([view textOfScreenRow:0], @"naïve 日本 ok");
 }
 
+/// A line longer than the terminal is wide, the terminal made narrower: the
+/// line wraps again, none of it lost (a pane resized under a shell).
+- (void)testALineWrapsAgainWhenTheTerminalNarrows {
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 600, 300)];
+    UDTerminalView *view = [[UDTerminalView alloc] initWithFrame:scroll.contentView.bounds];
+    scroll.documentView = view;
+    NSUInteger wide = view.columns;
+    NSMutableString *line = [NSMutableString string];
+    while (line.length < wide + 10) [line appendFormat:@"%lu", (unsigned long)line.length % 10];
+    [self feed:[line stringByAppendingString:@"\r\nnext"] to:view];
+    XCTAssertEqualObjects(view.screenText, ([line stringByAppendingString:@"\nnext"]), @"wrapped once, rejoined");
+
+    [scroll setFrameSize:NSMakeSize(400, 300)];
+    XCTAssertLessThan(view.columns, wide, @"narrower");
+    XCTAssertEqualObjects(view.screenText, ([line stringByAppendingString:@"\nnext"]), @"wrapped again, none of it lost");
+}
+
 /// Keys as a terminal sends them: characters, Return, the arrows, Control;
 /// and a paste, in brackets when the program asked for them.
 - (void)testKeysAreSentAsATerminalSendsThem {

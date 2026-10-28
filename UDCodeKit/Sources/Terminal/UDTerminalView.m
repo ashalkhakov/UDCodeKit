@@ -97,6 +97,9 @@ static const VTermScreenCallbacks UDTerminalScreenCallbacks = {
     vterm_screen_set_callbacks(_screen, &UDTerminalScreenCallbacks, (__bridge void *)self);
     vterm_screen_set_damage_merge(_screen, VTERM_DAMAGE_SCROLL);
     vterm_screen_enable_altscreen(_screen, 1);
+    // a line wrapped, made narrower or wider, wraps again: without it the
+    // cells past the new width went, and the line ended there
+    vterm_screen_enable_reflow(_screen, true);
     vterm_screen_reset(_screen, 1);
 }
 

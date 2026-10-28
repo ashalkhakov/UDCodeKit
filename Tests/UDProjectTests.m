@@ -100,6 +100,7 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(self.project.buildCommand, @"make debug=yes", @"unoptimized, for the debugger");
     XCTAssertEqualObjects(self.project.cleanCommand, @"make debug=yes clean");
     XCTAssertNotNil(self.project.buildEnvironment[@"GNUSTEP_MAKEFILES"], @"GNUstep's environment, as GNUstep.sh has it");
+    XCTAssertNotNil([self.project pathOfToolOnBuildPath:@"make"], @"its PATH the system's (on Windows, MSYS2's make on it)");
 #else
     XCTAssertEqualObjects(self.project.buildSystem.name, @"make", @"a GNUmakefile is GNUstep's: not on macOS");
     [self write:@"all:\n" to:@"Makefile.apple"];

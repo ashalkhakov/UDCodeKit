@@ -28,3 +28,11 @@ NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDictionary<NSString *
 NSString *UDShellNativePath(NSString *path) {
     return path;
 }
+
+NSString *UDShellNativePathList(NSString *list) {
+    return list;
+}
+
+NSArray<NSString *> *UDShellToolFolders(void) {
+    return @[];
+}

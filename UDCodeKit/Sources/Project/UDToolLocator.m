@@ -4,6 +4,7 @@
 
 #import "UDToolLocator.h"
 #import "UDPaths.h"
+#import <UDCodeKit/UDShell.h>
 #import <LSPKit/LSPKit.h>
 
 /// The newest LLVM a distribution is likely to have, down to the oldest
@@ -42,7 +43,11 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
     for (NSString *folder in [path componentsSeparatedByString:UDPathListSeparator()]) {
         if (folder.length) [folders addObject:folder];
     }
-    // an app started from a desktop or the Dock has a short PATH
+    // an app started from a desktop, the Dock or the Start menu has a short
+    // PATH: the shell's tools (MSYS2's on Windows), Homebrew's, /usr/local/bin
+    for (NSString *folder in UDShellToolFolders()) {
+        if (![folders containsObject:folder]) [folders addObject:folder];
+    }
     for (NSString *folder in @[ @"/usr/local/bin", @"/opt/homebrew/bin", @"/opt/homebrew/opt/llvm/bin",
                                 @"/usr/local/opt/llvm/bin", @"/usr/bin", @"/bin" ]) {
         if (![folders containsObject:folder]) [folders addObject:folder];

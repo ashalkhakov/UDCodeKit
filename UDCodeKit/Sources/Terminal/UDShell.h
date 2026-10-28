@@ -33,4 +33,14 @@ UDCODEKIT_EXPORT NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDict
 /// a Windows path; elsewhere @a path itself.
 UDCODEKIT_EXPORT NSString *UDShellNativePath(NSString *path);
 
+/// @a list, a list of folders as the shell has it ($PATH as its env says
+/// it), as the system has it: on Windows MSYS2's /c/x:/usr/bin is
+/// C:/x;C:/msys64/usr/bin; elsewhere @a list itself.
+UDCODEKIT_EXPORT NSString *UDShellNativePathList(NSString *list);
+
+/// The folders of the tools the shell's command lines run, which an app
+/// started from the Start menu does not have on its PATH: on Windows
+/// MSYS2's (CLANG64's compilers, its make and coreutils); elsewhere none.
+UDCODEKIT_EXPORT NSArray<NSString *> *UDShellToolFolders(void);
+
 NS_ASSUME_NONNULL_END

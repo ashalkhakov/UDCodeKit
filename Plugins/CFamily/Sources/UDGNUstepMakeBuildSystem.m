@@ -7,6 +7,7 @@
 #import "UDGoogleTestRunner.h"
 #import <LSPKit/LSPKit.h>
 #import <UDCodeKit/UDShell.h>
+#import <UDCodeKit/UDPaths.h>
 
 @implementation UDGNUstepMakeBuildSystem
 
@@ -171,61 +172,71 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     NSMutableDictionary *found = [NSMutableDictionary dictionary];
     if (makefiles && [[NSFileManager defaultManager] fileExistsAtPath:script]) {
         // the shell runs it and says its environment
-        NSTask *task = [[NSTask alloc] init];
-        task.environment = [LSPTransport hostEnvironment];
-        NSPipe *pipe = [NSPipe pipe];
-        NSArray *shell = [UDShellCommandArguments(@". \"$1\" >/dev/null 2>&1; env") arrayByAddingObjectsFromArray:@[ @"sh", script ]];
-        task.launchPath = shell.firstObject;
-        task.arguments = [shell subarrayWithRange:NSMakeRange(1, shell.count - 1)];
-        task.environment = UDShellEnvironment([LSPTransport hostEnvironment]);
-        task.standardOutput = pipe;
-        @try {
-            [task launch];
-            NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-            [task waitUntilExit];
-            NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-            for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
-                NSRange equals = [line rangeOfString:@"="];
-                if (equals.location == NSNotFound || equals.location == 0) continue;
-                found[[line substringToIndex:equals.location]] = [line substringFromIndex:NSMaxRange(equals)];
-            }
-        } @catch (NSException *exception) {
+        NSString *output = [self _shellOutputOf:@". \"$1\" >/dev/null 2>&1; env" argument:script];
+        for (NSString *line in [output componentsSeparatedByString:@"\n"]) {
+            NSRange equals = [line rangeOfString:@"="];
+            if (equals.location == NSNotFound || equals.location == 0) continue;
+            found[[line substringToIndex:equals.location]] = [line substringFromIndex:NSMaxRange(equals)];
         }
+        // the shell's PATH (MSYS2's /c/GNUstep/System/Tools:/usr/bin) as the build's is
+        if (found[@"PATH"]) found[@"PATH"] = UDShellNativePathList(found[@"PATH"]);
     }
     if (makefiles && !found[@"GNUSTEP_MAKEFILES"]) found[@"GNUSTEP_MAKEFILES"] = makefiles;
     gnustep = found;
     return gnustep;
 }
 
-/// GNUstep's makefiles: the machine's gnustep-config, on its PATH, before
-/// the domains this process's GNUstep knows (an AppImage's, which has no make).
+/// What the shell's @a command says on its standard output, $1 @a argument,
+/// in the machine's environment with the tools' folders on its PATH (an app
+/// started from the Start menu has no MSYS2 there); nil when it cannot run.
++ (nullable NSString *)_shellOutputOf:(NSString *)command argument:(NSString *)argument {
+    NSMutableDictionary *environment = [[LSPTransport hostEnvironment] mutableCopy];
+    NSMutableArray *path = [NSMutableArray array];
+    for (NSString *folder in [UDToolLocator searchedFolders]) {
+        if ([[NSFileManager defaultManager] fileExistsAtPath:folder]) [path addObject:folder];
+    }
+    environment[@"PATH"] = [path componentsJoinedByString:UDPathListSeparator()];
+    NSTask *task = [[NSTask alloc] init];
+    NSPipe *pipe = [NSPipe pipe];
+    NSArray *shell = [UDShellCommandArguments(command) arrayByAddingObjectsFromArray:@[ @"sh", argument ]];
+    task.launchPath = shell.firstObject;
+    task.arguments = [shell subarrayWithRange:NSMakeRange(1, shell.count - 1)];
+    task.environment = UDShellEnvironment(environment);
+    task.standardOutput = pipe;
+    task.standardError = [NSFileHandle fileHandleWithNullDevice];
+    @try {
+        [task launch];
+    } @catch (NSException *exception) {
+        return nil;
+    }
+    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+/// GNUstep's makefiles: those a gnustep-config says, the first that are
+/// there. The machine's, on its PATH and the tools' folders, then the stack
+/// gnustep-patches builds on Windows (its prefix /c/GNUstep), then the
+/// domains this process's GNUstep knows: an installed app's own runtime
+/// (an AppImage's, an MSI's) has a gnustep-config but no makefiles. The
+/// shell runs it: on Windows it is a shell script.
 + (nullable NSString *)_makefiles {
     NSMutableArray<NSString *> *configs = [NSMutableArray array];
-    NSString *onPath = [UDToolLocator pathOfTool:@"gnustep-config"];
-    if (onPath) [configs addObject:onPath];
+    NSMutableArray<NSString *> *folders = [[UDToolLocator searchedFolders] mutableCopy];
+    [folders addObject:@"C:/GNUstep/System/Tools"];
 #ifdef GNUSTEP
-    for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
-        [configs addObject:[tools stringByAppendingPathComponent:@"gnustep-config"]];
-    }
+    [folders addObjectsFromArray:NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)];
 #endif
+    for (NSString *folder in folders) {
+        NSString *config = [folder stringByAppendingPathComponent:@"gnustep-config"];
+        if (![configs containsObject:config] && [[NSFileManager defaultManager] fileExistsAtPath:config]) [configs addObject:config];
+    }
     for (NSString *config in configs) {
-        if (![[NSFileManager defaultManager] isExecutableFileAtPath:config]) continue;
-        NSTask *task = [[NSTask alloc] init];
-        task.environment = [LSPTransport hostEnvironment];
-        NSPipe *pipe = [NSPipe pipe];
-        task.launchPath = config;
-        task.arguments = @[ @"--variable=GNUSTEP_MAKEFILES" ];
-        task.standardOutput = pipe;
-        @try {
-            [task launch];
-        } @catch (NSException *exception) {
-            continue;
-        }
-        NSData *output = [pipe.fileHandleForReading readDataToEndOfFile];
-        [task waitUntilExit];
-        NSString *path = [[[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding]
-                          stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (path.length) return path;
+        NSString *output = [self _shellOutputOf:@"\"$1\" --variable=GNUSTEP_MAKEFILES" argument:config];
+        NSString *path = [output stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (!path.length) continue;
+        path = UDShellNativePath(path);
+        if ([[NSFileManager defaultManager] fileExistsAtPath:[path stringByAppendingPathComponent:@"GNUstep.sh"]]) return path;
     }
     return nil;
 }

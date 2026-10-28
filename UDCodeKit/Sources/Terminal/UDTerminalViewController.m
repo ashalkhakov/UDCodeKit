@@ -4,6 +4,7 @@
 
 #import "UDTerminalViewController.h"
 #import "UDShell.h"
+#import "UDProject.h"
 #import <LSPKit/LSPKit.h>
 
 @interface UDTerminalViewController ()
@@ -22,15 +23,15 @@
 }
 
 + (NSString *)defaultShell {
-    return UDLoginShellArguments().firstObject;
+    return UDLoginShellArguments([UDProject userShell]).firstObject;
 }
 
 - (BOOL)isRunning {
     return _pseudoTerminal.running;
 }
 
-- (BOOL)startShellInDirectory:(NSString *)directory environment:(NSDictionary<NSString *, NSString *> *)environment {
-    return [self startArguments:UDLoginShellArguments() directory:directory environment:environment];
+- (BOOL)startShell:(NSString *)shell inDirectory:(NSString *)directory environment:(NSDictionary<NSString *, NSString *> *)environment {
+    return [self startArguments:UDLoginShellArguments(shell) directory:directory environment:environment];
 }
 
 - (BOOL)startArguments:(NSArray<NSString *> *)arguments directory:(NSString *)directory

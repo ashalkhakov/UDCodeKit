@@ -104,7 +104,7 @@
 
 - (void)testTheTransportOverAProcess {
     // cat, as the system's shell finds it
-    NSArray *cat = UDShellCommandArguments(@"cat");
+    NSArray *cat = UDShellCommandArguments(nil, @"cat");
     LSPTransport *transport = [[LSPTransport alloc] initWithLaunchPath:cat.firstObject
                                                              arguments:[cat subarrayWithRange:NSMakeRange(1, cat.count - 1)]
                                                   currentDirectoryPath:nil];

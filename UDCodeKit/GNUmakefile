@@ -43,6 +43,7 @@ UDCodeKit_HEADER_FILES = \
     UDTasks.h \
     UDFileWatcher.h \
     UDProjectSettingsController.h \
+    UDPreferencesController.h \
     UDBuildLogViewController.h \
     UDBuildRunner.h \
     UDFileNavigatorViewController.h \

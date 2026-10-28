@@ -25,8 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSArray<NSString *> *testBundles;
 
 /// What GNUstep.sh sets (GNUSTEP_MAKEFILES and the rest), the machine's
-/// GNUstep's (an AppImage's own is not it), read once.
-+ (NSDictionary<NSString *, NSString *> *)environment;
+/// GNUstep's (an AppImage's own is not it), as @a shell (UDProject's shell;
+/// nil: the system's) runs it; read once for each.
++ (NSDictionary<NSString *, NSString *> *)environmentForShell:(nullable NSString *)shell;
 
 @end
 

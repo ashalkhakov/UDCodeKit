@@ -55,7 +55,7 @@
 #ifdef GNUSTEP
     // GNUstep's, as GNUstep.sh sets it (a desktop doesn't run it): make finds
     // its makefiles, and what is built its libraries
-    return [UDGNUstepMakeBuildSystem environment];
+    return [UDGNUstepMakeBuildSystem environmentForShell:project.shell];
 #else
     return nil;
 #endif

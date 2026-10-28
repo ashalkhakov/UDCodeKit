@@ -65,7 +65,7 @@ UDDiagnosticSource const UDDiagnosticSourceBuild = @"build";
     NSTask *task = [[NSTask alloc] init];
     NSPipe *pipe = [NSPipe pipe];
     // exec: the shell is the command, so stopping it stops make
-    NSArray *shell = UDShellCommandArguments([@"exec 2>&1; " stringByAppendingString:command]);
+    NSArray *shell = UDShellCommandArguments(_project.shell, [@"exec 2>&1; " stringByAppendingString:command]);
     task.launchPath = shell.firstObject;
     task.arguments = [shell subarrayWithRange:NSMakeRange(1, shell.count - 1)];
     task.currentDirectoryPath = _project.folderURL.path;
@@ -133,7 +133,7 @@ UDDiagnosticSource const UDDiagnosticSourceBuild = @"build";
     if (entering.location != NSNotFound) {
         NSString *folder = [[line substringFromIndex:NSMaxRange(entering)]
                             stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"'`\" \r"]];
-        if (folder.length) [_folders addObject:UDShellNativePath(folder)];
+        if (folder.length) [_folders addObject:UDShellNativePath(_project.shell, folder)];
         return;
     }
     if (leaving.location != NSNotFound) {

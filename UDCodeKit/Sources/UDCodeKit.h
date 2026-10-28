@@ -86,6 +86,7 @@
 #import <UDCodeKit/UDTasks.h>
 #import <UDCodeKit/UDFileWatcher.h>
 #import <UDCodeKit/UDProjectSettingsController.h>
+#import <UDCodeKit/UDPreferencesController.h>
 #import <UDCodeKit/UDBuildLogViewController.h>
 #import <UDCodeKit/UDBuildRunner.h>
 #import <UDCodeKit/UDFileNavigatorViewController.h>

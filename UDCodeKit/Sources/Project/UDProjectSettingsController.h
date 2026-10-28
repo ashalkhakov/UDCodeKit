@@ -3,7 +3,7 @@
  *
  *  A project's settings as a sheet (Debug > Project Settings…), for what can't
  *  be guessed: its build and clean commands, the program it runs, its
- *  arguments and folder, the debugger. The fields show what is in effect on
+ *  arguments and folder, the debugger, the shell its commands run in. The fields show what is in effect on
  *  this system (what the folder says, or what is guessed, placeholders), and
  *  OK writes what differs into this system's section of the folder's
  *  settings ("macos" or "gnustep"), so the other system's stay as they are.
@@ -35,11 +35,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *directoryField;
 /// Automatic, lldb, gdb.
 @property (nonatomic, weak, readonly) IBOutlet NSPopUpButton *debuggerPopUp;
+@property (nonatomic, weak, readonly) IBOutlet NSTextField *shellField;
 
 - (IBAction)ok:(nullable id)sender;
 - (IBAction)cancel:(nullable id)sender;
 /// The program, chosen with an open panel.
 - (IBAction)chooseProgram:(nullable id)sender;
+/// The shell, chosen with an open panel.
+- (IBAction)chooseShell:(nullable id)sender;
 
 /// What OK writes, from the fields (for the tests): the folder's settings
 /// with this system's section set to what differs from the shared ones.

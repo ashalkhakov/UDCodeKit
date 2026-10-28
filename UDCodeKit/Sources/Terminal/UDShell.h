@@ -4,8 +4,9 @@
  *  The system's shell: the one a terminal starts, and the one a command line
  *  (a build's) is run by. On macOS and Linux $SHELL, else zsh, bash or sh,
  *  and /bin/sh for commands; on Windows MSYS2's bash, which GNUstep's tools
- *  are built and run from, else cmd.exe. One implementation for each system,
- *  in a folder of its own (posix/, windows/).
+ *  are built and run from, else cmd.exe; or the one the user or a project
+ *  chose. One implementation for each system, in a folder of its own
+ *  (posix/, windows/).
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -18,11 +19,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/* Each takes the shell chosen, a project's or the user's (UDProject's
+   shell), as its program; nil is the system's, as above. */
+
 /// The program and arguments that start an interactive (login) shell.
-UDCODEKIT_EXPORT NSArray<NSString *> *UDLoginShellArguments(void);
+UDCODEKIT_EXPORT NSArray<NSString *> *UDLoginShellArguments(NSString *_Nullable shell);
 
 /// The program and arguments that run @a command (a shell command line).
-UDCODEKIT_EXPORT NSArray<NSString *> *UDShellCommandArguments(NSString *command);
+UDCODEKIT_EXPORT NSArray<NSString *> *UDShellCommandArguments(NSString *_Nullable shell, NSString *command);
 
 /// @a environment as the shell wants it (on Windows, MSYS2's login shell
 /// told to stay in the folder it starts in).
@@ -31,16 +35,17 @@ UDCODEKIT_EXPORT NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDict
 /// @a path as a program the shell runs wrote it (make's "Entering
 /// directory"), as the system has it: on Windows MSYS2's /tmp/x or /c/x is
 /// a Windows path; elsewhere @a path itself.
-UDCODEKIT_EXPORT NSString *UDShellNativePath(NSString *path);
+UDCODEKIT_EXPORT NSString *UDShellNativePath(NSString *_Nullable shell, NSString *path);
 
 /// @a list, a list of folders as the shell has it ($PATH as its env says
 /// it), as the system has it: on Windows MSYS2's /c/x:/usr/bin is
 /// C:/x;C:/msys64/usr/bin; elsewhere @a list itself.
-UDCODEKIT_EXPORT NSString *UDShellNativePathList(NSString *list);
+UDCODEKIT_EXPORT NSString *UDShellNativePathList(NSString *_Nullable shell, NSString *list);
 
 /// The folders of the tools the shell's command lines run, which an app
 /// started from the Start menu does not have on its PATH: on Windows
-/// MSYS2's (CLANG64's compilers, its make and coreutils); elsewhere none.
-UDCODEKIT_EXPORT NSArray<NSString *> *UDShellToolFolders(void);
+/// MSYS2's around its bash (CLANG64's compilers, its make and coreutils);
+/// elsewhere none.
+UDCODEKIT_EXPORT NSArray<NSString *> *UDShellToolFolders(NSString *_Nullable shell);
 
 NS_ASSUME_NONNULL_END

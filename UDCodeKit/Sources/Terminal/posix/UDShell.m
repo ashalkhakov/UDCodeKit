@@ -13,26 +13,26 @@ static NSString *UDLoginShell(void) {
     return @"/bin/sh";
 }
 
-NSArray<NSString *> *UDLoginShellArguments(void) {
-    return @[ UDLoginShell(), @"-l" ];
+NSArray<NSString *> *UDLoginShellArguments(NSString *shell) {
+    return @[ shell ?: UDLoginShell(), @"-l" ];
 }
 
-NSArray<NSString *> *UDShellCommandArguments(NSString *command) {
-    return @[ @"/bin/sh", @"-c", command ];
+NSArray<NSString *> *UDShellCommandArguments(NSString *shell, NSString *command) {
+    return @[ shell ?: @"/bin/sh", @"-c", command ];
 }
 
 NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDictionary<NSString *, NSString *> *environment) {
     return environment;
 }
 
-NSString *UDShellNativePath(NSString *path) {
+NSString *UDShellNativePath(NSString *shell, NSString *path) {
     return path;
 }
 
-NSString *UDShellNativePathList(NSString *list) {
+NSString *UDShellNativePathList(NSString *shell, NSString *list) {
     return list;
 }
 
-NSArray<NSString *> *UDShellToolFolders(void) {
+NSArray<NSString *> *UDShellToolFolders(NSString *shell) {
     return @[];
 }

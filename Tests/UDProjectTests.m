@@ -108,6 +108,23 @@ static Class UDPluginClass(NSString *name) {
 #endif
 }
 
+/// The shell its commands and terminal run in: its settings' when this
+/// machine has it, else the user's (Preferences), else the system's (nil).
+- (void)testItsShellIsItsOwnThenTheUsers {
+    NSString *program = [NSBundle mainBundle].executablePath;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults removeObjectForKey:UDShellDefaultsKey];
+    XCTAssertNil(self.project.shell, @"none chosen: the system's");
+    [defaults setObject:program forKey:UDShellDefaultsKey];
+    XCTAssertEqualObjects(self.project.shell, program, @"the user's");
+    [self write:@"{ \"shell\": \"/no/such/shell\" }" to:@".udcode/settings.json"];
+    XCTAssertEqualObjects(self.project.shell, program, @"one this machine hasn't is passed over");
+    [defaults removeObjectForKey:UDShellDefaultsKey];
+    NSData *own = [NSJSONSerialization dataWithJSONObject:@{ @"shell": program } options:0 error:NULL];
+    [self write:[[NSString alloc] initWithData:own encoding:NSUTF8StringEncoding] to:@".udcode/settings.json"];
+    XCTAssertEqualObjects(self.project.shell, program, @"its own");
+}
+
 /// An Xcode project: its Debug build (as Xcode's Run), and what that makes
 /// run, as xcodebuild -showBuildSettings says: the first application or tool.
 - (void)testAnXcodeProjectRunsWhatItsDebugBuildMakes {

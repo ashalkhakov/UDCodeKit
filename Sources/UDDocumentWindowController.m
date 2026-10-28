@@ -1266,7 +1266,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [self _layoutDebugPane];
     if (!_terminal.running) {
         NSDictionary *environment = _project ? _project.buildEnvironment : nil;
-        if (![_terminal startShellInDirectory:[self _terminalDirectory] environment:environment]) NSBeep();
+        NSString *shell = _project ? _project.shell : [UDProject userShell];
+        if (![_terminal startShell:shell inDirectory:[self _terminalDirectory] environment:environment]) NSBeep();
     }
     [self.window makeFirstResponder:_terminal.terminalView];
 }

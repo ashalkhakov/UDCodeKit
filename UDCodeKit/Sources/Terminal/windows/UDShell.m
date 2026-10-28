@@ -3,7 +3,8 @@
  *
  *  MSYS2's bash: the first bash.exe on PATH that is MSYS2's with CLANG64
  *  (an MSYS2 shell puts its own there), else the one in MSYS2's usual place;
- *  cmd.exe (%COMSPEC%) where there is no MSYS2.
+ *  cmd.exe (%COMSPEC%) where there is no MSYS2. A shell chosen is taken as
+ *  it is: a bash (MSYS2's, its tools around it), or cmd.exe.
  *--------------------------------------------------------------------------------------------*/
 
 #import "../UDShell.h"
@@ -34,20 +35,30 @@ static NSString *UDCommandPrompt(void) {
     return NSProcessInfo.processInfo.environment[@"COMSPEC"] ?: @"C:/Windows/System32/cmd.exe";
 }
 
-NSArray<NSString *> *UDLoginShellArguments(void) {
-    NSString *bash = UDBash();
-    return bash ? @[ bash, @"-l" ] : @[ UDCommandPrompt() ];
+static BOOL UDIsCommandPrompt(NSString *shell) {
+    return [shell.lastPathComponent.lowercaseString isEqualToString:@"cmd.exe"];
 }
 
-NSArray<NSString *> *UDShellCommandArguments(NSString *command) {
-    NSString *bash = UDBash();
-    return bash ? @[ bash, @"-c", command ] : @[ UDCommandPrompt(), @"/c", command ];
+/* The bash chosen, else the one found; nil: cmd.exe. */
+static NSString *UDBashOr(NSString *shell) {
+    if (shell) return UDIsCommandPrompt(shell) ? nil : shell;
+    return UDBash();
+}
+
+NSArray<NSString *> *UDLoginShellArguments(NSString *shell) {
+    NSString *bash = UDBashOr(shell);
+    return bash ? @[ bash, @"-l" ] : @[ shell ?: UDCommandPrompt() ];
+}
+
+NSArray<NSString *> *UDShellCommandArguments(NSString *shell, NSString *command) {
+    NSString *bash = UDBashOr(shell);
+    return bash ? @[ bash, @"-c", command ] : @[ shell ?: UDCommandPrompt(), @"/c", command ];
 }
 
 /* What MSYS2's cygpath, beside its bash, says with @a arguments; nil when
    there is no MSYS2 or it says nothing. */
-static NSString *UDCygpath(NSArray<NSString *> *arguments) {
-    NSString *bash = UDBash();
+static NSString *UDCygpath(NSString *shell, NSArray<NSString *> *arguments) {
+    NSString *bash = UDBashOr(shell);
     NSString *cygpath = [[bash stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"cygpath.exe"];
     if (!bash || ![[NSFileManager defaultManager] isExecutableFileAtPath:cygpath]) return nil;
     NSTask *task = [[NSTask alloc] init];
@@ -69,24 +80,27 @@ static NSString *UDCygpath(NSArray<NSString *> *arguments) {
 }
 
 /* cygpath says where MSYS2's /tmp and /c are. */
-NSString *UDShellNativePath(NSString *path) {
+NSString *UDShellNativePath(NSString *shell, NSString *path) {
     if (![path hasPrefix:@"/"] || [path hasPrefix:@"//"]) return path;
-    return UDCygpath(@[ @"-m", path ]) ?: path;
+    return UDCygpath(shell, @[ @"-m", path ]) ?: path;
 }
 
-NSString *UDShellNativePathList(NSString *list) {
+NSString *UDShellNativePathList(NSString *shell, NSString *list) {
     if (![list hasPrefix:@"/"] || [list rangeOfString:@";"].location != NSNotFound) return list;
-    return UDCygpath(@[ @"-m", @"-p", list ]) ?: list;
+    return UDCygpath(shell, @[ @"-m", @"-p", list ]) ?: list;
 }
 
 /* MSYS2's, around its bash (usr/bin): CLANG64's, which the GNUstep stack is
    built with, then its own. */
-NSArray<NSString *> *UDShellToolFolders(void) {
-    NSString *bash = UDBash();
+NSArray<NSString *> *UDShellToolFolders(NSString *shell) {
+    NSString *bash = UDBashOr(shell);
     if (!bash) return @[];
     NSString *bin = [bash stringByDeletingLastPathComponent];
-    NSString *root = [[bin stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
-    return @[ [root stringByAppendingPathComponent:@"clang64/bin"], bin ];
+    NSString *clang = [[[bin stringByDeletingLastPathComponent] stringByDeletingLastPathComponent]
+                       stringByAppendingPathComponent:@"clang64/bin"];
+    BOOL directory = NO;
+    if ([[NSFileManager defaultManager] fileExistsAtPath:clang isDirectory:&directory] && directory) return @[ clang, bin ];
+    return @[ bin ];
 }
 
 /* MSYS2's /etc/profile goes to $HOME unless CHERE_INVOKING is set. */

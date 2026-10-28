@@ -1,23 +1,33 @@
 /*---------------------------------------------------------------------------------------------
  *  UDShell.m (Windows)
  *
- *  MSYS2's bash: the first bash.exe on PATH (an MSYS2 shell puts its own
- *  there), else the one in MSYS2's usual place; cmd.exe (%COMSPEC%) where
- *  there is no MSYS2.
+ *  MSYS2's bash: the first bash.exe on PATH that is MSYS2's with CLANG64
+ *  (an MSYS2 shell puts its own there), else the one in MSYS2's usual place;
+ *  cmd.exe (%COMSPEC%) where there is no MSYS2.
  *--------------------------------------------------------------------------------------------*/
 
 #import "../UDShell.h"
 
+/* MSYS2's with CLANG64, which the GNUstep stack is built with and its make
+   and compilers are in: not System32's (WSL's) nor Git's, which have none. */
+static BOOL UDIsMSYS2Bash(NSString *bash) {
+    NSString *root = [[[bash stringByDeletingLastPathComponent] stringByDeletingLastPathComponent]
+                      stringByDeletingLastPathComponent];
+    BOOL directory = NO;
+    return [[NSFileManager defaultManager] isExecutableFileAtPath:bash]
+        && [[NSFileManager defaultManager] fileExistsAtPath:[root stringByAppendingPathComponent:@"clang64/bin"]
+                                                isDirectory:&directory] && directory;
+}
+
 static NSString *UDBash(void) {
     NSDictionary *environment = NSProcessInfo.processInfo.environment;
-    NSFileManager *files = [NSFileManager defaultManager];
     for (NSString *folder in [environment[@"PATH"] componentsSeparatedByString:@";"]) {
         if (!folder.length) continue;
         NSString *bash = [folder stringByAppendingPathComponent:@"bash.exe"];
-        if ([files isExecutableFileAtPath:bash]) return bash;
+        if (UDIsMSYS2Bash(bash)) return bash;
     }
     NSString *usual = @"C:/msys64/usr/bin/bash.exe";
-    return [files isExecutableFileAtPath:usual] ? usual : nil;
+    return UDIsMSYS2Bash(usual) ? usual : nil;
 }
 
 static NSString *UDCommandPrompt(void) {

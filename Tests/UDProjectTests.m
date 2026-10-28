@@ -1207,6 +1207,23 @@ static Class UDPluginClass(NSString *name) {
 #endif
 }
 
+/// clangd's fallbackFlags, where a project says nothing of its own
+/// (compile_commands.json): GNUstep's headers, as the system has their
+/// folders (on Windows not MSYS2's /c/GNUstep), so Foundation.h is found.
+- (void)testClangdFindsGNUstepsHeaders {
+#ifdef GNUSTEP
+    NSArray<NSString *> *flags = [UDPluginClass(@"UDCFamilyPlugin") fallbackCompileFlagsForProject:self.project];
+    BOOL found = NO;
+    for (NSString *flag in flags) {
+        if (![flag hasPrefix:@"-I"]) continue;
+        NSString *folder = [flag substringFromIndex:2];
+        found = found || [[NSFileManager defaultManager] fileExistsAtPath:[folder stringByAppendingPathComponent:@"Foundation/Foundation.h"]];
+    }
+    XCTAssertTrue(found, @"%@", flags);
+    XCTAssertFalse([flags containsObject:@"-MMD"], @"make's, not an index's");
+#endif
+}
+
 /// A GNUstep project's tests, written as UDCalc's are (an XCTest bundle in a
 /// folder of its own): Debug › Test builds and runs them, the Test navigator
 /// marks each, a failure is an issue at its line; one test runs alone.

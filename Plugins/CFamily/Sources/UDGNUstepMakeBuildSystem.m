@@ -167,8 +167,7 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     static NSMutableDictionary<NSString *, NSDictionary *> *read;
     if (!read) read = [NSMutableDictionary dictionary];
     if (read[shell ?: @""]) return read[shell ?: @""];
-    // the machine's GNUstep: an AppImage's own settings are not it
-    NSString *makefiles = [LSPTransport hostEnvironment][@"GNUSTEP_MAKEFILES"] ?: [self _makefilesForShell:shell];
+    NSString *makefiles = [self _machineMakefilesForShell:shell];
     NSString *script = [makefiles stringByAppendingPathComponent:@"GNUstep.sh"];
     NSMutableDictionary *found = [NSMutableDictionary dictionary];
     if (makefiles && [[NSFileManager defaultManager] fileExistsAtPath:script]) {
@@ -185,6 +184,32 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     if (makefiles && !found[@"GNUSTEP_MAKEFILES"]) found[@"GNUSTEP_MAKEFILES"] = makefiles;
     read[shell ?: @""] = found;
     return found;
+}
+
++ (NSArray<NSString *> *)compileFlagsForShell:(NSString *)shell {
+    static NSMutableDictionary<NSString *, NSArray *> *read;
+    if (!read) read = [NSMutableDictionary dictionary];
+    if (read[shell ?: @""]) return read[shell ?: @""];
+    NSString *script = [[self _machineMakefilesForShell:shell] stringByAppendingPathComponent:@"GNUstep.sh"];
+    NSMutableArray<NSString *> *flags = [NSMutableArray array];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:script]) {
+        NSString *output = [self _shellOutputOf:@". \"$1\" >/dev/null 2>&1; gnustep-config --objc-flags" argument:script shell:shell];
+        for (NSString *flag in [UDProject argumentsOfCommandLine:output ?: @""]) {
+            // what makes dependency files is make's business, not an index's
+            if ([flag hasPrefix:@"-M"]) continue;
+            // MSYS2's -I/c/GNUstep/include
+            if ([flag hasPrefix:@"-I/"]) [flags addObject:[@"-I" stringByAppendingString:UDShellNativePath(shell, [flag substringFromIndex:2])]];
+            else [flags addObject:flag];
+        }
+    }
+    [flags addObjectsFromArray:UDShellCompilerFlags(shell)];
+    read[shell ?: @""] = flags;
+    return flags;
+}
+
+/// The machine's GNUstep's makefiles: an AppImage's own settings are not it.
++ (nullable NSString *)_machineMakefilesForShell:(nullable NSString *)shell {
+    return [LSPTransport hostEnvironment][@"GNUSTEP_MAKEFILES"] ?: [self _makefilesForShell:shell];
 }
 
 /// The folders tools are looked for in, @a shell's first (an app started

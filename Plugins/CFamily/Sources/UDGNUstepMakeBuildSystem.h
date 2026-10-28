@@ -29,6 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// nil: the system's) runs it; read once for each.
 + (NSDictionary<NSString *, NSString *> *)environmentForShell:(nullable NSString *)shell;
 
+/// What GNUstep's compiles take (gnustep-config --objc-flags, but what makes
+/// dependency files), as @a shell runs it in that environment, its folders
+/// as the system has them, and what makes another compiler compile as the
+/// shell's (UDShellCompilerFlags); read once for each.
++ (NSArray<NSString *> *)compileFlagsForShell:(nullable NSString *)shell;
+
 @end
 
 NS_ASSUME_NONNULL_END

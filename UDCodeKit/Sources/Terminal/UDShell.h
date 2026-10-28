@@ -48,4 +48,9 @@ UDCODEKIT_EXPORT NSString *UDShellNativePathList(NSString *_Nullable shell, NSSt
 /// elsewhere none.
 UDCODEKIT_EXPORT NSArray<NSString *> *UDShellToolFolders(NSString *_Nullable shell);
 
+/// What a compiler other than the shell's own (clangd's, any LLVM's) is told
+/// to compile as the shell's compilers do: on Windows MSYS2's CLANG64 (its
+/// target and its headers); elsewhere nothing.
+UDCODEKIT_EXPORT NSArray<NSString *> *UDShellCompilerFlags(NSString *_Nullable shell);
+
 NS_ASSUME_NONNULL_END

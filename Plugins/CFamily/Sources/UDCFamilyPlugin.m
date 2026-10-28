@@ -69,17 +69,7 @@
 + (NSArray<NSString *> *)fallbackCompileFlagsForProject:(UDProject *)project {
     NSMutableArray<NSString *> *flags = [NSMutableArray array];
 #ifdef GNUSTEP
-    NSString *config = nil;
-    for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
-        NSString *candidate = [tools stringByAppendingPathComponent:@"gnustep-config"];
-        if ([[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) { config = candidate; break; }
-    }
-    NSString *objcFlags = config ? [UDToolLocator outputOf:config arguments:@[ @"--objc-flags" ]] : nil;
-    for (NSString *flag in [UDProject argumentsOfCommandLine:objcFlags ?: @""]) {
-        // what makes dependency files is make's business, not an index's
-        if ([flag hasPrefix:@"-M"]) continue;
-        [flags addObject:flag];
-    }
+    [flags addObjectsFromArray:[UDGNUstepMakeBuildSystem compileFlagsForShell:project.shell]];
 #else
     NSString *sdk = [UDToolLocator outputOf:@"/usr/bin/xcrun" arguments:@[ @"--show-sdk-path" ]];
     if (sdk.length) [flags addObjectsFromArray:@[ @"-isysroot", sdk ]];

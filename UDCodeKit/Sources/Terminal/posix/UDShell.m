@@ -36,3 +36,7 @@ NSString *UDShellNativePathList(NSString *shell, NSString *list) {
 NSArray<NSString *> *UDShellToolFolders(NSString *shell) {
     return @[];
 }
+
+NSArray<NSString *> *UDShellCompilerFlags(NSString *shell) {
+    return @[];
+}

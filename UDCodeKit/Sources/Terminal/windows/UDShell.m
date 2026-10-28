@@ -113,6 +113,14 @@ NSArray<NSString *> *UDShellToolFolders(NSString *shell) {
     return @[ bin ];
 }
 
+/* CLANG64's target, and its folder as the root its headers are under:
+   another LLVM's clang (clangd from LLVM's installer) would take MSVC's. */
+NSArray<NSString *> *UDShellCompilerFlags(NSString *shell) {
+    NSString *clang = UDShellToolFolders(shell).firstObject;
+    if (![clang.lastPathComponent isEqualToString:@"bin"] || ![clang.stringByDeletingLastPathComponent.lastPathComponent isEqualToString:@"clang64"]) return @[];
+    return @[ @"--target=x86_64-w64-windows-gnu", [@"--sysroot=" stringByAppendingString:clang.stringByDeletingLastPathComponent] ];
+}
+
 /* MSYS2's /etc/profile goes to $HOME unless CHERE_INVOKING is set. */
 NSDictionary<NSString *, NSString *> *UDShellEnvironment(NSDictionary<NSString *, NSString *> *environment) {
     NSMutableDictionary *changed = [environment mutableCopy];

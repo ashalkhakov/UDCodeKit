@@ -4,7 +4,9 @@
  *  MSYS2's bash: the first bash.exe on PATH that is MSYS2's with CLANG64
  *  (an MSYS2 shell puts its own there), else the one in MSYS2's usual place;
  *  cmd.exe (%COMSPEC%) where there is no MSYS2. A shell chosen is taken as
- *  it is: a bash (MSYS2's, its tools around it), or cmd.exe.
+ *  it is: a bash (MSYS2's, its tools around it), or cmd.exe; one of MSYS2's
+ *  launchers (msys2.exe, clang64.exe), which opens a window of its own and
+ *  runs nothing given, is its bash.
  *--------------------------------------------------------------------------------------------*/
 
 #import "../UDShell.h"
@@ -40,9 +42,16 @@ static BOOL UDIsCommandPrompt(NSString *shell) {
     return [shell.lastPathComponent.lowercaseString isEqualToString:@"cmd.exe"];
 }
 
-/* The bash chosen, else the one found; nil: cmd.exe. */
+/* A program at MSYS2's root (msys2.exe, clang64.exe, ucrt64.exe): its
+   launchers, beside usr/bin/bash.exe. */
+static NSString *UDBashOfLauncher(NSString *shell) {
+    NSString *bash = [[shell stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"usr/bin/bash.exe"];
+    return [[NSFileManager defaultManager] isExecutableFileAtPath:bash] ? bash : nil;
+}
+
+/* The bash chosen (an MSYS2 launcher's), else the one found; nil: cmd.exe. */
 static NSString *UDBashOr(NSString *shell) {
-    if (shell) return UDIsCommandPrompt(shell) ? nil : shell;
+    if (shell) return UDIsCommandPrompt(shell) ? nil : UDBashOfLauncher(shell) ?: shell;
     return UDBash();
 }
 

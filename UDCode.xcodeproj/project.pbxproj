@@ -263,6 +263,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				GNUmakefile,
+				windows/UDShellTests.m,
 			);
 			target = A46FAABB2F5441CB0079BB37 /* UDCodeTests */;
 		};

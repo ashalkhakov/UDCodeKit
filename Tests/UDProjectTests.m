@@ -663,7 +663,8 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(build.commandLine, @"make -j2", @"linux's args over the rest");
 #endif
     XCTAssertEqualObjects(build.directory, [_folder stringByAppendingPathComponent:@"sub"], @"${workspaceFolder}");
-    XCTAssertEqualObjects(build.environment[@"FLAVOR"], NSProcessInfo.processInfo.environment[@"HOME"], @"${env:HOME}");
+    // unset (Windows' Start menu sets no HOME), "" as VS Code has it
+    XCTAssertEqualObjects(build.environment[@"FLAVOR"], NSProcessInfo.processInfo.environment[@"HOME"] ?: @"", @"${env:HOME}");
     NSString *line = [tasks commandLineRunning:build];
     XCTAssertTrue([line rangeOfString:@"echo prep"].location < [line rangeOfString:@"make -j"].location, @"dependsOn first: %@", line);
     XCTAssertEqualObjects([tasks taskLabelled:@"test"].commandLine, @"'./run tests'", @"a process's program, quoted");
@@ -998,9 +999,12 @@ static Class UDPluginClass(NSString *name) {
     // MSYS2's bash says its folder as Windows has it with pwd -W (/tmp/x is
     // C:/msys64/tmp/x); other shells have no -W
     [terminal.pseudoTerminal writeData:[@"echo \"at:$( (pwd -W || pwd -P) 2>/dev/null)\"\r" dataUsingEncoding:NSUTF8StringEncoding]];
+    // its rows joined: a folder longer than the terminal is wide (macOS's
+    // /private/var/folders/...) goes on to the next row
     NSString *expected = [@"at:" stringByAppendingString:_folder];
-    UDRunUntil([terminal.terminalView.screenText containsString:expected], 30);
-    XCTAssertTrue([terminal.terminalView.screenText containsString:expected], @"%@", terminal.terminalView.screenText);
+    UDRunUntil([[terminal.terminalView.screenText stringByReplacingOccurrencesOfString:@"\n" withString:@""] containsString:expected], 30);
+    XCTAssertTrue([[terminal.terminalView.screenText stringByReplacingOccurrencesOfString:@"\n" withString:@""] containsString:expected],
+                  @"%@", terminal.terminalView.screenText);
 
     // the switch back to the debugger's area, and the terminal's again
     [controller.window makeFirstResponder:nil];
@@ -1221,6 +1225,56 @@ static Class UDPluginClass(NSString *name) {
     }
     XCTAssertTrue(found, @"%@", flags);
     XCTAssertFalse([flags containsObject:@"-MMD"], @"make's, not an index's");
+#endif
+}
+
+/// A GNUstep project's compile commands, as make's dry run says them: each
+/// file's own folder and flags (continued lines joined, the folders make
+/// enters followed), a file compiled again for a test bundle the first
+/// time's, what makes dependency files left out.
+- (void)testMakesDryRunIsEachFilesCompileCommand {
+#ifdef GNUSTEP
+    // the folders as the system has them, which every shell's are too
+    NSString *calc = self.project.folderURL.path;
+    NSString *app = [calc stringByAppendingPathComponent:@"App"], *tests = [calc stringByAppendingPathComponent:@"Tests"];
+    NSString *output = [NSString stringWithFormat:
+                        @"make: Entering directory '%@'\n"
+                        @"make[1]: Entering directory '%@'\n"
+                        @"clang main.m -c \\\n"
+                        @"      -MMD -MP -Iinclude -fobjc-arc -include Compat.h \\\n"
+                        @"       -o obj/App.obj/main.m.o\n"
+                        @"clang -Wl,--enable-auto-import -o obj/App obj/App.obj/main.m.o\n"
+                        @"make[1]: Leaving directory '%@'\n"
+                        @"make[1]: Entering directory '%@'\n"
+                        @"clang ../App/main.m -c -DTESTING -o obj/Tests.obj/main.m.o\n"
+                        @"clang Tests.m -c -fblocks -o obj/Tests.obj/Tests.m.o\n"
+                        @"make[1]: Leaving directory '%@'\n", calc, app, app, tests, tests];
+    Class gnustep = UDPluginClass(@"UDGNUstepMakeBuildSystem");
+    NSDictionary *commands = [gnustep compileCommandsInDryRun:output folder:calc shell:nil];
+    NSString *main = [app stringByAppendingPathComponent:@"main.m"], *testsFile = [tests stringByAppendingPathComponent:@"Tests.m"];
+    XCTAssertEqualObjects([NSSet setWithArray:commands.allKeys], ([NSSet setWithObjects:main, testsFile, nil]));
+    XCTAssertEqualObjects(commands[main][@"workingDirectory"], app);
+    NSArray *expected = [@[ @"clang", @"main.m", @"-c", @"-Iinclude", @"-fobjc-arc", @"-include", @"Compat.h", @"-o", @"obj/App.obj/main.m.o" ]
+                         arrayByAddingObjectsFromArray:UDShellCompilerFlags(nil)];
+    XCTAssertEqualObjects(commands[main][@"compilationCommand"], expected, @"the first, without -MMD -MP");
+    XCTAssertEqualObjects(commands[testsFile][@"workingDirectory"], tests);
+#endif
+}
+
+/// clangd told how make compiles each file of a GNUstep project (its
+/// -fobjc-arc, which no fallback flag knows), from make's own dry run.
+- (void)testClangdIsToldHowMakeCompilesEachFile {
+#ifdef GNUSTEP
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nTOOL_NAME = calc\ncalc_OBJC_FILES = main.m\n"
+                @"ADDITIONAL_OBJCFLAGS += -fobjc-arc\ninclude $(GNUSTEP_MAKEFILES)/tool.make\n" to:@"GNUmakefile"];
+    [self write:@"int main(void) { return 0; }\n" to:@"main.m"];
+    UDProject *project = [[UDProject alloc] initWithFolderURL:[NSURL fileURLWithPath:self.folder]];
+    NSDictionary *options = [project initializationOptionsForLanguageServer:@[ @"clangd" ]];
+    NSString *main = [project.folderURL.path stringByAppendingPathComponent:@"main.m"].stringByStandardizingPath;
+    NSDictionary *command = options[@"compilationDatabaseChanges"][main];
+    XCTAssertEqualObjects(command[@"workingDirectory"], project.folderURL.path.stringByStandardizingPath, @"%@", options);
+    XCTAssertTrue([command[@"compilationCommand"] containsObject:@"-fobjc-arc"], @"%@", command);
+    XCTAssertNotNil(options[@"fallbackFlags"], @"for the files make does not compile (headers)");
 #endif
 }
 

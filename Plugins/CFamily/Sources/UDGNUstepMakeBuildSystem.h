@@ -23,6 +23,19 @@ NS_ASSUME_NONNULL_BEGIN
 /// CalculatorTests/CalculatorTests.bundle): the folder's GNUmakefile's, else
 /// each folder's in it.
 @property (nonatomic, readonly, copy) NSArray<NSString *> *testBundles;
+/// How make compiles each source file, as a dry run of it says (VS Code's
+/// Makefile Tools reads one so): its path, as the system has it, to its
+/// workingDirectory and compilationCommand, as clangd's
+/// compilationDatabaseChanges take them. Read in the background from when
+/// the build system is made; waited for a while; empty when make says
+/// nothing.
+@property (readonly, copy) NSDictionary<NSString *, NSDictionary *> *compileCommands;
+
+/// The compile commands in @a output, a dry run of make started in
+/// @a folder (make -n --print-directory), its paths as @a shell writes them.
++ (NSDictionary<NSString *, NSDictionary *> *)compileCommandsInDryRun:(NSString *)output
+                                                                folder:(NSString *)folder
+                                                                 shell:(nullable NSString *)shell;
 
 /// What GNUstep.sh sets (GNUSTEP_MAKEFILES and the rest), the machine's
 /// GNUstep's (an AppImage's own is not it), as @a shell (UDProject's shell;

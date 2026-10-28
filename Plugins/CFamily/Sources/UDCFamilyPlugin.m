@@ -63,7 +63,16 @@
 
 - (NSDictionary *)initializationOptionsForLanguageServer:(NSArray<NSString *> *)command project:(UDProject *)project {
     if (![[command.firstObject lastPathComponent] hasPrefix:@"clangd"]) return nil;
-    return @{ @"fallbackFlags": [UDCFamilyPlugin fallbackCompileFlagsForProject:project] };
+    NSMutableDictionary *options = [NSMutableDictionary dictionary];
+    options[@"fallbackFlags"] = [UDCFamilyPlugin fallbackCompileFlagsForProject:project];
+#ifdef GNUSTEP
+    // each file's own, as make compiles it (-fobjc-arc, its -I's)
+    if ([project.buildSystem isKindOfClass:[UDGNUstepMakeBuildSystem class]]) {
+        NSDictionary *commands = ((UDGNUstepMakeBuildSystem *)project.buildSystem).compileCommands;
+        if (commands.count) options[@"compilationDatabaseChanges"] = commands;
+    }
+#endif
+    return options;
 }
 
 + (NSArray<NSString *> *)fallbackCompileFlagsForProject:(UDProject *)project {

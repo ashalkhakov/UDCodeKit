@@ -9,7 +9,19 @@
 #import <UDCodeKit/UDShell.h>
 #import <UDCodeKit/UDPaths.h>
 
-@implementation UDGNUstepMakeBuildSystem
+@implementation UDGNUstepMakeBuildSystem {
+    NSCondition *_reading;
+    NSDictionary<NSString *, NSDictionary *> *_compileCommands;
+}
+
+- (instancetype)initWithProject:(UDProject *)project {
+    if (!(self = [super initWithProject:project])) return nil;
+    _reading = [[NSCondition alloc] init];
+    // make's dry run takes a while (seconds on Windows): clangd, when it
+    // starts, should not wait for all of it
+    [NSThread detachNewThreadSelector:@selector(_readCompileCommands:) toTarget:self withObject:nil];
+    return self;
+}
 
 /// The folder whose GNUmakefile builds the project; nil when there is none.
 + (nullable NSString *)_makeFolderOf:(UDProject *)project {
@@ -136,6 +148,116 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     return [apps arrayByAddingObjectsFromArray:tools];
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - How it compiles
+// ---------------------------------------------------------------------------
+
+- (void)_readCompileCommands:(id)unused {
+    @autoreleasepool {
+        UDProject *project = self.project;
+        NSString *folder = [project.folderURL.path stringByAppendingPathComponent:self.makeFolder];
+        NSDictionary *commands = @{};
+        if (project) {
+            NSTask *task = [[NSTask alloc] init];
+            NSPipe *pipe = [NSPipe pipe];
+            NSArray *shell = UDShellCommandArguments(project.shell, @"exec 2>&1; make --dry-run --always-make --keep-going "
+                                                                    @"--print-directory debug=yes messages=yes");
+            task.launchPath = shell.firstObject;
+            task.arguments = [shell subarrayWithRange:NSMakeRange(1, shell.count - 1)];
+            task.currentDirectoryPath = folder;
+            task.environment = UDShellEnvironment([project buildEnvironment]);
+            task.standardOutput = pipe;
+            task.standardInput = [NSFileHandle fileHandleWithNullDevice];
+            @try {
+                [task launch];
+                NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+                [task waitUntilExit];
+                NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+                commands = [UDGNUstepMakeBuildSystem compileCommandsInDryRun:output folder:folder shell:project.shell];
+            } @catch (NSException *exception) {
+            }
+        }
+        [_reading lock];
+        _compileCommands = commands;
+        [_reading broadcast];
+        [_reading unlock];
+    }
+}
+
+- (NSDictionary<NSString *, NSDictionary *> *)compileCommands {
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:10];
+    [_reading lock];
+    while (!_compileCommands && [_reading waitUntilDate:until]) {
+    }
+    NSDictionary *commands = _compileCommands ?: @{};
+    [_reading unlock];
+    return commands;
+}
+
+/// A compiler's name (clang, cc, gcc, clang++, x86_64-linux-gnu-gcc-12).
+static BOOL UDIsCompiler(NSString *program) {
+    NSString *name = program.lastPathComponent.stringByDeletingPathExtension;
+    for (NSString *compiler in @[ @"clang", @"clang++", @"gcc", @"g++", @"cc", @"c++" ]) {
+        if ([name isEqualToString:compiler] || [name hasSuffix:[@"-" stringByAppendingString:compiler]]
+            || [name hasPrefix:[compiler stringByAppendingString:@"-"]]) return YES;
+    }
+    return NO;
+}
+
++ (NSDictionary<NSString *, NSDictionary *> *)compileCommandsInDryRun:(NSString *)output folder:(NSString *)folder shell:(NSString *)shell {
+    NSSet *sources = [NSSet setWithArray:@[ @"m", @"mm", @"c", @"cc", @"cpp", @"cxx" ]];
+    // the arguments that take the next one as theirs
+    NSSet *taking = [NSSet setWithArray:@[ @"-o", @"-include", @"-MF", @"-MT", @"-MQ", @"-I", @"-isystem", @"-x" ]];
+    NSArray *compilerFlags = UDShellCompilerFlags(shell);
+    NSMutableDictionary *commands = [NSMutableDictionary dictionary];
+    NSMutableArray<NSString *> *folders = [NSMutableArray arrayWithObject:folder];
+    output = [[output stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"] stringByReplacingOccurrencesOfString:@"\\\n" withString:@" "];
+    for (NSString *line in [output componentsSeparatedByString:@"\n"]) {
+        // make[1]: Entering directory '/path'  (or `/path')
+        NSRange entering = [line rangeOfString:@": Entering directory "];
+        if (entering.location != NSNotFound) {
+            NSString *path = [[line substringFromIndex:NSMaxRange(entering)]
+                              stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"'`\" "]];
+            [folders addObject:UDShellNativePath(shell, path)];
+            continue;
+        }
+        if ([line rangeOfString:@": Leaving directory "].location != NSNotFound) {
+            if (folders.count > 1) [folders removeLastObject];
+            continue;
+        }
+        NSArray<NSString *> *arguments = [UDProject argumentsOfCommandLine:line];
+        if (arguments.count < 3 || !UDIsCompiler(arguments.firstObject) || ![arguments containsObject:@"-c"]) continue;
+        NSString *source = nil;
+        NSMutableArray<NSString *> *command = [NSMutableArray arrayWithObject:arguments.firstObject];
+        for (NSUInteger i = 1; i < arguments.count; i++) {
+            NSString *argument = arguments[i];
+            BOOL takes = [taking containsObject:argument] && i + 1 < arguments.count;
+            // what makes dependency files is make's business, not an index's
+            if ([argument isEqualToString:@"-MMD"] || [argument isEqualToString:@"-MP"] || [argument isEqualToString:@"-MD"]) continue;
+            if ([@[ @"-MF", @"-MT", @"-MQ" ] containsObject:argument]) { i++; continue; }
+            if (takes) {
+                [command addObjectsFromArray:@[ argument, [argument isEqualToString:@"-I"] ? UDShellNativePath(shell, arguments[i + 1]) : arguments[i + 1] ]];
+                i++;
+                continue;
+            }
+            // MSYS2's -I/c/GNUstep/include
+            if ([argument hasPrefix:@"-I/"]) argument = [@"-I" stringByAppendingString:UDShellNativePath(shell, [argument substringFromIndex:2])];
+            else if (!source && ![argument hasPrefix:@"-"] && [sources containsObject:argument.pathExtension]) source = argument;
+            [command addObject:argument];
+        }
+        if (!source) continue;
+        NSString *directory = folders.lastObject;
+        NSString *path = [source hasPrefix:@"/"] ? UDShellNativePath(shell, source) : source;
+        if (!path.isAbsolutePath) path = [directory stringByAppendingPathComponent:path];
+        path = path.stringByStandardizingPath;
+        // the first: a file compiled again (into a test bundle) is the same file
+        if (commands[path]) continue;
+        [command addObjectsFromArray:compilerFlags];
+        commands[path] = @{ @"workingDirectory": directory, @"compilationCommand": command };
+    }
+    return commands;
+}
+
 - (NSDictionary *)inferredSettings {
     NSString *folder = self.makeFolder;
     NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
@@ -164,6 +286,13 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
 // ---------------------------------------------------------------------------
 
 + (NSDictionary<NSString *, NSString *> *)environmentForShell:(NSString *)shell {
+    // the compile commands' thread asks too
+    @synchronized (self) {
+        return [self _environmentForShell:shell];
+    }
+}
+
++ (NSDictionary<NSString *, NSString *> *)_environmentForShell:(NSString *)shell {
     static NSMutableDictionary<NSString *, NSDictionary *> *read;
     if (!read) read = [NSMutableDictionary dictionary];
     if (read[shell ?: @""]) return read[shell ?: @""];
@@ -187,6 +316,12 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
 }
 
 + (NSArray<NSString *> *)compileFlagsForShell:(NSString *)shell {
+    @synchronized (self) {
+        return [self _compileFlagsForShell:shell];
+    }
+}
+
++ (NSArray<NSString *> *)_compileFlagsForShell:(NSString *)shell {
     static NSMutableDictionary<NSString *, NSArray *> *read;
     if (!read) read = [NSMutableDictionary dictionary];
     if (read[shell ?: @""]) return read[shell ?: @""];

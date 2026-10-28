@@ -32,16 +32,11 @@
 }
 
 - (NSArray<Class> *)debuggerClasses {
-#if defined(__APPLE__) || defined(_WIN32)
-    // Xcode's lldb-dap; on Windows MSYS2's, which reads an Objective-C
-    // object's ivars where its runtime put them (gdb takes each to be at
-    // offset 0, as clang's debug information says of a non-fragile ivar)
+    // lldb-dap (Xcode's, MSYS2's, a distribution's), which reads an
+    // Objective-C object's ivars where its runtime put them: gdb takes each
+    // to be at offset 0, as clang's debug information says of a non-fragile
+    // ivar. gdb where there is no lldb-dap.
     return @[ [UDLLDBDebugger class], [UDGDBDebugger class] ];
-#else
-    // gdb, which a distribution has, and which goes on where address
-    // randomization can't be turned off (a container): lldb doesn't launch there
-    return @[ [UDGDBDebugger class], [UDLLDBDebugger class] ];
-#endif
 }
 
 /// The sources' XCTest cases and test executables (TestMate's way), where no

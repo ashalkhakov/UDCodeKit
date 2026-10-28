@@ -285,13 +285,9 @@ static Class UDPluginClass(NSString *name) {
 }
 
 - (void)testTheDebuggersAreAskedAsEachTakesIt {
-    // CFamily's, the extensions': lldb's first on macOS and Windows, gdb's elsewhere
+    // CFamily's, the extensions': lldb's first, then gdb's
     NSArray *names = [[UDDebugger classes] valueForKey:@"name"];
-#if defined(__APPLE__) || defined(_WIN32)
     XCTAssertEqualObjects(names, (@[ @"lldb", @"gdb" ]));
-#else
-    XCTAssertEqualObjects(names, (@[ @"gdb", @"lldb" ]));
-#endif
     NSDictionary *lldb = [[UDDebugger classNamed:@"lldb"] launchArgumentsForProgram:@"/p" arguments:@[ @"a" ]
                                                                          directory:@"/d" environment:@{ @"K": @"v" }];
     XCTAssertEqualObjects(lldb[@"env"], @[ @"K=v" ], @"lldb-dap: NAME=value");

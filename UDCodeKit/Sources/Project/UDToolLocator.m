@@ -36,19 +36,21 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
             stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 }
 
-/// The folders a tool is looked for in: PATH's, then the usual others.
+/// The folders a tool is looked for in: the shell's toolchain's, PATH's,
+/// then the usual others.
 + (NSArray<NSString *> *)_folders {
     NSMutableArray<NSString *> *folders = [NSMutableArray array];
+    // the user's shell's tools first (MSYS2's CLANG64 on Windows, which builds
+    // the projects): another LLVM on PATH (LLVM's installer's, for MSVC's
+    // programs) has an lldb-dap that cannot debug them
+    [folders addObjectsFromArray:UDShellToolFolders([UDProject userShell])];
     // the machine's PATH, not an AppImage's
     NSString *path = [LSPTransport hostEnvironment][@"PATH"];
     for (NSString *folder in [path componentsSeparatedByString:UDPathListSeparator()]) {
-        if (folder.length) [folders addObject:folder];
+        if (folder.length && ![folders containsObject:folder]) [folders addObject:folder];
     }
     // an app started from a desktop, the Dock or the Start menu has a short
-    // PATH: the user's shell's tools (MSYS2's on Windows), Homebrew's, /usr/local/bin
-    for (NSString *folder in UDShellToolFolders([UDProject userShell])) {
-        if (![folders containsObject:folder]) [folders addObject:folder];
-    }
+    // PATH: Homebrew's, /usr/local/bin
     for (NSString *folder in @[ @"/usr/local/bin", @"/opt/homebrew/bin", @"/opt/homebrew/opt/llvm/bin",
                                 @"/usr/local/opt/llvm/bin", @"/usr/bin", @"/bin" ]) {
         if (![folders containsObject:folder]) [folders addObject:folder];

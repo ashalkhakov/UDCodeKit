@@ -31,4 +31,18 @@
     }
 }
 
+/// The shell's toolchain first, whatever else is on PATH: LLVM's
+/// installer's lldb-dap (C:/Program Files/LLVM) is for MSVC's programs, and
+/// cannot debug those MSYS2's clang builds.
+- (void)testTheShellsToolchainComesBeforePATH {
+    NSString *toolchain = UDShellToolFolders(nil).firstObject;
+    NSString *lldb = UDExecutableAtPath([toolchain stringByAppendingPathComponent:@"lldb-dap"]);
+    if (!lldb) {
+        NSLog(@"UDShellTests: no lldb-dap in MSYS2 here; its case checks nothing");
+        return;
+    }
+    XCTAssertEqualObjects([UDToolLocator pathOfLLVMTool:@"lldb-dap"], lldb, @"%@", [UDToolLocator searchedFolders]);
+    XCTAssertEqualObjects([UDToolLocator searchedFolders].firstObject, toolchain);
+}
+
 @end

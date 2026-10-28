@@ -5,9 +5,12 @@
 //  The app's updates. On macOS, Sparkle: the newest release's appcast
 //  (SUFeedURL in Info.plist, signed with the key SUPublicEDKey names) is
 //  checked once a day if the user allows it, and Check for Updates… checks
-//  now. On GNUstep, nothing: the AppImage carries its update information,
-//  for AppImageUpdate, Gear Lever and the like (gnustep-release-actions'
-//  appimage).
+//  now. On Windows the same with WinSparkle, from the release's
+//  appcast-windows.xml (SUWindowsFeedURL in UDCodeInfo.plist), the
+//  installer run as it is downloaded. On Linux, nothing: the AppImage
+//  carries its update information, for AppImageUpdate, Gear Lever and the
+//  like (gnustep-release-actions' appimage). One implementation for each
+//  system (apple/, linux/, windows/).
 //
 
 #import <Foundation/Foundation.h>

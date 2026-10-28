@@ -8,6 +8,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "../UDShell.h"
+#import <LSPKit/LSPKit.h>
 
 /* MSYS2's with CLANG64, which the GNUstep stack is built with and its make
    and compilers are in: not System32's (WSL's) nor Git's, which have none. */
@@ -21,8 +22,8 @@ static BOOL UDIsMSYS2Bash(NSString *bash) {
 }
 
 static NSString *UDBash(void) {
-    NSDictionary *environment = NSProcessInfo.processInfo.environment;
-    for (NSString *folder in [environment[@"PATH"] componentsSeparatedByString:@";"]) {
+    // the host's PATH: from the Start menu, Windows names it "Path"
+    for (NSString *folder in [[LSPTransport hostEnvironment][@"PATH"] componentsSeparatedByString:@";"]) {
         if (!folder.length) continue;
         NSString *bash = [folder stringByAppendingPathComponent:@"bash.exe"];
         if (UDIsMSYS2Bash(bash)) return bash;

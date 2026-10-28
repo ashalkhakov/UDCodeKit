@@ -199,6 +199,10 @@ static Class UDPluginClass(NSString *name) {
     // not from an AppImage: as it is
     NSDictionary *plain = @{ @"PATH": @"/usr/bin", @"GNUSTEP_MAKEFILES": @"/opt/gnustep/System/Library/Makefiles" };
     XCTAssertEqualObjects([LSPTransport hostEnvironmentOf:plain], plain);
+    // started from Windows' Start menu: its "Path" is PATH
+    NSDictionary *windows = @{ @"Path": @"C:\\Windows\\system32;C:\\Windows", @"COMSPEC": @"C:\\Windows\\system32\\cmd.exe" };
+    XCTAssertEqualObjects([LSPTransport hostEnvironmentOf:windows],
+                          (@{ @"PATH": @"C:\\Windows\\system32;C:\\Windows", @"COMSPEC": @"C:\\Windows\\system32\\cmd.exe" }));
 }
 
 /// A GNUstep project whose GNUmakefile is in a folder of its own, beside an

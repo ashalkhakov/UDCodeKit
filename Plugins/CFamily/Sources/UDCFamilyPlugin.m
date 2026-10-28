@@ -32,8 +32,10 @@
 }
 
 - (NSArray<Class> *)debuggerClasses {
-#ifdef __APPLE__
-    // Xcode's lldb-dap
+#if defined(__APPLE__) || defined(_WIN32)
+    // Xcode's lldb-dap; on Windows MSYS2's, which reads an Objective-C
+    // object's ivars where its runtime put them (gdb takes each to be at
+    // offset 0, as clang's debug information says of a non-fragile ivar)
     return @[ [UDLLDBDebugger class], [UDGDBDebugger class] ];
 #else
     // gdb, which a distribution has, and which goes on where address

@@ -285,9 +285,9 @@ static Class UDPluginClass(NSString *name) {
 }
 
 - (void)testTheDebuggersAreAskedAsEachTakesIt {
-    // CFamily's, the extensions': lldb's first on macOS, gdb's elsewhere
+    // CFamily's, the extensions': lldb's first on macOS and Windows, gdb's elsewhere
     NSArray *names = [[UDDebugger classes] valueForKey:@"name"];
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(_WIN32)
     XCTAssertEqualObjects(names, (@[ @"lldb", @"gdb" ]));
 #else
     XCTAssertEqualObjects(names, (@[ @"gdb", @"lldb" ]));
@@ -295,6 +295,7 @@ static Class UDPluginClass(NSString *name) {
     NSDictionary *lldb = [[UDDebugger classNamed:@"lldb"] launchArgumentsForProgram:@"/p" arguments:@[ @"a" ]
                                                                          directory:@"/d" environment:@{ @"K": @"v" }];
     XCTAssertEqualObjects(lldb[@"env"], @[ @"K=v" ], @"lldb-dap: NAME=value");
+    XCTAssertEqualObjects(lldb[@"initCommands"], @[ @"settings set target.display-runtime-support-values true" ], @"self among the locals");
     NSDictionary *gdb = [[UDDebugger classNamed:@"gdb"] launchArgumentsForProgram:@"/p" arguments:@[ @"a" ]
                                                                        directory:@"/d" environment:@{ @"K": @"v" }];
     XCTAssertEqualObjects(gdb[@"env"], @{ @"K": @"v" });
@@ -548,6 +549,61 @@ static Class UDPluginClass(NSString *name) {
     [controller.breakpoints removeAllBreakpoints];
     [controller close];
     [workspace close];
+}
+
+/// An Objective-C object's ivars, stopped in one of its methods, as its
+/// runtime laid them out: clang's debug information puts a non-fragile
+/// ivar at offset 0, and only a debugger that asks the runtime (lldb)
+/// reads the ivar itself rather than the object's class pointer.
+- (void)testAnObjectsIvarsAreReadWhereTheRuntimePutThem {
+#ifdef GNUSTEP
+    NSArray<NSString *> *adapter = [UDDebugger adapterCommandForDebugger:nil];
+    if (![adapter.firstObject.lastPathComponent hasPrefix:@"lldb"]) {
+        NSLog(@"UDProjectTests: no lldb-dap first here; the ivars case checks nothing");
+        return;
+    }
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nTOOL_NAME = counter\ncounter_OBJC_FILES = main.m\n"
+                @"include $(GNUSTEP_MAKEFILES)/tool.make\n" to:@"GNUmakefile"];
+    [self write:@"#import <Foundation/Foundation.h>\n"
+                @"@interface Counter : NSObject {\n    int _count;\n    long _total;\n}\n- (void)bump;\n@end\n"
+                @"@implementation Counter\n"
+                @"- (void)bump {\n"
+                @"    _count = 42;\n"
+                @"    _total = 7;\n"
+                @"    NSLog(@\"bumped %d\", _count);\n"
+                @"}\n"
+                @"@end\n"
+                @"int main(void) {\n    Counter *counter = [Counter new];\n    [counter bump];\n    return 0;\n}\n" to:@"main.m"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    NSString *main = [_folder stringByAppendingPathComponent:@"main.m"];
+    [controller.breakpoints addBreakpointAtLine:12 inFile:main];
+    [controller startDebugging:nil];
+    UDRunUntil(controller.debugSession.state == UDDebugSessionStateStopped && controller.debugSession.scopes.count > 0, 120);
+    UDDebugSession *session = controller.debugSession;
+    XCTAssertEqual(session.state, UDDebugSessionStateStopped, @"%@ %@", controller.buildRunner.output, session.consoleText);
+    UDDebugVariable *me = nil;
+    for (UDDebugVariable *scope in session.scopes) {
+        if (scope.expensive) continue;
+        [session loadChildrenOfVariable:scope];
+        UDRunUntil(scope.children != nil, 20);
+        for (UDDebugVariable *variable in scope.children) if ([variable.name isEqualToString:@"self"]) me = variable;
+    }
+    XCTAssertNotNil(me, @"stopped at %@:%ld (%@): %@ %@", session.selectedFrame.name, (long)session.selectedFrame.line,
+                    session.selectedThread.stopReason, [session.scopes valueForKey:@"name"], session.consoleText);
+    [session loadChildrenOfVariable:me];
+    UDRunUntil(me.children != nil, 20);
+    NSMutableDictionary *ivars = [NSMutableDictionary dictionary];
+    for (UDDebugVariable *ivar in me.children) if (ivar.value) ivars[ivar.name] = ivar.value;
+    XCTAssertEqualObjects(ivars[@"_count"], @"42", @"%@", ivars);
+    XCTAssertEqualObjects(ivars[@"_total"], @"7", @"%@", ivars);
+
+    [session continueExecution];
+    UDRunUntil(session.state == UDDebugSessionStateEnded, 30);
+    [controller.breakpoints removeAllBreakpoints];
+    [controller close];
+    [workspace close];
+#endif
 }
 
 - (void)testRunWithoutDebuggingRunsItItsOutputInTheConsole {

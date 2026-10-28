@@ -50,7 +50,7 @@ jobs:
       library: true
       # lldb-dap and gdb, which speak DAP: the tests run and debug programs with them, as on Linux
       extra-packages: lldb gdb
-    # the Windows appcast signed with the Mac's key (SPARKLE_PRIVATE_KEY)
+    # the Sparkle key: the installed app's updates, and the Windows appcast signed
     secrets: inherit
 
   macos:

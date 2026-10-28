@@ -2,9 +2,6 @@
     ApplicationName = "UDCode";
     ApplicationDescription = "A code editor on UDCodeKit.";
     ApplicationRelease = "0.0.0";
-    CFBundleVersion = "0";
-    SUWindowsFeedURL = "https://github.com/ashalkhakov/UDCodeKit/releases/latest/download/appcast-windows.xml";
-    SUPublicEDKey = "9cBO16YcwJZy7uzpT8tSbD/UnYF9HNTekubfnW8WlUE=";
     NSIcon = "udcode.png";
     CFBundleIdentifier = "org.underivable.UDCode";
     NSPrincipalClass = "NSApplication";

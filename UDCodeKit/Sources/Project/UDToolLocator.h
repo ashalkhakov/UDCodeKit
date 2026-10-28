@@ -1,8 +1,9 @@
 /*---------------------------------------------------------------------------------------------
  *  UDToolLocator.h
  *
- *  Where the existing tools are, looked for as a shell would (PATH), then
- *  where they are put without being on it: Xcode's toolchain (xcrun),
+ *  Where the existing tools are: the user's shell's toolchain first (MSYS2's
+ *  on Windows), then as a shell would look (PATH), then where they are put
+ *  without being on it: Xcode's toolchain (xcrun),
  *  Homebrew's, /usr/local/bin; an LLVM tool by a distribution's versioned
  *  names too (clangd-18, lldb-dap-18) and in its LLVM folders
  *  (/usr/lib/llvm-18/bin). Which tools, and what for, is the extensions'
@@ -20,9 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// An LLVM tool: @a name, else a distribution's versioned one (name-18), or
 /// in its LLVM folder, the newest first.
 + (nullable NSString *)pathOfLLVMTool:(NSString *)name;
-/// Where tools are looked for: PATH's folders (the machine's), then those an
-/// app started from a desktop, the Dock or the Start menu lacks (MSYS2's on
-/// Windows, Homebrew's, /usr/local/bin).
+/// Where tools are looked for: the shell's toolchain's (MSYS2's on Windows),
+/// PATH's folders (the machine's), then those an app started from a
+/// desktop, the Dock or the Start menu lacks (Homebrew's, /usr/local/bin).
 + (NSArray<NSString *> *)searchedFolders;
 /// What @a launchPath prints on its standard output, trimmed; nil when it
 /// can't run or fails.

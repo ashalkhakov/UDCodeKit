@@ -394,6 +394,26 @@ static Class UDPluginClass(NSString *name) {
     [workspace close];
 }
 
+/// A file reached by another path to it (a link to the project's folder;
+/// on Windows a short name, C:/Users/ARTYOM~1) is opened by its real path:
+/// the project's, as its folder is known, and its language server's.
+- (void)testAFileReachedByAnotherPathIsTheProjects {
+    [self write:@"notes\n" to:@"notes.txt"];
+    NSString *link = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSUUID UUID].UUIDString];
+    if (![[NSFileManager defaultManager] createSymbolicLinkAtPath:link withDestinationPath:_folder error:NULL]) {
+        NSLog(@"UDProjectTests: no symbolic link here; its case checks nothing");
+        return;
+    }
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[link stringByAppendingPathComponent:@"notes.txt"]]];
+    UDCodeDocument *document = controller.editorTabs.selectedItem.representedObject;
+    XCTAssertEqualObjects(document.fileURL.path, [controller.project.folderURL.path stringByAppendingPathComponent:@"notes.txt"]);
+    [controller close];
+    [workspace close];
+    [[NSFileManager defaultManager] removeItemAtPath:link error:NULL];
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - Building, running, debugging
 // ---------------------------------------------------------------------------

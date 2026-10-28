@@ -1438,6 +1438,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 }
 
 - (void)openURLInNewTab:(NSURL *)url {
+    // by its real path, as the project's folder is known: a file reached by
+    // another (a link, Windows' C:/Users/ARTYOM~1) is still the project's,
+    // and its language server's
+    if (url.isFileURL) url = [NSURL fileURLWithPath:UDRealPath(url.path)];
     // A file already open gets another view: both tabs edit one text storage.
     UDCodeDocument *doc = [_workspaceModel documentForFileURL:url];
     if (!doc) {

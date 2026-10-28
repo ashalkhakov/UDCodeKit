@@ -185,7 +185,7 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
 }
 
 - (NSDictionary<NSString *, NSDictionary *> *)compileCommands {
-    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:10];
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:20];
     [_reading lock];
     while (!_compileCommands && [_reading waitUntilDate:until]) {
     }
@@ -204,12 +204,21 @@ static BOOL UDIsCompiler(NSString *program) {
     return NO;
 }
 
+/// @a path as the system has it, each said once (on Windows each is a
+/// cygpath, and every file's command names the same folders).
+static NSString *UDNativePathOnce(NSString *path, NSString *shell, NSMutableDictionary<NSString *, NSString *> *said) {
+    NSString *native = said[path];
+    if (!native) native = said[path] = UDShellNativePath(shell, path);
+    return native;
+}
+
 + (NSDictionary<NSString *, NSDictionary *> *)compileCommandsInDryRun:(NSString *)output folder:(NSString *)folder shell:(NSString *)shell {
     NSSet *sources = [NSSet setWithArray:@[ @"m", @"mm", @"c", @"cc", @"cpp", @"cxx" ]];
     // the arguments that take the next one as theirs
     NSSet *taking = [NSSet setWithArray:@[ @"-o", @"-include", @"-MF", @"-MT", @"-MQ", @"-I", @"-isystem", @"-x" ]];
     NSArray *compilerFlags = UDShellCompilerFlags(shell);
     NSMutableDictionary *commands = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSString *> *said = [NSMutableDictionary dictionary];
     NSMutableArray<NSString *> *folders = [NSMutableArray arrayWithObject:folder];
     output = [[output stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"] stringByReplacingOccurrencesOfString:@"\\\n" withString:@" "];
     for (NSString *line in [output componentsSeparatedByString:@"\n"]) {
@@ -218,7 +227,7 @@ static BOOL UDIsCompiler(NSString *program) {
         if (entering.location != NSNotFound) {
             NSString *path = [[line substringFromIndex:NSMaxRange(entering)]
                               stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"'`\" "]];
-            [folders addObject:UDShellNativePath(shell, path)];
+            [folders addObject:UDNativePathOnce(path, shell, said)];
             continue;
         }
         if ([line rangeOfString:@": Leaving directory "].location != NSNotFound) {
@@ -236,18 +245,18 @@ static BOOL UDIsCompiler(NSString *program) {
             if ([argument isEqualToString:@"-MMD"] || [argument isEqualToString:@"-MP"] || [argument isEqualToString:@"-MD"]) continue;
             if ([@[ @"-MF", @"-MT", @"-MQ" ] containsObject:argument]) { i++; continue; }
             if (takes) {
-                [command addObjectsFromArray:@[ argument, [argument isEqualToString:@"-I"] ? UDShellNativePath(shell, arguments[i + 1]) : arguments[i + 1] ]];
+                [command addObjectsFromArray:@[ argument, [argument isEqualToString:@"-I"] ? UDNativePathOnce(arguments[i + 1], shell, said) : arguments[i + 1] ]];
                 i++;
                 continue;
             }
             // MSYS2's -I/c/GNUstep/include
-            if ([argument hasPrefix:@"-I/"]) argument = [@"-I" stringByAppendingString:UDShellNativePath(shell, [argument substringFromIndex:2])];
+            if ([argument hasPrefix:@"-I/"]) argument = [@"-I" stringByAppendingString:UDNativePathOnce([argument substringFromIndex:2], shell, said)];
             else if (!source && ![argument hasPrefix:@"-"] && [sources containsObject:argument.pathExtension]) source = argument;
             [command addObject:argument];
         }
         if (!source) continue;
         NSString *directory = folders.lastObject;
-        NSString *path = [source hasPrefix:@"/"] ? UDShellNativePath(shell, source) : source;
+        NSString *path = [source hasPrefix:@"/"] ? UDNativePathOnce(source, shell, said) : source;
         if (!path.isAbsolutePath) path = [directory stringByAppendingPathComponent:path];
         path = path.stringByStandardizingPath;
         // the first: a file compiled again (into a test bundle) is the same file

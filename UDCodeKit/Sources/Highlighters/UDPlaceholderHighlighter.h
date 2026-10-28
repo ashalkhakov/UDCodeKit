@@ -14,12 +14,18 @@
 #import <Foundation/Foundation.h>
 #import "UDDecorationHighlighter.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
-extern NSString * const UDPlaceholderDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDPlaceholderDecorationOwner;
 
 /// What a placeholder's text has: the layout manager draws its pill.
-extern NSAttributedStringKey const UDPlaceholderAttributeName;
+UDCODEKIT_EXPORT NSAttributedStringKey const UDPlaceholderAttributeName;
 
 /// LSP's snippet syntax ("accelSound(${1:string sound})", "$1", "$0") as
 /// placeholders ("accelSound(<#string sound#>)"); $0, where the caret

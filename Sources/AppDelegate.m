@@ -15,6 +15,7 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
 
 @interface AppDelegate ()
 @property (nonatomic, strong) UDUpdater *updater;
+@property (nonatomic, strong, nullable) UDPreferencesController *preferences;
 @end
 
 @implementation AppDelegate
@@ -30,6 +31,11 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
         NSMenuItem *check = [appMenu itemWithTag:UDCheckForUpdatesTag];
         if (check != nil) [appMenu removeItem:check];
     }
+}
+
+- (IBAction)showPreferences:(id)sender {
+    if (!self.preferences) self.preferences = [[UDPreferencesController alloc] init];
+    [self.preferences showWindow:sender];
 }
 
 /// File > Open Folder…: the folder as a project, in a window of its own (the

@@ -9,11 +9,17 @@
 #import <Foundation/Foundation.h>
 #import "UDDiagnosticItem.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Posted on the main queue whenever any source's diagnostics change.
 /// object = the UDDiagnosticStore that changed.
-extern NSNotificationName const UDDiagnosticsDidChangeNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDDiagnosticsDidChangeNotification;
 
 /// Aggregates diagnostics from multiple independent sources (tree-sitter
 /// parser, LSP, linters, …) into a single ordered list.

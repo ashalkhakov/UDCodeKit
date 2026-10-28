@@ -8,11 +8,17 @@
 
 #import <Cocoa/Cocoa.h>
 
+/* LSPKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef LSPKIT_EXPORT
+#define LSPKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 //! Project version number for LSPClient.
-FOUNDATION_EXPORT double LSPClientVersionNumber;
+LSPKIT_EXPORT double LSPClientVersionNumber;
 
 //! Project version string for LSPClient.
-FOUNDATION_EXPORT const unsigned char LSPClientVersionString[];
+LSPKIT_EXPORT const unsigned char LSPClientVersionString[];
 
 #import <LSPKit/LSPClient.h>
 #import <LSPKit/LSPCommon.h>

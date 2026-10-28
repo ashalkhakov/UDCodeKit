@@ -1266,7 +1266,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [self _layoutDebugPane];
     if (!_terminal.running) {
         NSDictionary *environment = _project ? _project.buildEnvironment : nil;
-        if (![_terminal startShellInDirectory:[self _terminalDirectory] environment:environment]) NSBeep();
+        NSString *shell = _project ? _project.shell : [UDProject userShell];
+        if (![_terminal startShell:shell inDirectory:[self _terminalDirectory] environment:environment]) NSBeep();
     }
     [self.window makeFirstResponder:_terminal.terminalView];
 }
@@ -1437,6 +1438,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 }
 
 - (void)openURLInNewTab:(NSURL *)url {
+    // by its real path, as the project's folder is known: a file reached by
+    // another (a link, Windows' C:/Users/ARTYOM~1) is still the project's,
+    // and its language server's
+    if (url.isFileURL) url = [NSURL fileURLWithPath:UDRealPath(url.path)];
     // A file already open gets another view: both tabs edit one text storage.
     UDCodeDocument *doc = [_workspaceModel documentForFileURL:url];
     if (!doc) {
@@ -1821,7 +1826,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         [self showProjectSettings:nil];
         return;
     }
-    if (![[NSFileManager defaultManager] isExecutableFileAtPath:program]) {
+    // the file the build made (on Windows hello.exe for hello)
+    NSString *executable = UDExecutableAtPath(program);
+    if (!executable) {
         [self _tell:@"The program isn't there" detail:[NSString stringWithFormat:@"%@ wasn't made by the build.", program]];
         return;
     }
@@ -1833,7 +1840,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return;
     }
     Class debugger = [UDDebugger classOfAdapterCommand:command] ?: [UDDebugger class];
-    NSMutableDictionary *arguments = [[debugger launchArgumentsForProgram:program arguments:_project.runArguments
+    NSMutableDictionary *arguments = [[debugger launchArgumentsForProgram:executable arguments:_project.runArguments
                                                                 directory:_project.runDirectory
                                                               environment:_project.buildEnvironment] mutableCopy];
     if (!debugging) arguments[@"noDebug"] = @YES;

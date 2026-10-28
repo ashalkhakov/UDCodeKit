@@ -8,8 +8,7 @@
 
 #import <AppKit/AppKit.h>
 #import "UDDebugSession.h"
-#include <limits.h>
-#include <stdlib.h>
+#import "UDPaths.h"
 #import "UDLanguageMode.h"
 
 NSNotificationName const UDDebugSessionDidChangeStateNotification = @"UDDebugSessionDidChangeStateNotification";
@@ -322,13 +321,16 @@ static NSInteger UDInteger(id value) {
 
 - (void)_configurationDone {
     if (_state == UDDebugSessionStateEnded) return;
+    // gdb's launch, held for the breakpoints, goes now, before configurationDone:
+    // gdb 18 refuses configurationDone before it ("launch or attach not
+    // specified"), and answers the launch only after it, so neither waits
+    if (!_launchSent) [self _sendLaunch];
     if ([_client configurationDoneWithTarget:self action:@selector(_didConfigure:)] == 0) {
         [self _didConfigure:nil];
     }
 }
 
 - (void)_didConfigure:(DAPResponse *)response {
-    if (!_launchSent) [self _sendLaunch];
     if (_state == UDDebugSessionStateStarting) self.state = UDDebugSessionStateRunning;
 }
 
@@ -390,10 +392,7 @@ static NSInteger UDInteger(id value) {
     // the file's real path, as a compiler records it (a debugger matches its
     // breakpoints against that: macOS's /var is /private/var, a project may
     // be opened through a link)
-    // (realpath(3): Foundation's resolving takes /private off again)
-    char resolved[PATH_MAX];
-    NSString *real = realpath(path.fileSystemRepresentation, resolved)
-        ? [[NSFileManager defaultManager] stringWithFileSystemRepresentation:resolved length:strlen(resolved)] : path;
+    NSString *real = UDRealPath(path);
     NSInteger seq = [_client setBreakpointsInFile:real breakpoints:sourceBreakpoints
                                            target:self action:@selector(_didSetBreakpoints:)];
     if (seq) _breakpointRequests[@(seq)] = @[ sentFor, unsupported, action ? NSStringFromSelector(action) : @"" ];

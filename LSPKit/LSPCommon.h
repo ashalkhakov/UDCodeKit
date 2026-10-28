@@ -8,7 +8,13 @@
 
 #import <Foundation/Foundation.h>
 
-FOUNDATION_EXPORT NSErrorDomain const LSPResponseError;
+/* LSPKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef LSPKIT_EXPORT
+#define LSPKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
+LSPKIT_EXPORT NSErrorDomain const LSPResponseError;
 
 typedef NS_ENUM(NSUInteger, LSPErrorCode) {
     LSPResponseParseError = -32700,

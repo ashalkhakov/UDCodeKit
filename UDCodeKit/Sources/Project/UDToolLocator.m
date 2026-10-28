@@ -3,6 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDToolLocator.h"
+#import "UDPaths.h"
+#import <UDCodeKit/UDShell.h>
+#import "UDProject.h"
 #import <LSPKit/LSPKit.h>
 
 /// The newest LLVM a distribution is likely to have, down to the oldest
@@ -11,14 +14,9 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
 
 @implementation UDToolLocator
 
-+ (BOOL)_isExecutable:(NSString *)path {
-    BOOL directory = NO;
-    return path.length && [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&directory] && !directory
-        && [[NSFileManager defaultManager] isExecutableFileAtPath:path];
-}
-
 + (NSString *)outputOf:(NSString *)launchPath arguments:(NSArray<NSString *> *)arguments {
-    if (![self _isExecutable:launchPath]) return nil;
+    launchPath = UDExecutableAtPath(launchPath);
+    if (!launchPath) return nil;
     NSTask *task = [[NSTask alloc] init];
     NSPipe *pipe = [NSPipe pipe];
     task.launchPath = launchPath;
@@ -43,10 +41,14 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
     NSMutableArray<NSString *> *folders = [NSMutableArray array];
     // the machine's PATH, not an AppImage's
     NSString *path = [LSPTransport hostEnvironment][@"PATH"];
-    for (NSString *folder in [path componentsSeparatedByString:@":"]) {
+    for (NSString *folder in [path componentsSeparatedByString:UDPathListSeparator()]) {
         if (folder.length) [folders addObject:folder];
     }
-    // an app started from a desktop or the Dock has a short PATH
+    // an app started from a desktop, the Dock or the Start menu has a short
+    // PATH: the user's shell's tools (MSYS2's on Windows), Homebrew's, /usr/local/bin
+    for (NSString *folder in UDShellToolFolders([UDProject userShell])) {
+        if (![folders containsObject:folder]) [folders addObject:folder];
+    }
     for (NSString *folder in @[ @"/usr/local/bin", @"/opt/homebrew/bin", @"/opt/homebrew/opt/llvm/bin",
                                 @"/usr/local/opt/llvm/bin", @"/usr/bin", @"/bin" ]) {
         if (![folders containsObject:folder]) [folders addObject:folder];
@@ -59,15 +61,15 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
 }
 
 + (NSString *)pathOfTool:(NSString *)name {
-    if (name.isAbsolutePath) return [self _isExecutable:name] ? name : nil;
+    if (name.isAbsolutePath) return UDExecutableAtPath(name);
     for (NSString *folder in [self _folders]) {
-        NSString *candidate = [folder stringByAppendingPathComponent:name];
-        if ([self _isExecutable:candidate]) return candidate;
+        NSString *found = UDExecutableAtPath([folder stringByAppendingPathComponent:name]);
+        if (found) return found;
     }
 #ifdef __APPLE__
     // Xcode's toolchain: clangd, lldb-dap
     NSString *found = [self outputOf:@"/usr/bin/xcrun" arguments:@[ @"-f", name ]];
-    if ([self _isExecutable:found]) return found;
+    if (found.length) return UDExecutableAtPath(found);
 #endif
     return nil;
 }
@@ -79,7 +81,8 @@ static const int UDNewestLLVM = 24, UDOldestLLVM = 14;
         found = [self pathOfTool:[NSString stringWithFormat:@"%@-%d", name, version]];
         if (found) return found;
         NSString *inLLVM = [NSString stringWithFormat:@"/usr/lib/llvm-%d/bin/%@", version, name];
-        if ([self _isExecutable:inLLVM]) return inLLVM;
+        found = UDExecutableAtPath(inLLVM);
+        if (found) return found;
     }
     return nil;
 }

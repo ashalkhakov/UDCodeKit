@@ -1,5 +1,11 @@
 #import <Foundation/Foundation.h>
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 // A Swift annotation GNUstep's Foundation has not.
@@ -17,8 +23,8 @@ typedef NS_ENUM(NSInteger, UDDiagnosticSeverity) {
 /// Source tag — identifies which producer created the diagnostic.
 /// Matches the keys used with UDDiagnosticStore.
 typedef NSString *UDDiagnosticSource NS_TYPED_EXTENSIBLE_ENUM;
-extern UDDiagnosticSource const UDDiagnosticSourceParser;     // tree-sitter
-extern UDDiagnosticSource const UDDiagnosticSourceLSP;        // language server
+UDCODEKIT_EXPORT UDDiagnosticSource const UDDiagnosticSourceParser;     // tree-sitter
+UDCODEKIT_EXPORT UDDiagnosticSource const UDDiagnosticSourceLSP;        // language server
 
 /// Source-agnostic diagnostic item.  Both the tree-sitter parse-error
 /// collector and the LSP client produce these; the UI consumes them.

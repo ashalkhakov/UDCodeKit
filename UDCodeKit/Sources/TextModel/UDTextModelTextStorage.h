@@ -12,6 +12,12 @@
 #import <UDPieceTable/UDPieceTable.h>
 #import "UDTreeSitterHighlighter.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 @class UDCursorsController;
 
 @class TreeSitterTheme;
@@ -19,24 +25,24 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /// Owner string for search-match decorations registered via deltaDecorations.
-extern NSString * const UDFindDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDFindDecorationOwner;
 
 /// Owner string for fold (collapsed) decorations registered via deltaDecorations.
-extern NSString * const UDFoldDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDFoldDecorationOwner;
 
 /// Owner string for bracket-match decorations registered via deltaDecorations.
-extern NSString * const UDBracketMatchDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDBracketMatchDecorationOwner;
 
 /// Owner string for MISSING-node "pill" decorations registered via deltaDecorations.
-extern NSString * const UDMissingNodeDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDMissingNodeDecorationOwner;
 
 /// Owner string for LSP-sourced diagnostic decorations (layer 5, above all local layers).
 /// Errors use className "lsp.error"; warnings use className "lsp.warning".
-extern NSString * const UDLSPDiagnosticDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDLSPDiagnosticDecorationOwner;
 
 /// Owner string for Tree-sitter parse-error decorations (layer 6, above LSP).
 /// ERROR nodes use className "ts.error"; MISSING nodes use className "ts.missing".
-extern NSString * const UDParseErrorDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDParseErrorDecorationOwner;
 
 @interface UDTextModelTextStorage : NSTextStorage
 

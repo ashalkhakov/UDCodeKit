@@ -20,11 +20,17 @@
 #import "UDDiagnosticStore.h"
 #import "UDLanguageMode.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Posted on the main queue whenever the document's text is edited.
 /// object = the UDCodeDocument that changed.
-extern NSNotificationName const UDCodeDocumentTextDidChangeNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentTextDidChangeNotification;
 
 /// Pure-Foundation model for a single open text document.
 @interface UDCodeDocument : NSObject

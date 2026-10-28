@@ -29,6 +29,12 @@
 #import <Foundation/Foundation.h>
 #import <UDPieceTable/UDPieceTable.h>
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 @class UDDebugSession;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -36,20 +42,20 @@ NS_ASSUME_NONNULL_BEGIN
 /// The breakpoints of a file changed: added, removed, enabled or disabled,
 /// moved by an edit, or verified by the adapter. The object is the store;
 /// UDBreakpointStoreFileKey names the file.
-extern NSNotificationName const UDBreakpointStoreDidChangeNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDBreakpointStoreDidChangeNotification;
 /// The instruction pointer moved, or went: the object is the store;
 /// UDBreakpointStoreFileKey names the file it was in and the one it is in
 /// now (an array of one or two paths).
-extern NSNotificationName const UDBreakpointStoreDidMoveInstructionPointerNotification;
-extern NSString * const UDBreakpointStoreFileKey;
+UDCODEKIT_EXPORT NSNotificationName const UDBreakpointStoreDidMoveInstructionPointerNotification;
+UDCODEKIT_EXPORT NSString * const UDBreakpointStoreFileKey;
 /// The watch expressions changed. The object is the store.
-extern NSNotificationName const UDBreakpointStoreDidChangeWatchExpressionsNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDBreakpointStoreDidChangeWatchExpressionsNotification;
 /// The exception filters changed, or which of them are on. The object is the store.
-extern NSNotificationName const UDBreakpointStoreDidChangeExceptionFiltersNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDBreakpointStoreDidChangeExceptionFiltersNotification;
 
 /// The decorations' owners in an attached text model.
-extern NSString * const UDBreakpointDecorationOwner;
-extern NSString * const UDInstructionPointerDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDBreakpointDecorationOwner;
+UDCODEKIT_EXPORT NSString * const UDInstructionPointerDecorationOwner;
 
 /// A breakpoint: a line of a file, enabled or not, and when it stops.
 @interface UDBreakpoint : NSObject

@@ -16,13 +16,19 @@
 #import <Foundation/Foundation.h>
 #import <UDPieceTable/UDPieceTable.h>
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Posted when the matches change — the query, an option, or an edit.
-extern NSNotificationName const UDFindModelDidChangeNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDFindModelDidChangeNotification;
 
 /// The most matches kept, as VS Code's MATCHES_LIMIT.
-extern const NSUInteger UDFindModelMatchLimit;
+UDCODEKIT_EXPORT const NSUInteger UDFindModelMatchLimit;
 
 @interface UDFindModel : NSObject
 

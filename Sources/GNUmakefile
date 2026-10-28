@@ -19,11 +19,16 @@ UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
           $(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \
           $(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)
 ADDITIONAL_LIB_DIRS += $(addprefix -L,$(UD_LIBS))
+# Libraries, not linker flags: on Windows the flags are linked whole, and
+# import libraries linked whole collide.
+UDCode_GUI_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -ldispatch $(UD_BLOCKS_LIBS)
 # Found beside it, relative to the executable: in the tree (build/gnustep/)
-# and installed (Local/Applications beside Local/Library/Libraries).
-ADDITIONAL_LDFLAGS += -lUDCodeKit -lUDPieceTable -lLSPKit -ldispatch -lBlocksRuntime \
-    $(foreach f,UDCodeKit UDPieceTable LSPKit,-Wl,-rpath,\$$ORIGIN/../../$(f)/$(f).framework/Versions/Current) \
+# and installed (Local/Applications beside Local/Library/Libraries). Windows
+# finds DLLs on PATH instead.
+ifeq ($(UD_WINDOWS),)
+ADDITIONAL_LDFLAGS += $(foreach f,UDCodeKit UDPieceTable LSPKit,-Wl,-rpath,\$$ORIGIN/../../$(f)/$(f).framework/Versions/Current) \
     -Wl,-rpath,\$$ORIGIN/../../Library/Libraries
+endif
 
 # The grammar bundles and its own (Plugins/: CFamily), built beside it, go
 # in its PlugIns folder.

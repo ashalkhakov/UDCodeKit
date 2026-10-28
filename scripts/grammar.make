@@ -19,9 +19,10 @@ $(BUNDLE_NAME)_C_FILES = $(wildcard src/*.c)
 # A scanner in C++ (Markdown's) brings the C++ library with it.
 $(BUNDLE_NAME)_CC_FILES = $(wildcard src/*.cc)
 ifneq ($($(BUNDLE_NAME)_CC_FILES),)
-$(BUNDLE_NAME)_BUNDLE_LIBS += -lstdc++
+$(BUNDLE_NAME)_BUNDLE_LIBS += $(UD_CXX_LIB)
 endif
 $(BUNDLE_NAME)_PRINCIPAL_CLASS = TreeSitter$(UD_GRAMMAR)Plugin
+$(BUNDLE_NAME)_BUNDLE_LIBS += $(UD_PLUGIN_LIBS)
 $(BUNDLE_NAME)_RESOURCE_FILES = Resources/LanguageInfo.plist $(wildcard Resources/*.scm)
 $(BUNDLE_NAME)_INCLUDE_DIRS = -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit -ISources -Isrc \
     -I../tree-sitter/include

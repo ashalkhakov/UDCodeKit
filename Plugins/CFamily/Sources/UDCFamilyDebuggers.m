@@ -32,6 +32,10 @@
     NSMutableArray *env = [NSMutableArray array];
     for (NSString *name in environment) [env addObject:[NSString stringWithFormat:@"%@=%@", name, environment[name]]];
     launch[@"env"] = env;
+    // an Objective-C method's self and _cmd among its locals: lldb shows
+    // them only where it knows the program's Objective-C runtime, and
+    // knows GNUstep's on Linux alone
+    launch[@"initCommands"] = @[ @"settings set target.display-runtime-support-values true" ];
 #ifndef __APPLE__
     // lldb turns address randomization off with personality(2), which a
     // container (Docker's seccomp profile) or a sandbox refuses: the launch

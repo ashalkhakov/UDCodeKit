@@ -21,7 +21,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// in its LLVM folder, the newest first.
 + (nullable NSString *)pathOfLLVMTool:(NSString *)name;
 /// Where tools are looked for: PATH's folders (the machine's), then those an
-/// app started from a desktop or the Dock lacks (Homebrew's, /usr/local/bin).
+/// app started from a desktop, the Dock or the Start menu lacks (MSYS2's on
+/// Windows, Homebrew's, /usr/local/bin).
 + (NSArray<NSString *> *)searchedFolders;
 /// What @a launchPath prints on its standard output, trimmed; nil when it
 /// can't run or fails.

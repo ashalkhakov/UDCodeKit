@@ -19,12 +19,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak, readonly) IBOutlet UDTerminalView *terminalView;
 
-/// The shell this terminal runs: $SHELL, else the system's.
+/// The shell this terminal runs: the one the user chose, else the system's
+/// ($SHELL; MSYS2's bash on Windows).
 + (NSString *)defaultShell;
 
-/// The user's shell, a login one, in @a directory, with @a environment (the
-/// process's own when nil).
-- (BOOL)startShellInDirectory:(nullable NSString *)directory environment:(nullable NSDictionary<NSString *, NSString *> *)environment;
+/// @a shell (a project's, UDProject's shell; nil: the system's), a login
+/// one, in @a directory, with @a environment (the process's own when nil).
+- (BOOL)startShell:(nullable NSString *)shell inDirectory:(nullable NSString *)directory
+       environment:(nullable NSDictionary<NSString *, NSString *> *)environment;
 /// Any program, @a arguments' first its path.
 - (BOOL)startArguments:(NSArray<NSString *> *)arguments directory:(nullable NSString *)directory
            environment:(nullable NSDictionary<NSString *, NSString *> *)environment;

@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDProject.h"
+#import "UDPaths.h"
 #import "UDToolLocator.h"
 #import "UDTasks.h"
 #import "UDTests.h"
@@ -11,11 +12,14 @@
 #import "UDCommandTestRunner.h"
 #import "UDLanguageModeRegistry.h"
 #import "UDExtension.h"
+#import <UDCodeKit/UDShell.h>
 #import <LSPKit/LSPKit.h>
 #include <limits.h>
 #include <stdlib.h>
 
 NSNotificationName const UDProjectSettingsDidChangeNotification = @"UDProjectSettingsDidChangeNotification";
+
+NSString * const UDShellDefaultsKey = @"UDShell";
 
 #ifdef GNUSTEP
 NSString * const UDProjectPlatformKey = @"gnustep";
@@ -33,11 +37,7 @@ NSString * const UDProjectPlatformKey = @"macos";
     // its real path: what a compiler records in its debug information, and
     // so what a debugger's breakpoints are matched against (a folder opened
     // through a link, or macOS's /var, would match nothing)
-    char resolved[PATH_MAX];
-    _folderURL = realpath(folderURL.path.fileSystemRepresentation, resolved)
-        ? [NSURL fileURLWithPath:[[NSFileManager defaultManager] stringWithFileSystemRepresentation:resolved length:strlen(resolved)]
-                     isDirectory:YES]
-        : [folderURL.URLByStandardizingPath copy];
+    _folderURL = [NSURL fileURLWithPath:UDRealPath(folderURL.URLByStandardizingPath.path) isDirectory:YES];
     _settingsURL = [[_folderURL URLByAppendingPathComponent:@".udcode"] URLByAppendingPathComponent:@"settings.json"];
     [self _readSettings];
     return self;
@@ -263,6 +263,20 @@ static NSString *UDStringOrNil(id value) {
     return UDStringOrNil(debugger);
 }
 
+/// A shell at @a path (~ expanded), when this machine has it.
+static NSString *UDShellAt(id path) {
+    NSString *shell = [UDStringOrNil(path) stringByExpandingTildeInPath];
+    return shell && [[NSFileManager defaultManager] isExecutableFileAtPath:shell] ? shell : nil;
+}
+
++ (NSString *)userShell {
+    return UDShellAt([[NSUserDefaults standardUserDefaults] stringForKey:UDShellDefaultsKey]);
+}
+
+- (NSString *)shell {
+    return UDShellAt(self.effectiveSettings[@"shell"]) ?: [UDProject userShell];
+}
+
 - (NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier {
     id servers = self.effectiveSettings[@"languageServers"];
     id command = [servers isKindOfClass:[NSDictionary class]] ? servers[identifier] : nil;
@@ -282,22 +296,23 @@ static NSString *UDStringOrNil(id value) {
             [environment addEntriesFromDictionary:[extension environmentForProject:self] ?: @{}];
         }
     }
-    // an app started from a desktop or the Dock has a short PATH: the folders
-    // the tools are found in (Homebrew's among them), so the shell finds them too
-    NSMutableArray<NSString *> *path = [[environment[@"PATH"] ?: @"" componentsSeparatedByString:@":"] mutableCopy];
+    // an app started from a desktop, the Dock or the Start menu has a short
+    // PATH: the folders the tools are found in (its shell's, MSYS2's on
+    // Windows; Homebrew's), so the shell finds them too
+    NSMutableArray<NSString *> *path = [[environment[@"PATH"] ?: @"" componentsSeparatedByString:UDPathListSeparator()] mutableCopy];
     [path removeObject:@""];
-    for (NSString *folder in [UDToolLocator searchedFolders]) {
+    for (NSString *folder in [UDShellToolFolders(self.shell) arrayByAddingObjectsFromArray:[UDToolLocator searchedFolders]]) {
         if (![path containsObject:folder] && [[NSFileManager defaultManager] fileExistsAtPath:folder]) [path addObject:folder];
     }
-    environment[@"PATH"] = [path componentsJoinedByString:@":"];
+    environment[@"PATH"] = [path componentsJoinedByString:UDPathListSeparator()];
     [environment addEntriesFromDictionary:self.runEnvironment];
     return environment;
 }
 
 - (NSString *)pathOfToolOnBuildPath:(NSString *)name {
-    for (NSString *folder in [self.buildEnvironment[@"PATH"] componentsSeparatedByString:@":"]) {
-        NSString *candidate = [folder stringByAppendingPathComponent:name];
-        if (folder.length && [[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
+    for (NSString *folder in [self.buildEnvironment[@"PATH"] componentsSeparatedByString:UDPathListSeparator()]) {
+        NSString *found = folder.length ? UDExecutableAtPath([folder stringByAppendingPathComponent:name]) : nil;
+        if (found) return found;
     }
     return [UDToolLocator pathOfTool:name];
 }

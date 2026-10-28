@@ -16,10 +16,16 @@
 
 #import <Cocoa/Cocoa.h>
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Posted when a pane shows or hides; the object is the controller.
-extern NSNotificationName const UDPaneSplitControllerDidChangeVisibilityNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDPaneSplitControllerDidChangeVisibilityNotification;
 
 @interface UDPaneSplitController : NSObject <NSSplitViewDelegate>
 

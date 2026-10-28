@@ -307,8 +307,9 @@ static NSString * const UDProgram =
     UDLanguageMode *plain = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"plaintext"];
     XCTAssertNil(plain.debugAdapterCommand);
     XCTAssertNil([UDDebugSession sessionForLanguageMode:plain breakpoints:_store]);
-    XCTAssertEqualObjects([plain debugLaunchArgumentsForFileURL:[NSURL fileURLWithPath:@"/w/a.txt"]],
-                          @{ @"program": @"/w/a.txt" });
+    NSString *program = [NSTemporaryDirectory() stringByAppendingPathComponent:@"a.txt"];
+    XCTAssertEqualObjects([plain debugLaunchArgumentsForFileURL:[NSURL fileURLWithPath:program]],
+                          @{ @"program": program });
 }
 
 // ---------------------------------------------------------------------------

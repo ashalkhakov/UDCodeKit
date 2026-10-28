@@ -6,8 +6,22 @@
 #import "UDXCTestBundleRunner.h"
 #import "UDGoogleTestRunner.h"
 #import <LSPKit/LSPKit.h>
+#import <UDCodeKit/UDShell.h>
+#import <UDCodeKit/UDPaths.h>
 
-@implementation UDGNUstepMakeBuildSystem
+@implementation UDGNUstepMakeBuildSystem {
+    NSCondition *_reading;
+    NSDictionary<NSString *, NSDictionary *> *_compileCommands;
+}
+
+- (instancetype)initWithProject:(UDProject *)project {
+    if (!(self = [super initWithProject:project])) return nil;
+    _reading = [[NSCondition alloc] init];
+    // make's dry run takes a while (seconds on Windows): clangd, when it
+    // starts, should not wait for all of it
+    [NSThread detachNewThreadSelector:@selector(_readCompileCommands:) toTarget:self withObject:nil];
+    return self;
+}
 
 /// The folder whose GNUmakefile builds the project; nil when there is none.
 + (nullable NSString *)_makeFolderOf:(UDProject *)project {
@@ -134,6 +148,125 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
     return [apps arrayByAddingObjectsFromArray:tools];
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - How it compiles
+// ---------------------------------------------------------------------------
+
+- (void)_readCompileCommands:(id)unused {
+    @autoreleasepool {
+        UDProject *project = self.project;
+        NSString *folder = [project.folderURL.path stringByAppendingPathComponent:self.makeFolder];
+        NSDictionary *commands = @{};
+        if (project) {
+            NSTask *task = [[NSTask alloc] init];
+            NSPipe *pipe = [NSPipe pipe];
+            NSArray *shell = UDShellCommandArguments(project.shell, @"exec 2>&1; make --dry-run --always-make --keep-going "
+                                                                    @"--print-directory debug=yes messages=yes");
+            task.launchPath = shell.firstObject;
+            task.arguments = [shell subarrayWithRange:NSMakeRange(1, shell.count - 1)];
+            task.currentDirectoryPath = folder;
+            task.environment = UDShellEnvironment([project buildEnvironment]);
+            task.standardOutput = pipe;
+            task.standardInput = [NSFileHandle fileHandleWithNullDevice];
+            @try {
+                [task launch];
+                NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+                [task waitUntilExit];
+                NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+                commands = [UDGNUstepMakeBuildSystem compileCommandsInDryRun:output folder:folder shell:project.shell];
+            } @catch (NSException *exception) {
+            }
+        }
+        [_reading lock];
+        _compileCommands = commands;
+        [_reading broadcast];
+        [_reading unlock];
+    }
+}
+
+- (NSDictionary<NSString *, NSDictionary *> *)compileCommands {
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:20];
+    [_reading lock];
+    while (!_compileCommands && [_reading waitUntilDate:until]) {
+    }
+    NSDictionary *commands = _compileCommands ?: @{};
+    [_reading unlock];
+    return commands;
+}
+
+/// A compiler's name (clang, cc, gcc, clang++, x86_64-linux-gnu-gcc-12).
+static BOOL UDIsCompiler(NSString *program) {
+    NSString *name = program.lastPathComponent.stringByDeletingPathExtension;
+    for (NSString *compiler in @[ @"clang", @"clang++", @"gcc", @"g++", @"cc", @"c++" ]) {
+        if ([name isEqualToString:compiler] || [name hasSuffix:[@"-" stringByAppendingString:compiler]]
+            || [name hasPrefix:[compiler stringByAppendingString:@"-"]]) return YES;
+    }
+    return NO;
+}
+
+/// @a path as the system has it, each said once (on Windows each is a
+/// cygpath, and every file's command names the same folders).
+static NSString *UDNativePathOnce(NSString *path, NSString *shell, NSMutableDictionary<NSString *, NSString *> *said) {
+    NSString *native = said[path];
+    if (!native) native = said[path] = UDShellNativePath(shell, path);
+    return native;
+}
+
++ (NSDictionary<NSString *, NSDictionary *> *)compileCommandsInDryRun:(NSString *)output folder:(NSString *)folder shell:(NSString *)shell {
+    NSSet *sources = [NSSet setWithArray:@[ @"m", @"mm", @"c", @"cc", @"cpp", @"cxx" ]];
+    // the arguments that take the next one as theirs
+    NSSet *taking = [NSSet setWithArray:@[ @"-o", @"-include", @"-MF", @"-MT", @"-MQ", @"-I", @"-isystem", @"-x" ]];
+    NSArray *compilerFlags = UDShellCompilerFlags(shell);
+    NSMutableDictionary *commands = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSString *> *said = [NSMutableDictionary dictionary];
+    NSMutableArray<NSString *> *folders = [NSMutableArray arrayWithObject:folder];
+    output = [[output stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"] stringByReplacingOccurrencesOfString:@"\\\n" withString:@" "];
+    for (NSString *line in [output componentsSeparatedByString:@"\n"]) {
+        // make[1]: Entering directory '/path'  (or `/path')
+        NSRange entering = [line rangeOfString:@": Entering directory "];
+        if (entering.location != NSNotFound) {
+            NSString *path = [[line substringFromIndex:NSMaxRange(entering)]
+                              stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"'`\" "]];
+            [folders addObject:UDNativePathOnce(path, shell, said)];
+            continue;
+        }
+        if ([line rangeOfString:@": Leaving directory "].location != NSNotFound) {
+            if (folders.count > 1) [folders removeLastObject];
+            continue;
+        }
+        NSArray<NSString *> *arguments = [UDProject argumentsOfCommandLine:line];
+        if (arguments.count < 3 || !UDIsCompiler(arguments.firstObject) || ![arguments containsObject:@"-c"]) continue;
+        NSString *source = nil;
+        NSMutableArray<NSString *> *command = [NSMutableArray arrayWithObject:arguments.firstObject];
+        for (NSUInteger i = 1; i < arguments.count; i++) {
+            NSString *argument = arguments[i];
+            BOOL takes = [taking containsObject:argument] && i + 1 < arguments.count;
+            // what makes dependency files is make's business, not an index's
+            if ([argument isEqualToString:@"-MMD"] || [argument isEqualToString:@"-MP"] || [argument isEqualToString:@"-MD"]) continue;
+            if ([@[ @"-MF", @"-MT", @"-MQ" ] containsObject:argument]) { i++; continue; }
+            if (takes) {
+                [command addObjectsFromArray:@[ argument, [argument isEqualToString:@"-I"] ? UDNativePathOnce(arguments[i + 1], shell, said) : arguments[i + 1] ]];
+                i++;
+                continue;
+            }
+            // MSYS2's -I/c/GNUstep/include
+            if ([argument hasPrefix:@"-I/"]) argument = [@"-I" stringByAppendingString:UDNativePathOnce([argument substringFromIndex:2], shell, said)];
+            else if (!source && ![argument hasPrefix:@"-"] && [sources containsObject:argument.pathExtension]) source = argument;
+            [command addObject:argument];
+        }
+        if (!source) continue;
+        NSString *directory = folders.lastObject;
+        NSString *path = [source hasPrefix:@"/"] ? UDNativePathOnce(source, shell, said) : source;
+        if (!path.isAbsolutePath) path = [directory stringByAppendingPathComponent:path];
+        path = path.stringByStandardizingPath;
+        // the first: a file compiled again (into a test bundle) is the same file
+        if (commands[path]) continue;
+        [command addObjectsFromArray:compilerFlags];
+        commands[path] = @{ @"workingDirectory": directory, @"compilationCommand": command };
+    }
+    return commands;
+}
+
 - (NSDictionary *)inferredSettings {
     NSString *folder = self.makeFolder;
     NSString *make = folder.length ? [@"make -C " stringByAppendingString:[UDProject quotedArgument:folder]] : @"make";
@@ -161,68 +294,127 @@ static NSArray<NSString *> *UDMakeVariable(NSString *text, NSString *variable) {
 // MARK: - GNUstep's environment
 // ---------------------------------------------------------------------------
 
-+ (NSDictionary<NSString *, NSString *> *)environment {
-    static NSDictionary *gnustep;
-    if (gnustep) return gnustep;
-    // the machine's GNUstep: an AppImage's own settings are not it
-    NSString *makefiles = [LSPTransport hostEnvironment][@"GNUSTEP_MAKEFILES"] ?: [self _makefiles];
++ (NSDictionary<NSString *, NSString *> *)environmentForShell:(NSString *)shell {
+    // the compile commands' thread asks too
+    @synchronized (self) {
+        return [self _environmentForShell:shell];
+    }
+}
+
++ (NSDictionary<NSString *, NSString *> *)_environmentForShell:(NSString *)shell {
+    static NSMutableDictionary<NSString *, NSDictionary *> *read;
+    if (!read) read = [NSMutableDictionary dictionary];
+    if (read[shell ?: @""]) return read[shell ?: @""];
+    NSString *makefiles = [self _machineMakefilesForShell:shell];
     NSString *script = [makefiles stringByAppendingPathComponent:@"GNUstep.sh"];
     NSMutableDictionary *found = [NSMutableDictionary dictionary];
     if (makefiles && [[NSFileManager defaultManager] fileExistsAtPath:script]) {
         // the shell runs it and says its environment
-        NSTask *task = [[NSTask alloc] init];
-        task.environment = [LSPTransport hostEnvironment];
-        NSPipe *pipe = [NSPipe pipe];
-        task.launchPath = @"/bin/sh";
-        task.arguments = @[ @"-c", @". \"$1\" >/dev/null 2>&1; env", @"sh", script ];
-        task.standardOutput = pipe;
-        @try {
-            [task launch];
-            NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
-            [task waitUntilExit];
-            NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-            for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
-                NSRange equals = [line rangeOfString:@"="];
-                if (equals.location == NSNotFound || equals.location == 0) continue;
-                found[[line substringToIndex:equals.location]] = [line substringFromIndex:NSMaxRange(equals)];
-            }
-        } @catch (NSException *exception) {
+        NSString *output = [self _shellOutputOf:@". \"$1\" >/dev/null 2>&1; env" argument:script shell:shell];
+        for (NSString *line in [output componentsSeparatedByString:@"\n"]) {
+            NSRange equals = [line rangeOfString:@"="];
+            if (equals.location == NSNotFound || equals.location == 0) continue;
+            found[[line substringToIndex:equals.location]] = [line substringFromIndex:NSMaxRange(equals)];
         }
+        // the shell's PATH (MSYS2's /c/GNUstep/System/Tools:/usr/bin) as the build's is
+        if (found[@"PATH"]) found[@"PATH"] = UDShellNativePathList(shell, found[@"PATH"]);
     }
     if (makefiles && !found[@"GNUSTEP_MAKEFILES"]) found[@"GNUSTEP_MAKEFILES"] = makefiles;
-    gnustep = found;
-    return gnustep;
+    read[shell ?: @""] = found;
+    return found;
 }
 
-/// GNUstep's makefiles: the machine's gnustep-config, on its PATH, before
-/// the domains this process's GNUstep knows (an AppImage's, which has no make).
-+ (nullable NSString *)_makefiles {
-    NSMutableArray<NSString *> *configs = [NSMutableArray array];
-    NSString *onPath = [UDToolLocator pathOfTool:@"gnustep-config"];
-    if (onPath) [configs addObject:onPath];
-#ifdef GNUSTEP
-    for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
-        [configs addObject:[tools stringByAppendingPathComponent:@"gnustep-config"]];
++ (NSArray<NSString *> *)compileFlagsForShell:(NSString *)shell {
+    @synchronized (self) {
+        return [self _compileFlagsForShell:shell];
     }
-#endif
-    for (NSString *config in configs) {
-        if (![[NSFileManager defaultManager] isExecutableFileAtPath:config]) continue;
-        NSTask *task = [[NSTask alloc] init];
-        task.environment = [LSPTransport hostEnvironment];
-        NSPipe *pipe = [NSPipe pipe];
-        task.launchPath = config;
-        task.arguments = @[ @"--variable=GNUSTEP_MAKEFILES" ];
-        task.standardOutput = pipe;
-        @try {
-            [task launch];
-        } @catch (NSException *exception) {
-            continue;
+}
+
++ (NSArray<NSString *> *)_compileFlagsForShell:(NSString *)shell {
+    static NSMutableDictionary<NSString *, NSArray *> *read;
+    if (!read) read = [NSMutableDictionary dictionary];
+    if (read[shell ?: @""]) return read[shell ?: @""];
+    NSString *script = [[self _machineMakefilesForShell:shell] stringByAppendingPathComponent:@"GNUstep.sh"];
+    NSMutableArray<NSString *> *flags = [NSMutableArray array];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:script]) {
+        NSString *output = [self _shellOutputOf:@". \"$1\" >/dev/null 2>&1; gnustep-config --objc-flags" argument:script shell:shell];
+        for (NSString *flag in [UDProject argumentsOfCommandLine:output ?: @""]) {
+            // what makes dependency files is make's business, not an index's
+            if ([flag hasPrefix:@"-M"]) continue;
+            // MSYS2's -I/c/GNUstep/include
+            if ([flag hasPrefix:@"-I/"]) [flags addObject:[@"-I" stringByAppendingString:UDShellNativePath(shell, [flag substringFromIndex:2])]];
+            else [flags addObject:flag];
         }
-        NSData *output = [pipe.fileHandleForReading readDataToEndOfFile];
-        [task waitUntilExit];
-        NSString *path = [[[NSString alloc] initWithData:output encoding:NSUTF8StringEncoding]
-                          stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-        if (path.length) return path;
+    }
+    [flags addObjectsFromArray:UDShellCompilerFlags(shell)];
+    read[shell ?: @""] = flags;
+    return flags;
+}
+
+/// The machine's GNUstep's makefiles: an AppImage's own settings are not it.
++ (nullable NSString *)_machineMakefilesForShell:(nullable NSString *)shell {
+    return [LSPTransport hostEnvironment][@"GNUSTEP_MAKEFILES"] ?: [self _makefilesForShell:shell];
+}
+
+/// The folders tools are looked for in, @a shell's first (an app started
+/// from the Start menu has no MSYS2 on its PATH).
++ (NSArray<NSString *> *)_toolFoldersForShell:(nullable NSString *)shell {
+    NSMutableArray *folders = [NSMutableArray array];
+    for (NSString *folder in [UDShellToolFolders(shell) arrayByAddingObjectsFromArray:[UDToolLocator searchedFolders]]) {
+        if (![folders containsObject:folder] && [[NSFileManager defaultManager] fileExistsAtPath:folder]) [folders addObject:folder];
+    }
+    return folders;
+}
+
+/// What @a shell's @a command says on its standard output, $1 @a argument,
+/// in the machine's environment with the tools' folders on its PATH; nil
+/// when it cannot run.
++ (nullable NSString *)_shellOutputOf:(NSString *)command argument:(NSString *)argument shell:(nullable NSString *)shell {
+    NSMutableDictionary *environment = [[LSPTransport hostEnvironment] mutableCopy];
+    NSArray *path = [self _toolFoldersForShell:shell];
+    environment[@"PATH"] = [path componentsJoinedByString:UDPathListSeparator()];
+    NSTask *task = [[NSTask alloc] init];
+    NSPipe *pipe = [NSPipe pipe];
+    NSArray *arguments = [UDShellCommandArguments(shell, command) arrayByAddingObjectsFromArray:@[ @"sh", argument ]];
+    task.launchPath = arguments.firstObject;
+    task.arguments = [arguments subarrayWithRange:NSMakeRange(1, arguments.count - 1)];
+    task.environment = UDShellEnvironment(environment);
+    task.standardOutput = pipe;
+    task.standardError = [NSFileHandle fileHandleWithNullDevice];
+    @try {
+        [task launch];
+    } @catch (NSException *exception) {
+        return nil;
+    }
+    NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+/// GNUstep's makefiles: those a gnustep-config says, the first that are
+/// there. The machine's, on its PATH and the tools' folders (@a shell's
+/// among them), then the stack gnustep-patches builds on Windows (its
+/// prefix /c/GNUstep), then the domains this process's GNUstep knows: an
+/// installed app's own runtime (an AppImage's, an MSI's) has a
+/// gnustep-config but no makefiles. The shell runs it: on Windows it is a
+/// shell script.
++ (nullable NSString *)_makefilesForShell:(nullable NSString *)shell {
+    NSMutableArray<NSString *> *configs = [NSMutableArray array];
+    NSMutableArray<NSString *> *folders = [[self _toolFoldersForShell:shell] mutableCopy];
+    [folders addObject:@"C:/GNUstep/System/Tools"];
+#ifdef GNUSTEP
+    [folders addObjectsFromArray:NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)];
+#endif
+    for (NSString *folder in folders) {
+        NSString *config = [folder stringByAppendingPathComponent:@"gnustep-config"];
+        if (![configs containsObject:config] && [[NSFileManager defaultManager] fileExistsAtPath:config]) [configs addObject:config];
+    }
+    for (NSString *config in configs) {
+        NSString *output = [self _shellOutputOf:@"\"$1\" --variable=GNUSTEP_MAKEFILES" argument:config shell:shell];
+        NSString *path = [output stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (!path.length) continue;
+        path = UDShellNativePath(shell, path);
+        if ([[NSFileManager defaultManager] fileExistsAtPath:[path stringByAppendingPathComponent:@"GNUstep.sh"]]) return path;
     }
     return nil;
 }

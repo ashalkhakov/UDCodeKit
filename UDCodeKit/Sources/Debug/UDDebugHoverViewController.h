@@ -15,6 +15,12 @@
 #import <Cocoa/Cocoa.h>
 #import "UDDebugSession.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// The expression at @a word of @a line, as VS Code finds one to evaluate
@@ -22,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// word that holds no operator, bracket or space ("a.b", "p->x", "A::b",
 /// "*p"), cut after the word ("a.b" for the b of "a.b.c"). Its range in
 /// the line; NSNotFound when there is none.
-FOUNDATION_EXPORT NSRange UDEvaluatableExpressionRange(NSString *line, NSRange word);
+UDCODEKIT_EXPORT NSRange UDEvaluatableExpressionRange(NSString *line, NSRange word);
 
 @interface UDDebugHoverViewController : NSViewController <NSOutlineViewDataSource, NSOutlineViewDelegate>
 

@@ -546,18 +546,14 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 // MARK: - NSTextInputClient overrides for multi-cursor
 
-// Typing reaches -insertText:replacementRange: on macOS and -insertText: on
-// GNUstep; both go to the cursors when there are several.
+// Typing reaches -insertText:replacementRange: (GNUstep's -insertText:
+// comes here too, as AppKit's does); it goes to the cursors when there are
+// several.
 - (void)insertText:(id)string replacementRange:(NSRange)replacementRange {
     // Single cursor: let the standard NSTextView path handle it.
     // It calls replaceCharactersInRange:, which goes through UDTextModel.
     if (_cursorsController.selections.count <= 1) {
-#ifdef __APPLE__
         [super insertText:string replacementRange:replacementRange];
-#else
-        if (replacementRange.location != NSNotFound) [self setSelectedRange:replacementRange];
-        [super insertText:string];
-#endif
         return;
     }
 
@@ -567,12 +563,6 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     [_cursorsController typeText:text source:@"keyboard"];
     [self _syncSelectionsFromController];
 }
-
-#ifndef __APPLE__
-- (void)insertText:(id)string {
-    [self insertText:string replacementRange:NSMakeRange(NSNotFound, 0)];
-}
-#endif
 
 - (void)deleteBackward:(id)sender {
     if (_cursorsController.selections.count <= 1) {

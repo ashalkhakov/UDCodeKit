@@ -10,6 +10,12 @@
 #import <Cocoa/Cocoa.h>
 #import "UDFindModel.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class UDFindBarViewController;
@@ -22,8 +28,8 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 /// The bar's heights, finding and replacing.
-extern const CGFloat UDFindBarFindHeight;
-extern const CGFloat UDFindBarReplaceHeight;
+UDCODEKIT_EXPORT const CGFloat UDFindBarFindHeight;
+UDCODEKIT_EXPORT const CGFloat UDFindBarReplaceHeight;
 
 @interface UDFindBarViewController : NSViewController <NSTextFieldDelegate>
 

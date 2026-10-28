@@ -50,7 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// APPIMAGE_HOST_PATH and APPIMAGE_HOST_LD_LIBRARY_PATH, and none of the
 /// GNUstep and fontconfig settings it points into the image). Otherwise a
 /// build, a shell, a debugger or a language server would run on the image's
-/// libraries and see its GNUstep instead of the machine's.
+/// libraries and see its GNUstep instead of the machine's. Its PATH is
+/// PATH, as Windows may name it otherwise ("Path").
 + (NSDictionary<NSString *, NSString *> *)hostEnvironment;
 /// The same, of @a environment.
 + (NSDictionary<NSString *, NSString *> *)hostEnvironmentOf:(NSDictionary<NSString *, NSString *> *)environment;

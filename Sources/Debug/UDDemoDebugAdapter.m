@@ -70,9 +70,13 @@ static const NSInteger UDLinesPerTurn = 20;
         if (![argument hasPrefix:@"--without="]) continue;
         adapter.withheldCapabilities = [[argument substringFromIndex:10] componentsSeparatedByString:@","];
     }
+    // A while at a time: what finishes it (disconnect, the input's end) comes
+    // as a notification, after the input that brought it, and nothing more
+    // may come to end the wait (on Windows closing the input does not).
     while (!adapter.finished) {
         @autoreleasepool {
-            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                     beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.25]];
         }
     }
     return 0;
@@ -172,7 +176,7 @@ static const NSInteger UDLinesPerTurn = 20;
     _stopOnEntry = [arguments[@"stopOnEntry"] boolValue];
     [self _respond:request body:nil];
     // the program runs here: this process is the debuggee's
-    [self _event:@"process" body:@{ @"name": _program.lastPathComponent, @"systemProcessId": @(getpid()),
+    [self _event:@"process" body:@{ @"name": _program.lastPathComponent, @"systemProcessId": @([NSProcessInfo processInfo].processIdentifier),
                                     @"isLocalProcess": @YES, @"startMethod": @"launch" }];
 }
 

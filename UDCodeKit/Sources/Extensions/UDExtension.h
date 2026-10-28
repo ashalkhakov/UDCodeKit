@@ -49,6 +49,12 @@
 #import <UDPieceTable/UDPieceTable.h>   // UDTextModel, UDTypes, UDRange, etc.
 #import "UDLanguageKeyHandler.h"
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 // Forward declarations for types used in optional factory methods.
 @class UDDiagnosticStore, UDProject, UDTestRunner;
 
@@ -59,8 +65,8 @@
 ///
 /// The host should re-query -languageServerCommandForIdentifier: for the given
 /// identifier and start the language server for any open documents of that mode.
-FOUNDATION_EXPORT NSNotificationName const UDExtensionLanguageServerDidBecomeReadyNotification;
-FOUNDATION_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
+UDCODEKIT_EXPORT NSNotificationName const UDExtensionLanguageServerDidBecomeReadyNotification;
+UDCODEKIT_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 
 @protocol UDExtension <NSObject>
 

@@ -32,14 +32,11 @@
 }
 
 - (NSArray<Class> *)debuggerClasses {
-#ifdef __APPLE__
-    // Xcode's lldb-dap
+    // lldb-dap (Xcode's, MSYS2's, a distribution's), which reads an
+    // Objective-C object's ivars where its runtime put them: gdb takes each
+    // to be at offset 0, as clang's debug information says of a non-fragile
+    // ivar. gdb where there is no lldb-dap.
     return @[ [UDLLDBDebugger class], [UDGDBDebugger class] ];
-#else
-    // gdb, which a distribution has, and which goes on where address
-    // randomization can't be turned off (a container): lldb doesn't launch there
-    return @[ [UDGDBDebugger class], [UDLLDBDebugger class] ];
-#endif
 }
 
 /// The sources' XCTest cases and test executables (TestMate's way), where no
@@ -55,7 +52,7 @@
 #ifdef GNUSTEP
     // GNUstep's, as GNUstep.sh sets it (a desktop doesn't run it): make finds
     // its makefiles, and what is built its libraries
-    return [UDGNUstepMakeBuildSystem environment];
+    return [UDGNUstepMakeBuildSystem environmentForShell:project.shell];
 #else
     return nil;
 #endif
@@ -63,23 +60,22 @@
 
 - (NSDictionary *)initializationOptionsForLanguageServer:(NSArray<NSString *> *)command project:(UDProject *)project {
     if (![[command.firstObject lastPathComponent] hasPrefix:@"clangd"]) return nil;
-    return @{ @"fallbackFlags": [UDCFamilyPlugin fallbackCompileFlagsForProject:project] };
+    NSMutableDictionary *options = [NSMutableDictionary dictionary];
+    options[@"fallbackFlags"] = [UDCFamilyPlugin fallbackCompileFlagsForProject:project];
+#ifdef GNUSTEP
+    // each file's own, as make compiles it (-fobjc-arc, its -I's)
+    if ([project.buildSystem isKindOfClass:[UDGNUstepMakeBuildSystem class]]) {
+        NSDictionary *commands = ((UDGNUstepMakeBuildSystem *)project.buildSystem).compileCommands;
+        if (commands.count) options[@"compilationDatabaseChanges"] = commands;
+    }
+#endif
+    return options;
 }
 
 + (NSArray<NSString *> *)fallbackCompileFlagsForProject:(UDProject *)project {
     NSMutableArray<NSString *> *flags = [NSMutableArray array];
 #ifdef GNUSTEP
-    NSString *config = nil;
-    for (NSString *tools in NSSearchPathForDirectoriesInDomains(GSToolsDirectory, NSAllDomainsMask, YES)) {
-        NSString *candidate = [tools stringByAppendingPathComponent:@"gnustep-config"];
-        if ([[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) { config = candidate; break; }
-    }
-    NSString *objcFlags = config ? [UDToolLocator outputOf:config arguments:@[ @"--objc-flags" ]] : nil;
-    for (NSString *flag in [UDProject argumentsOfCommandLine:objcFlags ?: @""]) {
-        // what makes dependency files is make's business, not an index's
-        if ([flag hasPrefix:@"-M"]) continue;
-        [flags addObject:flag];
-    }
+    [flags addObjectsFromArray:[UDGNUstepMakeBuildSystem compileFlagsForShell:project.shell]];
 #else
     NSString *sdk = [UDToolLocator outputOf:@"/usr/bin/xcrun" arguments:@[ @"--show-sdk-path" ]];
     if (sdk.length) [flags addObjectsFromArray:@[ @"-isysroot", sdk ]];

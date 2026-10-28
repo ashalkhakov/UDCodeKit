@@ -5,6 +5,7 @@
 #import "UDProjectSettingsController.h"
 #import "UDDebugger.h"
 #import "UDProject.h"
+#import <UDCodeKit/UDShell.h>
 
 
 @interface UDProjectSettingsController ()
@@ -14,6 +15,7 @@
 @property (nonatomic, weak) IBOutlet NSTextField *argumentsField;
 @property (nonatomic, weak) IBOutlet NSTextField *directoryField;
 @property (nonatomic, weak) IBOutlet NSPopUpButton *debuggerPopUp;
+@property (nonatomic, weak) IBOutlet NSTextField *shellField;
 @property (nonatomic, strong, readwrite, nullable) UDProject *project;
 @property (nonatomic, readwrite) NSModalResponse returnCode;
 @end
@@ -63,6 +65,8 @@
     if ([arguments isKindOfClass:[NSArray class]]) arguments = [arguments componentsJoinedByString:@" "];
     [self _field:_argumentsField value:arguments guess:nil];
     [self _field:_directoryField value:run[@"directory"] guess:@"The project's folder"];
+    [self _field:_shellField value:mine[@"shell"] ?: settings[@"shell"]
+           guess:[UDProject userShell] ?: UDLoginShellArguments(nil).firstObject];
     // Automatic (the XIB's), then the debuggers the extensions know, by name
     while (_debuggerPopUp.numberOfItems > 1) [_debuggerPopUp removeItemAtIndex:1];
     for (Class each in [UDDebugger classes]) {
@@ -87,7 +91,7 @@
     NSMutableDictionary *settings = [_project.settings mutableCopy] ?: [NSMutableDictionary dictionary];
     NSMutableDictionary *mine = [NSMutableDictionary dictionary];
     NSMutableDictionary *run = [NSMutableDictionary dictionary];
-    NSArray *pairs = @[ @[ _buildField, @"build" ], @[ _cleanField, @"clean" ] ];
+    NSArray *pairs = @[ @[ _buildField, @"build" ], @[ _cleanField, @"clean" ], @[ _shellField, @"shell" ] ];
     for (NSArray *pair in pairs) {
         NSString *value = [((NSTextField *)pair[0]).stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
         if (value.length) mine[pair[1]] = value;
@@ -138,6 +142,14 @@
     NSString *folder = [_project.folderURL.path stringByAppendingString:@"/"];
     // in the project: relative, so it goes with it
     _programField.stringValue = [path hasPrefix:folder] ? [path substringFromIndex:folder.length] : path;
+}
+
+- (IBAction)chooseShell:(id)sender {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.canChooseFiles = YES;
+    panel.canChooseDirectories = NO;
+    if ([panel runModal] != NSModalResponseOK || !panel.URLs.count) return;
+    _shellField.stringValue = [(NSURL *)panel.URLs.firstObject path];
 }
 
 @end

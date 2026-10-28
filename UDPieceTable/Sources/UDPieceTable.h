@@ -7,11 +7,17 @@
 
 #import <Foundation/Foundation.h>
 
+/* UDPieceTable's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDPIECETABLE_EXPORT
+#define UDPIECETABLE_EXPORT FOUNDATION_EXPORT
+#endif
+
 //! Project version number for UDPieceTable.
-FOUNDATION_EXPORT double UDPieceTableVersionNumber;
+UDPIECETABLE_EXPORT double UDPieceTableVersionNumber;
 
 //! Project version string for UDPieceTable.
-FOUNDATION_EXPORT const unsigned char UDPieceTableVersionString[];
+UDPIECETABLE_EXPORT const unsigned char UDPieceTableVersionString[];
 
 #import <UDPieceTable/UDTypes.h>
 #import <UDPieceTable/UDStringBuffer.h>

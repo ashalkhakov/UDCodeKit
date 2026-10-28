@@ -4,8 +4,7 @@
 //
 
 #import "LSPTransport.h"
-
-#include <signal.h>
+#import "LSPSystem.h"
 
 /// The modes the streams are read in: a menu being tracked or a modal panel
 /// does not hold the messages back.
@@ -31,6 +30,16 @@ static NSArray<NSString *> *LSPTransportModes(void) {
 }
 
 + (NSDictionary<NSString *, NSString *> *)hostEnvironmentOf:(NSDictionary<NSString *, NSString *> *)environment {
+    // Windows' names are case-blind, and started from Explorer or the Start
+    // menu its PATH is "Path": one PATH, the name everything here reads and
+    // sets (a "Path" beside it would be the one a child takes)
+    for (NSString *key in [environment allKeys]) {
+        if ([key isEqualToString:@"PATH"] || [key caseInsensitiveCompare:@"PATH"] != NSOrderedSame) continue;
+        NSMutableDictionary *named = [environment mutableCopy];
+        if ([named objectForKey:@"PATH"] == nil) [named setObject:[environment objectForKey:key] forKey:@"PATH"];
+        [named removeObjectForKey:key];
+        environment = named;
+    }
     NSString *hostPath = [environment objectForKey:@"APPIMAGE_HOST_PATH"];
     if (hostPath == nil) return environment;
     NSMutableDictionary *host = [environment mutableCopy];
@@ -52,7 +61,7 @@ static NSArray<NSString *> *LSPTransportModes(void) {
     if (!self) return nil;
     // A process that has ended must not end the app with it: writing to its
     // pipe then fails (and -sendMessage: says so) instead of raising SIGPIPE.
-    signal(SIGPIPE, SIG_IGN);
+    LSPIgnoreBrokenPipes();
     NSPipe *input = [NSPipe pipe], *output = [NSPipe pipe], *error = [NSPipe pipe];
     _task = [[NSTask alloc] init];
     [_task setStandardInput:input];
@@ -86,7 +95,7 @@ static NSArray<NSString *> *LSPTransportModes(void) {
 - (instancetype)initWithReadHandle:(NSFileHandle *)readHandle writeHandle:(NSFileHandle *)writeHandle {
     self = [super init];
     if (!self) return nil;
-    signal(SIGPIPE, SIG_IGN);
+    LSPIgnoreBrokenPipes();
     [self _openReading:readHandle writing:writeHandle];
     return self;
 }

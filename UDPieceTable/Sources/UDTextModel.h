@@ -11,6 +11,12 @@
 #import <UDPieceTable/UDTextModelSearch.h>
 #import <UDPieceTable/UDIntervalTree.h>
 
+/* UDPieceTable's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDPIECETABLE_EXPORT
+#define UDPIECETABLE_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 // MARK: - UDTextModelEdit
@@ -74,14 +80,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// The userInfo dictionary contains @"edits": NSArray<UDTextModelEdit *>, the
 /// edits as given (their ranges refer to the text before the call), and
 /// UDTextModelChangesKey: NSArray<UDTextModelContentChange *>.
-extern NSNotificationName const UDTextModelDidChangeNotification;
-extern NSString * const UDTextModelChangesKey;
+UDPIECETABLE_EXPORT NSNotificationName const UDTextModelDidChangeNotification;
+UDPIECETABLE_EXPORT NSString * const UDTextModelChangesKey;
 
 /// Posted after -deltaDecorations:newDecorations:owner: whenever any decoration
 /// is added or removed.  The userInfo contains:
 ///   @"range": NSValue wrapping an NSRange of the union of all changed decoration
 ///             character offsets (0-based).  Only present when dirtyRange.length > 0.
-extern NSNotificationName const UDTextModelDecorationsDidChangeNotification;
+UDPIECETABLE_EXPORT NSNotificationName const UDTextModelDecorationsDidChangeNotification;
 
 /// A minimal port of VS Code's TextModel backed by UDPieceTree.
 ///

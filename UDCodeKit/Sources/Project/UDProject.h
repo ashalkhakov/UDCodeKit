@@ -17,6 +17,7 @@
  *      "debugger": "lldb",                     // "lldb" (lldb-dap), "gdb" (gdb -i dap),
  *                                              // or the adapter's command, an array
  *      "languageServers": { "c": ["clangd", "--background-index"] },
+ *      "shell":   "C:/msys64/usr/bin/bash.exe",  // what its commands and terminal run in
  *      "macos":   { "build": "make -f Makefile.apple", "run": { "program": "build/Hello.app" } },
  *      "gnustep": { "run": { "program": "Hello.app" } }
  *    }
@@ -37,15 +38,24 @@
 
 #import <Foundation/Foundation.h>
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
 NS_ASSUME_NONNULL_BEGIN
 
 /// Posted when a project's settings change (set, or read again).
-extern NSNotificationName const UDProjectSettingsDidChangeNotification;
+UDCODEKIT_EXPORT NSNotificationName const UDProjectSettingsDidChangeNotification;
 
 @class UDBuildSystem, UDTestCatalog;
 
 /// The system's key in the settings: "macos" or "gnustep".
-extern NSString * const UDProjectPlatformKey;
+UDCODEKIT_EXPORT NSString * const UDProjectPlatformKey;
+
+/// The user defaults' key of the shell the user chose (Preferences): its path.
+UDCODEKIT_EXPORT NSString * const UDShellDefaultsKey;
 
 @interface UDProject : NSObject
 
@@ -122,11 +132,19 @@ extern NSString * const UDProjectPlatformKey;
 @property (nonatomic, readonly, copy) NSDictionary<NSString *, NSString *> *runEnvironment;
 /// "lldb", "gdb", or the adapter's command; nil: the system's (UDToolLocator).
 @property (nonatomic, readonly, nullable) id debugger;
+/// The shell its build, clean and test commands and its terminal run in:
+/// the settings' "shell" when this machine has it (one for Windows leaves
+/// macOS and Linux as they are), else the user's; nil: the system's (UDShell).
+@property (nonatomic, readonly, copy, nullable) NSString *shell;
+/// The shell the user chose (UDShellDefaultsKey) when this machine has it;
+/// nil: the system's.
++ (nullable NSString *)userShell;
 /// A language server's command set for language mode @a identifier, nil when none is.
 - (nullable NSArray<NSString *> *)languageServerCommandForIdentifier:(NSString *)identifier;
 
 /// The environment the build and the program run in: the machine's (an
-/// AppImage's own left out), PATH with the folders tools are found in, what
+/// AppImage's own left out), PATH with the folders tools are found in (its
+/// shell's among them: MSYS2's on Windows), what
 /// the extensions add (CFamily's, GNUstep's on GNUstep), what the settings
 /// add.
 - (NSDictionary<NSString *, NSString *> *)buildEnvironment;

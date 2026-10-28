@@ -9,7 +9,7 @@
 //
 
 #import <XCTest/XCTest.h>
-#import "UDCodeTestCase.h"
+#import "UDProjectTests.h"
 #import <UDCodeKit/UDCodeKit.h>
 #import "AppDelegate.h"
 #import "UDDocument.h"
@@ -54,13 +54,6 @@ static Class UDPluginClass(NSString *name) {
 }
 @end
 
-@interface UDProjectTests : UDCodeTestCase
-@property (nonatomic, copy) NSString *folder;
-/// The window whose settings sheet -answerSettingsSheet answers, and what it saw.
-@property (nonatomic, weak) UDDocumentWindowController *sheetController;
-@property (nonatomic, copy) NSString *sheetPlaceholder;
-@property (nonatomic, copy) NSString *sheetBuild;
-@end
 
 @implementation UDProjectTests
 
@@ -107,11 +100,29 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(self.project.buildCommand, @"make debug=yes", @"unoptimized, for the debugger");
     XCTAssertEqualObjects(self.project.cleanCommand, @"make debug=yes clean");
     XCTAssertNotNil(self.project.buildEnvironment[@"GNUSTEP_MAKEFILES"], @"GNUstep's environment, as GNUstep.sh has it");
+    XCTAssertNotNil([self.project pathOfToolOnBuildPath:@"make"], @"its PATH the system's (on Windows, MSYS2's make on it)");
 #else
     XCTAssertEqualObjects(self.project.buildSystem.name, @"make", @"a GNUmakefile is GNUstep's: not on macOS");
     [self write:@"all:\n" to:@"Makefile.apple"];
     XCTAssertEqualObjects(self.project.buildCommand, @"make -f Makefile.apple", @"on macOS, Makefile.apple");
 #endif
+}
+
+/// The shell its commands and terminal run in: its settings' when this
+/// machine has it, else the user's (Preferences), else the system's (nil).
+- (void)testItsShellIsItsOwnThenTheUsers {
+    NSString *program = [NSBundle mainBundle].executablePath;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults removeObjectForKey:UDShellDefaultsKey];
+    XCTAssertNil(self.project.shell, @"none chosen: the system's");
+    [defaults setObject:program forKey:UDShellDefaultsKey];
+    XCTAssertEqualObjects(self.project.shell, program, @"the user's");
+    [self write:@"{ \"shell\": \"/no/such/shell\" }" to:@".udcode/settings.json"];
+    XCTAssertEqualObjects(self.project.shell, program, @"one this machine hasn't is passed over");
+    [defaults removeObjectForKey:UDShellDefaultsKey];
+    NSData *own = [NSJSONSerialization dataWithJSONObject:@{ @"shell": program } options:0 error:NULL];
+    [self write:[[NSString alloc] initWithData:own encoding:NSUTF8StringEncoding] to:@".udcode/settings.json"];
+    XCTAssertEqualObjects(self.project.shell, program, @"its own");
 }
 
 /// An Xcode project: its Debug build (as Xcode's Run), and what that makes
@@ -188,6 +199,10 @@ static Class UDPluginClass(NSString *name) {
     // not from an AppImage: as it is
     NSDictionary *plain = @{ @"PATH": @"/usr/bin", @"GNUSTEP_MAKEFILES": @"/opt/gnustep/System/Library/Makefiles" };
     XCTAssertEqualObjects([LSPTransport hostEnvironmentOf:plain], plain);
+    // started from Windows' Start menu: its "Path" is PATH
+    NSDictionary *windows = @{ @"Path": @"C:\\Windows\\system32;C:\\Windows", @"COMSPEC": @"C:\\Windows\\system32\\cmd.exe" };
+    XCTAssertEqualObjects([LSPTransport hostEnvironmentOf:windows],
+                          (@{ @"PATH": @"C:\\Windows\\system32;C:\\Windows", @"COMSPEC": @"C:\\Windows\\system32\\cmd.exe" }));
 }
 
 /// A GNUstep project whose GNUmakefile is in a folder of its own, beside an
@@ -270,16 +285,13 @@ static Class UDPluginClass(NSString *name) {
 }
 
 - (void)testTheDebuggersAreAskedAsEachTakesIt {
-    // CFamily's, the extensions': lldb's first on macOS, gdb's elsewhere
+    // CFamily's, the extensions': lldb's first, then gdb's
     NSArray *names = [[UDDebugger classes] valueForKey:@"name"];
-#ifdef __APPLE__
     XCTAssertEqualObjects(names, (@[ @"lldb", @"gdb" ]));
-#else
-    XCTAssertEqualObjects(names, (@[ @"gdb", @"lldb" ]));
-#endif
     NSDictionary *lldb = [[UDDebugger classNamed:@"lldb"] launchArgumentsForProgram:@"/p" arguments:@[ @"a" ]
                                                                          directory:@"/d" environment:@{ @"K": @"v" }];
     XCTAssertEqualObjects(lldb[@"env"], @[ @"K=v" ], @"lldb-dap: NAME=value");
+    XCTAssertEqualObjects(lldb[@"initCommands"], @[ @"settings set target.display-runtime-support-values true" ], @"self among the locals");
     NSDictionary *gdb = [[UDDebugger classNamed:@"gdb"] launchArgumentsForProgram:@"/p" arguments:@[ @"a" ]
                                                                        directory:@"/d" environment:@{ @"K": @"v" }];
     XCTAssertEqualObjects(gdb[@"env"], @{ @"K": @"v" });
@@ -377,6 +389,26 @@ static Class UDPluginClass(NSString *name) {
 
     [controller close];
     [workspace close];
+}
+
+/// A file reached by another path to it (a link to the project's folder;
+/// on Windows a short name, C:/Users/ARTYOM~1) is opened by its real path:
+/// the project's, as its folder is known, and its language server's.
+- (void)testAFileReachedByAnotherPathIsTheProjects {
+    [self write:@"notes\n" to:@"notes.txt"];
+    NSString *link = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSUUID UUID].UUIDString];
+    if (![[NSFileManager defaultManager] createSymbolicLinkAtPath:link withDestinationPath:_folder error:NULL]) {
+        NSLog(@"UDProjectTests: no symbolic link here; its case checks nothing");
+        return;
+    }
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[link stringByAppendingPathComponent:@"notes.txt"]]];
+    UDCodeDocument *document = controller.editorTabs.selectedItem.representedObject;
+    XCTAssertEqualObjects(document.fileURL.path, [controller.project.folderURL.path stringByAppendingPathComponent:@"notes.txt"]);
+    [controller close];
+    [workspace close];
+    [[NSFileManager defaultManager] removeItemAtPath:link error:NULL];
 }
 
 // ---------------------------------------------------------------------------
@@ -515,6 +547,61 @@ static Class UDPluginClass(NSString *name) {
     [workspace close];
 }
 
+/// An Objective-C object's ivars, stopped in one of its methods, as its
+/// runtime laid them out: clang's debug information puts a non-fragile
+/// ivar at offset 0, and only a debugger that asks the runtime (lldb)
+/// reads the ivar itself rather than the object's class pointer.
+- (void)testAnObjectsIvarsAreReadWhereTheRuntimePutThem {
+#ifdef GNUSTEP
+    NSArray<NSString *> *adapter = [UDDebugger adapterCommandForDebugger:nil];
+    if (![adapter.firstObject.lastPathComponent hasPrefix:@"lldb"]) {
+        NSLog(@"UDProjectTests: no lldb-dap first here; the ivars case checks nothing");
+        return;
+    }
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nTOOL_NAME = counter\ncounter_OBJC_FILES = main.m\n"
+                @"include $(GNUSTEP_MAKEFILES)/tool.make\n" to:@"GNUmakefile"];
+    [self write:@"#import <Foundation/Foundation.h>\n"
+                @"@interface Counter : NSObject {\n    int _count;\n    long _total;\n}\n- (void)bump;\n@end\n"
+                @"@implementation Counter\n"
+                @"- (void)bump {\n"
+                @"    _count = 42;\n"
+                @"    _total = 7;\n"
+                @"    NSLog(@\"bumped %d\", _count);\n"
+                @"}\n"
+                @"@end\n"
+                @"int main(void) {\n    Counter *counter = [Counter new];\n    [counter bump];\n    return 0;\n}\n" to:@"main.m"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    NSString *main = [_folder stringByAppendingPathComponent:@"main.m"];
+    [controller.breakpoints addBreakpointAtLine:12 inFile:main];
+    [controller startDebugging:nil];
+    UDRunUntil(controller.debugSession.state == UDDebugSessionStateStopped && controller.debugSession.scopes.count > 0, 120);
+    UDDebugSession *session = controller.debugSession;
+    XCTAssertEqual(session.state, UDDebugSessionStateStopped, @"%@ %@", controller.buildRunner.output, session.consoleText);
+    UDDebugVariable *me = nil;
+    for (UDDebugVariable *scope in session.scopes) {
+        if (scope.expensive) continue;
+        [session loadChildrenOfVariable:scope];
+        UDRunUntil(scope.children != nil, 20);
+        for (UDDebugVariable *variable in scope.children) if ([variable.name isEqualToString:@"self"]) me = variable;
+    }
+    XCTAssertNotNil(me, @"stopped at %@:%ld (%@): %@ %@", session.selectedFrame.name, (long)session.selectedFrame.line,
+                    session.selectedThread.stopReason, [session.scopes valueForKey:@"name"], session.consoleText);
+    [session loadChildrenOfVariable:me];
+    UDRunUntil(me.children != nil, 20);
+    NSMutableDictionary *ivars = [NSMutableDictionary dictionary];
+    for (UDDebugVariable *ivar in me.children) if (ivar.value) ivars[ivar.name] = ivar.value;
+    XCTAssertEqualObjects(ivars[@"_count"], @"42", @"%@", ivars);
+    XCTAssertEqualObjects(ivars[@"_total"], @"7", @"%@", ivars);
+
+    [session continueExecution];
+    UDRunUntil(session.state == UDDebugSessionStateEnded, 30);
+    [controller.breakpoints removeAllBreakpoints];
+    [controller close];
+    [workspace close];
+#endif
+}
+
 - (void)testRunWithoutDebuggingRunsItItsOutputInTheConsole {
     if (![UDDebugger adapterCommandForDebugger:nil]) return;
     [self writeCProjectWith:@"#include <stdio.h>\nint main(int argc, char **argv) {\n    printf(\"plain %d\\n\", argc);\n    return 0;\n}\n"];
@@ -648,7 +735,8 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(build.commandLine, @"make -j2", @"linux's args over the rest");
 #endif
     XCTAssertEqualObjects(build.directory, [_folder stringByAppendingPathComponent:@"sub"], @"${workspaceFolder}");
-    XCTAssertEqualObjects(build.environment[@"FLAVOR"], NSHomeDirectory(), @"${env:HOME}");
+    // unset (Windows' Start menu sets no HOME), "" as VS Code has it
+    XCTAssertEqualObjects(build.environment[@"FLAVOR"], NSProcessInfo.processInfo.environment[@"HOME"] ?: @"", @"${env:HOME}");
     NSString *line = [tasks commandLineRunning:build];
     XCTAssertTrue([line rangeOfString:@"echo prep"].location < [line rangeOfString:@"make -j"].location, @"dependsOn first: %@", line);
     XCTAssertEqualObjects([tasks taskLabelled:@"test"].commandLine, @"'./run tests'", @"a process's program, quoted");
@@ -980,10 +1068,15 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertTrue(terminal.running);
     XCTAssertFalse(terminal.view.superview.isHidden, @"the terminal shown");
     XCTAssertEqual(controller.window.firstResponder, terminal.terminalView);
-    [terminal.pseudoTerminal writeData:[@"echo \"at:$(pwd -P)\"\r" dataUsingEncoding:NSUTF8StringEncoding]];
+    // MSYS2's bash says its folder as Windows has it with pwd -W (/tmp/x is
+    // C:/msys64/tmp/x); other shells have no -W
+    [terminal.pseudoTerminal writeData:[@"echo \"at:$( (pwd -W || pwd -P) 2>/dev/null)\"\r" dataUsingEncoding:NSUTF8StringEncoding]];
+    // its rows joined: a folder longer than the terminal is wide (macOS's
+    // /private/var/folders/...) goes on to the next row
     NSString *expected = [@"at:" stringByAppendingString:_folder];
-    UDRunUntil([terminal.terminalView.screenText containsString:expected], 30);
-    XCTAssertTrue([terminal.terminalView.screenText containsString:expected], @"%@", terminal.terminalView.screenText);
+    UDRunUntil([[terminal.terminalView.screenText stringByReplacingOccurrencesOfString:@"\n" withString:@""] containsString:expected], 30);
+    XCTAssertTrue([[terminal.terminalView.screenText stringByReplacingOccurrencesOfString:@"\n" withString:@""] containsString:expected],
+                  @"%@", terminal.terminalView.screenText);
 
     // the switch back to the debugger's area, and the terminal's again
     [controller.window makeFirstResponder:nil];
@@ -1190,6 +1283,73 @@ static Class UDPluginClass(NSString *name) {
 #endif
 }
 
+/// clangd's fallbackFlags, where a project says nothing of its own
+/// (compile_commands.json): GNUstep's headers, as the system has their
+/// folders (on Windows not MSYS2's /c/GNUstep), so Foundation.h is found.
+- (void)testClangdFindsGNUstepsHeaders {
+#ifdef GNUSTEP
+    NSArray<NSString *> *flags = [UDPluginClass(@"UDCFamilyPlugin") fallbackCompileFlagsForProject:self.project];
+    BOOL found = NO;
+    for (NSString *flag in flags) {
+        if (![flag hasPrefix:@"-I"]) continue;
+        NSString *folder = [flag substringFromIndex:2];
+        found = found || [[NSFileManager defaultManager] fileExistsAtPath:[folder stringByAppendingPathComponent:@"Foundation/Foundation.h"]];
+    }
+    XCTAssertTrue(found, @"%@", flags);
+    XCTAssertFalse([flags containsObject:@"-MMD"], @"make's, not an index's");
+#endif
+}
+
+/// A GNUstep project's compile commands, as make's dry run says them: each
+/// file's own folder and flags (continued lines joined, the folders make
+/// enters followed), a file compiled again for a test bundle the first
+/// time's, what makes dependency files left out.
+- (void)testMakesDryRunIsEachFilesCompileCommand {
+#ifdef GNUSTEP
+    // the folders as the system has them, which every shell's are too
+    NSString *calc = self.project.folderURL.path;
+    NSString *app = [calc stringByAppendingPathComponent:@"App"], *tests = [calc stringByAppendingPathComponent:@"Tests"];
+    NSString *output = [NSString stringWithFormat:
+                        @"make: Entering directory '%@'\n"
+                        @"make[1]: Entering directory '%@'\n"
+                        @"clang main.m -c \\\n"
+                        @"      -MMD -MP -Iinclude -fobjc-arc -include Compat.h \\\n"
+                        @"       -o obj/App.obj/main.m.o\n"
+                        @"clang -Wl,--enable-auto-import -o obj/App obj/App.obj/main.m.o\n"
+                        @"make[1]: Leaving directory '%@'\n"
+                        @"make[1]: Entering directory '%@'\n"
+                        @"clang ../App/main.m -c -DTESTING -o obj/Tests.obj/main.m.o\n"
+                        @"clang Tests.m -c -fblocks -o obj/Tests.obj/Tests.m.o\n"
+                        @"make[1]: Leaving directory '%@'\n", calc, app, app, tests, tests];
+    Class gnustep = UDPluginClass(@"UDGNUstepMakeBuildSystem");
+    NSDictionary *commands = [gnustep compileCommandsInDryRun:output folder:calc shell:nil];
+    NSString *main = [app stringByAppendingPathComponent:@"main.m"], *testsFile = [tests stringByAppendingPathComponent:@"Tests.m"];
+    XCTAssertEqualObjects([NSSet setWithArray:commands.allKeys], ([NSSet setWithObjects:main, testsFile, nil]));
+    XCTAssertEqualObjects(commands[main][@"workingDirectory"], app);
+    NSArray *expected = [@[ @"clang", @"main.m", @"-c", @"-Iinclude", @"-fobjc-arc", @"-include", @"Compat.h", @"-o", @"obj/App.obj/main.m.o" ]
+                         arrayByAddingObjectsFromArray:UDShellCompilerFlags(nil)];
+    XCTAssertEqualObjects(commands[main][@"compilationCommand"], expected, @"the first, without -MMD -MP");
+    XCTAssertEqualObjects(commands[testsFile][@"workingDirectory"], tests);
+#endif
+}
+
+/// clangd told how make compiles each file of a GNUstep project (its
+/// -fobjc-arc, which no fallback flag knows), from make's own dry run.
+- (void)testClangdIsToldHowMakeCompilesEachFile {
+#ifdef GNUSTEP
+    [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nTOOL_NAME = calc\ncalc_OBJC_FILES = main.m\n"
+                @"ADDITIONAL_OBJCFLAGS += -fobjc-arc\ninclude $(GNUSTEP_MAKEFILES)/tool.make\n" to:@"GNUmakefile"];
+    [self write:@"int main(void) { return 0; }\n" to:@"main.m"];
+    UDProject *project = [[UDProject alloc] initWithFolderURL:[NSURL fileURLWithPath:self.folder]];
+    NSDictionary *options = [project initializationOptionsForLanguageServer:@[ @"clangd" ]];
+    NSString *main = [project.folderURL.path stringByAppendingPathComponent:@"main.m"].stringByStandardizingPath;
+    NSDictionary *command = options[@"compilationDatabaseChanges"][main];
+    XCTAssertEqualObjects(command[@"workingDirectory"], project.folderURL.path.stringByStandardizingPath, @"%@", options);
+    XCTAssertTrue([command[@"compilationCommand"] containsObject:@"-fobjc-arc"], @"%@", command);
+    XCTAssertNotNil(options[@"fallbackFlags"], @"for the files make does not compile (headers)");
+#endif
+}
+
 /// A GNUstep project's tests, written as UDCalc's are (an XCTest bundle in a
 /// folder of its own): Debug › Test builds and runs them, the Test navigator
 /// marks each, a failure is an issue at its line; one test runs alone.
@@ -1199,7 +1359,7 @@ static Class UDPluginClass(NSString *name) {
                 @"include $(GNUSTEP_MAKEFILES)/tool.make\n" to:@"Calc/GNUmakefile"];
     [self write:@"int main(void) { return 0; }\n" to:@"Calc/main.m"];
     [self write:@"include $(GNUSTEP_MAKEFILES)/common.make\nBUNDLE_NAME = CalcTests\nCalcTests_OBJC_FILES = CalcTests.m\n"
-                @"ADDITIONAL_LDFLAGS += -lXCTest\ninclude $(GNUSTEP_MAKEFILES)/bundle.make\n" to:@"CalcTests/GNUmakefile"];
+                @"CalcTests_BUNDLE_LIBS += -lXCTest\ninclude $(GNUSTEP_MAKEFILES)/bundle.make\n" to:@"CalcTests/GNUmakefile"];
     [self write:@"#import <XCTest/XCTest.h>\n"
                 @"@interface CalcTests : XCTestCase\n@end\n\n"
                 @"@implementation CalcTests\n\n"
@@ -1346,11 +1506,14 @@ static Class UDPluginClass(NSString *name) {
                 @" \"testMate.cpp.test.executables\": \"bin/*.test\", \"cmake.buildDirectory\": \"${workspaceFolder}/out\" }\n"
              to:@".vscode/settings.json"];
     UDTasks *tasks = [[UDTasks alloc] initWithFolderURL:[NSURL fileURLWithPath:_folder] currentFileURL:nil];
-    UDLaunchConfiguration *debug = [tasks testDebugConfigurationForExecutable:@"/b/calc_test" arguments:@[ @"--gtest_filter=Calc.Adds" ]
-                                                                    directory:@"/b"];
-    XCTAssertEqualObjects(debug.program, @"/b/calc_test");
+    // an absolute folder as the system writes one (/b is not, on Windows)
+    NSString *b = [_folder stringByAppendingPathComponent:@"b"];
+    NSString *calcTest = [b stringByAppendingPathComponent:@"calc_test"];
+    UDLaunchConfiguration *debug = [tasks testDebugConfigurationForExecutable:calcTest arguments:@[ @"--gtest_filter=Calc.Adds" ]
+                                                                    directory:b];
+    XCTAssertEqualObjects(debug.program, calcTest);
     XCTAssertEqualObjects(debug.arguments, @[ @"--gtest_filter=Calc.Adds" ]);
-    XCTAssertEqualObjects(debug.directory, @"/b");
+    XCTAssertEqualObjects(debug.directory, b);
     XCTAssertEqualObjects(debug.debugger, @"gdb", @"cppdbg with gdb");
     XCTAssertEqualObjects([[[UDPlugin(UDGoogleTestRunner) alloc] initWithProject:self.project] globs], @[ @"bin/*.test" ], @"TestMate's own setting");
     XCTAssertEqualObjects([[[UDPlugin(UDCMakeBuildSystem) alloc] initWithProject:self.project] buildDirectory],
@@ -1409,49 +1572,6 @@ static Class UDPluginClass(NSString *name) {
         UDRunUntil(controller.debugSession.state == UDDebugSessionStateEnded, 60);
         [controller.breakpoints removeAllBreakpoints];
     }
-    [controller close];
-    [workspace close];
-}
-
-/// A Makefile project's test executable, found as C++ TestMate finds them (a
-/// GoogleTest's, by what it says of itself): its tests listed, run, one alone.
-- (void)testATestExecutableIsAskedForItsTests {
-    // a GoogleTest executable, as far as UDCode can tell: it answers as one
-    [self write:@"all:\n" to:@"Makefile"];
-    [self write:@"#!/bin/sh\n"
-                @"case \"$1\" in\n"
-                @"  --help) echo 'This program contains tests written using Google Test.'; echo '  --gtest_list_tests'; exit 0 ;;\n"
-                @"  --gtest_list_tests) printf 'Calc.\\n  Adds\\n  Divides\\n'; exit 0 ;;\n"
-                @"esac\n"
-                @"filter=${1#--gtest_filter=}\n"
-                @"for t in Calc.Adds Calc.Divides; do\n"
-                @"  case \"$filter\" in *\"$t\"*|\"\") ;; *) [ -n \"$1\" ] && continue ;; esac\n"
-                @"  echo \"[ RUN      ] $t\"\n"
-                @"  if [ \"$t\" = Calc.Divides ]; then echo \"$PWD/../calc_test.cc:12: Failure\"; echo 'Expected: 1'; echo \"[  FAILED  ] $t (0 ms)\";\n"
-                @"  else echo \"[       OK ] $t (0 ms)\"; fi\n"
-                @"done\n" to:@"build/calc_test"];
-    [[NSFileManager defaultManager] setAttributes:@{ NSFilePosixPermissions: @0755 }
-                                     ofItemAtPath:[_folder stringByAppendingPathComponent:@"build/calc_test"] error:NULL];
-    [self write:@"// the tests\n" to:@"calc_test.cc"];
-    UDWorkspace *workspace = nil;
-    UDDocumentWindowController *controller = [self openProject:&workspace];
-    UDTestCatalog *catalog = controller.testCatalog;
-    UDTest *adds = [catalog testNamed:@"Adds" inSuite:@"Calc"];
-    UDTest *divides = [catalog testNamed:@"Divides" inSuite:@"Calc"];
-    XCTAssertNotNil(adds, @"%@", [catalog.allTests valueForKey:@"identifier"]);
-    XCTAssertEqualObjects(adds.suite.kind, @"gtest");
-
-    [controller test:nil];
-    UDRunUntil(!controller.buildRunner.running, 60);
-    XCTAssertEqual(adds.status, UDTestStatusPassed, @"%@", controller.buildRunner.output);
-    XCTAssertEqual(divides.status, UDTestStatusFailed, @"%@", controller.buildRunner.output);
-    NSString *file = [[_folder stringByAppendingPathComponent:@"calc_test.cc"] stringByStandardizingPath];
-    XCTAssertEqual(controller.buildRunner.diagnostics[file].allDiagnostics.firstObject.line, 12, @"%@", controller.buildRunner.diagnostics);
-
-    [controller runTests:@[ adds ] debugging:NO];
-    UDRunUntil(!controller.buildRunner.running, 60);
-    XCTAssertTrue([controller.buildRunner.output containsString:@"Calc.Adds"]);
-    XCTAssertFalse([controller.buildRunner.output containsString:@"Calc.Divides"], @"alone: %@", controller.buildRunner.output);
     [controller close];
     [workspace close];
 }

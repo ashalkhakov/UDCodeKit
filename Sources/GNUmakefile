@@ -9,7 +9,8 @@ VERSION = 0.0.0
 include ../scripts/gnustep.make
 include $(GNUSTEP_MAKEFILES)/common.make
 
-UDCode_OBJC_FILES = $(shell find . -name '*.m' | sort)
+# this system's (gnustep.make's UD_SOURCES): apple/ is Xcode's
+UDCode_OBJC_FILES = $(call UD_SOURCES,$(shell find . -name '*.m' | sort))
 # the toolbar's and navigator's images: SF Symbols on macOS, ours here
 UDCode_RESOURCE_FILES = $(shell find . -name '*.xib' | sort) ../scripts/appimage/udcode.png $(wildcard ../Images/GNUstep/*.png)
 UDCode_MAIN_MODEL_FILE = MainMenu
@@ -21,7 +22,7 @@ UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
 ADDITIONAL_LIB_DIRS += $(addprefix -L,$(UD_LIBS))
 # Libraries, not linker flags: on Windows the flags are linked whole, and
 # import libraries linked whole collide.
-UDCode_GUI_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -ldispatch $(UD_BLOCKS_LIBS)
+UDCode_GUI_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -lGSUpdater -ldispatch $(UD_BLOCKS_LIBS)
 # Found beside it, relative to the executable: in the tree (build/gnustep/)
 # and installed (Local/Applications beside Local/Library/Libraries). Windows
 # finds DLLs on PATH instead.

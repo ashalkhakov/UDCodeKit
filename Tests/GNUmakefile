@@ -17,7 +17,7 @@ APP_DIR = ../Sources
 # UDCode but main.m, whose main() would collide with the test runner's.
 # This system's tests: posix/ holds what only a POSIX system runs (gnustep.make's UD_SOURCES).
 UDCodeTests_OBJC_FILES = $(call UD_SOURCES,$(wildcard *.m) $(wildcard posix/*.m) $(wildcard windows/*.m)) \
-    $(filter-out $(APP_DIR)/main.m,$(shell find $(APP_DIR) -name '*.m' | sort))
+    $(call UD_SOURCES,$(filter-out $(APP_DIR)/main.m,$(shell find $(APP_DIR) -name '*.m' | sort)))
 # Its nibs, which it loads from the main bundle or its classes' bundle: this
 # one, where those classes now live.
 UDCodeTests_RESOURCE_FILES = $(filter-out %/MainMenu.xib,$(shell find $(APP_DIR) -name '*.xib' | sort))
@@ -31,7 +31,7 @@ UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
           $(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)
 ADDITIONAL_LIB_DIRS += $(addprefix -L,$(UD_LIBS))
 # Libraries, not linker flags: on Windows the flags are linked whole.
-UDCodeTests_BUNDLE_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -lXCTest -ldispatch $(UD_BLOCKS_LIBS)
+UDCodeTests_BUNDLE_LIBS += -lUDCodeKit -lUDPieceTable -lLSPKit -lGSUpdater -lXCTest -ldispatch $(UD_BLOCKS_LIBS)
 
 # The grammars: UDCode.app's, built before this (the root GNUmakefile).
 UD_PLUGINS = $(UD_BUILD)/Sources/UDCode.app/PlugIns

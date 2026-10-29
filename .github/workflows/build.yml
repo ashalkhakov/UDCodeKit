@@ -50,6 +50,8 @@ jobs:
       library: true
       # lldb-dap and gdb, which speak DAP: the tests run and debug programs with them, as on Linux
       extra-packages: lldb gdb
+    # the Sparkle key: the installed app's updates, and the Windows appcast signed
+    secrets: inherit
 
   macos:
     uses: ashalkhakov/gnustep-release-actions/.github/workflows/macos.yml@v1

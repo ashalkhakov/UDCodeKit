@@ -2,6 +2,14 @@
     ApplicationName = "UDCode";
     ApplicationDescription = "A code editor on UDCodeKit.";
     ApplicationRelease = "0.0.0";
+    /* The About panel's (GSInfoPanel's) too; the release's build stamps
+       ApplicationRelease and FullVersionID. */
+    FullVersionID = "0.0.0";
+    Authors = ( "Artyom Shalkhakov" );
+    Copyright = "Copyright (C) 2026 Artyom Shalkhakov";
+    CopyrightDescription = "Released under the MIT licence; after Microsoft's Visual Studio Code (MIT)";
+    URL = "https://github.com/ashalkhakov/UDCodeKit";
+    ApplicationIcon = "udcode.png";
     NSIcon = "udcode.png";
     CFBundleIdentifier = "org.underivable.UDCode";
     NSPrincipalClass = "NSApplication";

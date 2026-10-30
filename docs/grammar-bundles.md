@@ -93,7 +93,7 @@ empty `languageModes` array and always return `NULL` from
 | `-extensionDidLoad:`    | After the bundle is loaded; perform initialisation |
 | `-extensionWillUnload:` | Before the app terminates; release resources       |
 
-### Optional services: language server, key handler, debug adapter
+### Optional services: language server, key handler, debug adapter, preview
 
 | Method | Gives |
 |--------|-------|
@@ -102,10 +102,17 @@ empty `languageModes` array and always return `NULL` from
 | `-keyHandlerForIdentifier:` | language-aware typing (auto-close tags, ...) |
 | `-debugAdapterCommandForIdentifier:` | the debug adapter's command line (argv) |
 | `-debugLaunchArgumentsForIdentifier:fileURL:` | the adapter's launch arguments for a file |
+| `-previewOfText:forIdentifier:baseURL:` | the text rendered (an `NSAttributedString`), for the tab's Source \| Preview |
 
 A debug adapter speaks the Debug Adapter Protocol on its standard input and
 output, framed as LSP is; the host starts one per debugging session. See
 [debugging.md](debugging.md).
+
+A mode with a preview (Markdown's) gets a Source | Preview switch at the tab
+bar's right, and View › Show Preview (⌥⌘↩): the editor shows the rendering in
+place of the text, in the same tab, and renders again a moment after each
+edit. Markdown's renders its own parse of the text (`UDMarkdownRenderer`), so
+a preview is plain AppKit text, the same on GNUstep.
 
 **Non-deterministic teardown:** The host calls `-extensionWillUnload:` and
 then releases its strong reference to the extension instance.  Because

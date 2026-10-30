@@ -1,7 +1,11 @@
 # TreeSitterMarkdown Grammar Bundle
 
 Standalone macOS loadable bundle that provides tree-sitter-based syntax
-highlighting for **Markdown** files.
+highlighting for **Markdown** files, and their Preview (the tab's Source |
+Preview switch): `UDMarkdownRenderer` renders the grammar's tree as AppKit text.
+
+The upstream grammar ships no queries, so `Resources/highlights.scm` is this
+bundle's own and kept in git (fetching leaves it alone): edit it there.
 
 ## Directory layout
 
@@ -10,7 +14,8 @@ tree-sitter-markdown/
 ├── TreeSitterMarkdown.xcodeproj/  # standalone Xcode project (open this to edit/build)
 ├── Sources/
 │   ├── TreeSitterMarkdownPlugin.h  # principal class header
-│   └── TreeSitterMarkdownPlugin.m  # principal class implementation
+│   ├── TreeSitterMarkdownPlugin.m  # principal class implementation
+│   └── UDMarkdownRenderer.{h,m}    # the Preview: the tree, as AppKit text
 ├── Resources/
 │   ├── Info.plist           # bundle metadata (NSPrincipalClass etc.)
 │   ├── LanguageInfo.plist   # language metadata read by UDLanguageModeRegistry

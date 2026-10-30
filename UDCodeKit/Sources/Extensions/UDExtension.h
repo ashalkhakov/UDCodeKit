@@ -127,6 +127,17 @@ UDCODEKIT_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 /// Implement this method only for modes that need custom key handling.
 - (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier;
 
+/// The text of a document of the mode as it reads: Markdown's, rendered.
+/// The editor shows it in place of the text when its tab is switched to
+/// Preview, and asks again as the text changes (a moment after an edit), so
+/// it should be quick. Relative links and images are resolved against
+/// @a baseURL, the document's file (nil: not saved). Return nil for a mode
+/// without a preview; asked once with empty text to find out whether the
+/// mode has one.
+- (nullable NSAttributedString *)previewOfText:(NSString *)text
+                                 forIdentifier:(NSString *)identifier
+                                       baseURL:(nullable NSURL *)baseURL;
+
 /// Returns the command that starts the debug adapter for the given language
 /// mode identifier, or @c nil when this extension has none for it.
 ///

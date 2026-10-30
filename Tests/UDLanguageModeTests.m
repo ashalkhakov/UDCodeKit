@@ -134,10 +134,8 @@
     UDLanguageModeRegistry *reg = [UDLanguageModeRegistry sharedRegistry];
     UDLanguageMode *md = [reg modeForIdentifier:@"markdown"];
     XCTAssertEqualObjects(md.identifier, @"markdown");
-
-    // this mode has a weird 2-level grammar... need to get back to it sometime
-    //XCTAssertTrue(md.languageFunc != NULL, @"Markdown mode must have a tree-sitter grammar");
-    //XCTAssertNotNil(md.highlightsQuery);
+    XCTAssertTrue(md.languageFunc != NULL, @"Markdown mode must have a tree-sitter grammar");
+    XCTAssertNotNil(md.highlightsQuery);
 }
 
 - (void)testRegistryHasXMLMode {

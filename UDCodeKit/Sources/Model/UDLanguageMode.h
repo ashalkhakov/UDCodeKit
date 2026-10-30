@@ -120,6 +120,18 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDictionary *)debugLaunchArgumentsForFileURL:(NSURL *)fileURL;
 
 // ---------------------------------------------------------------------------
+// MARK: - Preview
+// ---------------------------------------------------------------------------
+
+/// Whether the mode's extension renders its text (-previewOfText:…): an
+/// editor of it can then show Preview in place of the text.
+@property (nonatomic, readonly) BOOL hasPreview;
+
+/// @a text rendered by the extension, its relative links and images against
+/// @a baseURL; nil when the mode has no preview.
+- (nullable NSAttributedString *)previewOfText:(NSString *)text baseURL:(nullable NSURL *)baseURL;
+
+// ---------------------------------------------------------------------------
 // MARK: - Language configuration
 // ---------------------------------------------------------------------------
 

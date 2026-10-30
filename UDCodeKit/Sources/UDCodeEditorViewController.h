@@ -6,6 +6,8 @@
  *    – line-number gutter (left)
  *    – find-results / error-marks gutter (right)
  *    – the find and replace bar (top, on Find), UDFindBar.xib
+ *    – Preview: the text rendered, in its place (for a mode that has one,
+ *      Markdown's)
  *    – folding, bracket-match, structured-navigation, auto-indentation
  *    – breakpoints in the gutter and the debugger's line, once given a
  *      UDBreakpointStore (-showBreakpointsOfStore:forFile:); the gutter's
@@ -30,6 +32,9 @@
 @class UDFindBarViewController, UDBreakpointStore, UDBreakpointEditorViewController, UDDebugHoverViewController;
 
 NS_ASSUME_NONNULL_BEGIN
+
+/// The editor switched between its text and Preview; the object is the editor.
+FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotification;
 
 @interface UDCodeEditorViewController : NSViewController
 
@@ -94,6 +99,29 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)runToCursor:(nullable id)sender;
 - (IBAction)jumpToCursor:(nullable id)sender;
 - (IBAction)addToWatch:(nullable id)sender;
+
+// ---------------------------------------------------------------------------
+// MARK: - Preview
+// ---------------------------------------------------------------------------
+
+/// Whether the mode it was configured for renders its text (UDLanguageMode
+/// hasPreview): Source | Preview then switches it.
+@property (nonatomic, readonly) BOOL canShowPreview;
+
+/// The text rendered, read-only, in place of the editor: its links open,
+/// it follows the text's edits. Set NO, the text again; Find, Jump to Line
+/// and going to a line (an issue's, the debugger's) set it NO. Posts
+/// UDCodeEditorPreviewDidChangeNotification.
+@property (nonatomic) BOOL showsPreview;
+
+/// The file the preview's relative links and images are resolved against.
+@property (nonatomic, copy, nullable) NSURL *previewBaseURL;
+
+/// The preview's text view, once shown.
+@property (nonatomic, readonly, nullable) NSTextView *previewTextView;
+
+/// View > Show Preview (⌥⌘↩): Preview, or the text again.
+- (IBAction)togglePreview:(nullable id)sender;
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;

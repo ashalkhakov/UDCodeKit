@@ -711,6 +711,12 @@
                                     <action selector="toggleInspector:" target="-1" id="UDM-inspector-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Show Preview" keyEquivalent="&#xd;" id="UDM-preview">
+                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                                <connections>
+                                    <action selector="togglePreview:" target="-1" id="UDM-preview-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="UDM-view-sep1"/>
                             <menuItem title="Files" keyEquivalent="1" id="UDM-files">
                                 <connections>

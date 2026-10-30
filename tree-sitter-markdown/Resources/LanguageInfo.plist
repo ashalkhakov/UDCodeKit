@@ -16,6 +16,8 @@
 				<string>mdown</string>
 				<string>mkd</string>
 			</array>
+			<key>highlightsQueryFile</key>
+			<string>highlights.scm</string>
 					<key>brackets</key>
 					<array>
 						<array>

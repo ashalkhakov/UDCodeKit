@@ -59,7 +59,15 @@
 @property (nonatomic, strong, nullable) UDDebugHoverViewController *debugHover;
 @property (nonatomic) NSRange debugHoverRange;
 
+// Preview: the mode's rendering of the text, over the editor.
+@property (nonatomic, strong, nullable) UDLanguageMode *languageMode;
+@property (nonatomic) BOOL canShowPreview;
+@property (nonatomic, strong, nullable) NSScrollView *previewScrollView;
+@property (nonatomic, strong, nullable) NSTextView *previewTextView;
+
 @end
+
+NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEditorPreviewDidChangeNotification";
 
 // ---------------------------------------------------------------------------
 
@@ -162,6 +170,10 @@
     }
     _autoIndenter.languageConfiguration = mode.languageConfiguration;
     _autoIndenter.languageKeyHandler    = mode.keyHandler;
+    _languageMode = mode;
+    _canShowPreview = mode.hasPreview;
+    if (!_canShowPreview) self.showsPreview = NO;
+    else if (_showsPreview) [self _renderPreview];
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +191,11 @@
 - (void)_updateAfterEdit {
     [_foldingController update];
     [_bracketMatchHighlighter update];
+    if (_showsPreview) {
+        // a moment after the typing, not each keystroke
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_renderPreview) object:nil];
+        [self performSelector:@selector(_renderPreview) withObject:nil afterDelay:0.3];
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -499,6 +516,10 @@
         return [self canPerformDebugAction:action];
     }
     if (sel_isEqual(action, @selector(runToLine:))) return [self _session].canContinue;
+    if (sel_isEqual(action, @selector(togglePreview:))) {
+        item.title = _showsPreview ? @"Hide Preview" : @"Show Preview";
+        return _canShowPreview;
+    }
     if (sel_isEqual(action, @selector(toggleBreakpointEnabled:))) {
         UDBreakpoint *breakpoint = [self _menuBreakpoint];
         item.title = breakpoint.enabled ? @"Disable Breakpoint" : @"Enable Breakpoint";
@@ -515,6 +536,76 @@
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Preview
+// ---------------------------------------------------------------------------
+
+- (void)setShowsPreview:(BOOL)showsPreview {
+    if (showsPreview && !_canShowPreview) showsPreview = NO;
+    if (showsPreview == _showsPreview) return;
+    (void)self.view;
+    _showsPreview = showsPreview;
+    NSWindow *window = self.view.window;
+    if (showsPreview) {
+        BOOL editing = window.firstResponder == _textView;
+        if (!_previewScrollView) [self _makePreview];
+        [self _renderPreview];
+        _previewScrollView.hidden = NO;
+        _editorArea.hidden = YES;
+        if (editing) [window makeFirstResponder:_previewTextView];
+    } else {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_renderPreview) object:nil];
+        BOOL reading = window.firstResponder == _previewTextView;
+        _previewScrollView.hidden = YES;
+        _editorArea.hidden = NO;
+        if (reading) [window makeFirstResponder:_textView];
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDCodeEditorPreviewDidChangeNotification object:self];
+}
+
+- (IBAction)togglePreview:(id)sender {
+    self.showsPreview = !_showsPreview;
+}
+
+/// A read-only text view over the whole editor, the find bar's place and all.
+- (void)_makePreview {
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:self.view.bounds];
+    scroll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    scroll.hasVerticalScroller = YES;
+    scroll.borderType = NSNoBorder;
+    NSSize size = scroll.contentSize;
+    NSTextView *text = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, size.width, size.height)];
+    text.editable = NO;
+    text.selectable = YES;
+    text.richText = YES;
+    text.importsGraphics = NO;
+    text.textContainerInset = NSMakeSize(20, 16);
+    text.minSize = NSMakeSize(0, size.height);
+    text.maxSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
+    text.verticallyResizable = YES;
+    text.horizontallyResizable = NO;
+    text.autoresizingMask = NSViewWidthSizable;
+    text.textContainer.widthTracksTextView = YES;
+    text.drawsBackground = YES;
+    text.backgroundColor = [NSColor textBackgroundColor];
+    scroll.documentView = text;
+    scroll.hidden = YES;
+    [self.view addSubview:scroll positioned:NSWindowAbove relativeTo:nil];
+    _previewScrollView = scroll;
+    _previewTextView = text;
+}
+
+/// The text rendered again, where it was scrolled to.
+- (void)_renderPreview {
+    if (!_previewTextView) return;
+    NSString *text = [_textStorage.string copy];
+    NSAttributedString *rendered = [_languageMode previewOfText:text baseURL:_previewBaseURL]
+        ?: [[NSAttributedString alloc] initWithString:@""];
+    NSPoint scrolled = _previewScrollView.contentView.bounds.origin;
+    [_previewTextView.textStorage setAttributedString:rendered];
+    [_previewTextView scrollPoint:scrolled];
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Find
 // ---------------------------------------------------------------------------
 
@@ -524,6 +615,7 @@
 
 - (void)showFindBarReplacing:(BOOL)replacing {
     (void)self.view;
+    self.showsPreview = NO;
     if (!_findBar) {
         _findModel = [[UDFindModel alloc] initWithTextModel:_textStorage.textModel];
         _findBar = [[UDFindBarViewController alloc] initWithFindModel:_findModel textView:_textView];
@@ -583,6 +675,7 @@
 /// The box over the top of the text (Xcode's), laid over it.
 - (void)showJumpToLine {
     (void)self.view;
+    self.showsPreview = NO;
     if (!_jumpToLine) {
         _jumpToLine = [[UDJumpToLineViewController alloc] init];
         _jumpToLine.delegate = self;
@@ -605,6 +698,7 @@
 }
 
 - (void)selectLine:(NSInteger)line {
+    self.showsPreview = NO;
     UDTextModel *model = _textStorage.textModel;
     line = MAX(1, MIN(line, [model getLineCount]));
     NSUInteger start = (NSUInteger)[model getOffsetAt:line column:1];
@@ -617,6 +711,7 @@
 
 - (void)revealLine:(NSInteger)line {
     (void)self.view;
+    self.showsPreview = NO;
     UDTextModel *model = _textStorage.textModel;
     line = MAX(1, MIN(line, [model getLineCount]));
     NSLayoutManager *lm = _textView.layoutManager;

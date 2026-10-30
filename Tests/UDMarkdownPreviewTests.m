@@ -4,12 +4,27 @@
 //  Markdown's Preview, in the editor's tab: the mode renders its text
 //  (headings, emphasis, links against the file, lists, tables), the editor
 //  shows it in place of the text and follows the text's edits, and Find and
-//  going to a line bring the text back. A mode without a preview has none.
+//  going to a line bring the text back; its links are followed (a heading
+//  of its own, another file through the link delegate, read or ⌘ edited). A
+//  mode without a preview has none.
 //
 
 #import <XCTest/XCTest.h>
 #import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
+
+/// A link delegate that keeps what it is asked.
+@interface UDLinkRecorder : NSObject <UDCodeEditorLinkDelegate>
+@property (nonatomic, strong) NSMutableArray<NSString *> *followed;
+@end
+
+@implementation UDLinkRecorder
+- (BOOL)codeEditor:(UDCodeEditorViewController *)editor openLink:(NSURL *)url editing:(BOOL)editing {
+    if (!_followed) _followed = [NSMutableArray array];
+    [_followed addObject:[NSString stringWithFormat:@"%@%@", url.lastPathComponent, editing ? @" editing" : @""]];
+    return YES;
+}
+@end
 
 @interface UDMarkdownPreviewTests : UDCodeTestCase
 @property (nonatomic, strong) NSWindow *window;
@@ -65,6 +80,67 @@
     XCTAssertTrue([[NSFontManager sharedFontManager] traitsOfFont:bold] & NSBoldFontMask);
     NSURL *link = [preview attribute:NSLinkAttributeName atIndex:[text rangeOfString:@"link"].location effectiveRange:NULL];
     XCTAssertEqualObjects(link.path, @"/tmp/notes/other.md", @"a relative link, against the file");
+    XCTAssertEqualObjects([preview attribute:UDPreviewAnchorAttributeName atIndex:0 effectiveRange:NULL], @"title");
+}
+
+- (void)testHeadingsHaveGitHubsAnchors {
+    NSAttributedString *preview = [_markdown previewOfText:@"# Getting Started!\n\n## Notes\n\n## Notes\n" baseURL:nil];
+    NSMutableArray<NSString *> *anchors = [NSMutableArray array];
+    NSRange range = NSMakeRange(0, 0);
+    for (NSUInteger at = 0; at < preview.length; at = NSMaxRange(range)) {
+        id value = [preview attribute:UDPreviewAnchorAttributeName atIndex:at effectiveRange:&range];
+        if (value) [anchors addObject:value];
+    }
+    XCTAssertEqualObjects(anchors, (@[ @"getting-started", @"notes", @"notes-1" ]));
+}
+
+- (void)testLinksAreFollowed {
+    if (!_markdown.hasPreview) {
+        XCTFail(@"%@", @"the Markdown bundle did not load");
+        return;
+    }
+    NSMutableString *text = [NSMutableString stringWithString:@"# Top\n\nSee [below](#far-down) and [other](other.md#part).\n\n"];
+    for (int i = 0; i < 200; i++) [text appendFormat:@"Paragraph %d.\n\n", i];
+    [text appendString:@"## Far down\n\nthe end\n"];
+    [self openText:text mode:_markdown];
+    UDLinkRecorder *recorder = [[UDLinkRecorder alloc] init];
+    _editor.linkDelegate = recorder;
+    _editor.previewBaseURL = [NSURL fileURLWithPath:@"/tmp/notes/README.md"];
+    _editor.showsPreview = YES;
+    NSTextView *preview = _editor.previewTextView;
+
+    // its own heading: scrolled to, in the preview
+    NSUInteger far = [preview.string rangeOfString:@"Far down"].location;
+    XCTAssertFalse(NSLocationInRange(far, [preview.layoutManager characterRangeForGlyphRange:
+        [preview.layoutManager glyphRangeForBoundingRect:preview.visibleRect inTextContainer:preview.textContainer]
+                                                                            actualGlyphRange:NULL]));
+    [_editor followPreviewLink:[NSURL URLWithString:@"README.md#far-down" relativeToURL:_editor.previewBaseURL] editing:NO];
+    NSRange visible = [preview.layoutManager characterRangeForGlyphRange:
+        [preview.layoutManager glyphRangeForBoundingRect:preview.visibleRect inTextContainer:preview.textContainer]
+                                                        actualGlyphRange:NULL];
+    XCTAssertTrue(NSLocationInRange(far, visible), @"scrolled to its heading");
+    XCTAssertTrue(_editor.showsPreview);
+    XCTAssertFalse([_editor revealPreviewAnchor:@"nowhere"]);
+    XCTAssertNil(recorder.followed, @"its own: not the delegate's");
+
+    // another file: the delegate's, read or edited
+    NSURL *other = [NSURL URLWithString:@"other.md#part" relativeToURL:_editor.previewBaseURL];
+    [_editor followPreviewLink:other editing:NO];
+    [_editor followPreviewLink:other editing:YES];
+    XCTAssertEqualObjects(recorder.followed, (@[ @"other.md", @"other.md editing" ]));
+
+    // the link as clicked: to the delegate
+    NSUInteger link = [preview.string rangeOfString:@"other"].location;
+    XCTAssertTrue([preview.delegate textView:preview clickedOnLink:[preview.textStorage attribute:NSLinkAttributeName atIndex:link effectiveRange:NULL]
+                                     atIndex:link]);
+    XCTAssertEqualObjects(recorder.followed.lastObject, @"other.md");
+    NSString *tip = [preview.textStorage attribute:NSToolTipAttributeName atIndex:link effectiveRange:NULL];
+    XCTAssertTrue([tip containsString:@"⌘-click to edit"], @"%@", tip);
+
+    // ⌘ on its own: its text, to edit
+    [_editor followPreviewLink:[NSURL URLWithString:@"README.md#far-down" relativeToURL:_editor.previewBaseURL] editing:YES];
+    XCTAssertFalse(_editor.showsPreview);
+    XCTAssertEqualObjects(_window.firstResponder, _editor.textView);
 }
 
 - (void)testPlainTextHasNoPreview {

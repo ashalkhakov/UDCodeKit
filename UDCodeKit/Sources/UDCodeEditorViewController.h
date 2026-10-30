@@ -36,6 +36,16 @@ NS_ASSUME_NONNULL_BEGIN
 /// The editor switched between its text and Preview; the object is the editor.
 FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotification;
 
+@class UDCodeEditorViewController;
+
+/// What a link in the preview opens: the host's to say, as it has the tabs.
+@protocol UDCodeEditorLinkDelegate <NSObject>
+/// A link in the preview followed: clicked (to read, @a editing NO) or
+/// ⌘-clicked (to edit). Return NO to have it opened as any other link is
+/// (NSWorkspace: a web page in the browser).
+- (BOOL)codeEditor:(UDCodeEditorViewController *)editor openLink:(NSURL *)url editing:(BOOL)editing;
+@end
+
 @interface UDCodeEditorViewController : NSViewController
 
 /// The editor text view (UDDiagnosticTextView). Available after the view is loaded.
@@ -122,6 +132,20 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 
 /// View > Show Preview (⌥⌘↩): Preview, or the text again.
 - (IBAction)togglePreview:(nullable id)sender;
+
+/// Opens the preview's links: other files (another Markdown file, read or
+/// edited) are its to open; nil, or one that declines, and a link opens as
+/// any other does.
+@property (nonatomic, weak, nullable) id<UDCodeEditorLinkDelegate> linkDelegate;
+
+/// What a click on a link in the preview does (a ⌘-click: @a editing): a
+/// #fragment of this file's scrolls to its heading (⌘: the text, to edit);
+/// any other link goes to the link delegate, else to NSWorkspace.
+- (void)followPreviewLink:(NSURL *)url editing:(BOOL)editing;
+
+/// Scrolls the preview to the heading @a anchor names (a link's #fragment,
+/// UDPreviewAnchorAttributeName). NO when there is none.
+- (BOOL)revealPreviewAnchor:(NSString *)anchor;
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;

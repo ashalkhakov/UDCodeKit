@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDMarkdownRenderer.h"
+#import "UDExtension.h"
 #import <tree_sitter/api.h>
 
 const TSLanguage *tree_sitter_markdown(void);
@@ -28,6 +29,7 @@ typedef struct {
     NSMutableAttributedString *_out;
     NSMutableDictionary<NSString *, NSString *> *_references;   // [label]: destination
     NSUInteger _quoteDepth;
+    NSCountedSet<NSString *> *_anchors;   // the headings' so far, for -1, -2
     BOOL _skipLeadingSpace;            // a heading's text, after "# "; a task's, after its box
 }
 
@@ -53,6 +55,7 @@ typedef struct {
     _baseURL = baseURL;
     _references = [NSMutableDictionary dictionary];
     _quoteDepth = 0;
+    _anchors = [NSCountedSet set];
 
     TSNode root = ts_tree_root_node(tree);
     [self _collectReferencesIn:root];
@@ -186,10 +189,30 @@ static BOOL UDIs(TSNode node, const char *type) {
         [self _renderInlinesIn:child style:style];
     }
     _skipLeadingSpace = NO;
+    NSString *anchor = [self _anchorFor:[_out.string substringFromIndex:start]];
+    if (anchor.length) {
+        [_out addAttribute:UDPreviewAnchorAttributeName value:anchor range:NSMakeRange(start, _out.length - start)];
+    }
     NSMutableParagraphStyle *paragraph = [self _paragraphStyleIndented:indent];
     paragraph.paragraphSpacingBefore = level <= 2 ? 10.0 : 6.0;
     paragraph.paragraphSpacing = level <= 2 ? 10.0 : 6.0;
     [self _endBlockFrom:start style:paragraph];
+}
+
+/// GitHub's anchor for a heading: lowercase, its letters, digits, "-" and
+/// "_", spaces as "-"; the same again, "-1", "-2".
+- (NSString *)_anchorFor:(NSString *)heading {
+    NSMutableString *slug = [NSMutableString string];
+    NSString *lower = heading.lowercaseString;
+    NSCharacterSet *kept = [NSCharacterSet alphanumericCharacterSet];
+    for (NSUInteger i = 0; i < lower.length; i++) {
+        unichar c = [lower characterAtIndex:i];
+        if (c == ' ') [slug appendString:@"-"];
+        else if (c == '-' || c == '_' || [kept characterIsMember:c]) [slug appendFormat:@"%C", c];
+    }
+    NSUInteger seen = [_anchors countForObject:slug];
+    [_anchors addObject:[slug copy]];
+    return seen ? [NSString stringWithFormat:@"%@-%lu", slug, (unsigned long)seen] : slug;
 }
 
 - (void)_renderList:(TSNode)list indent:(CGFloat)indent {

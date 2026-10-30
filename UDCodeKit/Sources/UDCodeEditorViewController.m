@@ -13,6 +13,7 @@
 #import "UDDebugSession.h"
 #import "UDBreakpointEditorViewController.h"
 #import "UDDebugHoverViewController.h"
+#import "UDExtension.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <objc/runtime.h>
 
@@ -22,7 +23,7 @@
 
 @interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDLineNumberGutterBreakpointSource,
                                           UDFindBarDelegate, UDFindActionHandler, UDJumpToLineDelegate,
-                                          UDDebugTextHandler, UDBreakpointEditorDelegate>
+                                          UDDebugTextHandler, UDBreakpointEditorDelegate, NSTextViewDelegate>
 
 // IBOutlets wired from UDCodeEditorViewController.xib.
 @property (nonatomic, weak) IBOutlet NSScrollView            *scrollView;
@@ -587,6 +588,7 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
     text.textContainer.widthTracksTextView = YES;
     text.drawsBackground = YES;
     text.backgroundColor = [NSColor textBackgroundColor];
+    text.delegate = self;
     scroll.documentView = text;
     scroll.hidden = YES;
     [self.view addSubview:scroll positioned:NSWindowAbove relativeTo:nil];
@@ -601,8 +603,79 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
     NSAttributedString *rendered = [_languageMode previewOfText:text baseURL:_previewBaseURL]
         ?: [[NSAttributedString alloc] initWithString:@""];
     NSPoint scrolled = _previewScrollView.contentView.bounds.origin;
-    [_previewTextView.textStorage setAttributedString:rendered];
+    NSMutableAttributedString *shown = [rendered mutableCopy];
+    // a file's link says where it goes, and what ⌘ does (run by run: GNUstep
+    // has no -enumerateAttribute:…usingBlock:)
+    NSRange range = NSMakeRange(0, 0);
+    for (NSUInteger at = 0; at < rendered.length; at = NSMaxRange(range)) {
+        id link = [rendered attribute:NSLinkAttributeName atIndex:at effectiveRange:&range];
+        NSURL *url = [link isKindOfClass:[NSURL class]] ? link : nil;
+        if (!url.isFileURL || [self _isThisFile:url]) continue;
+        NSString *where = url.path.lastPathComponent;
+        if (url.fragment.length) where = [NSString stringWithFormat:@"%@#%@", where, url.fragment];
+        [shown addAttribute:NSToolTipAttributeName
+                      value:[NSString stringWithFormat:@"%@ — click to read, ⌘-click to edit", where] range:range];
+    }
+    [_previewTextView.textStorage setAttributedString:shown];
     [_previewTextView scrollPoint:scrolled];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Links in the preview
+// ---------------------------------------------------------------------------
+
+/// A link into this very file (its #heading), or one with only a fragment
+/// (the file not saved).
+- (BOOL)_isThisFile:(NSURL *)url {
+    if (!url.path.length) return url.fragment.length > 0;
+    return _previewBaseURL.path && [url.path.stringByStandardizingPath isEqualToString:_previewBaseURL.path.stringByStandardizingPath];
+}
+
+- (BOOL)textView:(NSTextView *)textView clickedOnLink:(id)link atIndex:(NSUInteger)charIndex {
+    if (textView != _previewTextView) return NO;
+    NSURL *url = [link isKindOfClass:[NSURL class]] ? link : [NSURL URLWithString:[link description]];
+    if (!url) return NO;
+    BOOL editing = ([NSApp currentEvent].modifierFlags & NSEventModifierFlagCommand) != 0;
+    [self followPreviewLink:url editing:editing];
+    return YES;
+}
+
+- (void)followPreviewLink:(NSURL *)url editing:(BOOL)editing {
+    if ([self _isThisFile:url]) {
+        if (editing) {
+            self.showsPreview = NO;
+            [self.view.window makeFirstResponder:_textView];
+        } else if (url.fragment.length && ![self revealPreviewAnchor:url.fragment]) {
+            NSBeep();
+        }
+        return;
+    }
+    if ([_linkDelegate codeEditor:self openLink:url editing:editing]) return;
+    [[NSWorkspace sharedWorkspace] openURL:url];
+}
+
+- (BOOL)revealPreviewAnchor:(NSString *)anchor {
+    NSTextStorage *text = _previewTextView.textStorage;
+    NSString *wanted = (anchor.stringByRemovingPercentEncoding ?: anchor).lowercaseString;
+    NSRange found = NSMakeRange(NSNotFound, 0), range = NSMakeRange(0, 0);
+    for (NSUInteger at = 0; at < text.length; at = NSMaxRange(range)) {
+        id value = [text attribute:UDPreviewAnchorAttributeName atIndex:at effectiveRange:&range];
+        if ([value isKindOfClass:[NSString class]] && [[value lowercaseString] isEqualToString:wanted]) {
+            found = range;
+            break;
+        }
+    }
+    if (found.location == NSNotFound) return NO;
+    // the heading at the top, the text laid out and the view its height first
+    // (GNUstep sizes it only when it is drawn)
+    NSLayoutManager *lm = _previewTextView.layoutManager;
+    (void)[lm glyphRangeForTextContainer:_previewTextView.textContainer];
+    [_previewTextView sizeToFit];
+    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(found.location, 0) actualCharacterRange:NULL];
+    NSRect line = [lm lineFragmentRectForGlyphAtIndex:glyphs.location effectiveRange:NULL];
+    [_previewTextView scrollPoint:NSMakePoint(0, MAX(0.0, NSMinY(line) + _previewTextView.textContainerOrigin.y - 8.0))];
+    [_previewTextView setSelectedRange:NSMakeRange(found.location, 0)];
+    return YES;
 }
 
 // ---------------------------------------------------------------------------

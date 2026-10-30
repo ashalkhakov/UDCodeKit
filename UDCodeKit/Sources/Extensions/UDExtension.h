@@ -68,6 +68,12 @@
 UDCODEKIT_EXPORT NSNotificationName const UDExtensionLanguageServerDidBecomeReadyNotification;
 UDCODEKIT_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 
+/// On a preview's (-previewOfText:…) heading: the anchor a link's #fragment
+/// names it by (GitHub's: "Getting Started" is "getting-started"). A link to
+/// it scrolls the preview there. Defined here, not exported: a bundle needs
+/// no symbol of the host's for it.
+static NSString * const UDPreviewAnchorAttributeName = @"UDPreviewAnchor";
+
 @protocol UDExtension <NSObject>
 
 /// Called by the host after the bundle has been loaded and the principal-class
@@ -131,7 +137,8 @@ UDCODEKIT_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 /// The editor shows it in place of the text when its tab is switched to
 /// Preview, and asks again as the text changes (a moment after an edit), so
 /// it should be quick. Relative links and images are resolved against
-/// @a baseURL, the document's file (nil: not saved). Return nil for a mode
+/// @a baseURL, the document's file (nil: not saved); headings carry
+/// UDPreviewAnchorAttributeName, for links' #fragments. Return nil for a mode
 /// without a preview; asked once with empty text to find out whether the
 /// mode has one.
 - (nullable NSAttributedString *)previewOfText:(NSString *)text

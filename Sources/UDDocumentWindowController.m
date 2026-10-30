@@ -35,7 +35,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
                                           UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
-                                          NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
+                                          UDCodeEditorLinkDelegate, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
 @property (nonatomic, strong) IBOutlet UDPaneSplitController  *paneSplit;
@@ -1484,6 +1484,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDCodeEditorViewController *editor = [[UDCodeEditorViewController alloc] initWithTextStorage:session.textStorage];
     [editor configureForLanguageMode:document.languageMode];
     editor.previewBaseURL = document.fileURL;
+    editor.linkDelegate = self;
     editor.textView.delegate = self;
     if (document.fileURL) [editor showBreakpointsOfStore:_breakpoints forFile:document.fileURL.path];
 
@@ -1613,6 +1614,45 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
 - (IBAction)previewControlChanged:(nullable id)sender {
     [self _selectedEditor].showsPreview = _previewControl.selectedSegment == 1;
+}
+
+/// A link in a preview to a file of ours: its tab (a new one, or the one it
+/// has), read in Preview, or ⌘: its text, to edit. Anything else (a web
+/// page, an image, a folder) opens as any link does.
+- (BOOL)codeEditor:(UDCodeEditorViewController *)editor openLink:(NSURL *)url editing:(BOOL)editing {
+    if (!url.isFileURL) return NO;
+    BOOL folder = NO;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&folder]) {
+        NSBeep();                      // a link to nothing: nothing to open
+        return YES;
+    }
+    if (folder || ![self _isTextFile:url]) return NO;
+    [self _showFile:url.path];
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    UDCodeEditorViewController *shown = [self _selectedEditor];
+    if (!shown || !document.fileURL || ![UDRealPath(document.fileURL.path) isEqualToString:UDRealPath(url.path)]) {
+        return YES;                    // it would not open (logged)
+    }
+    if (editing || !shown.canShowPreview) {
+        shown.showsPreview = NO;
+        [self.window makeFirstResponder:shown.textView];
+    } else {
+        shown.showsPreview = YES;
+        if (url.fragment.length) [shown revealPreviewAnchor:url.fragment];
+        [self.window makeFirstResponder:shown.previewTextView];
+    }
+    return YES;
+}
+
+/// A file for a tab: one a language mode knows, else text (no NUL in its
+/// first 4 KB).
+- (BOOL)_isTextFile:(NSURL *)url {
+    UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    if (![mode.identifier isEqualToString:@"plaintext"]) return YES;
+    NSFileHandle *file = [NSFileHandle fileHandleForReadingAtPath:url.path];
+    NSData *head = [file readDataOfLength:4096];
+    [file closeFile];
+    return head && memchr(head.bytes, 0, head.length) == NULL;
 }
 
 /// View > Show Preview (⌥⌘↩), wherever the focus is.

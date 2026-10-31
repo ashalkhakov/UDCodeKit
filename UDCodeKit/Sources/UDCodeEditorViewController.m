@@ -664,6 +664,7 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
         if (editing) {
             self.showsPreview = NO;
             [self.view.window makeFirstResponder:_textView];
+            [self _placeCaretAtFragment:url.fragment];
         } else if (url.fragment.length && ![self revealPreviewAnchor:url.fragment]) {
             NSBeep();
         }
@@ -671,6 +672,23 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
     }
     if ([_linkDelegate codeEditor:self openLink:url editing:editing]) return;
     [[NSWorkspace sharedWorkspace] openURL:url];
+}
+
+/// VS Code's #L12, #L12,3 (or #12,3) of a link to a place in a file: the
+/// caret there, its line in the middle of the view.
+- (void)_placeCaretAtFragment:(nullable NSString *)fragment {
+    NSScanner *scanner = fragment ? [NSScanner scannerWithString:fragment] : nil;
+    [scanner scanString:@"L" intoString:NULL];
+    NSInteger line = 0, column = 1;
+    if (![scanner scanInteger:&line] || line < 1) return;
+    if ([scanner scanString:@"," intoString:NULL] && ![scanner scanInteger:&column]) column = 1;
+    UDTextModel *model = _textStorage.textModel;
+    line = MIN(line, [model getLineCount]);
+    column = MAX(1, MIN(column, [model getLineMaxColumn:line]));
+    NSRange caret = NSMakeRange((NSUInteger)[model getOffsetAt:line column:column], 0);
+    [_textView setSelectedRange:caret];
+    [_textView scrollRangeToVisible:caret];
+    [_textView centerSelectionInVisibleArea:nil];
 }
 
 - (BOOL)revealPreviewAnchor:(NSString *)anchor {

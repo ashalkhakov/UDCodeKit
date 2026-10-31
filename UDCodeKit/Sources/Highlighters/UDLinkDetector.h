@@ -2,8 +2,9 @@
  *  UDLinkDetector.h
  *
  *  The text's links, as VS Code's LinkDetector: the language mode finds them
- *  (-linksInText:baseURL:, VS Code's LinkProvider), each a decoration that
- *  keeps its URL and is underlined; found again a moment after an edit. The
+ *  (-linksInText:baseURL:, VS Code's LinkProvider), and UDLinkComputer the
+ *  addresses any text has; each a decoration that keeps its URL, underlined,
+ *  its hover saying ⌘-click; found again a moment after an edit. The
  *  text view's ⌘ gesture (VS Code's ClickLinkGesture) shows the one under
  *  the mouse as active and follows it at a ⌘-click.
  *--------------------------------------------------------------------------------------------*/

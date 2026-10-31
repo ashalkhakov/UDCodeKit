@@ -32,6 +32,7 @@ typedef struct {
     NSCountedSet<NSString *> *_anchors;   // the headings' so far, for -1, -2
     BOOL _skipLeadingSpace;            // a heading's text, after "# "; a task's, after its box
     uint32_t _countedBytes;            // -_offsetOfByte:'s, so far
+    NSMutableDictionary<NSString *, NSNumber *> *_headingLines;   // anchor: its heading's line, 1-based
     NSUInteger _countedUnits;
 }
 
@@ -86,11 +87,50 @@ typedef struct {
 
     TSNode root = ts_tree_root_node(tree);
     [self _collectReferencesIn:root];
+    _anchors = [NSCountedSet set];
+    _headingLines = [NSMutableDictionary dictionary];
+    [self _collectHeadingsIn:root];
     NSMutableArray<NSDictionary<NSString *, id> *> *links = [NSMutableArray array];
     [self _collectLinksIn:root into:links];
     ts_tree_delete(tree);
     _source = NULL;
+    _headingLines = nil;
     return links;
+}
+
+/// Each heading's anchor (its text as the preview has it) and its line.
+- (void)_collectHeadingsIn:(TSNode)node {
+    for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
+        TSNode child = ts_node_named_child(node, i);
+        if (!UDIs(child, "atx_heading") && !UDIs(child, "setext_heading")) {
+            [self _collectHeadingsIn:child];
+            continue;
+        }
+        _out = [[NSMutableAttributedString alloc] init];
+        TSNode content = [self _childOf:child type:"heading_content"];
+        if (!ts_node_is_null(content)) {
+            _skipLeadingSpace = YES;
+            [self _renderInlinesIn:content style:[self _bodyStyle]];
+            _skipLeadingSpace = NO;
+        }
+        NSString *anchor = [self _anchorFor:_out.string];
+        if (anchor.length) _headingLines[anchor] = @(ts_node_start_point(child).row + 1);
+        _out = nil;
+    }
+}
+
+/// A link to a heading of this file, as VS Code's Markdown resolves it: to
+/// its line (#L12), the editor's to go to.
+- (nullable NSURL *)_resolvedHeadingLink:(nullable NSURL *)url {
+    NSString *fragment = url.fragment;
+    if (!fragment.length) return url;
+    BOOL thisFile = url.path.length ? [url.path.stringByStandardizingPath isEqualToString:_baseURL.path.stringByStandardizingPath]
+                                    : _baseURL == nil;
+    NSNumber *line = thisFile ? _headingLines[(fragment.stringByRemovingPercentEncoding ?: fragment).lowercaseString] : nil;
+    if (!line) return url;
+    NSString *address = url.absoluteString;
+    NSRange hash = [address rangeOfString:@"#"];
+    return [NSURL URLWithString:[NSString stringWithFormat:@"%@#L%@", [address substringToIndex:hash.location], line]];
 }
 
 - (void)_collectLinksIn:(TSNode)node into:(NSMutableArray<NSDictionary<NSString *, id> *> *)links {
@@ -105,7 +145,9 @@ typedef struct {
             TSNode target = [self _childOf:child type:"link_destination"];
             if (ts_node_is_null(target)) target = [self _childOf:child type:"link_label"];
             if (ts_node_is_null(target)) target = [self _childOf:child type:UDIs(child, "image") ? "image_description" : "link_text"];
-            if (!ts_node_is_null(target)) [self _addLink:[self _URLForDestination:[self _destinationOf:child]] at:target to:links];
+            if (!ts_node_is_null(target)) {
+                [self _addLink:[self _resolvedHeadingLink:[self _URLForDestination:[self _destinationOf:child]]] at:target to:links];
+            }
         }
         [self _collectLinksIn:child into:links];         // an image in a link's text
     }

@@ -102,6 +102,8 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 /// A diagnostic label's whole message, when the mouse rests on the label.
 @property (nonatomic, strong, nullable) UDHoverViewController *labelHover;
 @property (nonatomic, strong, nullable) UDIntervalNode *labelHoverNode;   // its, or the one waited on
+/// The hover messages of the decorations the mouse rests on (a link's).
+@property (nonatomic, strong, nullable) UDHoverViewController *decorationHover;
 /// The completions showing, and the word they complete.
 @property (nonatomic, strong, nullable) UDCompletionListController *completionList;
 @property (nonatomic) NSRange completionRange;
@@ -801,6 +803,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 
 - (void)_hoverRested {
     if (self.hoverIndex >= self.string.length) return;
+    if ([self _showDecorationHoverAtIndex:self.hoverIndex]) return;
     if (![self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)] && !_debugHandler) return;
     NSRange word = [self selectionRangeForProposedRange:NSMakeRange(self.hoverIndex, 0)
                                             granularity:NSSelectByWord];
@@ -809,6 +812,26 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     if ([self.delegate respondsToSelector:@selector(textView:requestTooltipAtIndex:point:)]) {
         [(id)self.delegate textView:self requestTooltipAtIndex:self.hoverIndex point:self.hoverPoint];
     }
+}
+
+/// The hover messages of the decorations at @a index (VS Code's
+/// decorations' hoverMessage: a link's, what ⌘-click does), shown until the
+/// mouse leaves them; NO when they have none.
+- (BOOL)_showDecorationHoverAtIndex:(NSUInteger)index {
+    NSMutableArray<NSString *> *messages = [NSMutableArray array];
+    NSRange range = NSMakeRange(NSNotFound, 0);
+    for (UDIntervalNode *node in [_textModel decorationNodesInOffsetRange:(NSInteger)index end:(NSInteger)index + 1]) {
+        NSString *message = node.options.hoverMessage;
+        if (!message.length || [messages containsObject:message]) continue;
+        [messages addObject:message];
+        NSRange nodeRange = NSMakeRange((NSUInteger)node.start, (NSUInteger)(node.end - node.start));
+        range = range.location == NSNotFound ? nodeRange : NSIntersectionRange(range, nodeRange);
+    }
+    if (messages.count == 0) return NO;
+    self.hoverWordRange = range.length > 0 ? range : NSMakeRange(index, 1);
+    if (self.decorationHover == nil) self.decorationHover = [[UDHoverViewController alloc] init];
+    [self.decorationHover showText:[messages componentsJoinedByString:@"\n"] atCharacterIndex:index ofTextView:self];
+    return YES;
 }
 
 - (void)_labelRested {
@@ -823,6 +846,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_labelRested) object:nil];
     [self.labelHover close];
     self.labelHoverNode = nil;
+    [self.decorationHover close];
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_hoverRested) object:nil];
     if (self.hoverWordRange.location == NSNotFound) return;
     self.hoverWordRange = NSMakeRange(NSNotFound, 0);

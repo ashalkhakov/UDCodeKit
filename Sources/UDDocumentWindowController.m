@@ -1634,8 +1634,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return YES;                    // it would not open (logged)
     }
     if (editing || !shown.canShowPreview) {
-        shown.showsPreview = NO;
-        [self.window makeFirstResponder:shown.textView];
+        [shown followPreviewLink:url editing:YES];     // its text, at the line a #L12 names
     } else {
         shown.showsPreview = YES;
         if (url.fragment.length) [shown revealPreviewAnchor:url.fragment];

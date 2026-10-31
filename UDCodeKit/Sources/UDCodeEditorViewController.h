@@ -140,7 +140,8 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 @property (nonatomic, weak, nullable) id<UDCodeEditorLinkDelegate> linkDelegate;
 
 /// What a click on a link in the preview does (a ⌘-click: @a editing): a
-/// #fragment of this file's scrolls to its heading (⌘: the text, to edit);
+/// #fragment of this file's scrolls to its heading (⌘: the text, to edit;
+/// VS Code's #L12, at that line);
 /// any other link goes to the link delegate, else to NSWorkspace. A link
 /// ⌘-clicked in the text (the mode's -linksInText:…) is followed so, to edit.
 - (void)followPreviewLink:(NSURL *)url editing:(BOOL)editing;

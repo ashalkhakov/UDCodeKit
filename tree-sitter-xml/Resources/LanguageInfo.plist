@@ -86,6 +86,8 @@
 			<string>xml</string>
 			<key>highlightsQueryFile</key>
 			<string>highlights.scm</string>
+			<key>outlineQueryFile</key>
+			<string>outline.scm</string>
 			<key>comments</key>
 			<dict>
 				<key>blockComment</key>

@@ -16,7 +16,7 @@
     NSMainNibFile = "MainMenu";
     NSTypes = (
         {
-            NSName = "UDPieceTable Workspace";
+            NSName = "UDCode Workspace";
             NSHumanReadableName = "UDCode Workspace";
             NSUnixExtensions = ( "udworkspace" );
             NSRole = "Editor";

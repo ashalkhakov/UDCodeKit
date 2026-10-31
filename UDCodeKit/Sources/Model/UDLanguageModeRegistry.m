@@ -301,6 +301,10 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
                       extension:ext];
         mode.reportsParseErrors = [modeInfo[@"reportsParseErrors"] boolValue];
         mode.fileNames = [modeInfo[@"fileNames"] isKindOfClass:[NSArray class]] ? modeInfo[@"fileNames"] : @[];
+        NSString *outlineFile = modeInfo[@"outlineQueryFile"];
+        NSString *outlinePath = outlineFile.length ? [bundle pathForResource:outlineFile.stringByDeletingPathExtension
+                                                                      ofType:outlineFile.pathExtension] : nil;
+        if (outlinePath) mode.outlineQuery = [NSString stringWithContentsOfFile:outlinePath encoding:NSUTF8StringEncoding error:nil];
 
         [self _registerModeUnsafe:mode];
     }

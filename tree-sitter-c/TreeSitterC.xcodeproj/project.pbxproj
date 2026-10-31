@@ -13,6 +13,7 @@
 		CE7257882F601FF600501E10 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE7257862F601FF600501E10 /* Info.plist */; };
 		CE7257892F601FF600501E10 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE7257872F601FF600501E10 /* LanguageInfo.plist */; };
 		CE72578A2F601FF600501E10 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE7257852F601FF600501E10 /* highlights.scm */; };
+		D7EA45A13010FFEA19697DE6 /* outline.scm in Resources */ = {isa = PBXBuildFile; fileRef = 3446898EAB2C8552CF4BFE1A /* outline.scm */; };
 		CE7CFB932F65B5E100F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB922F65B5E100F294D4 /* UDPieceTable.framework */; };
 /* End PBXBuildFile section */
 
@@ -36,6 +37,7 @@
 		CE7257822F601F9900501E10 /* TreeSitterCPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterCPlugin.h; sourceTree = "<group>"; };
 		CE7257832F601F9900501E10 /* TreeSitterCPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterCPlugin.m; sourceTree = "<group>"; };
 		CE7257852F601FF600501E10 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		3446898EAB2C8552CF4BFE1A /* outline.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = outline.scm; sourceTree = "<group>"; };
 		CE7257862F601FF600501E10 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE7257872F601FF600501E10 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
 		CE7CFB922F65B5E100F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -103,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				CE7257852F601FF600501E10 /* highlights.scm */,
+				3446898EAB2C8552CF4BFE1A /* outline.scm */,
 				CE7257862F601FF600501E10 /* Info.plist */,
 				CE7257872F601FF600501E10 /* LanguageInfo.plist */,
 			);
@@ -177,6 +180,7 @@
 				CE7257882F601FF600501E10 /* Info.plist in Resources */,
 				CE7257892F601FF600501E10 /* LanguageInfo.plist in Resources */,
 				CE72578A2F601FF600501E10 /* highlights.scm in Resources */,
+				D7EA45A13010FFEA19697DE6 /* outline.scm in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

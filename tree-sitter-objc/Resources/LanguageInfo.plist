@@ -19,6 +19,8 @@
 			<string>objective-c</string>
 			<key>highlightsQueryFile</key>
 			<string>highlights.scm</string>
+			<key>outlineQueryFile</key>
+			<string>outline.scm</string>
 			<key>indentsQueryFile</key>
 			<string>indents.scm</string>
 					<key>comments</key>

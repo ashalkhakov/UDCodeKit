@@ -5,9 +5,22 @@
 #import "UDLanguageMode.h"
 #import "UDExtension.h"
 #import "UDLanguageModeRegistry.h"
+#import "UDTreeSitterOutline.h"
 
 @implementation UDLanguageMode {
     BOOL _inheritanceResolved, _resolvingInheritance;
+    UDTreeSitterOutline *_outline;
+    BOOL _outlineCompiled;
+}
+
+- (UDTreeSitterOutline *)outline {
+    if (!_outlineCompiled) {
+        _outlineCompiled = YES;
+        if (self.languageFunc && _outlineQuery.length) {
+            _outline = [[UDTreeSitterOutline alloc] initWithLanguageFunc:self.languageFunc query:_outlineQuery];
+        }
+    }
+    return _outline;
 }
 
 @synthesize languageServerCommand = _languageServerCommand;

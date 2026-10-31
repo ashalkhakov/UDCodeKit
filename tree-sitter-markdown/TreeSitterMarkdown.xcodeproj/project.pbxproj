@@ -13,6 +13,7 @@
 		CE0C2E4B2F5F1E8E00566368 /* UDMarkdownRenderer.m in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E4A2F5F1E8E00566368 /* UDMarkdownRenderer.m */; };
 		CE0C2E432F5F1E8300566368 /* TreeSitterMarkdownPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E422F5F1E8300566368 /* TreeSitterMarkdownPlugin.m */; };
 		CE0C2E492F5F1E8E00566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E482F5F1E8E00566368 /* highlights.scm */; };
+		5B691CF90097307454F37179 /* outline.scm in Resources */ = {isa = PBXBuildFile; fileRef = 07514B8271672FB53337061A /* outline.scm */; };
 		CE0C2E462F5F1E8E00566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E452F5F1E8E00566368 /* LanguageInfo.plist */; };
 		CE0C2E472F5F1E8E00566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E442F5F1E8E00566368 /* Info.plist */; };
 		CE7CFB9D2F65B5F200F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB9C2F65B5F200F294D4 /* UDPieceTable.framework */; };
@@ -42,6 +43,7 @@
 		CE0C2E422F5F1E8300566368 /* TreeSitterMarkdownPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterMarkdownPlugin.m; sourceTree = "<group>"; };
 		CE0C2E442F5F1E8E00566368 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE0C2E482F5F1E8E00566368 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		07514B8271672FB53337061A /* outline.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = outline.scm; sourceTree = "<group>"; };
 		CE0C2E452F5F1E8E00566368 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
 		CE7CFB9C2F65B5F200F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -113,6 +115,7 @@
 				CE0C2E442F5F1E8E00566368 /* Info.plist */,
 				CE0C2E452F5F1E8E00566368 /* LanguageInfo.plist */,
 				CE0C2E482F5F1E8E00566368 /* highlights.scm */,
+				07514B8271672FB53337061A /* outline.scm */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -185,6 +188,7 @@
 				CE0C2E462F5F1E8E00566368 /* LanguageInfo.plist in Resources */,
 				CE0C2E472F5F1E8E00566368 /* Info.plist in Resources */,
 				CE0C2E492F5F1E8E00566368 /* highlights.scm in Resources */,
+				5B691CF90097307454F37179 /* outline.scm in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

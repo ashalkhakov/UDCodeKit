@@ -16,6 +16,7 @@
 		CE7257172F5F2E8B00501E10 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE7257162F5F2E8B00501E10 /* parser.c */; };
 		CE72571A2F5F2E9500501E10 /* TreeSitterJsonPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7257192F5F2E9500501E10 /* TreeSitterJsonPlugin.m */; };
 		CE72571E2F5F2EA000501E10 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE72571B2F5F2EA000501E10 /* highlights.scm */; };
+		24D67590327849D07864D84E /* outline.scm in Resources */ = {isa = PBXBuildFile; fileRef = 4D309B19078EFAD7FC0A7F98 /* outline.scm */; };
 		CE72571F2F5F2EA000501E10 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE72571D2F5F2EA000501E10 /* LanguageInfo.plist */; };
 		CE7257202F5F2EA000501E10 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE72571C2F5F2EA000501E10 /* Info.plist */; };
 		CE7CFA2E2F62921B00F294D4 /* UDJsonKeyHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7CFA2D2F62921B00F294D4 /* UDJsonKeyHandler.m */; };
@@ -54,6 +55,7 @@
 		CE7257182F5F2E9500501E10 /* TreeSitterJsonPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterJsonPlugin.h; sourceTree = "<group>"; };
 		CE7257192F5F2E9500501E10 /* TreeSitterJsonPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterJsonPlugin.m; sourceTree = "<group>"; };
 		CE72571B2F5F2EA000501E10 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		4D309B19078EFAD7FC0A7F98 /* outline.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = outline.scm; sourceTree = "<group>"; };
 		CE72571C2F5F2EA000501E10 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE72571D2F5F2EA000501E10 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
 		CE7CFA2C2F62921B00F294D4 /* UDJsonKeyHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UDJsonKeyHandler.h; sourceTree = "<group>"; };
@@ -103,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				CE72571B2F5F2EA000501E10 /* highlights.scm */,
+				4D309B19078EFAD7FC0A7F98 /* outline.scm */,
 				CE72571C2F5F2EA000501E10 /* Info.plist */,
 				CE72571D2F5F2EA000501E10 /* LanguageInfo.plist */,
 			);
@@ -233,6 +236,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CE72571E2F5F2EA000501E10 /* highlights.scm in Resources */,
+				24D67590327849D07864D84E /* outline.scm in Resources */,
 				CE72571F2F5F2EA000501E10 /* LanguageInfo.plist in Resources */,
 				CE7257202F5F2EA000501E10 /* Info.plist in Resources */,
 			);

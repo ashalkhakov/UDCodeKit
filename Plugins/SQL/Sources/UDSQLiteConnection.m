@@ -20,7 +20,8 @@
         return nil;
     }
     sqlite3 *database = NULL;
-    int status = sqlite3_open_v2(path.fileSystemRepresentation, &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, NULL);
+    // UTF-8 on every platform (GNUstep's -fileSystemRepresentation is UTF-16 on Windows)
+    int status = sqlite3_open_v2(path.UTF8String, &database, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, NULL);
     if (status != SQLITE_OK) {
         if (error) *error = UDSQLError(status, database ? @(sqlite3_errmsg(database)) : @"SQLite couldn't open the file.", nil);
         if (database) sqlite3_close(database);

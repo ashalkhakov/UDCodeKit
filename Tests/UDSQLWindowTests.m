@@ -6,7 +6,8 @@
 //  claimed, read as one: its entities, its metadata); a SQL document run
 //  against it (its results under its text, each statement's; its
 //  parameters asked for in a sheet; a store's dates and entities shown as
-//  such); the Editor menu's Run Statement and Run All.
+//  such); the Editor menu's Run Statement and Run All; the store's ER
+//  diagram, in a tab of its own (its XIB's views and menu connected).
 //
 
 #import <XCTest/XCTest.h>
@@ -20,6 +21,7 @@
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLResultsViewController.h"
 #import "UDSQLSheets.h"
+#import "UDSQLDiagramViewController.h"
 
 static Class UDPluginClass(NSString *name) {
     (void)[UDLanguageModeRegistry sharedRegistry];
@@ -118,6 +120,41 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertTrue([titles containsObject:@"    Person"], @"%@", titles);
     XCTAssertTrue([titles containsObject:@"      Employee"], @"a subentity under its superentity: %@", titles);
     XCTAssertTrue([titles containsObject:@"    ZPERSON"], @"%@", titles);
+
+    // its ER diagram: a tab of its own, once
+    NSOutlineView *outline = databases.navigator.outlineView;
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:[titles indexOfObject:@"Model.sqlite"]] byExtendingSelection:NO];
+    tabs = controller.editorTabs.items.count;
+    [databases.navigator showDiagram:nil];
+    XCTAssertEqual(controller.editorTabs.items.count, tabs + 1);
+    UDSQLDiagramViewController *diagram = (UDSQLDiagramViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertTrue([diagram isKindOfClass:UDPluginClass(@"UDSQLDiagramViewController")]);
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Model.sqlite (ER Diagram)");
+    XCTAssertNotNil(diagram.canvas, @"the XIB's canvas");
+    XCTAssertEqual(diagram.canvas.dataSource, (id)diagram);
+    XCTAssertEqual(diagram.canvas.delegate, (id)diagram);
+    XCTAssertTrue([diagram.canvas.enclosingScrollView isKindOfClass:[NSScrollView class]]);
+    XCTAssertEqualObjects([[diagram.diagram.tables valueForKey:@"identifier"] sortedArrayUsingSelector:@selector(compare:)], @[ @"ZPERSON" ]);
+    XCTAssertTrue([diagram.statusLabel.stringValue isEqualToString:@"1 table, 0 links"], @"%@", diagram.statusLabel.stringValue);
+    NSString *person = @"ZPERSON";
+    NSRect box = [diagram.diagram tableWithIdentifier:person].frame;
+    NSMenu *tableMenu = [diagram canvas:diagram.canvas menuForItem:person];
+    XCTAssertEqualObjects([tableMenu.itemArray valueForKey:@"title"], (@[ @"Select Rows", @"New Query", @"Copy Name" ]));
+    XCTAssertEqual([tableMenu itemAtIndex:0].target, (id)diagram);
+    [[tableMenu itemWithTitle:@"Copy Name"].target performSelector:@selector(copyName:) withObject:[tableMenu itemWithTitle:@"Copy Name"]];
+    XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString], person);
+    // a move: kept by database, and undone
+    [diagram canvas:diagram.canvas moveItems:@[ person ] by:NSMakeSize(30, 40)];
+    XCTAssertEqual(NSMinX([diagram.diagram tableWithIdentifier:person].frame), NSMinX(box) + 30);
+    NSString *key = [UDPluginClass(@"UDSQLDiagramViewController") defaultsKeyOfURL:store.URL];
+    XCTAssertNotNil([[NSUserDefaults standardUserDefaults] dictionaryForKey:key][person]);
+    NSUndoManager *undo = controller.window.undoManager;
+    XCTAssertTrue(undo.canUndo);
+    [undo undo];
+    XCTAssertEqual(NSMinX([diagram.diagram tableWithIdentifier:person].frame), NSMinX(box), @"undone");
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:key];
+    [databases.navigator showDiagram:nil];
+    XCTAssertEqual(controller.editorTabs.items.count, tabs + 1, @"its tab again, not another");
 
     // the query: run against it (its only database), every statement
     [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"query.sql"]]];

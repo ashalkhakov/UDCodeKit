@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDSQLDiagramViewController">
+            <connections>
+                <outlet property="view" destination="ER-root" id="ER-o-view"/>
+                <outlet property="canvas" destination="ER-canvas" id="ER-o-canvas"/>
+                <outlet property="statusLabel" destination="ER-status" id="ER-o-status"/>
+                <outlet property="tableMenu" destination="ER-menu" id="ER-o-menu"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Table" autoenablesItems="YES" id="ER-menu" userLabel="A Table's (the navigator's)">
+            <items>
+                <menuItem title="Select Rows" id="ER-m-rows">
+                    <connections>
+                        <action selector="selectRows:" target="-2" id="ER-m-rows-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Query" id="ER-m-new">
+                    <connections>
+                        <action selector="newQuery:" target="-2" id="ER-m-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy Name" id="ER-m-copy">
+                    <connections>
+                        <action selector="copyName:" target="-2" id="ER-m-copy-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <customView id="ER-root" userLabel="ER Diagram">
+            <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <button toolTip="Lay the tables out again, referred-to tables first" verticalHuggingPriority="750" id="ER-arrange">
+                    <rect key="frame" x="6.0" y="574.0" width="70.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Arrange" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="ER-arrange-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="arrange:" target="-2" id="ER-arrange-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Zoom out (⌘ and the scroll wheel zoom too)" verticalHuggingPriority="750" id="ER-out">
+                    <rect key="frame" x="84.0" y="574.0" width="28.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="−" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="ER-out-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="zoomOut:" target="ER-canvas" id="ER-out-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Zoom in" verticalHuggingPriority="750" id="ER-in">
+                    <rect key="frame" x="114.0" y="574.0" width="28.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="+" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="ER-in-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="zoomIn:" target="ER-canvas" id="ER-in-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Zoom to show the whole diagram" verticalHuggingPriority="750" id="ER-fit">
+                    <rect key="frame" x="144.0" y="574.0" width="44.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Fit" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="ER-fit-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="zoomToFit:" target="ER-canvas" id="ER-fit-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Actual size" verticalHuggingPriority="750" id="ER-actual">
+                    <rect key="frame" x="190.0" y="574.0" width="48.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="100%" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="ER-actual-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="zoomToActualSize:" target="ER-canvas" id="ER-actual-a"/>
+                    </connections>
+                </button>
+                <popUpButton toolTip="Save the diagram as PDF, PNG or SVG" verticalHuggingPriority="750" id="ER-export" userLabel="Export">
+                    <rect key="frame" x="246.0" y="573.0" width="80.0" height="24.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="Export" bezelStyle="texturedRounded" alignment="left" controlSize="small" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" pullsDown="YES" id="ER-export-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                        <menu key="menu" id="ER-export-menu">
+                            <items>
+                                <menuItem title="Export" hidden="YES" id="ER-export-title"/>
+                                <menuItem title="PDF…" id="ER-export-pdf">
+                                    <connections>
+                                        <action selector="exportPDF:" target="-2" id="ER-export-pdf-a"/>
+                                    </connections>
+                                </menuItem>
+                                <menuItem title="PNG…" id="ER-export-png">
+                                    <connections>
+                                        <action selector="exportPNG:" target="-2" id="ER-export-png-a"/>
+                                    </connections>
+                                </menuItem>
+                                <menuItem title="SVG…" id="ER-export-svg">
+                                    <connections>
+                                        <action selector="exportSVG:" target="-2" id="ER-export-svg-a"/>
+                                    </connections>
+                                </menuItem>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                </popUpButton>
+                <button toolTip="Print the diagram" verticalHuggingPriority="750" id="ER-print">
+                    <rect key="frame" x="330.0" y="574.0" width="50.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Print…" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="ER-print-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="print:" target="ER-canvas" id="ER-print-a"/>
+                    </connections>
+                </button>
+                <textField verticalHuggingPriority="750" id="ER-status" userLabel="Status">
+                    <rect key="frame" x="390.0" y="577.0" width="504.0" height="16.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                    <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" id="ER-status-cell">
+                        <font key="font" metaFont="smallSystem"/>
+                        <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <scrollView borderType="none" autohidesScrollers="NO" hasHorizontalScroller="YES" hasVerticalScroller="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" usesPredominantAxisScrolling="NO" id="ER-scroll">
+                    <rect key="frame" x="0.0" y="0.0" width="900.0" height="568.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" id="ER-clip">
+                        <rect key="frame" x="0.0" y="0.0" width="885.0" height="553.0"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <customView id="ER-canvas" customClass="DKCanvasView" userLabel="Canvas">
+                                <rect key="frame" x="0.0" y="0.0" width="885.0" height="553.0"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                                <connections>
+                                    <outlet property="dataSource" destination="-2" id="ER-o-source"/>
+                                    <outlet property="delegate" destination="-2" id="ER-o-delegate"/>
+                                </connections>
+                            </customView>
+                        </subviews>
+                    </clipView>
+                    <scroller key="horizontalScroller" verticalHuggingPriority="750" horizontal="YES" id="ER-hscroll">
+                        <rect key="frame" x="0.0" y="553.0" width="885.0" height="15.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="ER-vscroll">
+                        <rect key="frame" x="885.0" y="0.0" width="15.0" height="553.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                </scrollView>
+            </subviews>
+        </customView>
+    </objects>
+</document>

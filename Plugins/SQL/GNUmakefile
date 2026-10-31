@@ -2,7 +2,9 @@
 # SQL.bundle on GNUstep: UDCode's databases (see Sources/UDSQLPlugin.h), in
 # UDCode.app's PlugIns. SQLite is linked; libpq and libmariadb (or
 # libmysqlclient) are built against (their headers) and loaded when a
-# connection needs them, so neither is needed to run it. Its references to UDCodeKit, LSPKit and
+# connection needs them, so neither is needed to run it. Its ER diagrams are
+# DiagramKit's (.github/pins.env's DIAGRAMKIT_VERSION, installed with the
+# GNUstep stack). Its references to UDCodeKit, LSPKit and
 # UDPieceTable are left for the application to resolve when it loads the
 # bundle (on Windows a DLL is linked against them: UD_PLUGIN_LIBS).
 #
@@ -25,6 +27,6 @@ SQL_INCLUDE_DIRS += $(addprefix -I,$(shell pg_config --includedir 2>/dev/null)) 
     $(shell mariadb_config --include 2>/dev/null || mysql_config --include 2>/dev/null) \
     -I/usr/include/postgresql -I/usr/include/mariadb
 SQL_STANDARD_INSTALL = no
-SQL_BUNDLE_LIBS += $(UD_PLUGIN_LIBS) -lsqlite3 $(if $(UD_WINDOWS),,-ldl)
+SQL_BUNDLE_LIBS += $(UD_PLUGIN_LIBS) -lDiagramKitUI -lDiagramKit -lsqlite3 $(if $(UD_WINDOWS),,-ldl)
 
 include $(GNUSTEP_MAKEFILES)/bundle.make

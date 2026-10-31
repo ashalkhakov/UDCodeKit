@@ -5,6 +5,7 @@
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLDatabases.h"
 #import "UDSQLSheets.h"
+#import "UDSQLDiagramViewController.h"
 #import <objc/runtime.h>
 
 typedef NS_ENUM(NSInteger, UDSQLNodeKind) {
@@ -64,6 +65,7 @@ typedef NS_ENUM(NSInteger, UDSQLNodeKind) {
     __weak UDSQLDatabases *_databases;
     NSArray<UDSQLNode *> *_roots;
     UDSQLNode *_menuNode;           // what the context menu is about
+    NSMapTable<UDSQLDatabase *, UDSQLDiagramViewController *> *_diagrams;
 }
 
 - (instancetype)initWithDatabases:(UDSQLDatabases *)databases {
@@ -71,6 +73,7 @@ typedef NS_ENUM(NSInteger, UDSQLNodeKind) {
     if (self) {
         _databases = databases;
         _roots = @[];
+        _diagrams = [NSMapTable strongToStrongObjectsMapTable];
         self.title = @"Databases";
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_databasesDidChange:)
                                                      name:UDSQLDatabasesDidChangeNotification object:databases];
@@ -433,6 +436,17 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     UDSQLTable *table = [self _tableOf:node];
     if (table) text = [NSString stringWithFormat:@"SELECT *\nFROM %@\nWHERE ", [table qualifiedNameFor:[self _quoter:database]]];
     [_databases openQuery:text database:database run:NO];
+}
+
+- (IBAction)showDiagram:(id)sender {
+    UDSQLDatabase *database = [self _databaseOf:[self _actedOn:sender]];
+    if (!database) return;
+    UDSQLDiagramViewController *diagram = [_diagrams objectForKey:database];
+    if (!diagram) {
+        diagram = [[UDSQLDiagramViewController alloc] initWithDatabases:_databases database:database];
+        [_diagrams setObject:diagram forKey:database];
+    }
+    [_databases.workbench showViewController:diagram title:[NSString stringWithFormat:@"%@ (ER Diagram)", database.name]];
 }
 
 /// What quotes @a database's identifiers: its connection, or one standing in

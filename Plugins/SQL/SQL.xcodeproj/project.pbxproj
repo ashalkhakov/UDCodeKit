@@ -10,6 +10,8 @@
 		5B0000000000000000000011 /* UDCodeKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000010 /* UDCodeKit.framework */; };
 		5B0000000000000000000013 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000012 /* LSPKit.framework */; };
 		5B0000000000000000000015 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000014 /* UDPieceTable.framework */; };
+		5B0000000000000000000017 /* DiagramKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000016 /* DiagramKit.xcframework */; };
+		5B0000000000000000000019 /* DiagramKitUI.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000018 /* DiagramKitUI.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +19,8 @@
 		5B0000000000000000000010 /* UDCodeKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDCodeKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		5B0000000000000000000012 /* LSPKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = LSPKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		5B0000000000000000000014 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B0000000000000000000016 /* DiagramKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DiagramKit.xcframework; path = ../../.deps/DiagramKit.xcframework; sourceTree = SOURCE_ROOT; };
+		5B0000000000000000000018 /* DiagramKitUI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DiagramKitUI.xcframework; path = ../../.deps/DiagramKitUI.xcframework; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -53,6 +57,8 @@
 				5B0000000000000000000011 /* UDCodeKit.framework in Frameworks */,
 				5B0000000000000000000013 /* LSPKit.framework in Frameworks */,
 				5B0000000000000000000015 /* UDPieceTable.framework in Frameworks */,
+				5B0000000000000000000017 /* DiagramKit.xcframework in Frameworks */,
+				5B0000000000000000000019 /* DiagramKitUI.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,6 +89,8 @@
 				5B0000000000000000000010 /* UDCodeKit.framework */,
 				5B0000000000000000000012 /* LSPKit.framework */,
 				5B0000000000000000000014 /* UDPieceTable.framework */,
+				5B0000000000000000000016 /* DiagramKit.xcframework */,
+				5B0000000000000000000018 /* DiagramKitUI.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -203,9 +211,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				HEADER_SEARCH_PATHS = (
-					"/opt/homebrew/opt/libpq/include",
+					/opt/homebrew/opt/libpq/include,
 					"/opt/homebrew/opt/mariadb-connector-c/include/mariadb",
-					"/usr/local/opt/libpq/include",
+					/usr/local/opt/libpq/include,
 					"/usr/local/opt/mariadb-connector-c/include/mariadb",
 				);
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -228,9 +236,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				HEADER_SEARCH_PATHS = (
-					"/opt/homebrew/opt/libpq/include",
+					/opt/homebrew/opt/libpq/include,
 					"/opt/homebrew/opt/mariadb-connector-c/include/mariadb",
-					"/usr/local/opt/libpq/include",
+					/usr/local/opt/libpq/include,
 					"/usr/local/opt/mariadb-connector-c/include/mariadb",
 				);
 				INFOPLIST_FILE = Resources/Info.plist;

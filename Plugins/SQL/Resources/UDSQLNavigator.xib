@@ -28,6 +28,11 @@
                         <action selector="newQuery:" target="-2" id="DB-m-new-a"/>
                     </connections>
                 </menuItem>
+                <menuItem title="Show ER Diagram" id="DB-m-diagram">
+                    <connections>
+                        <action selector="showDiagram:" target="-2" id="DB-m-diagram-a"/>
+                    </connections>
+                </menuItem>
                 <menuItem title="Refresh" id="DB-m-refresh">
                     <connections>
                         <action selector="refreshDatabase:" target="-2" id="DB-m-refresh-a"/>

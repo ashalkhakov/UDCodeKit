@@ -2,7 +2,7 @@
 # macos.yml runs the same):
 #
 #   make -f Makefile.apple            UDCode, universal (Release), with its
-#                                     frameworks, grammar bundles and Sparkle;
+#                                     frameworks, grammar bundles, Sparkle and DiagramKit;
 #                                     and the frameworks as XCFrameworks
 #   make -f Makefile.apple check      the tests: the text model's and the
 #                                     editor's (which drive UDCode's windows)
@@ -16,9 +16,9 @@
 #                                     and it starts and stays up, in a fresh home
 #
 # The tree-sitter runtime and the grammars are fetched at their pinned
-# commits (scripts/grammars.lock) when missing; Sparkle's XCFramework is in
-# .deps/, by the version .github/pins.env names (gnustep-release-actions'
-# scripts/deps.sh apple).
+# commits (scripts/grammars.lock) when missing; Sparkle's and DiagramKit's
+# XCFrameworks are in .deps/, by the versions .github/pins.env names
+# (gnustep-release-actions' scripts/deps.sh apple).
 
 BUILD = build/apple
 DERIVED = $(BUILD)/DerivedData
@@ -27,8 +27,8 @@ XCODEBUILD = xcodebuild -workspace UDPieceTable.xcworkspace -derivedDataPath $(D
 FRAMEWORKS = UDPieceTable LSPKit UDCodeKit
 
 all: fetched clients
-	@test -d .deps/Sparkle.xcframework \
-	  || { echo "no Sparkle in .deps: gnustep-release-actions' scripts/deps.sh apple fetches what .github/pins.env names"; exit 1; }
+	@for f in Sparkle DiagramKit DiagramKitUI; do test -d .deps/$$f.xcframework \
+	  || { echo "no $$f in .deps: gnustep-release-actions' scripts/deps.sh apple fetches what .github/pins.env names"; exit 1; }; done
 	$(XCODEBUILD) -scheme UDCode -configuration Release -destination 'generic/platform=macOS' build
 	for f in $(FRAMEWORKS); do \
 	  rm -rf $(BUILD)/$$f.xcarchive $(BUILD)/$$f.xcframework; \

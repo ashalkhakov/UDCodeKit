@@ -3,49 +3,51 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 73;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CF0000000000000000000107 /* CFamily.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CF0000000000000000000105 /* CFamily.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		6A0000000000000000000107 /* Git.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = 6A0000000000000000000105 /* Git.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5A0000000000000000000107 /* TreeSitterSql.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000105 /* TreeSitterSql.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		5B0000000000000000000107 /* SQL.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = 5B0000000000000000000105 /* SQL.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		C0DEA00000000000000000A1 /* UDCodeKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F1 /* UDCodeKit.framework */; };
 		5BA4C1E00000000000000002 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000001 /* Sparkle.xcframework */; };
 		5BA4C1E00000000000000003 /* Sparkle.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000001 /* Sparkle.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5BA4C1E00000000000000006 /* DiagramKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000004 /* DiagramKit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5BA4C1E00000000000000007 /* DiagramKitUI.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000005 /* DiagramKitUI.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		6A0000000000000000000107 /* Git.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = 6A0000000000000000000105 /* Git.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; };
+		BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C0DEA00000000000000000A1 /* UDCodeKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F1 /* UDCodeKit.framework */; };
 		C0DEA00000000000000000A2 /* UDCodeKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F1 /* UDCodeKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C0DEA00000000000000000A3 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F2 /* UDPieceTable.framework */; };
 		C0DEA00000000000000000A4 /* UDPieceTable.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F2 /* UDPieceTable.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C0DEA00000000000000000A5 /* UDCodeKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F1 /* UDCodeKit.framework */; };
 		C0DEA00000000000000000A6 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F2 /* UDPieceTable.framework */; };
-		BB22CAFE2F5492DC002200A7 /* LSPKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; };
-		BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BB22CAFE2F5492DC002200A3 /* LSPKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE7257692F5F30B200501E10 /* TreeSitterMake.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72572B2F5F2EB100501E10 /* TreeSitterMake.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576A2F5F30BD00501E10 /* TreeSitterMarkdown.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257332F5F2EB600501E10 /* TreeSitterMarkdown.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576B2F5F30C700501E10 /* TreeSitterObjc.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72573B2F5F2EBA00501E10 /* TreeSitterObjc.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576C2F5F30D400501E10 /* TreeSitterXml.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257432F5F2EBF00501E10 /* TreeSitterXml.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576D2F5F30E600501E10 /* TreeSitterYaml.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE72574B2F5F2EC300501E10 /* TreeSitterYaml.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE72576E2F5F30F000501E10 /* TreeSitterJson.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257552F5F2ED100501E10 /* TreeSitterJson.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		5A0000000000000000000107 /* TreeSitterSql.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000105 /* TreeSitterSql.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE7257B02F60210C00501E10 /* TreeSitterHtml.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257A72F6020F200501E10 /* TreeSitterHtml.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE7257B12F60211700501E10 /* TreeSitterC.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7257AF2F6020FC00501E10 /* TreeSitterC.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		CE7CFA282F61DA7700F294D4 /* TreeSitterBash.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CE7CFA0D2F61DA5700F294D4 /* TreeSitterBash.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CF0000000000000000000107 /* CFamily.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CF0000000000000000000105 /* CFamily.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		CF0000000000000000000103 /* PBXContainerItemProxy */ = {
+		5A0000000000000000000103 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = CF0000000000000000000101 /* CFamily.xcodeproj */;
+			containerPortal = 5A0000000000000000000101 /* TreeSitterSql.xcodeproj */;
 			proxyType = 1;
-			remoteGlobalIDString = CF0000000000000000000040;
-			remoteInfo = CFamily;
+			remoteGlobalIDString = AA100090BF6438659FAFAA04;
+			remoteInfo = TreeSitterSql;
 		};
-		6A0000000000000000000103 /* PBXContainerItemProxy */ = {
+		5A0000000000000000000104 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = 6A0000000000000000000101 /* Git.xcodeproj */;
-			proxyType = 1;
-			remoteGlobalIDString = 6A0000000000000000000040;
-			remoteInfo = Git;
+			containerPortal = 5A0000000000000000000101 /* TreeSitterSql.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = AA100010AACDE171097AA1A1;
+			remoteInfo = TreeSitterSql;
 		};
 		5B0000000000000000000103 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -54,12 +56,19 @@
 			remoteGlobalIDString = 5B0000000000000000000040;
 			remoteInfo = SQL;
 		};
-		CF0000000000000000000104 /* PBXContainerItemProxy */ = {
+		5B0000000000000000000104 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = CF0000000000000000000101 /* CFamily.xcodeproj */;
+			containerPortal = 5B0000000000000000000101 /* SQL.xcodeproj */;
 			proxyType = 2;
-			remoteGlobalIDString = CF0000000000000000000001;
-			remoteInfo = CFamily;
+			remoteGlobalIDString = 5B0000000000000000000001;
+			remoteInfo = SQL;
+		};
+		6A0000000000000000000103 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6A0000000000000000000101 /* Git.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 6A0000000000000000000040;
+			remoteInfo = Git;
 		};
 		6A0000000000000000000104 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -67,13 +76,6 @@
 			proxyType = 2;
 			remoteGlobalIDString = 6A0000000000000000000001;
 			remoteInfo = Git;
-		};
-		5B0000000000000000000104 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 5B0000000000000000000101 /* SQL.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = 5B0000000000000000000001;
-			remoteInfo = SQL;
 		};
 		A46FAABD2F5441CB0079BB37 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -173,26 +175,12 @@
 			remoteGlobalIDString = 66325887BF6438659FAFEE04;
 			remoteInfo = TreeSitterJson;
 		};
-		5A0000000000000000000103 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 5A0000000000000000000101 /* TreeSitterSql.xcodeproj */;
-			proxyType = 1;
-			remoteGlobalIDString = AA100090BF6438659FAFAA04;
-			remoteInfo = TreeSitterSql;
-		};
 		CE7257542F5F2ED100501E10 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */;
 			proxyType = 2;
 			remoteGlobalIDString = B36BDFA275CDE171097961D0;
 			remoteInfo = TreeSitterJson;
-		};
-		5A0000000000000000000104 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 5A0000000000000000000101 /* TreeSitterSql.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = AA100010AACDE171097AA1A1;
-			remoteInfo = TreeSitterSql;
 		};
 		CE7257A32F6020F200501E10 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -236,6 +224,20 @@
 			remoteGlobalIDString = A5E4D49CCA86094C114202C6;
 			remoteInfo = TreeSitterBash;
 		};
+		CF0000000000000000000103 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CF0000000000000000000101 /* CFamily.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = CF0000000000000000000040;
+			remoteInfo = CFamily;
+		};
+		CF0000000000000000000104 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CF0000000000000000000101 /* CFamily.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = CF0000000000000000000001;
+			remoteInfo = CFamily;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -272,6 +274,8 @@
 				C0DEA00000000000000000A4 /* UDPieceTable.framework in Embed Frameworks */,
 				BB22CAFE2F5492DC002200A8 /* LSPKit.framework in Embed Frameworks */,
 				5BA4C1E00000000000000003 /* Sparkle.xcframework in Embed Frameworks */,
+				5BA4C1E00000000000000006 /* DiagramKit.xcframework in Embed Frameworks */,
+				5BA4C1E00000000000000007 /* DiagramKitUI.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -279,25 +283,27 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		CF0000000000000000000101 /* CFamily.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = CFamily.xcodeproj; path = "Plugins/CFamily/CFamily.xcodeproj"; sourceTree = SOURCE_ROOT; };
-		6A0000000000000000000101 /* Git.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Git.xcodeproj; path = "Plugins/Git/Git.xcodeproj"; sourceTree = SOURCE_ROOT; };
-		5B0000000000000000000101 /* SQL.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = SQL.xcodeproj; path = "Plugins/SQL/SQL.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		5A0000000000000000000101 /* TreeSitterSql.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterSql.xcodeproj; path = "tree-sitter-sql/TreeSitterSql.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		5B0000000000000000000101 /* SQL.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = SQL.xcodeproj; path = Plugins/SQL/SQL.xcodeproj; sourceTree = SOURCE_ROOT; };
 		5BA4C1E00000000000000001 /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Sparkle.xcframework; path = .deps/Sparkle.xcframework; sourceTree = SOURCE_ROOT; };
-		C0DEA00000000000000000F1 /* UDCodeKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDCodeKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		C0DEA00000000000000000F2 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		5BA4C1E00000000000000004 /* DiagramKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DiagramKit.xcframework; path = .deps/DiagramKit.xcframework; sourceTree = SOURCE_ROOT; };
+		5BA4C1E00000000000000005 /* DiagramKitUI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DiagramKitUI.xcframework; path = .deps/DiagramKitUI.xcframework; sourceTree = SOURCE_ROOT; };
+		6A0000000000000000000101 /* Git.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Git.xcodeproj; path = Plugins/Git/Git.xcodeproj; sourceTree = SOURCE_ROOT; };
 		A46FAAAB2F5441C80079BB37 /* UDCode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UDCode.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A46FAABC2F5441CB0079BB37 /* UDCodeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = UDCodeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LSPKit.xcodeproj; path = LSPKit/LSPKit.xcodeproj; sourceTree = "<group>"; };
+		C0DEA00000000000000000F1 /* UDCodeKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDCodeKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0DEA00000000000000000F2 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMake.xcodeproj; path = "tree-sitter-make/TreeSitterMake.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE72572C2F5F2EB500501E10 /* TreeSitterMarkdown.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterMarkdown.xcodeproj; path = "tree-sitter-markdown/TreeSitterMarkdown.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterObjc.xcodeproj; path = "tree-sitter-objc/TreeSitterObjc.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE72573C2F5F2EBF00501E10 /* TreeSitterXml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterXml.xcodeproj; path = "tree-sitter-xml/TreeSitterXml.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE7257442F5F2EC300501E10 /* TreeSitterYaml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterYaml.xcodeproj; path = "tree-sitter-yaml/TreeSitterYaml.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterJson.xcodeproj; path = "tree-sitter-json/TreeSitterJson.xcodeproj"; sourceTree = SOURCE_ROOT; };
-		5A0000000000000000000101 /* TreeSitterSql.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterSql.xcodeproj; path = "tree-sitter-sql/TreeSitterSql.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE7257A02F6020F200501E10 /* TreeSitterHtml.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterHtml.xcodeproj; path = "tree-sitter-html/TreeSitterHtml.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CE7257A82F6020FC00501E10 /* TreeSitterC.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterC.xcodeproj; path = "tree-sitter-c/TreeSitterC.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		CEED68152F61C88200473B16 /* TreeSitterBash.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TreeSitterBash.xcodeproj; path = "tree-sitter-bash/TreeSitterBash.xcodeproj"; sourceTree = "<group>"; };
+		CF0000000000000000000101 /* CFamily.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = CFamily.xcodeproj; path = Plugins/CFamily/CFamily.xcodeproj; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -305,9 +311,9 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				GNUmakefile,
+				gnustep/UDUpdater.m,
 				InfoPlist.plist,
 				UDCodeInfo.plist,
-				gnustep/UDUpdater.m,
 			);
 			target = A46FAAAA2F5441C80079BB37 /* UDCode */;
 		};
@@ -350,18 +356,10 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		CF0000000000000000000102 /* Products */ = {
+		5A0000000000000000000102 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CF0000000000000000000105 /* CFamily.bundle */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		6A0000000000000000000102 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				6A0000000000000000000105 /* Git.bundle */,
+				5A0000000000000000000105 /* TreeSitterSql.bundle */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -370,6 +368,14 @@
 			isa = PBXGroup;
 			children = (
 				5B0000000000000000000105 /* SQL.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		6A0000000000000000000102 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				6A0000000000000000000105 /* Git.bundle */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -429,6 +435,8 @@
 				C0DEA00000000000000000F1 /* UDCodeKit.framework */,
 				C0DEA00000000000000000F2 /* UDPieceTable.framework */,
 				5BA4C1E00000000000000001 /* Sparkle.xcframework */,
+				5BA4C1E00000000000000004 /* DiagramKit.xcframework */,
+				5BA4C1E00000000000000005 /* DiagramKitUI.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -481,14 +489,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		5A0000000000000000000102 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				5A0000000000000000000105 /* TreeSitterSql.bundle */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		CE7257A12F6020F200501E10 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -501,6 +501,14 @@
 			isa = PBXGroup;
 			children = (
 				CE7257AF2F6020FC00501E10 /* TreeSitterC.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CF0000000000000000000102 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CF0000000000000000000105 /* CFamily.bundle */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -615,6 +623,7 @@
 				};
 			};
 			buildConfigurationList = A46FAAA62F5441C80079BB37 /* Build configuration list for PBXProject "UDCode" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -625,7 +634,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 			);
-			preferredProjectObjectVersion = 56;
 			productRefGroup = A46FAAAC2F5441C80079BB37 /* Products */;
 			projectDirPath = "";
 			projectReferences = (
@@ -638,12 +646,12 @@
 					ProjectRef = 6A0000000000000000000101 /* Git.xcodeproj */;
 				},
 				{
-					ProductGroup = 5B0000000000000000000102 /* Products */;
-					ProjectRef = 5B0000000000000000000101 /* SQL.xcodeproj */;
-				},
-				{
 					ProductGroup = BB22CAFE2F5492DC002200A2 /* Products */;
 					ProjectRef = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
+				},
+				{
+					ProductGroup = 5B0000000000000000000102 /* Products */;
+					ProjectRef = 5B0000000000000000000101 /* SQL.xcodeproj */;
 				},
 				{
 					ProductGroup = CE05F2B02F61C99900F109EE /* Products */;
@@ -662,10 +670,6 @@
 					ProjectRef = CE72574E2F5F2ED000501E10 /* TreeSitterJson.xcodeproj */;
 				},
 				{
-					ProductGroup = 5A0000000000000000000102 /* Products */;
-					ProjectRef = 5A0000000000000000000101 /* TreeSitterSql.xcodeproj */;
-				},
-				{
 					ProductGroup = CE7257252F5F2EB100501E10 /* Products */;
 					ProjectRef = CE7257242F5F2EB100501E10 /* TreeSitterMake.xcodeproj */;
 				},
@@ -676,6 +680,10 @@
 				{
 					ProductGroup = CE7257352F5F2EBA00501E10 /* Products */;
 					ProjectRef = CE7257342F5F2EBA00501E10 /* TreeSitterObjc.xcodeproj */;
+				},
+				{
+					ProductGroup = 5A0000000000000000000102 /* Products */;
+					ProjectRef = 5A0000000000000000000101 /* TreeSitterSql.xcodeproj */;
 				},
 				{
 					ProductGroup = CE72573D2F5F2EBF00501E10 /* Products */;
@@ -695,18 +703,11 @@
 /* End PBXProject section */
 
 /* Begin PBXReferenceProxy section */
-		CF0000000000000000000105 /* CFamily.bundle */ = {
+		5A0000000000000000000105 /* TreeSitterSql.bundle */ = {
 			isa = PBXReferenceProxy;
 			fileType = wrapper.cfbundle;
-			path = CFamily.bundle;
-			remoteRef = CF0000000000000000000104 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-		6A0000000000000000000105 /* Git.bundle */ = {
-			isa = PBXReferenceProxy;
-			fileType = wrapper.cfbundle;
-			path = Git.bundle;
-			remoteRef = 6A0000000000000000000104 /* PBXContainerItemProxy */;
+			path = TreeSitterSql.bundle;
+			remoteRef = 5A0000000000000000000104 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 		5B0000000000000000000105 /* SQL.bundle */ = {
@@ -714,6 +715,13 @@
 			fileType = wrapper.cfbundle;
 			path = SQL.bundle;
 			remoteRef = 5B0000000000000000000104 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		6A0000000000000000000105 /* Git.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = Git.bundle;
+			remoteRef = 6A0000000000000000000104 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 		BB22CAFE2F5492DC002200A3 /* LSPKit.framework */ = {
@@ -765,13 +773,6 @@
 			remoteRef = CE7257542F5F2ED100501E10 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
-		5A0000000000000000000105 /* TreeSitterSql.bundle */ = {
-			isa = PBXReferenceProxy;
-			fileType = wrapper.cfbundle;
-			path = TreeSitterSql.bundle;
-			remoteRef = 5A0000000000000000000104 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
 		CE7257A72F6020F200501E10 /* TreeSitterHtml.bundle */ = {
 			isa = PBXReferenceProxy;
 			fileType = wrapper.cfbundle;
@@ -791,6 +792,13 @@
 			fileType = wrapper.cfbundle;
 			path = TreeSitterBash.bundle;
 			remoteRef = CE7CFA0C2F61DA5700F294D4 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		CF0000000000000000000105 /* CFamily.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = CFamily.bundle;
+			remoteRef = CF0000000000000000000104 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 /* End PBXReferenceProxy section */
@@ -830,20 +838,20 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		CF0000000000000000000106 /* PBXTargetDependency */ = {
+		5A0000000000000000000106 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			name = CFamily;
-			targetProxy = CF0000000000000000000103 /* PBXContainerItemProxy */;
-		};
-		6A0000000000000000000106 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = Git;
-			targetProxy = 6A0000000000000000000103 /* PBXContainerItemProxy */;
+			name = TreeSitterSql;
+			targetProxy = 5A0000000000000000000103 /* PBXContainerItemProxy */;
 		};
 		5B0000000000000000000106 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = SQL;
 			targetProxy = 5B0000000000000000000103 /* PBXContainerItemProxy */;
+		};
+		6A0000000000000000000106 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = Git;
+			targetProxy = 6A0000000000000000000103 /* PBXContainerItemProxy */;
 		};
 		A46FAABE2F5441CB0079BB37 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -885,11 +893,6 @@
 			name = TreeSitterJson;
 			targetProxy = CE7257512F5F2ED000501E10 /* PBXContainerItemProxy */;
 		};
-		5A0000000000000000000106 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = TreeSitterSql;
-			targetProxy = 5A0000000000000000000103 /* PBXContainerItemProxy */;
-		};
 		CE7257A42F6020F200501E10 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = TreeSitterHtml;
@@ -904,6 +907,11 @@
 			isa = PBXTargetDependency;
 			name = TreeSitterBash;
 			targetProxy = CE7CFA262F61DA6100F294D4 /* PBXContainerItemProxy */;
+		};
+		CF0000000000000000000106 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CFamily;
+			targetProxy = CF0000000000000000000103 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 

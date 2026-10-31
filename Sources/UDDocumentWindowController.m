@@ -2219,6 +2219,15 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     }
 }
 
+- (void)showViewController:(NSViewController *)viewController title:(NSString *)title {
+    for (UDTabBarItem *item in _editorTabs.items) {
+        if ([_editorTabs viewControllerForItem:item] != viewController) continue;
+        [_editorTabs selectItem:item];
+        return;
+    }
+    [_editorTabs addItemWithTitle:title representedObject:nil viewController:viewController];
+}
+
 - (void)showNavigatorOfExtension:(id<UDExtension>)extension {
     NSArray *entry = [_extensionNavigators objectForKey:extension];
     if (!entry) return;

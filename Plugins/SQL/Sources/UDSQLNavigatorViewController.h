@@ -38,6 +38,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)editDatabase:(nullable id)sender;
 - (IBAction)disconnectDatabase:(nullable id)sender;
 - (IBAction)newQuery:(nullable id)sender;
+/// The database's ER diagram, in an editor tab (one per database).
+- (IBAction)showDiagram:(nullable id)sender;
 - (IBAction)selectRows:(nullable id)sender;
 - (IBAction)copyName:(nullable id)sender;
 - (IBAction)openItem:(nullable id)sender;

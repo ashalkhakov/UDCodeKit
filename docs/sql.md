@@ -88,11 +88,38 @@ text, a blob shows its size. Copy (or Copy with Column Names) copies the rows
 selected as tab-separated text. A statement that creates, alters or drops
 something reads the schema again.
 
+## ER diagrams
+
+**Show ER Diagram**, in a database's menu in the navigator, opens its
+diagram in an editor tab: each table a box of its columns (the primary and
+foreign keys marked, each column's type at the right), each foreign key a
+line in crow's-foot notation — many at the table that refers, one at the
+table referred to (zero or one when the key may be NULL) — routed at right
+angles around the other boxes. A table that refers to itself loops back
+into its own box.
+
+A Core Data store declares no foreign keys, so its lines are inferred and
+drawn dashed: a join table (`Z_1TEAMS`) to its entities' tables, and a
+to-one column named as a table (`ZTEAM`) to that table. Core Data's own
+tables (`Z_PRIMARYKEY`, `Z_METADATA`) are left out; a box names the entities
+whose rows its table holds.
+
+The tables are laid out in layers, the ones referred to first, until they
+are moved. Drag one (or a selection) and its lines follow, their bends kept
+where they can be; moves are undone with ⌘Z, and where the tables were left
+is kept for the next time. **Arrange** lays them out again. Zoom with the
+buttons or ⌘ and the scroll wheel. **Export** saves the diagram as PDF, PNG
+or SVG; **Print…** prints it. A table's menu and its double-click are the
+navigator's: Select Rows, New Query, Copy Name.
+
+The drawing, layout, routing and canvas are
+[DiagramKit](https://github.com/ashalkhakov/DiagramKit)'s.
+
 ## How it is built
 
 The SQL extension (`Plugins/SQL`, SQL.bundle) brings all of it; UDCodeKit
 only offers what any extension may use: a navigator of its own, items in the
-Editor menu, and an area under an editor (`UDWorkbench`). The SQL mode itself
+Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The SQL mode itself
 — highlighting, the jump bar's outline — is the `tree-sitter-sql` bundle's.
 
 | | |
@@ -102,6 +129,8 @@ Editor menu, and an area under an editor (`UDWorkbench`). The SQL mode itself
 | `UDSQLSchema` | tables, views, columns, keys and indexes from each catalogue; a Core Data store read as one |
 | `UDSQLRunner` | a connection's work off the main thread, one operation at a time |
 | `UDSQLDatabases` | a window's connections, which database each document uses, running |
+| `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |
+| `UDSQLDiagramViewController` | the diagram's tab: DiagramKit's canvas, Arrange, zoom, export, a table's menu |
 
 Its tests run SQLite everywhere, and PostgreSQL, MySQL and MariaDB when a
 server is named (`UD_TEST_POSTGRES_URL`, `UD_TEST_MYSQL_URL`,

@@ -61,7 +61,8 @@ pinned commits the first time):
 - **Databases**: SQLite, PostgreSQL, MySQL and MariaDB — connections, their
   tables and keys, queries run with their parameters, results under the
   query; a Core Data store's tables named by their entities, its dates and
-  entities shown as such; PostgreSQL's and MySQL's client libraries are
+  entities shown as such; ER diagrams (crow's feet, a Core Data store's
+  links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's client libraries are
   yours to install (`brew install libpq mariadb-connector-c`, say:
   [databases](docs/sql.md)).
 - **More**: Code Review and comparing files side by side (VS Code's diff
@@ -77,8 +78,8 @@ pinned commits the first time):
 - **Settings**: a project's own (`.udcode/settings.json`, `tasks.json`,
   `launch.json`); no user or workspace settings layer yet
   ([#30](https://github.com/ashalkhakov/UDCodeKit/issues/30)).
-- **Databases**: everyday work only — browsing, editing rows, a query
-  builder and ER diagrams are on their way
+- **Databases**: everyday work only — browsing, editing rows and a query
+  builder are on their way
   ([#54](https://github.com/ashalkhakov/UDCodeKit/issues/54)); administration
   is left to each database's own tools.
 - **Extensions** are bundles built with UDCodeKit, loaded into the app; there
@@ -95,7 +96,7 @@ block-beta
     app["UDCode: windows, workspaces, the IDE"]:3
     cfamily["CFamily: make, CMake, Xcode, clangd, lldb-dap, gdb, XCTest"]
     git["Git: the git command line"]
-    sql["SQL: SQLite, libpq, libmariadb"]
+    sql["SQL: SQLite, libpq, libmariadb, DiagramKit"]
     kit["UDCodeKit: editor, navigators, jump bar, diff, debugger, source control, extensions"]:3
     model["UDPieceTable: the text model"]
     lsp["LSPKit: LSP and DAP clients"]

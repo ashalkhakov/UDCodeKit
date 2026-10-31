@@ -79,6 +79,7 @@
 @property (nonatomic) SEL action;
 @property (nonatomic, strong, nullable) NSData *output, *errorOutput;
 @property (nonatomic) BOOL cancelled;
+@property (nonatomic) BOOL terminated, finishing;
 @end
 
 /// The commands running: kept until they end.
@@ -109,8 +110,26 @@ static NSArray<NSString *> *UDReadingModes(void) {
     } else {
         _errorOutput = data;
     }
-    if (!_output || !_errorOutput) return;
-    [_task waitUntilExit];
+    [self _finishWhenDone];
+}
+
+- (void)_didTerminate:(NSNotification *)note {
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:NSTaskDidTerminateNotification object:_task];
+    _terminated = YES;
+    [self _finishWhenDone];
+}
+
+/// Both outputs read and the task ended: told as the run loop next turns.
+/// Not waited for here (GNUstep's -waitUntilExit runs the run loop, inside
+/// a pipe's callback: another command's pipes freed there, the run loop's
+/// handles left to freed objects, as Windows' were), nor freed in a callback.
+- (void)_finishWhenDone {
+    if (!_output || !_errorOutput || !_terminated || _finishing) return;
+    _finishing = YES;
+    [self performSelector:@selector(_finish) withObject:nil afterDelay:0 inModes:UDReadingModes()];
+}
+
+- (void)_finish {
     UDGitResult *result = [[UDGitResult alloc] initWithArguments:_arguments status:_task.terminationStatus
                                                           output:_output errorOutput:_errorOutput
                                                        cancelled:_cancelled context:_context];
@@ -271,6 +290,7 @@ static void UDWriteInput(NSTask *task, NSData *input) {
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
     [center addObserver:process selector:@selector(_didReadToEnd:) name:NSFileHandleReadToEndOfFileCompletionNotification object:output];
     [center addObserver:process selector:@selector(_didReadToEnd:) name:NSFileHandleReadToEndOfFileCompletionNotification object:errorOutput];
+    [center addObserver:process selector:@selector(_didTerminate:) name:NSTaskDidTerminateNotification object:task];
     [UDRunningProcesses() addObject:process];
     @try {
         [task launch];

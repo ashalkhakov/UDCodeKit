@@ -16,6 +16,8 @@
 #import "UDExtension.h"
 #import "UDLinkDetector.h"
 #import "UDAuthorsView.h"
+#import "UDJumpBarView.h"
+#import "UDJumpBarController.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <objc/runtime.h>
 
@@ -35,6 +37,7 @@
 @property (nonatomic, weak) IBOutlet UDLineNumberGutterView  *lineNumberGutterView;
 /// Authors (git blame), hidden till shown, at the gutter's left.
 @property (nonatomic, weak) IBOutlet UDAuthorsView *authorsView;
+@property (nonatomic, weak) IBOutlet UDJumpBarView *jumpBar;
 @property (nonatomic, weak) IBOutlet UDFindResultsGutterView *gutterView;
 
 @property (nonatomic, strong, nullable) UDFindBarViewController *findBar;
@@ -928,10 +931,26 @@ static NSArray<NSString *> *UDLinesOfText(NSString *text) {
     [self.view.window makeFirstResponder:_textView];
 }
 
-/// The Find bar over the editor; the text takes the rest.
+- (BOOL)showsJumpBar {
+    return _jumpBar && ![_jumpBar isHidden];
+}
+
+- (void)setShowsJumpBar:(BOOL)showsJumpBar {
+    (void)self.view;
+    if (showsJumpBar == self.showsJumpBar) return;
+    [_jumpBar setHidden:!showsJumpBar];
+    [self _layoutBars];
+}
+
+/// The jump bar on top, the Find bar under it (as Xcode's); the text takes the rest.
 - (void)_layoutBars {
     NSRect bounds = self.view.bounds;
     CGFloat top = NSMaxY(bounds), width = NSWidth(bounds);
+    if (self.showsJumpBar) {
+        CGFloat height = NSHeight(_jumpBar.frame);
+        _jumpBar.frame = NSMakeRect(0, top - height, width, height);
+        top -= height;
+    }
     if (self.isFindBarVisible) {
         _findBarHost.frame = NSMakeRect(0, top - _findBarHeight, width, _findBarHeight);
         top -= _findBarHeight;

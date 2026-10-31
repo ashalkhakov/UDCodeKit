@@ -36,7 +36,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
-                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDSourceControlNavigatorDelegate, UDHistoryDelegate, UDCodeEditorSourceControlDelegate, UDSourceControlHost, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
+                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDSourceControlNavigatorDelegate, UDHistoryDelegate, UDCodeEditorSourceControlDelegate, UDSourceControlHost, UDJumpBarControllerDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
                                           UDCodeEditorLinkDelegate, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -1569,6 +1569,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [editor configureForLanguageMode:document.languageMode];
     [self _configureEditor:editor ofDocument:document];
     if (first) [self _startSession:session ofDocument:document];
+    // Xcode's jump bar: the project's folders, the file, its symbols
+    UDJumpBarController *jumpBar = [[UDJumpBarController alloc] initWithEditor:editor session:session rootURL:_project.folderURL];
+    jumpBar.delegate = self;
+    jumpBar.hiddenNames = _fileNavigator.hiddenNames;
+    editor.jumpBarController = jumpBar;
+    editor.showsJumpBar = YES;
 
     [self _documentsChanged];      // before the tab selects its row in the files list
     UDTabBarItem *item = [_editorTabs addItemWithTitle:document.displayName
@@ -2291,6 +2297,12 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     if ([text isEqualToString:[model getValue]]) return;
     NSInteger lines = [model getLineCount];
     [model applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 1, lines, [model getLineMaxColumn:lines]) text:text] ]];
+}
+
+// MARK: The jump bar's
+
+- (void)jumpBarController:(UDJumpBarController *)controller openURL:(NSURL *)url {
+    [self _showFile:url.path];
 }
 
 // MARK: Authors (Xcode's: blame beside the text)

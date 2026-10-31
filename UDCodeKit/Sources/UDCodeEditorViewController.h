@@ -29,7 +29,8 @@
 #import "UDLanguageMode.h"
 #import "UDFindModel.h"
 
-@class UDFindBarViewController, UDBreakpointStore, UDBreakpointEditorViewController, UDDebugHoverViewController, UDSourceControlBlameRange;
+@class UDFindBarViewController, UDBreakpointStore, UDBreakpointEditorViewController, UDDebugHoverViewController, UDSourceControlBlameRange,
+       UDJumpBarView, UDJumpBarController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -85,6 +86,12 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 /// lines (blameRanges, git blame's), and when.
 @property (nonatomic) BOOL showsAuthors;
 @property (nonatomic, copy) NSArray<UDSourceControlBlameRange *> *blameRanges;
+
+/// Xcode's jump bar over the text (VS Code's breadcrumbs), the XIB's: hidden
+/// till shown; its controller (kept by the editor) fills it.
+@property (nonatomic, weak, readonly) IBOutlet UDJumpBarView *jumpBar;
+@property (nonatomic) BOOL showsJumpBar;
+@property (nonatomic, strong, nullable) UDJumpBarController *jumpBarController;
 
 /// Shows the find bar (with the replace row when @a replacing), searching
 /// for the selection when it is a short single line.

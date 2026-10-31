@@ -15,6 +15,7 @@
 		CE0C2E712F5F1F2900566368 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E682F5F1F2900566368 /* parser.c */; };
 		CE0C2E742F5F1F3500566368 /* TreeSitterYamlPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = CE0C2E732F5F1F3500566368 /* TreeSitterYamlPlugin.m */; };
 		CE0C2E7E2F5F1F6700566368 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E7B2F5F1F6700566368 /* highlights.scm */; };
+		755642E1FC000EFCA4ED49F6 /* outline.scm in Resources */ = {isa = PBXBuildFile; fileRef = BB206F1DC87D4E89426F8D8C /* outline.scm */; };
 		CE0C2E7F2F5F1F6700566368 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E7D2F5F1F6700566368 /* LanguageInfo.plist */; };
 		CE0C2E802F5F1F6700566368 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE0C2E7C2F5F1F6700566368 /* Info.plist */; };
 		CE7CFBA72F65B60800F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFBA62F65B60800F294D4 /* UDPieceTable.framework */; };
@@ -43,6 +44,7 @@
 		CE0C2E722F5F1F3500566368 /* TreeSitterYamlPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterYamlPlugin.h; sourceTree = "<group>"; };
 		CE0C2E732F5F1F3500566368 /* TreeSitterYamlPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterYamlPlugin.m; sourceTree = "<group>"; };
 		CE0C2E7B2F5F1F6700566368 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		BB206F1DC87D4E89426F8D8C /* outline.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = outline.scm; sourceTree = "<group>"; };
 		CE0C2E7C2F5F1F6700566368 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE0C2E7D2F5F1F6700566368 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
 		CE7CFBA62F65B60800F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -65,6 +67,7 @@
 			isa = PBXGroup;
 			children = (
 				CE0C2E7B2F5F1F6700566368 /* highlights.scm */,
+				BB206F1DC87D4E89426F8D8C /* outline.scm */,
 				CE0C2E7C2F5F1F6700566368 /* Info.plist */,
 				CE0C2E7D2F5F1F6700566368 /* LanguageInfo.plist */,
 			);
@@ -187,6 +190,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CE0C2E7E2F5F1F6700566368 /* highlights.scm in Resources */,
+				755642E1FC000EFCA4ED49F6 /* outline.scm in Resources */,
 				CE0C2E7F2F5F1F6700566368 /* LanguageInfo.plist in Resources */,
 				CE0C2E802F5F1F6700566368 /* Info.plist in Resources */,
 			);

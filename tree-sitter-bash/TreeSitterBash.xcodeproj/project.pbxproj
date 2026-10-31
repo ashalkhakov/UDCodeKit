@@ -13,6 +13,7 @@
 		CEED680B2F61C81400473B16 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = CEED68082F61C81400473B16 /* parser.c */; };
 		CEED680E2F61C82400473B16 /* TreeSitterBashPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = CEED680D2F61C82400473B16 /* TreeSitterBashPlugin.m */; };
 		CEED68122F61C83400473B16 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CEED680F2F61C83400473B16 /* highlights.scm */; };
+		85E2F6297087F78A29E12B8E /* outline.scm in Resources */ = {isa = PBXBuildFile; fileRef = 064DF14A505943F3550EB40D /* outline.scm */; };
 		CEED68142F61C83400473B16 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CEED68112F61C83400473B16 /* LanguageInfo.plist */; };
 		CEED681B2F61C94E00473B16 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CEED68102F61C83400473B16 /* Info.plist */; };
 /* End PBXBuildFile section */
@@ -39,6 +40,7 @@
 		CEED680C2F61C82400473B16 /* TreeSitterBashPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterBashPlugin.h; sourceTree = "<group>"; };
 		CEED680D2F61C82400473B16 /* TreeSitterBashPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterBashPlugin.m; sourceTree = "<group>"; };
 		CEED680F2F61C83400473B16 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		064DF14A505943F3550EB40D /* outline.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = outline.scm; sourceTree = "<group>"; };
 		CEED68102F61C83400473B16 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CEED68112F61C83400473B16 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -85,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				CEED680F2F61C83400473B16 /* highlights.scm */,
+				064DF14A505943F3550EB40D /* outline.scm */,
 				CEED68102F61C83400473B16 /* Info.plist */,
 				CEED68112F61C83400473B16 /* LanguageInfo.plist */,
 			);
@@ -179,6 +182,7 @@
 			files = (
 				CEED681B2F61C94E00473B16 /* Info.plist in Resources */,
 				CEED68122F61C83400473B16 /* highlights.scm in Resources */,
+				85E2F6297087F78A29E12B8E /* outline.scm in Resources */,
 				CEED68142F61C83400473B16 /* LanguageInfo.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

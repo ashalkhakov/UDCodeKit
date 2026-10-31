@@ -621,6 +621,12 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
     [self _request:@"initialize" params:params kind:LSPReplyInitialize target:nil action:NULL text:nil];
 }
 
+/// A capability LSP writes as `boolean | Options`: an object provides it.
+static BOOL LSPProvides(id capability) {
+    if ([capability isKindOfClass:[NSDictionary class]]) return YES;
+    return [capability respondsToSelector:@selector(boolValue)] && [capability boolValue];
+}
+
 - (void)_initializeResponseWithObject:(id)obj error:(NSError *)error {
     _initializing = NO;
     _initialized = (error == nil);
@@ -654,11 +660,11 @@ typedef NS_ENUM(NSInteger, LSPReplyKind) {
         _signatureHelpProvider = YES;
         _signatureHelpProviderTriggerCharacters = [signatureHelpProvider objectForKey:@"triggerCharacters"];
     }
-    _definitionProvider = [[capabilities objectForKey:@"definitionProvider"] boolValue];
-    _referencesProvider = [[capabilities objectForKey:@"referencesProvider"] boolValue];
-    _documentHighlightProvider = [[capabilities objectForKey:@"documentHighlightProvider"] boolValue];
-    _documentSymbolProvider = [[capabilities objectForKey:@"documentSymbolProvider"] boolValue];
-    _workspaceSymbolProvider = [[capabilities objectForKey:@"workspaceSymbolProvider"] boolValue];
+    _definitionProvider = LSPProvides([capabilities objectForKey:@"definitionProvider"]);
+    _referencesProvider = LSPProvides([capabilities objectForKey:@"referencesProvider"]);
+    _documentHighlightProvider = LSPProvides([capabilities objectForKey:@"documentHighlightProvider"]);
+    _documentSymbolProvider = LSPProvides([capabilities objectForKey:@"documentSymbolProvider"]);
+    _workspaceSymbolProvider = LSPProvides([capabilities objectForKey:@"workspaceSymbolProvider"]);
     NSDictionary *semanticTokensProvider = [capabilities objectForKey:@"semanticTokensProvider"];
     if ([semanticTokensProvider isKindOfClass:[NSDictionary class]]) {
         NSDictionary *legend = [semanticTokensProvider objectForKey:@"legend"];

@@ -12,6 +12,7 @@
                 <outlet property="editorArea" destination="TE-editor-area" id="TE-editor-area-outlet"/>
                 <outlet property="lineNumberGutterView" destination="TE-line-gutter" id="TE-line-gutter-outlet"/>
                 <outlet property="authorsView" destination="TE-authors" id="TE-authors-outlet"/>
+                <outlet property="jumpBar" destination="TE-jump-bar" id="TE-jump-bar-outlet"/>
                 <outlet property="scrollView" destination="TE-scroll-view" id="TE-scroll-outlet"/>
                 <outlet property="textView" destination="TE-text-view" id="TE-text-outlet"/>
                 <outlet property="gutterView" destination="TE-results-gutter" id="TE-results-gutter-outlet"/>
@@ -109,6 +110,10 @@
             <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
             <subviews>
+                <customView hidden="YES" id="TE-jump-bar" userLabel="Jump Bar (hidden till shown: the find bar and the text move down)" customClass="UDJumpBarView">
+                    <rect key="frame" x="0.0" y="576" width="900" height="24"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                </customView>
                 <customView hidden="YES" id="TE-find-host" userLabel="Find Bar Host">
                     <rect key="frame" x="0.0" y="570" width="900" height="30"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>

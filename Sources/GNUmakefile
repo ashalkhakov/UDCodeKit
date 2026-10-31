@@ -12,6 +12,7 @@ include $(GNUSTEP_MAKEFILES)/common.make
 # this system's (gnustep.make's UD_SOURCES): apple/ is Xcode's
 UDCode_OBJC_FILES = $(call UD_SOURCES,$(shell find . -name '*.m' | sort))
 # the toolbar's and navigator's images: SF Symbols on macOS, ours here
+UDCode_APPLICATION_ICON = udcode.png
 UDCode_RESOURCE_FILES = $(shell find . -name '*.xib' | sort) ../scripts/appimage/udcode.png $(wildcard ../Images/GNUstep/*.png)
 UDCode_MAIN_MODEL_FILE = MainMenu
 

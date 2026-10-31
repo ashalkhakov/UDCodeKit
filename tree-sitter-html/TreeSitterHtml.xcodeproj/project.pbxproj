@@ -13,6 +13,7 @@
 		CE7257932F60207400501E10 /* TreeSitterHtmlPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = CE7257922F60207400501E10 /* TreeSitterHtmlPlugin.m */; };
 		CE7257972F60208500501E10 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE7257952F60208500501E10 /* Info.plist */; };
 		CE7257982F60208500501E10 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = CE7257942F60208500501E10 /* highlights.scm */; };
+		CEC3DC00F3994A9283629145 /* outline.scm in Resources */ = {isa = PBXBuildFile; fileRef = 3470BCC775B8F52A5263BC72 /* outline.scm */; };
 		CE7257992F60208500501E10 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = CE7257962F60208500501E10 /* LanguageInfo.plist */; };
 		CE7CFB8E2F65B5DA00F294D4 /* UDPieceTable.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE7CFB8D2F65B5DA00F294D4 /* UDPieceTable.framework */; };
 /* End PBXBuildFile section */
@@ -37,6 +38,7 @@
 		CE7257912F60207400501E10 /* TreeSitterHtmlPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterHtmlPlugin.h; sourceTree = "<group>"; };
 		CE7257922F60207400501E10 /* TreeSitterHtmlPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterHtmlPlugin.m; sourceTree = "<group>"; };
 		CE7257942F60208500501E10 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
+		3470BCC775B8F52A5263BC72 /* outline.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = outline.scm; sourceTree = "<group>"; };
 		CE7257952F60208500501E10 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE7257962F60208500501E10 /* LanguageInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LanguageInfo.plist; sourceTree = "<group>"; };
 		CE7CFB8D2F65B5DA00F294D4 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -85,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				CE7257942F60208500501E10 /* highlights.scm */,
+				3470BCC775B8F52A5263BC72 /* outline.scm */,
 				CE7257952F60208500501E10 /* Info.plist */,
 				CE7257962F60208500501E10 /* LanguageInfo.plist */,
 			);
@@ -179,6 +182,7 @@
 			files = (
 				CE7257972F60208500501E10 /* Info.plist in Resources */,
 				CE7257982F60208500501E10 /* highlights.scm in Resources */,
+				CEC3DC00F3994A9283629145 /* outline.scm in Resources */,
 				CE7257992F60208500501E10 /* LanguageInfo.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

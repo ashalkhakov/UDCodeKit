@@ -53,6 +53,10 @@
 #import <UDCodeKit/UDHistoryViewController.h>
 #import <UDCodeKit/UDAuthorsView.h>
 #import <UDCodeKit/UDBadgeTextFieldCell.h>
+#import <UDCodeKit/UDDocumentSymbol.h>
+#import <UDCodeKit/UDTreeSitterOutline.h>
+#import <UDCodeKit/UDJumpBarView.h>
+#import <UDCodeKit/UDJumpBarController.h>
 
 #import <UDCodeKit/UDTabBarView.h>
 #import <UDCodeKit/UDTabItemView.h>

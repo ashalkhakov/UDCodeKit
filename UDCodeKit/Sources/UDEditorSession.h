@@ -54,6 +54,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// arguments of its own. Does nothing when a server is already started.
 - (void)startLanguageServerWithClient:(LSPClient *)client documentURL:(NSURL *)url;
 
+/// The document's symbols, as a tree (VS Code's outline): the language
+/// server's (textDocument/documentSymbol) when it gives them, else the
+/// mode's outline query's (UDTreeSitterOutline). @a action gets an
+/// NSArray<UDDocumentSymbol *> (the server's: later, when it answers; empty
+/// when it fails).
+- (void)documentSymbolsWithTarget:(id)target action:(SEL)action;
+
 /// Tells the language server the document closed.
 - (void)close;
 

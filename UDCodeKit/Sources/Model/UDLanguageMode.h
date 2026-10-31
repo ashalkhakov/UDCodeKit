@@ -29,6 +29,8 @@
 
 #import "UDTreeSitterTypes.h"
 
+@class UDTreeSitterOutline;
+
 NS_ASSUME_NONNULL_BEGIN
 
 
@@ -94,6 +96,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// "GNUmakefile", "Makefile"): LanguageInfo.plist's fileNames, as VS Code's
 /// "filenames". Matched before the extension.
 @property (nonatomic, copy) NSArray<NSString *> *fileNames;
+/// Tree-sitter outline query (LanguageInfo.plist's outlineQueryFile): its
+/// symbols, when no language server gives them (see UDTreeSitterOutline).
+@property (nonatomic, copy, nullable) NSString *outlineQuery;
+/// The outline query, compiled for the mode's grammar; nil when it has none.
+@property (nonatomic, readonly, nullable) UDTreeSitterOutline *outline;
 
 /// The command used to launch the language server for this mode.  The first
 /// element is the executable path; subsequent elements are the command-line

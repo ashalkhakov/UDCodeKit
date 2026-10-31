@@ -5,6 +5,17 @@
 #import "UDParseErrorCollector.h"
 #import "UDLSPDiagnosticHighlighter.h"
 #import "UDExtension.h"
+#import "UDDocumentSymbol.h"
+#import "UDTreeSitterOutline.h"
+
+/// A documentSymbol request's asker, told when the server answers.
+@interface UDSymbolsRequest : NSObject
+@property (nonatomic, weak) id target;
+@property (nonatomic) SEL action;
+@end
+
+@implementation UDSymbolsRequest
+@end
 
 @interface UDEditorSession ()
 @property (nonatomic, strong) UDMissingNodeHighlighter *missingNodeHighlighter;
@@ -13,7 +24,9 @@
 @property (nonatomic, strong, nullable) UDLSPCoordinator *lspCoordinator;
 @end
 
-@implementation UDEditorSession
+@implementation UDEditorSession {
+    NSMutableDictionary<NSNumber *, UDSymbolsRequest *> *_symbolRequests;
+}
 
 - (instancetype)initWithDocument:(UDCodeDocument *)document {
     self = [super init];
@@ -134,6 +147,43 @@
     if (![note.userInfo[UDExtensionLanguageServerReadyIdentifierKey] isEqual:_document.languageMode.identifier]) return;
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UDExtensionLanguageServerDidBecomeReadyNotification object:nil];
     [self startLanguageServer];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Symbols (VS Code's outline: the server's, else the outline query's)
+// ---------------------------------------------------------------------------
+
+static void UDTell(id target, SEL action, NSArray<UDDocumentSymbol *> *symbols) {
+    if (!target || !action) return;
+    ((void (*)(id, SEL, id))[target methodForSelector:action])(target, action, symbols);
+}
+
+- (void)documentSymbolsWithTarget:(id)target action:(SEL)action {
+    UDLSPCoordinator *coordinator = _lspCoordinator;
+    if (coordinator.ready && coordinator.client.documentSymbolProvider) {
+        NSInteger identifier = [coordinator request:@"textDocument/documentSymbol" extra:nil
+                                             target:self action:@selector(_didReadSymbols:)];
+        if (identifier) {
+            UDSymbolsRequest *request = [[UDSymbolsRequest alloc] init];
+            request.target = target;
+            request.action = action;
+            if (!_symbolRequests) _symbolRequests = [NSMutableDictionary dictionary];
+            _symbolRequests[@(identifier)] = request;
+            return;
+        }
+    }
+    UDTreeSitterOutline *outline = _document.languageMode.outline;
+    const void *tree = _textStorage.highlighter.currentParseTree;
+    UDTell(target, action, outline && tree ? [outline symbolsOfTree:tree text:_textStorage.string] : @[]);
+}
+
+- (void)_didReadSymbols:(LSPResponse *)response {
+    UDSymbolsRequest *request = _symbolRequests[@(response.requestID)];
+    if (!request) return;
+    [_symbolRequests removeObjectForKey:@(response.requestID)];
+    NSArray *symbols = response.error || !_lspCoordinator ? @[]
+        : [UDDocumentSymbol symbolsOfLSPResult:response.result textModel:_textStorage.textModel];
+    UDTell(request.target, request.action, symbols);
 }
 
 - (void)close {

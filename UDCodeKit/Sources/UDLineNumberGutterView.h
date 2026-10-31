@@ -40,7 +40,18 @@ NS_ASSUME_NONNULL_BEGIN
 /// The context menu of line @a lineNumber (a right click, or a control
 /// click), nil for none.
 - (nullable NSMenu *)lineNumberGutterView:(UDLineNumberGutterView *)view menuForLine:(NSInteger)lineNumber;
+/// A click on line @a lineNumber's change bar (its source-control change).
+- (void)lineNumberGutterView:(UDLineNumberGutterView *)view didClickChangeAtLine:(NSInteger)lineNumber event:(NSEvent *)event;
 @end
+
+/// A line's source-control change, as Xcode's change bars show it.
+typedef NS_ENUM(NSInteger, UDGutterChange) {
+    UDGutterChangeNone = 0,
+    UDGutterChangeAdded,
+    UDGutterChangeModified,
+    /// Lines deleted after this one (line 0: before the first).
+    UDGutterChangeDeletedAfter,
+};
 
 /// How a line's breakpoint is drawn: one of the first three, and what it
 /// does marked with one of the last two.
@@ -96,6 +107,11 @@ UDCODEKIT_EXPORT const CGFloat UDLineNumberGutterWidth;
 /// The breakpoints and the instruction pointer to draw. Asked for the
 /// visible lines only, on each draw.
 @property (nonatomic, weak, nullable) id<UDLineNumberGutterBreakpointSource> breakpointSource;
+
+/// The lines changed (since the file's index, say): line number →
+/// UDGutterChange; lines deleted after line L: −L (0: before the first),
+/// UDGutterChangeDeletedAfter. Drawn as Xcode's change bars at the right edge.
+@property (nonatomic, copy) NSDictionary<NSNumber *, NSNumber *> *changes;
 
 /// The line at @a point (in the gutter's coordinates), 0 when none is there.
 - (NSInteger)lineAtPoint:(NSPoint)point;

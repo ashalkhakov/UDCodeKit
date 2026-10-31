@@ -24,6 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// The context menu of the file or folder at @a url (VS Code's Explorer's:
 /// Select for Compare, ...); none when there are none.
 - (NSArray<NSMenuItem *> *)fileNavigator:(UDFileNavigatorViewController *)navigator menuItemsForURL:(NSURL *)url;
+/// The badge at the right of the file at @a url: its source-control status
+/// (Xcode's M, A, ?, ...), nil when it has none.
+- (nullable NSString *)fileNavigator:(UDFileNavigatorViewController *)navigator badgeForURL:(NSURL *)url;
+/// Whether files under the folder at @a url have a badge.
+- (BOOL)fileNavigator:(UDFileNavigatorViewController *)navigator folderContainsChangesAtURL:(NSURL *)url;
 @end
 
 @interface UDFileNavigatorViewController : NSViewController <NSOutlineViewDataSource, NSOutlineViewDelegate>
@@ -42,6 +47,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Lists again what was listed, what was expanded kept expanded.
 - (void)reload;
+
+/// Only the files with a badge, and their folders (Xcode's "Show only files
+/// with source-control status", the button below).
+@property (nonatomic) BOOL showsOnlyChangedFiles;
+/// The badges changed (a repository's status): drawn again (listed again
+/// when only changed files are shown).
+- (void)badgesDidChange;
 /// Shows @a url (its folders expanded) and selects it.
 - (void)revealURL:(NSURL *)url;
 /// The URL @a row shows.

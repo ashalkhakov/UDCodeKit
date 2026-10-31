@@ -20,6 +20,7 @@
 
 @class UDDebugSession, UDBreakpointStore, UDProject, UDFileNavigatorViewController, UDBuildRunner, UDProjectSettingsController,
        UDTasks, UDSearchResultsViewController, UDOpenQuicklyController, UDLinkedEditing, UDIssuePopupController, UDTerminalViewController, UDTest, UDTestCatalog, UDTestNavigatorViewController;
+@protocol UDSourceControl;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -98,6 +99,16 @@ NS_ASSUME_NONNULL_BEGIN
 /// file navigator's Select for Compare, then Compare with “…”, a tab of its
 /// own (VS Code's diff editor). Next / Previous Change go from change to change.
 - (IBAction)toggleCodeReview:(nullable id)sender;
+
+/// The project's source control (an extension's: git's; nil: none): Xcode's
+/// Source Control navigator (⌘2) and Integrate menu, an extension underneath.
+@property (nonatomic, strong, readonly, nullable) id<UDSourceControl> sourceControl;
+/// Asks the extensions again (a repository made, say).
+- (void)reloadSourceControl;
+- (IBAction)showSourceControlNavigator:(nullable id)sender;
+/// Integrate > Commit… (⌥⌘C): the Source Control navigator's message.
+- (IBAction)commitChanges:(nullable id)sender;
+- (IBAction)toggleAuthors:(nullable id)sender;
 - (IBAction)goToNextChange:(nullable id)sender;
 - (IBAction)goToPreviousChange:(nullable id)sender;
 - (IBAction)saveAllDocuments:(nullable id)sender;

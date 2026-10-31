@@ -56,7 +56,8 @@
 #endif
 
 // Forward declarations for types used in optional factory methods.
-@class UDDiagnosticStore, UDProject, UDTestRunner;
+@class UDDiagnosticStore, UDProject, UDTestRunner, NSMenuItem;
+@protocol UDSourceControl, UDSourceControlHost;
 
 /// Posted by an extension when a language server that was previously unavailable
 /// becomes ready (e.g. after an async download/install). The object is the
@@ -204,5 +205,14 @@ static NSString * const UDLinkURLKey = @"url";
 /// @a project takes (clangd's fallbackFlags); nil: none.
 - (nullable NSDictionary *)initializationOptionsForLanguageServer:(NSArray<NSString *> *)command
                                                           project:(UDProject *)project;
+
+/// The source control of @a folder (UDSourceControl.h: its repository's,
+/// git's), when this extension has one for it; nil otherwise.
+- (nullable id<UDSourceControl>)sourceControlForFolder:(NSString *)folder;
+
+/// The Integrate menu's items of this extension's own, that need no
+/// folder's source control (Clone…, New Git Repository… of @a folder, the
+/// project's, nil when the window has none): what comes of them told to @a host.
+- (NSArray<NSMenuItem *> *)sourceControlMenuItemsForHost:(id<UDSourceControlHost>)host folder:(nullable NSString *)folder;
 
 @end

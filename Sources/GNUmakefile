@@ -1,6 +1,6 @@
 #
 # UDCode on GNUstep: the editor application, on UDCodeKit, with the
-# grammar bundles and its own plugins (CFamily) in its PlugIns folder.
+# grammar bundles and its own plugins (CFamily, Git) in its PlugIns folder.
 #
 APP_NAME = UDCode
 # Stamped by gnustep-release-actions from the tag.
@@ -31,7 +31,7 @@ ADDITIONAL_LDFLAGS += $(foreach f,UDCodeKit UDPieceTable LSPKit,-Wl,-rpath,\$$OR
     -Wl,-rpath,\$$ORIGIN/../../Library/Libraries
 endif
 
-# The grammar bundles and its own (Plugins/: CFamily), built beside it, go
+# The grammar bundles and its own (Plugins/: CFamily, Git), built beside it, go
 # in its PlugIns folder.
 UD_GRAMMARS = $(wildcard $(UD_BUILD)/tree-sitter-*/*.bundle) $(wildcard $(UD_BUILD)/Plugins/*/*.bundle)
 

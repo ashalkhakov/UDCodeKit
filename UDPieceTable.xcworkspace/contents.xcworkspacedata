@@ -22,6 +22,9 @@
    <FileRef
       location = "group:Plugins/CFamily/CFamily.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:Plugins/Git/Git.xcodeproj">
+   </FileRef>
    <Group
       location = "group:."
       name = "Grammar Bundles">

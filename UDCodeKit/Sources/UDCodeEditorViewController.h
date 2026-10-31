@@ -29,7 +29,7 @@
 #import "UDLanguageMode.h"
 #import "UDFindModel.h"
 
-@class UDFindBarViewController, UDBreakpointStore, UDBreakpointEditorViewController, UDDebugHoverViewController;
+@class UDFindBarViewController, UDBreakpointStore, UDBreakpointEditorViewController, UDDebugHoverViewController, UDSourceControlBlameRange;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -44,6 +44,14 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 /// ⌘-clicked (to edit). Return NO to have it opened as any other link is
 /// (NSWorkspace: a web page in the browser).
 - (BOOL)codeEditor:(UDCodeEditorViewController *)editor openLink:(NSURL *)url editing:(BOOL)editing;
+@end
+
+/// What the editor's change bars ask of source control.
+@protocol UDCodeEditorSourceControlDelegate <NSObject>
+/// Stage Change: @a indexText, the file's index text with the change in it, staged.
+- (void)codeEditor:(UDCodeEditorViewController *)editor stageText:(NSString *)indexText;
+/// Show Change: the file's Code Review.
+- (void)codeEditorShowChanges:(UDCodeEditorViewController *)editor;
 @end
 
 @interface UDCodeEditorViewController : NSViewController
@@ -64,6 +72,19 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 @property (nonatomic, strong, readonly, nullable) UDFindBarViewController *findBar;
 @property (nonatomic, strong, readonly, nullable) UDFindModel *findModel;
 @property (nonatomic, readonly, getter=isFindBarVisible) BOOL findBarVisible;
+
+/// The text its change bars are against (the file's index text, VS Code's
+/// quick diff; nil: none): the lines changed since, drawn as Xcode's blue
+/// bars in the gutter, a moment after each edit. A bar clicked: Show
+/// Change, Stage Change, Discard Change.
+@property (nonatomic, copy, nullable) NSString *quickDiffOriginal;
+@property (nonatomic, readonly, copy) NSArray<UDDetailedLineRangeMapping *> *quickDiffChanges;
+@property (nonatomic, weak, nullable) id<UDCodeEditorSourceControlDelegate> sourceControlDelegate;
+
+/// Xcode's Authors beside the text (Editor > Authors): who last changed its
+/// lines (blameRanges, git blame's), and when.
+@property (nonatomic) BOOL showsAuthors;
+@property (nonatomic, copy) NSArray<UDSourceControlBlameRange *> *blameRanges;
 
 /// Shows the find bar (with the replace row when @a replacing), searching
 /// for the selection when it is a short single line.

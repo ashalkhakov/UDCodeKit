@@ -18,6 +18,9 @@ static NSColor *UDSeparatorColor(void) {
 // considered visually collapsed (e.g., inside a fold region) and skipped.
 static const CGFloat kMinimumVisibleFragmentHeight = 2.0;
 static const CGFloat kFoldColumnWidth = 14.0;
+// Xcode's change bar: at the right edge, the width a click finds it in.
+static const CGFloat kChangeBarWidth = 3.0;
+static const CGFloat kChangeBarHitWidth = 6.0;
 
 const CGFloat UDLineNumberGutterWidth = 48.0;
 
@@ -218,6 +221,13 @@ static NSBezierPath *UDTagPath(NSRect rect) {
             [lm characterIndexForGlyphAtIndex:fragGlyphRange.location];
         NSInteger lineNumber = [_textModel getPositionAt:(NSInteger)charIdx].line;
 
+        // -- Its source-control change, at the right edge (Xcode's change bar) --
+        if (_changes.count && NSHeight(fragInContainer) > kMinimumVisibleFragmentHeight) {
+            [self _drawChange:[_changes[@(lineNumber)] integerValue] inRect:fragInGutter
+                  deletedAfter:lineNumber != lastDrawnLine && [_changes[@(-lineNumber)] boolValue]
+                 deletedBefore:lineNumber == 1 && lineNumber != lastDrawnLine && [_changes[@0] integerValue] == UDGutterChangeDeletedAfter];
+        }
+
         // Only draw each line number once (wrapped lines share a line number).
         // Also skip visually collapsed fold lines.
         if (lineNumber != lastDrawnLine &&
@@ -312,6 +322,35 @@ static NSBezierPath *UDTagPath(NSRect rect) {
     }
 }
 
+- (void)setChanges:(NSDictionary<NSNumber *, NSNumber *> *)changes {
+    _changes = [changes copy];
+    [self setNeedsDisplay:YES];
+}
+
+/// Xcode's blue.
+static NSColor *UDChangeBarColor(void) {
+    return [NSColor colorWithCalibratedRed:0.20 green:0.52 blue:0.98 alpha:1.0];
+}
+
+- (void)_drawChange:(UDGutterChange)change inRect:(NSRect)rect deletedAfter:(BOOL)after deletedBefore:(BOOL)before {
+    CGFloat x = NSWidth(self.bounds) - kChangeBarWidth;
+    [UDChangeBarColor() setFill];
+    if (change == UDGutterChangeAdded || change == UDGutterChangeModified) {
+        NSRectFill(NSMakeRect(x, NSMinY(rect), kChangeBarWidth, NSHeight(rect)));
+    }
+    // lines deleted: a wedge on the boundary
+    for (int edge = 0; edge < 2; edge++) {
+        if ((edge == 0 && !after) || (edge == 1 && !before)) continue;
+        CGFloat y = edge == 0 ? (self.isFlipped ? NSMaxY(rect) : NSMinY(rect)) : (self.isFlipped ? NSMinY(rect) : NSMaxY(rect));
+        NSBezierPath *wedge = [NSBezierPath bezierPath];
+        [wedge moveToPoint:NSMakePoint(NSWidth(self.bounds) - 6.0, y)];
+        [wedge lineToPoint:NSMakePoint(NSWidth(self.bounds), y - 3.0)];
+        [wedge lineToPoint:NSMakePoint(NSWidth(self.bounds), y + 3.0)];
+        [wedge closePath];
+        [wedge fill];
+    }
+}
+
 - (NSDictionary *)_lineNumberAttributes {
 #ifdef __APPLE__
     NSFont *font = [NSFont monospacedDigitSystemFontOfSize:10.0 weight:NSFontWeightRegular];
@@ -389,6 +428,14 @@ static NSBezierPath *UDTagPath(NSRect rect) {
     if (event.modifierFlags & NSEventModifierFlagControl) {
         NSMenu *menu = [self menuForEvent:event];
         if (menu) [NSMenu popUpContextMenu:menu withEvent:event forView:self];
+        return;
+    }
+
+    // The change bar, at the right edge: its change's menu.
+    if (ptInSelf.x >= NSWidth(self.bounds) - kChangeBarHitWidth &&
+        ([_changes[@(lineNumber)] integerValue] || _changes[@(-lineNumber)] || (lineNumber == 1 && _changes[@0])) &&
+        [_delegate respondsToSelector:@selector(lineNumberGutterView:didClickChangeAtLine:event:)]) {
+        [_delegate lineNumberGutterView:self didClickChangeAtLine:lineNumber event:event];
         return;
     }
 

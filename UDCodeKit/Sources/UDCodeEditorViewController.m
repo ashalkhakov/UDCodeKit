@@ -15,6 +15,7 @@
 #import "UDDebugHoverViewController.h"
 #import "UDExtension.h"
 #import "UDLinkDetector.h"
+#import "UDAuthorsView.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <objc/runtime.h>
 
@@ -200,6 +201,11 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
 }
 
 - (void)_updateAfterEdit {
+    if (_quickDiffOriginal) {
+        // the change bars: a moment after the typing (VS Code's 200 ms)
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_computeQuickDiff) object:nil];
+        [self performSelector:@selector(_computeQuickDiff) withObject:nil afterDelay:0.2];
+    }
     [_foldingController update];
     [_bracketMatchHighlighter update];
     [_linkDetector scheduleUpdate];
@@ -208,6 +214,175 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_renderPreview) object:nil];
         [self performSelector:@selector(_renderPreview) withObject:nil afterDelay:0.3];
     }
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Authors (Xcode's: git blame beside the text)
+// ---------------------------------------------------------------------------
+
+- (UDAuthorsView *)_authorsView {
+    for (NSView *view in _editorArea.subviews) {
+        if ([view isKindOfClass:[UDAuthorsView class]]) return (UDAuthorsView *)view;
+    }
+    return nil;
+}
+
+- (BOOL)showsAuthors {
+    return [self _authorsView] != nil;
+}
+
+- (void)setShowsAuthors:(BOOL)showsAuthors {
+    (void)self.view;
+    if (showsAuthors == self.showsAuthors) return;
+    CGFloat width = UDAuthorsViewWidth * (showsAuthors ? 1 : -1);
+    // the gutter and the text moved over, or back
+    for (NSView *view in @[ _lineNumberGutterView, _scrollView ]) {
+        NSRect frame = view.frame;
+        frame.origin.x += width;
+        if (view == _scrollView) frame.size.width -= width;
+        view.frame = frame;
+    }
+    if (showsAuthors) {
+        UDAuthorsView *authors = [[UDAuthorsView alloc] initWithFrame:NSMakeRect(0, 0, UDAuthorsViewWidth, NSHeight(_editorArea.bounds))
+                                                             textView:_textView textModel:_textStorage.textModel];
+        authors.autoresizingMask = NSViewHeightSizable | NSViewMaxXMargin;
+        [_editorArea addSubview:authors];
+    } else {
+        [[self _authorsView] removeFromSuperview];
+    }
+    [_editorArea setNeedsDisplay:YES];
+}
+
+- (NSArray<UDSourceControlBlameRange *> *)blameRanges {
+    return [self _authorsView].ranges ?: @[];
+}
+
+- (void)setBlameRanges:(NSArray<UDSourceControlBlameRange *> *)blameRanges {
+    [self _authorsView].ranges = blameRanges;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Change bars (VS Code's quick diff, Xcode's look)
+// ---------------------------------------------------------------------------
+
+static NSArray<NSString *> *UDLinesOfText(NSString *text) {
+    NSMutableArray<NSString *> *lines = [NSMutableArray array];
+    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        [lines addObject:[line hasSuffix:@"\r"] ? [line substringToIndex:line.length - 1] : line];
+    }
+    return lines;
+}
+
+- (NSArray<NSString *> *)_currentLines {
+    UDTextModel *model = _textStorage.textModel;
+    NSInteger count = [model getLineCount];
+    NSMutableArray<NSString *> *lines = [NSMutableArray arrayWithCapacity:(NSUInteger)count];
+    for (NSInteger line = 1; line <= count; line++) [lines addObject:[model getLineContent:line]];
+    return lines;
+}
+
+- (void)setQuickDiffOriginal:(NSString *)quickDiffOriginal {
+    if (quickDiffOriginal == _quickDiffOriginal || [quickDiffOriginal isEqualToString:_quickDiffOriginal]) return;
+    _quickDiffOriginal = [quickDiffOriginal copy];
+    [self _computeQuickDiff];
+}
+
+- (void)_computeQuickDiff {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_computeQuickDiff) object:nil];
+    (void)self.view;
+    if (!_quickDiffOriginal) {
+        _quickDiffChanges = @[];
+        _lineNumberGutterView.changes = @{};
+        return;
+    }
+    UDLinesDiff *diff = [UDLinesDiffComputer diffOfOriginalLines:UDLinesOfText(_quickDiffOriginal) modifiedLines:[self _currentLines]
+                                            ignoreTrimWhitespace:NO maxComputationTime:1.0];
+    _quickDiffChanges = diff.changes;
+    NSMutableDictionary<NSNumber *, NSNumber *> *marks = [NSMutableDictionary dictionary];
+    for (UDDetailedLineRangeMapping *change in diff.changes) {
+        if (UDLineRangeLength(change.modified) == 0) {
+            marks[@(-(change.modified.startLineNumber - 1))] = @(UDGutterChangeDeletedAfter);
+            continue;
+        }
+        UDGutterChange kind = UDLineRangeLength(change.original) == 0 ? UDGutterChangeAdded : UDGutterChangeModified;
+        for (NSInteger line = change.modified.startLineNumber; line < change.modified.endLineNumberExclusive; line++) marks[@(line)] = @(kind);
+    }
+    _lineNumberGutterView.changes = marks;
+}
+
+/// The change whose bar is at @a line.
+- (nullable UDDetailedLineRangeMapping *)_quickDiffChangeAtLine:(NSInteger)line {
+    for (UDDetailedLineRangeMapping *change in _quickDiffChanges) {
+        UDLineRange modified = change.modified;
+        if (UDLineRangeLength(modified) == 0) {
+            if (modified.startLineNumber - 1 == line || (line == 1 && modified.startLineNumber == 1)) return change;
+        } else if (modified.startLineNumber <= line && line < modified.endLineNumberExclusive) {
+            return change;
+        }
+    }
+    return nil;
+}
+
+- (void)lineNumberGutterView:(UDLineNumberGutterView *)view didClickChangeAtLine:(NSInteger)lineNumber event:(NSEvent *)event {
+    UDDetailedLineRangeMapping *change = [self _quickDiffChangeAtLine:lineNumber];
+    if (!change) return;
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
+    for (NSArray *entry in @[ @[ @"Show Change", NSStringFromSelector(@selector(_showChange:)) ],
+                              @[ @"Stage Change", NSStringFromSelector(@selector(_stageChange:)) ],
+                              @[ @"Discard Change", NSStringFromSelector(@selector(_discardChange:)) ] ]) {
+        NSMenuItem *item = [menu addItemWithTitle:entry[0] action:NSSelectorFromString(entry[1]) keyEquivalent:@""];
+        item.target = self;
+        item.representedObject = change;
+    }
+    [NSMenu popUpContextMenu:menu withEvent:event forView:view];
+}
+
+- (void)_showChange:(NSMenuItem *)sender {
+    [_sourceControlDelegate codeEditorShowChanges:self];
+}
+
+/// The original's text with @a change in it: what Stage Change stages.
+- (void)_stageChange:(NSMenuItem *)sender {
+    UDDetailedLineRangeMapping *change = sender.representedObject;
+    NSMutableArray<NSString *> *lines = [UDLinesOfText(_quickDiffOriginal) mutableCopy];
+    NSArray<NSString *> *current = [self _currentLines];
+    NSRange original = NSMakeRange((NSUInteger)change.original.startLineNumber - 1, (NSUInteger)UDLineRangeLength(change.original));
+    NSRange modified = NSMakeRange((NSUInteger)change.modified.startLineNumber - 1, (NSUInteger)UDLineRangeLength(change.modified));
+    [lines replaceObjectsInRange:original withObjectsFromArray:[current subarrayWithRange:modified]];
+    [_sourceControlDelegate codeEditor:self stageText:[lines componentsJoinedByString:@"\n"]];
+}
+
+/// The change's lines as they were (Xcode asks first).
+- (void)_discardChange:(NSMenuItem *)sender {
+    UDDetailedLineRangeMapping *change = sender.representedObject;
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"The selected change will be discarded.";
+    [alert addButtonWithTitle:@"Discard Change"];
+    [alert addButtonWithTitle:@"Cancel"];
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+    NSArray<NSString *> *was = [UDLinesOfText(_quickDiffOriginal)
+                                subarrayWithRange:NSMakeRange((NSUInteger)change.original.startLineNumber - 1,
+                                                              (NSUInteger)UDLineRangeLength(change.original))];
+    UDTextModel *model = _textStorage.textModel;
+    NSInteger count = [model getLineCount];
+    NSInteger start = change.modified.startLineNumber, end = change.modified.endLineNumberExclusive;
+    NSString *text = [was componentsJoinedByString:@"\n"];
+    UDRange range;
+    if (start > count) {
+        // lines deleted at the end: after the last
+        range = PTRangeMake(count, [model getLineMaxColumn:count], count, [model getLineMaxColumn:count]);
+        text = [@"\n" stringByAppendingString:text];
+    } else if (end <= count) {
+        // whole lines, their line breaks with them
+        range = PTRangeMake(start, 1, end, 1);
+        if (was.count) text = [text stringByAppendingString:@"\n"];
+    } else if (was.count || start == 1) {
+        range = PTRangeMake(start, 1, count, [model getLineMaxColumn:count]);
+    } else {
+        // the last lines, added: from the end of the line before
+        range = PTRangeMake(start - 1, [model getLineMaxColumn:start - 1], count, [model getLineMaxColumn:count]);
+    }
+    [model applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:range text:text] ]];
 }
 
 // ---------------------------------------------------------------------------

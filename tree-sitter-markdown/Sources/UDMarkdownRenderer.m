@@ -31,6 +31,8 @@ typedef struct {
     NSUInteger _quoteDepth;
     NSCountedSet<NSString *> *_anchors;   // the headings' so far, for -1, -2
     BOOL _skipLeadingSpace;            // a heading's text, after "# "; a task's, after its box
+    uint32_t _countedBytes;            // -_offsetOfByte:'s, so far
+    NSUInteger _countedUnits;
 }
 
 - (instancetype)init {
@@ -72,6 +74,64 @@ typedef struct {
     return result;
 }
 
+- (NSArray<NSDictionary<NSString *, id> *> *)linksInMarkdown:(NSString *)text baseURL:(NSURL *)baseURL {
+    NSData *utf8 = [text dataUsingEncoding:NSUTF8StringEncoding] ?: [NSData data];
+    TSTree *tree = ts_parser_parse_string(_parser, NULL, utf8.bytes, (uint32_t)utf8.length);
+    if (!tree) return @[];
+    _source = utf8.bytes;
+    _baseURL = baseURL;
+    _references = [NSMutableDictionary dictionary];
+    _countedBytes = 0;
+    _countedUnits = 0;
+
+    TSNode root = ts_tree_root_node(tree);
+    [self _collectReferencesIn:root];
+    NSMutableArray<NSDictionary<NSString *, id> *> *links = [NSMutableArray array];
+    [self _collectLinksIn:root into:links];
+    ts_tree_delete(tree);
+    _source = NULL;
+    return links;
+}
+
+- (void)_collectLinksIn:(TSNode)node into:(NSMutableArray<NSDictionary<NSString *, id> *> *)links {
+    for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
+        TSNode child = ts_node_named_child(node, i);
+        if (UDIs(child, "uri_autolink") || UDIs(child, "email_autolink") || UDIs(child, "www_autolink")) {
+            [self _addLink:[self _URLOfAutolink:child] at:child to:links];
+            continue;
+        }
+        if (UDIs(child, "link") || UDIs(child, "image") || UDIs(child, "link_reference_definition")) {
+            // where it says where it goes: its destination, else its label
+            TSNode target = [self _childOf:child type:"link_destination"];
+            if (ts_node_is_null(target)) target = [self _childOf:child type:"link_label"];
+            if (ts_node_is_null(target)) target = [self _childOf:child type:UDIs(child, "image") ? "image_description" : "link_text"];
+            if (!ts_node_is_null(target)) [self _addLink:[self _URLForDestination:[self _destinationOf:child]] at:target to:links];
+        }
+        [self _collectLinksIn:child into:links];         // an image in a link's text
+    }
+}
+
+- (void)_addLink:(nullable NSURL *)url at:(TSNode)node to:(NSMutableArray<NSDictionary<NSString *, id> *> *)links {
+    if (!url) return;
+    NSUInteger start = [self _offsetOfByte:ts_node_start_byte(node)];
+    NSUInteger end = [self _offsetOfByte:ts_node_end_byte(node)];
+    [links addObject:@{ @"range": [NSValue valueWithRange:NSMakeRange(start, end - start)], @"url": url }];
+}
+
+/// The UTF-16 offset of @a byte of the source: counted on from the last one
+/// asked, as the links come in the text's order.
+- (NSUInteger)_offsetOfByte:(uint32_t)byte {
+    if (byte < _countedBytes) {
+        _countedBytes = 0;
+        _countedUnits = 0;
+    }
+    for (; _countedBytes < byte; _countedBytes++) {
+        unsigned char c = (unsigned char)_source[_countedBytes];
+        if ((c & 0xC0) != 0x80) _countedUnits += c >= 0xF0 ? 2 : 1;   // a character's first byte; 4: a surrogate pair
+    }
+    return _countedUnits;
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - The tree
 // ---------------------------------------------------------------------------
@@ -85,12 +145,18 @@ static BOOL UDIs(TSNode node, const char *type) {
     return [[NSString alloc] initWithBytes:_source + start length:end - start encoding:NSUTF8StringEncoding] ?: @"";
 }
 
-- (nullable NSString *)_textOfChild:(TSNode)node type:(const char *)type {
+- (TSNode)_childOf:(TSNode)node type:(const char *)type {
     for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
         TSNode child = ts_node_named_child(node, i);
-        if (UDIs(child, type)) return [self _textOf:child];
+        if (UDIs(child, type)) return child;
     }
-    return nil;
+    TSNode none = { 0 };
+    return none;
+}
+
+- (nullable NSString *)_textOfChild:(TSNode)node type:(const char *)type {
+    TSNode child = [self _childOf:node type:type];
+    return ts_node_is_null(child) ? nil : [self _textOf:child];
 }
 
 /// [label]: destination, anywhere in the document, for [text][label] and [label].
@@ -409,9 +475,7 @@ static BOOL UDIs(TSNode node, const char *type) {
     } else if (UDIs(node, "uri_autolink") || UDIs(node, "email_autolink") || UDIs(node, "www_autolink")) {
         NSString *text = [self _textOf:node];
         if ([text hasPrefix:@"<"] && [text hasSuffix:@">"]) text = [text substringWithRange:NSMakeRange(1, text.length - 2)];
-        NSString *address = UDIs(node, "email_autolink") ? [@"mailto:" stringByAppendingString:text]
-                          : UDIs(node, "www_autolink") ? [@"http://" stringByAppendingString:text] : text;
-        NSURL *link = [NSURL URLWithString:address];
+        NSURL *link = [self _URLOfAutolink:node];
         style.link = link;
         [self _append:text style:style];
     } else if (UDIs(node, "backslash_escape")) {
@@ -449,17 +513,32 @@ static BOOL UDIs(TSNode node, const char *type) {
         NSString *escaped = [destination stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLFragmentAllowedCharacterSet]];
         url = escaped ? [NSURL URLWithString:escaped relativeToURL:_baseURL] : nil;
     }
-    return url.absoluteURL;
+    // ../ resolved (GNUstep's -absoluteURL keeps it)
+    return url.absoluteURL.standardizedURL;
+}
+
+/// <address>, a bare www. one or an email's: where it goes.
+- (nullable NSURL *)_URLOfAutolink:(TSNode)node {
+    NSString *text = [self _textOf:node];
+    if ([text hasPrefix:@"<"] && [text hasSuffix:@">"]) text = [text substringWithRange:NSMakeRange(1, text.length - 2)];
+    NSString *address = UDIs(node, "email_autolink") ? [@"mailto:" stringByAppendingString:text]
+                      : UDIs(node, "www_autolink") ? [@"http://" stringByAppendingString:text] : text;
+    return [NSURL URLWithString:address];
+}
+
+/// A link's, an image's or a definition's destination: its own, or its
+/// reference's ([text][label], [label]).
+- (nullable NSString *)_destinationOf:(TSNode)node {
+    NSString *destination = [self _textOfChild:node type:"link_destination"];
+    if (destination || UDIs(node, "link_reference_definition")) return destination;
+    NSString *label = [self _textOfChild:node type:"link_label"]
+        ?: [self _textOfChild:node type:UDIs(node, "image") ? "image_description" : "link_text"];
+    return label ? _references[label.lowercaseString] : nil;
 }
 
 /// [text](destination), [text][label], [label]: the text, a link.
 - (void)_renderLink:(TSNode)node style:(UDInlineStyle)style {
-    NSString *destination = [self _textOfChild:node type:"link_destination"];
-    if (!destination) {
-        NSString *label = [self _textOfChild:node type:"link_label"] ?: [self _textOfChild:node type:"link_text"];
-        destination = label ? _references[label.lowercaseString] : nil;
-    }
-    NSURL *link = [self _URLForDestination:destination];
+    NSURL *link = [self _URLForDestination:[self _destinationOf:node]];
     style.link = link;
     for (uint32_t i = 0; i < ts_node_named_child_count(node); i++) {
         TSNode child = ts_node_named_child(node, i);
@@ -470,12 +549,7 @@ static BOOL UDIs(TSNode node, const char *type) {
 /// A local image, at most the width of a column of text; else its
 /// description, as a link to it.
 - (void)_renderImage:(TSNode)node style:(UDInlineStyle)style {
-    NSString *destination = [self _textOfChild:node type:"link_destination"];
-    if (!destination) {
-        NSString *label = [self _textOfChild:node type:"link_label"] ?: [self _textOfChild:node type:"image_description"];
-        destination = label ? _references[label.lowercaseString] : nil;
-    }
-    NSURL *url = [self _URLForDestination:destination];
+    NSURL *url = [self _URLForDestination:[self _destinationOf:node]];
     NSImage *image = url.isFileURL ? [[NSImage alloc] initWithContentsOfURL:url] : nil;
     if (image && image.size.width > 0 && image.size.height > 0) {
         NSSize size = image.size;

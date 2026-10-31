@@ -105,4 +105,9 @@
     return [_extension previewOfText:text forIdentifier:_identifier baseURL:baseURL];
 }
 
+- (NSArray<NSDictionary<NSString *, id> *> *)linksInText:(NSString *)text baseURL:(NSURL *)baseURL {
+    if (![_extension respondsToSelector:@selector(linksInText:forIdentifier:baseURL:)]) return @[];
+    return [_extension linksInText:text forIdentifier:_identifier baseURL:baseURL] ?: @[];
+}
+
 @end

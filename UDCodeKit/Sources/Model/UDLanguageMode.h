@@ -131,6 +131,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// @a baseURL; nil when the mode has no preview.
 - (nullable NSAttributedString *)previewOfText:(NSString *)text baseURL:(nullable NSURL *)baseURL;
 
+/// The links in @a text, by the extension (-linksInText:…): UDLinkRangeKey
+/// and UDLinkURLKey each; none when it finds none.
+- (NSArray<NSDictionary<NSString *, id> *> *)linksInText:(NSString *)text baseURL:(nullable NSURL *)baseURL;
+
 // ---------------------------------------------------------------------------
 // MARK: - Language configuration
 // ---------------------------------------------------------------------------

@@ -74,6 +74,11 @@ UDCODEKIT_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 /// no symbol of the host's for it.
 static NSString * const UDPreviewAnchorAttributeName = @"UDPreviewAnchor";
 
+/// A link in a text (-linksInText:…), as VS Code's ILink: its range in the
+/// text (an NSValue of an NSRange) and where it goes (an NSURL).
+static NSString * const UDLinkRangeKey = @"range";
+static NSString * const UDLinkURLKey = @"url";
+
 @protocol UDExtension <NSObject>
 
 /// Called by the host after the bundle has been loaded and the principal-class
@@ -144,6 +149,14 @@ static NSString * const UDPreviewAnchorAttributeName = @"UDPreviewAnchor";
 - (nullable NSAttributedString *)previewOfText:(NSString *)text
                                  forIdentifier:(NSString *)identifier
                                        baseURL:(nullable NSURL *)baseURL;
+
+/// The links in @a text, as VS Code's LinkProvider gives them: each its
+/// range and URL (UDLinkRangeKey, UDLinkURLKey), relative ones resolved
+/// against @a baseURL. The editor underlines them and follows one ⌘-clicked;
+/// it asks again a moment after an edit.
+- (nullable NSArray<NSDictionary<NSString *, id> *> *)linksInText:(NSString *)text
+                                                    forIdentifier:(NSString *)identifier
+                                                          baseURL:(nullable NSURL *)baseURL;
 
 /// Returns the command that starts the debug adapter for the given language
 /// mode identifier, or @c nil when this extension has none for it.

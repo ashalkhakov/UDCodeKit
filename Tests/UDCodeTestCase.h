@@ -35,4 +35,8 @@
 /// A file in the temporary folder with @a text.
 + (NSString *)temporaryFileNamed:(NSString *)name text:(NSString *)text;
 
+/// A click (⌘ or not) on @a view's character at @a index, where it is drawn:
+/// its mouse down sent to the window, its up waiting in the queue.
++ (void)clickTextView:(NSTextView *)view atIndex:(NSUInteger)index command:(BOOL)command;
+
 @end

@@ -6,7 +6,8 @@
 //  shows it in place of the text and follows the text's edits, and Find and
 //  going to a line bring the text back; its links are followed (a heading
 //  of its own, another file through the link delegate, read or ⌘ edited). A
-//  mode without a preview has none.
+//  mode without a preview has none. In the text, its links are VS Code's:
+//  found by the mode, underlined, ⌘-clicked to edit where they go.
 //
 
 #import <XCTest/XCTest.h>
@@ -141,6 +142,59 @@
     [_editor followPreviewLink:[NSURL URLWithString:@"README.md#far-down" relativeToURL:_editor.previewBaseURL] editing:YES];
     XCTAssertFalse(_editor.showsPreview);
     XCTAssertEqualObjects(_window.firstResponder, _editor.textView);
+}
+
+- (void)testTheModeFindsTheTextsLinks {
+    NSURL *file = [NSURL fileURLWithPath:@"/tmp/notes/README.md"];
+    NSString *text = @"# Tôp\n\nSee [other](docs/other.md#part), [ref][r], <https://example.com/> and ![pic](p.png).\n\n"
+                     @"[r]: ../up.md\n";
+    NSMutableArray<NSString *> *found = [NSMutableArray array];
+    for (NSDictionary *link in [_markdown linksInText:text baseURL:file]) {
+        NSRange range = [link[UDLinkRangeKey] rangeValue];
+        [found addObject:[NSString stringWithFormat:@"%@ %@", [text substringWithRange:range],
+                                                    [link[UDLinkURLKey] absoluteString]]];
+    }
+    XCTAssertEqualObjects(found, (@[ @"docs/other.md#part file:///tmp/notes/docs/other.md#part",
+                                     @"r file:///tmp/up.md",
+                                     @"<https://example.com/> https://example.com/",
+                                     @"p.png file:///tmp/notes/p.png",
+                                     @"../up.md file:///tmp/up.md" ]),
+                          @"where each says where it goes, as VS Code's");
+    XCTAssertEqualObjects([[[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"c"] linksInText:@"x" baseURL:nil], @[]);
+}
+
+/// In the text: the links underlined; a ⌘-click on one edits where it goes,
+/// a click is the caret's.
+- (void)testTheTextsLinksAreCommandClickedToEdit {
+    if (!_markdown.hasPreview) {
+        XCTFail(@"%@", @"the Markdown bundle did not load");
+        return;
+    }
+    NSString *text = @"# Top\n\nSee [other](other.md#part) here.\n";
+    [self openText:text mode:_markdown];
+    UDLinkRecorder *recorder = [[UDLinkRecorder alloc] init];
+    _editor.linkDelegate = recorder;
+    _editor.previewBaseURL = [NSURL fileURLWithPath:@"/tmp/notes/README.md"];
+    [_window makeKeyAndOrderFront:nil];
+    NSTextView *source = _editor.textView;
+    NSUInteger destination = [text rangeOfString:@"other.md"].location + 2;
+    XCTAssertNotNil([source.textStorage attribute:NSUnderlineStyleAttributeName atIndex:destination effectiveRange:NULL]);
+    NSUInteger here = [text rangeOfString:@"here"].location;
+    XCTAssertNil([source.textStorage attribute:NSUnderlineStyleAttributeName atIndex:here effectiveRange:NULL]);
+
+    [UDCodeTestCase clickTextView:source atIndex:destination command:NO];
+    XCTAssertNil(recorder.followed, @"a click: the caret's");
+    [UDCodeTestCase clickTextView:source atIndex:here command:YES];
+    XCTAssertNil(recorder.followed, @"⌘-click off a link: not one");
+    [UDCodeTestCase clickTextView:source atIndex:destination command:YES];
+    XCTAssertEqualObjects(recorder.followed, (@[ @"other.md editing" ]));
+    XCTAssertFalse(_editor.showsPreview);
+
+    // an edit: found again, a moment later
+    [_storage replaceCharactersInRange:NSMakeRange(here, 0) withString:@"[more](more.md) "];
+    NSUInteger more = here + 8;
+    UDRunUntil([source.textStorage attribute:NSUnderlineStyleAttributeName atIndex:more effectiveRange:NULL] != nil, 3.0);
+    XCTAssertNotNil([source.textStorage attribute:NSUnderlineStyleAttributeName atIndex:more effectiveRange:NULL]);
 }
 
 - (void)testPlainTextHasNoPreview {

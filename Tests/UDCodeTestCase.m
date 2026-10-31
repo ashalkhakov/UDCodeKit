@@ -43,4 +43,27 @@
     return [path stringByStandardizingPath];
 }
 
++ (void)clickTextView:(NSTextView *)view atIndex:(NSUInteger)index command:(BOOL)command {
+    NSLayoutManager *lm = view.layoutManager;
+    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(index, 1) actualCharacterRange:NULL];
+    NSRect rect = [lm boundingRectForGlyphRange:glyphs inTextContainer:view.textContainer];
+    NSPoint point = NSMakePoint(NSMidX(rect) + view.textContainerOrigin.x, NSMidY(rect) + view.textContainerOrigin.y);
+    NSPoint inWindow = [view convertPoint:point toView:nil];
+    NSEventModifierFlags flags = command ? NSEventModifierFlagCommand : 0;
+    NSInteger window = view.window.windowNumber;
+    NSEvent *down = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:inWindow modifierFlags:flags
+                                      timestamp:0 windowNumber:window context:nil eventNumber:0 clickCount:1 pressure:1];
+    NSEvent *up = [NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:inWindow modifierFlags:flags
+                                    timestamp:0 windowNumber:window context:nil eventNumber:0 clickCount:1 pressure:0];
+    [NSApp postEvent:up atStart:NO];
+    [view.window sendEvent:down];
+    // the up, when the view did not take it; then an event of no keys, so
+    // the application's current one is not this click's
+    (void)[NSApp nextEventMatchingMask:NSLeftMouseUpMask untilDate:[NSDate date] inMode:NSDefaultRunLoopMode dequeue:YES];
+    [NSApp postEvent:[NSEvent otherEventWithType:NSEventTypeApplicationDefined location:NSZeroPoint modifierFlags:0
+                                       timestamp:0 windowNumber:0 context:nil subtype:0 data1:0 data2:0]
+             atStart:NO];
+    (void)[NSApp nextEventMatchingMask:NSApplicationDefinedMask untilDate:[NSDate date] inMode:NSDefaultRunLoopMode dequeue:YES];
+}
+
 @end

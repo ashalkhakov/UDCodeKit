@@ -18,6 +18,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// (the file's), when there is one.
 - (NSAttributedString *)renderMarkdown:(NSString *)text baseURL:(nullable NSURL *)baseURL;
 
+/// The links in @a text, as VS Code's Markdown finds them: a link's or an
+/// image's destination ([text](here)), a reference's label ([text][here],
+/// [here]), a definition's destination, an autolink. Each a dictionary of
+/// "range" (NSValue, of the text's UTF-16) and "url", resolved as its
+/// rendering's is.
+- (NSArray<NSDictionary<NSString *, id> *> *)linksInMarkdown:(NSString *)text baseURL:(nullable NSURL *)baseURL;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -124,7 +124,8 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 /// UDCodeEditorPreviewDidChangeNotification.
 @property (nonatomic) BOOL showsPreview;
 
-/// The file the preview's relative links and images are resolved against.
+/// The file the preview's relative links and images, and the text's links,
+/// are resolved against.
 @property (nonatomic, copy, nullable) NSURL *previewBaseURL;
 
 /// The preview's text view, once shown.
@@ -140,7 +141,8 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 
 /// What a click on a link in the preview does (a ⌘-click: @a editing): a
 /// #fragment of this file's scrolls to its heading (⌘: the text, to edit);
-/// any other link goes to the link delegate, else to NSWorkspace.
+/// any other link goes to the link delegate, else to NSWorkspace. A link
+/// ⌘-clicked in the text (the mode's -linksInText:…) is followed so, to edit.
 - (void)followPreviewLink:(NSURL *)url editing:(BOOL)editing;
 
 /// Scrolls the preview to the heading @a anchor names (a link's #fragment,

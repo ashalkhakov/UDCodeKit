@@ -14,6 +14,7 @@
 #import "UDBreakpointEditorViewController.h"
 #import "UDDebugHoverViewController.h"
 #import "UDExtension.h"
+#import "UDLinkDetector.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <objc/runtime.h>
 
@@ -41,6 +42,7 @@
 @property (nonatomic, strong) UDPlaceholderHighlighter *placeholderHighlighter;
 @property (nonatomic, strong) UDStructuredNavigator    *structuredNavigator;
 @property (nonatomic, strong) UDAutoIndenter           *autoIndenter;
+@property (nonatomic, strong) UDLinkDetector           *linkDetector;
 
 // Text-model state.
 @property (nonatomic, strong) UDTextModelTextStorage   *textStorage;
@@ -155,6 +157,12 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
     _textView.autoIndenter        = _autoIndenter;
     _textView.structuredNavigator = _structuredNavigator;
 
+    // 12b. The text's links (Markdown's, say), followed with ⌘ to edit.
+    _linkDetector = [[UDLinkDetector alloc] initWithTextStorage:_textStorage highlighter:_textStorage.highlighter];
+    __weak UDCodeEditorViewController *weakSelf = self;
+    _linkDetector.openLink = ^(NSURL *url) { [weakSelf followPreviewLink:url editing:YES]; };
+    _textView.linkDetector = _linkDetector;
+
     // 13. Observe text-storage edits for folding and bracket match.
     [[NSNotificationCenter defaultCenter]
         addObserver:self
@@ -172,6 +180,8 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
     _autoIndenter.languageConfiguration = mode.languageConfiguration;
     _autoIndenter.languageKeyHandler    = mode.keyHandler;
     _languageMode = mode;
+    _linkDetector.languageMode = mode;
+    [_linkDetector update];
     _canShowPreview = mode.hasPreview;
     if (!_canShowPreview) self.showsPreview = NO;
     else if (_showsPreview) [self _renderPreview];
@@ -192,6 +202,7 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
 - (void)_updateAfterEdit {
     [_foldingController update];
     [_bracketMatchHighlighter update];
+    [_linkDetector scheduleUpdate];
     if (_showsPreview) {
         // a moment after the typing, not each keystroke
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_renderPreview) object:nil];
@@ -561,6 +572,14 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
         if (reading) [window makeFirstResponder:_textView];
     }
     [[NSNotificationCenter defaultCenter] postNotificationName:UDCodeEditorPreviewDidChangeNotification object:self];
+}
+
+- (void)setPreviewBaseURL:(NSURL *)previewBaseURL {
+    if (previewBaseURL == _previewBaseURL || [previewBaseURL isEqual:_previewBaseURL]) return;
+    _previewBaseURL = [previewBaseURL copy];
+    (void)self.view;
+    _linkDetector.baseURL = _previewBaseURL;
+    [_linkDetector update];
 }
 
 - (IBAction)togglePreview:(id)sender {

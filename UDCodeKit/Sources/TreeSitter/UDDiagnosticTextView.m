@@ -16,6 +16,7 @@
 #import "UDPlaceholderHighlighter.h"
 #import "UDHoverViewController.h"
 #import "UDCodeEditorLayoutManager.h"
+#import "UDLinkDetector.h"
 
 // Horizontal gap between the end of line content and the label.
 static const CGFloat    kLabelGap          = 12.0;
@@ -178,6 +179,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 - (void)keyDown:(NSEvent *)event {
     [self _endHover];
     [self _acceptMouseMoved];
+    [_linkDetector activateLinkAtIndex:NSNotFound];     // ⌘ and a key: not the link's
     // The completion list's keys (arrows, Return, Tab, Escape) are its.
     if ([self.completionList handleKeyEvent:event]) return;
 
@@ -755,6 +757,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     [super mouseMoved:event];
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
     NSUInteger index = [self _characterIndexUnderPoint:point];
+    [_linkDetector activateLinkAtIndex:(event.modifierFlags & NSEventModifierFlagCommand) ? index : NSNotFound];
 
     // On a diagnostic's label (right of its line, no text there): its whole
     // message, which the label may cut short.
@@ -781,6 +784,19 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 - (void)mouseExited:(NSEvent *)event {
     [super mouseExited:event];
     [self _endHover];
+    [_linkDetector activateLinkAtIndex:NSNotFound];
+}
+
+// ⌘ pressed or let go with the mouse resting on a link.
+- (void)flagsChanged:(NSEvent *)event {
+    [super flagsChanged:event];
+    if (!_linkDetector) return;
+    NSUInteger index = NSNotFound;
+    if (event.modifierFlags & NSEventModifierFlagCommand) {
+        NSPoint mouse = [self.window mouseLocationOutsideOfEventStream];
+        index = [self _characterIndexUnderPoint:[self convertPoint:mouse fromView:nil]];
+    }
+    [_linkDetector activateLinkAtIndex:index];
 }
 
 - (void)_hoverRested {
@@ -816,13 +832,35 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     }
 }
 
-// MARK: - Mouse: option-click adds a cursor
+// MARK: - Mouse: option-click adds a cursor, ⌘-click follows a link
+
+/// ⌘ down on a link: VS Code's ClickLinkGesture. The click is the link's (no
+/// caret, no selection); let go on the same line, the link there is followed.
+- (BOOL)_followLinkClickedBy:(NSEvent *)down {
+    NSUInteger at = [self _characterIndexUnderPoint:[self convertPoint:down.locationInWindow fromView:nil]];
+    if (![_linkDetector linkAtIndex:at]) return NO;
+    NSEvent *up = nil;
+    while ((up = [self.window nextEventMatchingMask:(NSLeftMouseDraggedMask | NSLeftMouseUpMask)]) &&
+           up.type == NSLeftMouseDragged) {
+    }
+    if (!up) return YES;
+    NSUInteger upAt = [self _characterIndexUnderPoint:[self convertPoint:up.locationInWindow fromView:nil]];
+    if (upAt != NSNotFound && [self.textModel getPositionAt:(NSInteger)upAt].line == [self.textModel getPositionAt:(NSInteger)at].line) {
+        [_linkDetector openLinkAtIndex:upAt];
+    }
+    return YES;
+}
 
 - (void)mouseDown:(NSEvent *)event {
     [self _endHover];
     [self _acceptMouseMoved];
     [self.completionList close];
     BOOL addCursor = (event.modifierFlags & NSEventModifierFlagOption) != 0;
+
+    if ((event.modifierFlags & NSEventModifierFlagCommand) && !addCursor && event.clickCount == 1 &&
+        [self _followLinkClickedBy:event]) {
+        return;
+    }
 
     if (!addCursor || !_cursorsController) {
         // Plain click: remove secondary cursors, let NSTextView place primary.

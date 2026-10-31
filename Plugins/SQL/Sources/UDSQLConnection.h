@@ -8,9 +8,11 @@
  *  and its first rows; a statement stopped from another thread; errors with
  *  the server's code (SQLSTATE where it has one).
  *
- *  SQLite is linked. libpq and libmariadb (or libmysqlclient) are loaded the
- *  first time a connection needs them (UDSQLLibrary), so neither is needed to
- *  build UDCode, nor to run it without such a database.
+ *  SQLite is linked. libpq and libmariadb (or libmysqlclient) are built
+ *  against, their own headers declaring what is used, and loaded the first
+ *  time a connection needs them (UDSQLLibrary), so neither is needed to run
+ *  UDCode without such a database. Built without a header, that driver says
+ *  so instead.
  *
  *  A connection is used from one thread at a time (UDSQLRunner's); only
  *  -cancel may be sent from another.

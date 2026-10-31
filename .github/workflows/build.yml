@@ -40,9 +40,10 @@ jobs:
       tag: ${{ inputs.tag }}
       library: true
       # lldb (lldb-vscode), which speaks DAP: the tests debug programs with
-      # it, gdb (the runner's) where it does not; SQLite's headers, for the
-      # SQL extension (libpq and libmariadb are loaded when there, not built against)
-      extra-packages: lldb libsqlite3-dev
+      # it, gdb (the runner's) where it does not; SQLite's, libpq's and
+      # MariaDB Connector/C's headers, for the SQL extension (the last two loaded
+      # when there, not linked)
+      extra-packages: lldb libsqlite3-dev libpq-dev libmariadb-dev
       # the SQL extension's tests run against these too (POSTGRES_URL, MYSQL_URL, MARIADB_URL)
       databases: postgres mysql mariadb
 
@@ -52,8 +53,8 @@ jobs:
       tag: ${{ inputs.tag }}
       library: true
       # lldb-dap and gdb, which speak DAP: the tests run and debug programs with them, as on Linux;
-      # SQLite, for the SQL extension
-      extra-packages: lldb gdb sqlite3
+      # SQLite, libpq (postgresql) and MariaDB Connector/C, for the SQL extension
+      extra-packages: lldb gdb sqlite3 postgresql libmariadbclient
     # the Sparkle key: the installed app's updates, and the Windows appcast signed
     secrets: inherit
 

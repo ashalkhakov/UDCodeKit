@@ -15,65 +15,45 @@
 #import "UDSQLDrivers.h"
 #import "UDSQLText.h"
 
-// The client library's, as mysql.h declares them: loaded, not linked.
-typedef struct st_mysql MYSQL;
-typedef struct st_mysql_res MYSQL_RES;
-typedef char **MYSQL_ROW;
+#if __has_include(<mysql.h>)
+#include <mysql.h>
+#define UD_HAS_MYSQL 1
+#endif
 
-/// MYSQL_FIELD's start, as libmariadb 3 and libmysqlclient 5.7–8 lay it out.
-typedef struct {
-    char *name, *org_name, *table, *org_table, *db, *catalog, *def;
-    unsigned long length, max_length;
-    unsigned int name_length, org_name_length, table_length, org_table_length, db_length, catalog_length, def_length;
-    unsigned int flags, decimals, charsetnr;
-    int type;
-} UDMySQLField;
-
-typedef MYSQL *(*UDmysql_init)(MYSQL *);
-typedef MYSQL *(*UDmysql_real_connect)(MYSQL *, const char *, const char *, const char *, const char *, unsigned int, const char *, unsigned long);
-typedef const char *(*UDmysql_error)(MYSQL *);
-typedef unsigned int (*UDmysql_errno)(MYSQL *);
-typedef const char *(*UDmysql_sqlstate)(MYSQL *);
-typedef void (*UDmysql_close)(MYSQL *);
-typedef int (*UDmysql_real_query)(MYSQL *, const char *, unsigned long);
-typedef MYSQL_RES *(*UDmysql_use_result)(MYSQL *);
-typedef unsigned int (*UDmysql_field_count)(MYSQL *);
-typedef unsigned int (*UDmysql_num_fields)(MYSQL_RES *);
-typedef UDMySQLField *(*UDmysql_fetch_field_direct)(MYSQL_RES *, unsigned int);
-typedef MYSQL_ROW (*UDmysql_fetch_row)(MYSQL_RES *);
-typedef unsigned long *(*UDmysql_fetch_lengths)(MYSQL_RES *);
-typedef void (*UDmysql_free_result)(MYSQL_RES *);
-typedef unsigned long long (*UDmysql_affected_rows)(MYSQL *);
-typedef unsigned long (*UDmysql_real_escape_string)(MYSQL *, char *, const char *, unsigned long);
-typedef int (*UDmysql_set_character_set)(MYSQL *, const char *);
-typedef unsigned long (*UDmysql_thread_id)(MYSQL *);
-typedef const char *(*UDmysql_get_server_info)(MYSQL *);
-typedef int (*UDmysql_next_result)(MYSQL *);
-
+#ifdef UD_HAS_MYSQL
+// The client library's functions, as its header declares them (MariaDB
+// Connector/C's; libmysqlclient's are the same): found in it once loaded.
+#define UDMY(name) __typeof__(&name) name
 static struct {
-    UDmysql_init init;
-    UDmysql_real_connect real_connect;
-    UDmysql_error error;
-    UDmysql_errno errnum;
-    UDmysql_sqlstate sqlstate;
-    UDmysql_close close;
-    UDmysql_real_query real_query;
-    UDmysql_use_result use_result;
-    UDmysql_field_count field_count;
-    UDmysql_num_fields num_fields;
-    UDmysql_fetch_field_direct fetch_field_direct;
-    UDmysql_fetch_row fetch_row;
-    UDmysql_fetch_lengths fetch_lengths;
-    UDmysql_free_result free_result;
-    UDmysql_affected_rows affected_rows;
-    UDmysql_real_escape_string real_escape_string;
-    UDmysql_set_character_set set_character_set;
-    UDmysql_thread_id thread_id;
-    UDmysql_get_server_info get_server_info;
-    UDmysql_next_result next_result;
+    UDMY(mysql_init);
+    UDMY(mysql_real_connect);
+    UDMY(mysql_error);
+    UDMY(mysql_errno);
+    UDMY(mysql_sqlstate);
+    UDMY(mysql_close);
+    UDMY(mysql_real_query);
+    UDMY(mysql_use_result);
+    UDMY(mysql_field_count);
+    UDMY(mysql_num_fields);
+    UDMY(mysql_fetch_field_direct);
+    UDMY(mysql_fetch_row);
+    UDMY(mysql_fetch_lengths);
+    UDMY(mysql_free_result);
+    UDMY(mysql_affected_rows);
+    UDMY(mysql_real_escape_string);
+    UDMY(mysql_set_character_set);
+    UDMY(mysql_thread_id);
+    UDMY(mysql_get_server_info);
+    UDMY(mysql_next_result);
 } MY;
+#undef UDMY
+#endif
 
 static BOOL UDLoadClient(NSError **error) {
+#ifndef UD_HAS_MYSQL
+    if (error) *error = UDSQLError(0, @"This UDCode was built without MariaDB's or MySQL's header (mysql.h): it can't reach MySQL or MariaDB.", nil);
+    return NO;
+#else
     static BOOL loaded;
     if (loaded) return YES;
     NSArray *names = @[
@@ -90,58 +70,64 @@ static BOOL UDLoadClient(NSError **error) {
     ];
     UDSQLLibrary *library = [UDSQLLibrary libraryForKey:@"libmariadb (MariaDB's and MySQL's client library)" names:names error:error];
     if (!library) return NO;
-#define UDFIND(field, name) MY.field = (__typeof__(MY.field))[library function:name]; if (!MY.field) goto missing;
-    UDFIND(init, "mysql_init")
-    UDFIND(real_connect, "mysql_real_connect")
-    UDFIND(error, "mysql_error")
-    UDFIND(errnum, "mysql_errno")
-    UDFIND(sqlstate, "mysql_sqlstate")
-    UDFIND(close, "mysql_close")
-    UDFIND(real_query, "mysql_real_query")
-    UDFIND(use_result, "mysql_use_result")
-    UDFIND(field_count, "mysql_field_count")
-    UDFIND(num_fields, "mysql_num_fields")
-    UDFIND(fetch_field_direct, "mysql_fetch_field_direct")
-    UDFIND(fetch_row, "mysql_fetch_row")
-    UDFIND(fetch_lengths, "mysql_fetch_lengths")
-    UDFIND(free_result, "mysql_free_result")
-    UDFIND(affected_rows, "mysql_affected_rows")
-    UDFIND(real_escape_string, "mysql_real_escape_string")
-    UDFIND(set_character_set, "mysql_set_character_set")
-    UDFIND(thread_id, "mysql_thread_id")
-    UDFIND(get_server_info, "mysql_get_server_info")
-    UDFIND(next_result, "mysql_next_result")
+#define UDFIND(name) MY.name = (__typeof__(MY.name))[library function:#name]; if (!MY.name) goto missing;
+    UDFIND(mysql_init)
+    UDFIND(mysql_real_connect)
+    UDFIND(mysql_error)
+    UDFIND(mysql_errno)
+    UDFIND(mysql_sqlstate)
+    UDFIND(mysql_close)
+    UDFIND(mysql_real_query)
+    UDFIND(mysql_use_result)
+    UDFIND(mysql_field_count)
+    UDFIND(mysql_num_fields)
+    UDFIND(mysql_fetch_field_direct)
+    UDFIND(mysql_fetch_row)
+    UDFIND(mysql_fetch_lengths)
+    UDFIND(mysql_free_result)
+    UDFIND(mysql_affected_rows)
+    UDFIND(mysql_real_escape_string)
+    UDFIND(mysql_set_character_set)
+    UDFIND(mysql_thread_id)
+    UDFIND(mysql_get_server_info)
+    UDFIND(mysql_next_result)
 #undef UDFIND
     loaded = YES;
     return YES;
 missing:
     if (error) *error = UDSQLError(0, @"The MySQL client library found lacks a function UDCode needs.", nil);
     return NO;
+#endif
 }
 
-/// MySQL's field types (mysql_com.h's enum_field_types) by name.
-static NSString *UDTypeName(int type, unsigned int charset) {
+#ifdef UD_HAS_MYSQL
+
+/// The character set of binary columns (BLOB, VARBINARY): theirs are bytes.
+static const unsigned int UDBinaryCharset = 63;
+
+/// MySQL's field types by name.
+static NSString *UDTypeName(enum enum_field_types type, unsigned int charset) {
     switch (type) {
-        case 0: case 246: return @"decimal";
-        case 1: return @"tinyint";
-        case 2: return @"smallint";
-        case 3: return @"int";
-        case 4: return @"float";
-        case 5: return @"double";
-        case 7: return @"timestamp";
-        case 8: return @"bigint";
-        case 9: return @"mediumint";
-        case 10: return @"date";
-        case 11: return @"time";
-        case 12: return @"datetime";
-        case 13: return @"year";
-        case 16: return @"bit";
-        case 245: return @"json";
-        case 247: return @"enum";
-        case 248: return @"set";
-        case 249: case 250: case 251: case 252: return charset == 63 ? @"blob" : @"text";
-        case 15: case 253: return charset == 63 ? @"varbinary" : @"varchar";
-        case 254: return charset == 63 ? @"binary" : @"char";
+        case MYSQL_TYPE_DECIMAL: case MYSQL_TYPE_NEWDECIMAL: return @"decimal";
+        case MYSQL_TYPE_TINY: return @"tinyint";
+        case MYSQL_TYPE_SHORT: return @"smallint";
+        case MYSQL_TYPE_LONG: return @"int";
+        case MYSQL_TYPE_FLOAT: return @"float";
+        case MYSQL_TYPE_DOUBLE: return @"double";
+        case MYSQL_TYPE_TIMESTAMP: return @"timestamp";
+        case MYSQL_TYPE_LONGLONG: return @"bigint";
+        case MYSQL_TYPE_INT24: return @"mediumint";
+        case MYSQL_TYPE_DATE: return @"date";
+        case MYSQL_TYPE_TIME: return @"time";
+        case MYSQL_TYPE_DATETIME: return @"datetime";
+        case MYSQL_TYPE_YEAR: return @"year";
+        case MYSQL_TYPE_BIT: return @"bit";
+        case MYSQL_TYPE_JSON: return @"json";
+        case MYSQL_TYPE_ENUM: return @"enum";
+        case MYSQL_TYPE_SET: return @"set";
+        case MYSQL_TYPE_TINY_BLOB: case MYSQL_TYPE_MEDIUM_BLOB: case MYSQL_TYPE_LONG_BLOB: case MYSQL_TYPE_BLOB: return charset == UDBinaryCharset ? @"blob" : @"text";
+        case MYSQL_TYPE_VARCHAR: case MYSQL_TYPE_VAR_STRING: return charset == UDBinaryCharset ? @"varbinary" : @"varchar";
+        case MYSQL_TYPE_STRING: return charset == UDBinaryCharset ? @"binary" : @"char";
         default: return nil;
     }
 }
@@ -157,18 +143,18 @@ static NSString *UDTypeName(int type, unsigned int charset) {
 /// A connection with what the URL says (nil, and @a error, when none).
 static MYSQL *UDConnect(NSString *host, NSString *user, NSString *password, NSString *database, unsigned int port,
                         NSString *socket, NSError **error) {
-    MYSQL *connection = MY.init(NULL);
+    MYSQL *connection = MY.mysql_init(NULL);
     if (!connection) {
         if (error) *error = UDSQLError(0, @"The MySQL client library couldn't start a connection.", nil);
         return NULL;
     }
-    if (!MY.real_connect(connection, host.UTF8String, user.UTF8String, password.UTF8String, database.length ? database.UTF8String : NULL,
+    if (!MY.mysql_real_connect(connection, host.UTF8String, user.UTF8String, password.UTF8String, database.length ? database.UTF8String : NULL,
                          port, socket.length ? socket.UTF8String : NULL, 0)) {
-        if (error) *error = UDSQLError(MY.errnum(connection), @(MY.error(connection)), @(MY.sqlstate(connection)));
-        MY.close(connection);
+        if (error) *error = UDSQLError(MY.mysql_errno(connection), @(MY.mysql_error(connection)), @(MY.mysql_sqlstate(connection)));
+        MY.mysql_close(connection);
         return NULL;
     }
-    MY.set_character_set(connection, "utf8mb4");
+    MY.mysql_set_character_set(connection, "utf8mb4");
     return connection;
 }
 
@@ -193,8 +179,8 @@ static MYSQL *UDConnect(NSString *host, NSString *user, NSString *password, NSSt
     made->_password = secret;
     made->_socket = socket;
     made->_port = port;
-    made->_threadId = MY.thread_id(connection);
-    NSString *server = @(MY.get_server_info(connection) ?: "");
+    made->_threadId = MY.mysql_thread_id(connection);
+    NSString *server = @(MY.mysql_get_server_info(connection) ?: "");
     made.serverDescription = [server rangeOfString:@"MariaDB"].location != NSNotFound
         ? [NSString stringWithFormat:@"MariaDB %@", [server componentsSeparatedByString:@"-"].firstObject]
         : [NSString stringWithFormat:@"MySQL %@", server];
@@ -206,7 +192,7 @@ static MYSQL *UDConnect(NSString *host, NSString *user, NSString *password, NSSt
 }
 
 - (void)close {
-    if (_connection) MY.close(_connection);
+    if (_connection) MY.mysql_close(_connection);
     _connection = NULL;
 }
 
@@ -215,8 +201,8 @@ static MYSQL *UDConnect(NSString *host, NSString *user, NSString *password, NSSt
     MYSQL *killer = UDConnect(_host, _user, _password, nil, _port, _socket, NULL);
     if (!killer) return;
     NSString *kill = [NSString stringWithFormat:@"KILL QUERY %lu", _threadId];
-    MY.real_query(killer, kill.UTF8String, (unsigned long)strlen(kill.UTF8String));
-    MY.close(killer);
+    MY.mysql_real_query(killer, kill.UTF8String, (unsigned long)strlen(kill.UTF8String));
+    MY.mysql_close(killer);
 }
 
 - (NSString *)quotedIdentifier:(NSString *)name {
@@ -224,7 +210,7 @@ static MYSQL *UDConnect(NSString *host, NSString *user, NSString *password, NSSt
 }
 
 - (NSError *)_error {
-    return UDSQLError(MY.errnum(_connection), @(MY.error(_connection)), @(MY.sqlstate(_connection)));
+    return UDSQLError(MY.mysql_errno(_connection), @(MY.mysql_error(_connection)), @(MY.mysql_sqlstate(_connection)));
 }
 
 /// @a value as a literal of the statement.
@@ -241,19 +227,22 @@ static MYSQL *UDConnect(NSString *host, NSString *user, NSString *password, NSSt
     const char *text = [[value description] UTF8String];
     unsigned long length = (unsigned long)strlen(text);
     char *escaped = malloc(length * 2 + 1);
-    MY.real_escape_string(_connection, escaped, text, length);
+    MY.mysql_real_escape_string(_connection, escaped, text, length);
     NSString *literal = [NSString stringWithFormat:@"'%s'", escaped];
     free(escaped);
     return literal;
 }
 
-static id UDValue(const char *bytes, unsigned long length, UDMySQLField *field) {
+static id UDValue(const char *bytes, unsigned long length, MYSQL_FIELD *field) {
     if (!bytes) return [NSNull null];
-    BOOL binary = field->charsetnr == 63 && (field->type >= 249 || field->type == 15 || field->type == 253 || field->type == 254);
+    BOOL binary = field->charsetnr == UDBinaryCharset &&
+                  (field->type == MYSQL_TYPE_TINY_BLOB || field->type == MYSQL_TYPE_MEDIUM_BLOB || field->type == MYSQL_TYPE_LONG_BLOB ||
+                   field->type == MYSQL_TYPE_BLOB || field->type == MYSQL_TYPE_VARCHAR || field->type == MYSQL_TYPE_VAR_STRING ||
+                   field->type == MYSQL_TYPE_STRING);
     if (binary) return [NSData dataWithBytes:bytes length:length];
     switch (field->type) {
-        case 1: case 2: case 3: case 8: case 9: case 13: return @(strtoll(bytes, NULL, 10));
-        case 4: case 5: return @(strtod(bytes, NULL));
+        case MYSQL_TYPE_TINY: case MYSQL_TYPE_SHORT: case MYSQL_TYPE_LONG: case MYSQL_TYPE_LONGLONG: case MYSQL_TYPE_INT24: case MYSQL_TYPE_YEAR: return @(strtoll(bytes, NULL, 10));
+        case MYSQL_TYPE_FLOAT: case MYSQL_TYPE_DOUBLE: return @(strtod(bytes, NULL));
         default: return [[NSString alloc] initWithBytes:bytes length:length encoding:NSUTF8StringEncoding] ?: @"";
     }
 }
@@ -268,46 +257,46 @@ static id UDValue(const char *bytes, unsigned long length, UDMySQLField *field) 
     for (id value in parameters) [literals addObject:[self _literal:value]];
     NSString *statement = parameters.count ? [UDSQLText statement:sql withParametersReplacedBy:literals dialect:UDSQLDialectMySQL] : sql;
     const char *text = statement.UTF8String;
-    if (MY.real_query(_connection, text, (unsigned long)strlen(text)) != 0) {
+    if (MY.mysql_real_query(_connection, text, (unsigned long)strlen(text)) != 0) {
         if (error) *error = [self _error];
         return nil;
     }
     UDSQLResult *made = [[UDSQLResult alloc] init];
     made.statement = sql;
-    if (MY.field_count(_connection) == 0) {
-        made.rowsAffected = (long long)MY.affected_rows(_connection);
+    if (MY.mysql_field_count(_connection) == 0) {
+        made.rowsAffected = (long long)MY.mysql_affected_rows(_connection);
         made.duration = -start.timeIntervalSinceNow;
         return made;
     }
-    MYSQL_RES *result = MY.use_result(_connection);
+    MYSQL_RES *result = MY.mysql_use_result(_connection);
     if (!result) {
         if (error) *error = [self _error];
         return nil;
     }
-    unsigned int count = MY.num_fields(result);
+    unsigned int count = MY.mysql_num_fields(result);
     NSMutableArray<UDSQLColumn *> *columns = [NSMutableArray array];
     for (unsigned int i = 0; i < count; i++) {
-        UDMySQLField *field = MY.fetch_field_direct(result, i);
+        MYSQL_FIELD *field = MY.mysql_fetch_field_direct(result, i);
         [columns addObject:[[UDSQLColumn alloc] initWithName:@(field->name ?: "") type:UDTypeName(field->type, field->charsetnr)]];
     }
     NSMutableArray *rows = [NSMutableArray array];
     MYSQL_ROW row;
-    while ((row = MY.fetch_row(result))) {
+    while ((row = MY.mysql_fetch_row(result))) {
         if (rows.count >= maxRows) {
             made.truncated = YES;
             [self cancel];          // the rest not read
             break;
         }
-        unsigned long *lengths = MY.fetch_lengths(result);
+        unsigned long *lengths = MY.mysql_fetch_lengths(result);
         NSMutableArray *values = [NSMutableArray arrayWithCapacity:count];
-        for (unsigned int i = 0; i < count; i++) [values addObject:UDValue(row[i], lengths[i], MY.fetch_field_direct(result, i))];
+        for (unsigned int i = 0; i < count; i++) [values addObject:UDValue(row[i], lengths[i], MY.mysql_fetch_field_direct(result, i))];
         [rows addObject:values];
     }
-    MY.free_result(result);
-    while (MY.next_result(_connection) == 0) {
+    MY.mysql_free_result(result);
+    while (MY.mysql_next_result(_connection) == 0) {
         // another result (a procedure's): left unread
-        MYSQL_RES *more = MY.use_result(_connection);
-        if (more) MY.free_result(more);
+        MYSQL_RES *more = MY.mysql_use_result(_connection);
+        if (more) MY.mysql_free_result(more);
     }
     made.columns = columns;
     made.rows = rows;
@@ -316,3 +305,16 @@ static id UDValue(const char *bytes, unsigned long length, UDMySQLField *field) 
 }
 
 @end
+
+#else
+
+@implementation UDMySQLConnection
+
++ (instancetype)openURL:(NSURL *)url password:(NSString *)password error:(NSError **)error {
+    UDLoadClient(error);
+    return nil;
+}
+
+@end
+
+#endif

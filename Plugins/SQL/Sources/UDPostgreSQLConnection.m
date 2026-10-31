@@ -10,71 +10,52 @@
 
 #import "UDSQLDrivers.h"
 
-// libpq's, as its libpq-fe.h declares them: the library is loaded, not linked
-typedef struct pg_conn PGconn;
-typedef struct pg_result PGresult;
-typedef struct pg_cancel PGcancel;
-typedef unsigned int UDOid;
-enum { UDConnectionOK = 0 };
-enum { UDResCommandOK = 1, UDResTuplesOK = 2, UDResSingleTuple = 9 };
-enum { UDDiagSQLState = 'C' };
+#if __has_include(<libpq-fe.h>)
+#include <libpq-fe.h>
+#define UD_HAS_LIBPQ 1
+#endif
 
-typedef PGconn *(*UDPQconnectdbParams)(const char *const *keywords, const char *const *values, int expand);
-typedef int (*UDPQstatus)(const PGconn *);
-typedef char *(*UDPQerrorMessage)(const PGconn *);
-typedef void (*UDPQfinish)(PGconn *);
-typedef int (*UDPQsendQueryParams)(PGconn *, const char *, int, const UDOid *, const char *const *, const int *, const int *, int);
-typedef int (*UDPQsetSingleRowMode)(PGconn *);
-typedef PGresult *(*UDPQgetResult)(PGconn *);
-typedef int (*UDPQresultStatus)(const PGresult *);
-typedef char *(*UDPQresultErrorField)(const PGresult *, int);
-typedef char *(*UDPQresultErrorMessage)(const PGresult *);
-typedef int (*UDPQntuples)(const PGresult *);
-typedef int (*UDPQnfields)(const PGresult *);
-typedef char *(*UDPQfname)(const PGresult *, int);
-typedef UDOid (*UDPQftype)(const PGresult *, int);
-typedef char *(*UDPQgetvalue)(const PGresult *, int, int);
-typedef int (*UDPQgetisnull)(const PGresult *, int, int);
-typedef int (*UDPQgetlength)(const PGresult *, int, int);
-typedef char *(*UDPQcmdTuples)(PGresult *);
-typedef void (*UDPQclear)(PGresult *);
-typedef PGcancel *(*UDPQgetCancel)(PGconn *);
-typedef int (*UDPQcancel)(PGcancel *, char *, int);
-typedef void (*UDPQfreeCancel)(PGcancel *);
-typedef unsigned char *(*UDPQunescapeBytea)(const unsigned char *, size_t *);
-typedef void (*UDPQfreemem)(void *);
-typedef int (*UDPQserverVersion)(const PGconn *);
-
+#ifdef UD_HAS_LIBPQ
+// libpq's functions, as its header declares them: found in the library once
+// it is loaded (it is not linked: a machine without it still runs UDCode)
+#define UDPQ(name) __typeof__(&name) name
 static struct {
-    UDPQconnectdbParams connectdbParams;
-    UDPQstatus status;
-    UDPQerrorMessage errorMessage;
-    UDPQfinish finish;
-    UDPQsendQueryParams sendQueryParams;
-    UDPQsetSingleRowMode setSingleRowMode;
-    UDPQgetResult getResult;
-    UDPQresultStatus resultStatus;
-    UDPQresultErrorField resultErrorField;
-    UDPQresultErrorMessage resultErrorMessage;
-    UDPQntuples ntuples;
-    UDPQnfields nfields;
-    UDPQfname fname;
-    UDPQftype ftype;
-    UDPQgetvalue getvalue;
-    UDPQgetisnull getisnull;
-    UDPQgetlength getlength;
-    UDPQcmdTuples cmdTuples;
-    UDPQclear clear;
-    UDPQgetCancel getCancel;
-    UDPQcancel cancel;
-    UDPQfreeCancel freeCancel;
-    UDPQunescapeBytea unescapeBytea;
-    UDPQfreemem freemem;
-    UDPQserverVersion serverVersion;
+    UDPQ(PQconnectdbParams);
+    UDPQ(PQstatus);
+    UDPQ(PQerrorMessage);
+    UDPQ(PQfinish);
+    UDPQ(PQsendQueryParams);
+    UDPQ(PQsetSingleRowMode);
+    UDPQ(PQgetResult);
+    UDPQ(PQresultStatus);
+    UDPQ(PQresultErrorField);
+    UDPQ(PQresultErrorMessage);
+    UDPQ(PQntuples);
+    UDPQ(PQnfields);
+    UDPQ(PQfname);
+    UDPQ(PQftype);
+    UDPQ(PQgetvalue);
+    UDPQ(PQgetisnull);
+    UDPQ(PQgetlength);
+    UDPQ(PQcmdTuples);
+    UDPQ(PQclear);
+    UDPQ(PQgetCancel);
+    UDPQ(PQcancel);
+    UDPQ(PQfreeCancel);
+    UDPQ(PQunescapeBytea);
+    UDPQ(PQfreemem);
+    UDPQ(PQserverVersion);
 } PQ;
+#undef UDPQ
+#endif
 
-/// libpq, its functions found; NO (and why) when it isn't installed.
+/// libpq, its functions found; NO (and why) when it isn't installed, or
+/// UDCode was built without its header.
 static BOOL UDLoadLibPQ(NSError **error) {
+#ifndef UD_HAS_LIBPQ
+    if (error) *error = UDSQLError(0, @"This UDCode was built without libpq's header (libpq-fe.h): it can't reach PostgreSQL.", nil);
+    return NO;
+#else
     static BOOL loaded;
     if (loaded) return YES;
     NSArray *names = @[
@@ -89,42 +70,45 @@ static BOOL UDLoadLibPQ(NSError **error) {
     ];
     UDSQLLibrary *library = [UDSQLLibrary libraryForKey:@"libpq (PostgreSQL's client library)" names:names error:error];
     if (!library) return NO;
-#define UDFIND(field, name) PQ.field = (__typeof__(PQ.field))[library function:name]; if (!PQ.field) goto missing;
-    UDFIND(connectdbParams, "PQconnectdbParams")
-    UDFIND(status, "PQstatus")
-    UDFIND(errorMessage, "PQerrorMessage")
-    UDFIND(finish, "PQfinish")
-    UDFIND(sendQueryParams, "PQsendQueryParams")
-    UDFIND(setSingleRowMode, "PQsetSingleRowMode")
-    UDFIND(getResult, "PQgetResult")
-    UDFIND(resultStatus, "PQresultStatus")
-    UDFIND(resultErrorField, "PQresultErrorField")
-    UDFIND(resultErrorMessage, "PQresultErrorMessage")
-    UDFIND(ntuples, "PQntuples")
-    UDFIND(nfields, "PQnfields")
-    UDFIND(fname, "PQfname")
-    UDFIND(ftype, "PQftype")
-    UDFIND(getvalue, "PQgetvalue")
-    UDFIND(getisnull, "PQgetisnull")
-    UDFIND(getlength, "PQgetlength")
-    UDFIND(cmdTuples, "PQcmdTuples")
-    UDFIND(clear, "PQclear")
-    UDFIND(getCancel, "PQgetCancel")
-    UDFIND(cancel, "PQcancel")
-    UDFIND(freeCancel, "PQfreeCancel")
-    UDFIND(unescapeBytea, "PQunescapeBytea")
-    UDFIND(freemem, "PQfreemem")
-    UDFIND(serverVersion, "PQserverVersion")
+#define UDFIND(name) PQ.name = (__typeof__(PQ.name))[library function:#name]; if (!PQ.name) goto missing;
+    UDFIND(PQconnectdbParams)
+    UDFIND(PQstatus)
+    UDFIND(PQerrorMessage)
+    UDFIND(PQfinish)
+    UDFIND(PQsendQueryParams)
+    UDFIND(PQsetSingleRowMode)
+    UDFIND(PQgetResult)
+    UDFIND(PQresultStatus)
+    UDFIND(PQresultErrorField)
+    UDFIND(PQresultErrorMessage)
+    UDFIND(PQntuples)
+    UDFIND(PQnfields)
+    UDFIND(PQfname)
+    UDFIND(PQftype)
+    UDFIND(PQgetvalue)
+    UDFIND(PQgetisnull)
+    UDFIND(PQgetlength)
+    UDFIND(PQcmdTuples)
+    UDFIND(PQclear)
+    UDFIND(PQgetCancel)
+    UDFIND(PQcancel)
+    UDFIND(PQfreeCancel)
+    UDFIND(PQunescapeBytea)
+    UDFIND(PQfreemem)
+    UDFIND(PQserverVersion)
 #undef UDFIND
     loaded = YES;
     return YES;
 missing:
     if (error) *error = UDSQLError(0, @"The libpq found is too old (it lacks PQsetSingleRowMode or another function).", nil);
     return NO;
+#endif
 }
 
+#ifdef UD_HAS_LIBPQ
+
 /// A few of PostgreSQL's built-in types by their OID: the names a column shows.
-static NSString *UDTypeName(UDOid oid) {
+static NSString *UDTypeName(Oid oid) {
     switch (oid) {
         case 16: return @"boolean";
         case 17: return @"bytea";
@@ -162,17 +146,17 @@ static NSString *UDTypeName(UDOid oid) {
     // the URL as libpq takes it (expand_dbname), the password beside it
     const char *keywords[] = { "dbname", password.length ? "password" : NULL, NULL };
     const char *values[] = { url.absoluteString.UTF8String, password.length ? password.UTF8String : NULL, NULL };
-    PGconn *connection = PQ.connectdbParams(keywords, values, 1);
-    if (!connection || PQ.status(connection) != UDConnectionOK) {
-        NSString *message = connection ? @(PQ.errorMessage(connection)) : @"libpq couldn't make a connection.";
+    PGconn *connection = PQ.PQconnectdbParams(keywords, values, 1);
+    if (!connection || PQ.PQstatus(connection) != CONNECTION_OK) {
+        NSString *message = connection ? @(PQ.PQerrorMessage(connection)) : @"libpq couldn't make a connection.";
         if (error) *error = UDSQLError(0, [message stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]], nil);
-        if (connection) PQ.finish(connection);
+        if (connection) PQ.PQfinish(connection);
         return nil;
     }
     UDPostgreSQLConnection *made = [[self alloc] initWithURL:url dialect:UDSQLDialectPostgreSQL];
     made->_connection = connection;
-    made->_canceller = PQ.getCancel(connection);
-    int version = PQ.serverVersion(connection);
+    made->_canceller = PQ.PQgetCancel(connection);
+    int version = PQ.PQserverVersion(connection);
     made.serverDescription = [NSString stringWithFormat:@"PostgreSQL %d.%d", version / 10000, version % 10000];
     return made;
 }
@@ -183,45 +167,45 @@ static NSString *UDTypeName(UDOid oid) {
 
 - (void)close {
     @synchronized (self) {
-        if (_canceller) PQ.freeCancel(_canceller);
+        if (_canceller) PQ.PQfreeCancel(_canceller);
         _canceller = NULL;
     }
-    if (_connection) PQ.finish(_connection);
+    if (_connection) PQ.PQfinish(_connection);
     _connection = NULL;
 }
 
 - (void)cancel {
     @synchronized (self) {
         char reason[256];
-        if (_canceller) PQ.cancel(_canceller, reason, sizeof reason);
+        if (_canceller) PQ.PQcancel(_canceller, reason, sizeof reason);
     }
 }
 
 - (NSError *)_errorOfResult:(PGresult *)result {
-    NSString *message = @(result ? PQ.resultErrorMessage(result) : PQ.errorMessage(_connection));
-    char *state = result ? PQ.resultErrorField(result, UDDiagSQLState) : NULL;
+    NSString *message = @(result ? PQ.PQresultErrorMessage(result) : PQ.PQerrorMessage(_connection));
+    char *state = result ? PQ.PQresultErrorField(result, PG_DIAG_SQLSTATE) : NULL;
     return UDSQLError(0, [message stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]],
                       state ? @(state) : nil);
 }
 
 /// A value as text (libpq's text format) as what it is: numbers as numbers,
 /// booleans as YES/NO, bytea as its bytes.
-static id UDValue(PGresult *result, int row, int column, UDOid type) {
-    if (PQ.getisnull(result, row, column)) return [NSNull null];
-    char *text = PQ.getvalue(result, row, column);
+static id UDValue(PGresult *result, int row, int column, Oid type) {
+    if (PQ.PQgetisnull(result, row, column)) return [NSNull null];
+    char *text = PQ.PQgetvalue(result, row, column);
     switch (type) {
         case 20: case 21: case 23: case 26: return @(strtoll(text, NULL, 10));
         case 700: case 701: return @(strtod(text, NULL));
         case 16: return @(text[0] == 't');
         case 17: {
             size_t length = 0;
-            unsigned char *bytes = PQ.unescapeBytea((const unsigned char *)text, &length);
+            unsigned char *bytes = PQ.PQunescapeBytea((const unsigned char *)text, &length);
             NSData *data = [NSData dataWithBytes:bytes length:length];
-            PQ.freemem(bytes);
+            PQ.PQfreemem(bytes);
             return data;
         }
         default:
-            return [[NSString alloc] initWithBytes:text length:(NSUInteger)PQ.getlength(result, row, column)
+            return [[NSString alloc] initWithBytes:text length:(NSUInteger)PQ.PQgetlength(result, row, column)
                                           encoding:NSUTF8StringEncoding] ?: @"";
     }
 }
@@ -252,13 +236,13 @@ static NSString *UDTextOfParameter(id value) {
         if (text) [texts addObject:text];
         values[i] = text ? text.UTF8String : NULL;
     }
-    int sent = PQ.sendQueryParams(_connection, sql.UTF8String, count, NULL, values, NULL, NULL, 0);
+    int sent = PQ.PQsendQueryParams(_connection, sql.UTF8String, count, NULL, values, NULL, NULL, 0);
     free(values);
     if (!sent) {
         if (error) *error = [self _errorOfResult:NULL];
         return nil;
     }
-    PQ.setSingleRowMode(_connection);
+    PQ.PQsetSingleRowMode(_connection);
     UDSQLResult *made = [[UDSQLResult alloc] init];
     made.statement = sql;
     NSMutableArray *rows = [NSMutableArray array];
@@ -267,18 +251,18 @@ static NSString *UDTextOfParameter(id value) {
     NSError *failure = nil;
     BOOL stopped = NO;
     PGresult *result;
-    while ((result = PQ.getResult(_connection))) {
-        int status = PQ.resultStatus(result);
-        if (status == UDResSingleTuple || status == UDResTuplesOK) {
+    while ((result = PQ.PQgetResult(_connection))) {
+        int status = PQ.PQresultStatus(result);
+        if (status == PGRES_SINGLE_TUPLE || status == PGRES_TUPLES_OK) {
             if (!columns) {
                 columns = [NSMutableArray array];
-                for (int column = 0; column < PQ.nfields(result); column++) {
-                    UDOid type = PQ.ftype(result, column);
-                    [columns addObject:[[UDSQLColumn alloc] initWithName:@(PQ.fname(result, column)) type:UDTypeName(type)]];
+                for (int column = 0; column < PQ.PQnfields(result); column++) {
+                    Oid type = PQ.PQftype(result, column);
+                    [columns addObject:[[UDSQLColumn alloc] initWithName:@(PQ.PQfname(result, column)) type:UDTypeName(type)]];
                     [types addObject:@(type)];
                 }
             }
-            for (int row = 0; row < PQ.ntuples(result); row++) {
+            for (int row = 0; row < PQ.PQntuples(result); row++) {
                 if (rows.count >= maxRows) {
                     if (!stopped) {
                         // enough: the rest not fetched
@@ -294,13 +278,13 @@ static NSString *UDTextOfParameter(id value) {
                 }
                 [rows addObject:values];
             }
-        } else if (status == UDResCommandOK) {
-            char *affected = PQ.cmdTuples(result);
+        } else if (status == PGRES_COMMAND_OK) {
+            char *affected = PQ.PQcmdTuples(result);
             made.rowsAffected = affected && affected[0] ? strtoll(affected, NULL, 10) : -1;
         } else if (!stopped && !failure) {
             failure = [self _errorOfResult:result];
         }
-        PQ.clear(result);
+        PQ.PQclear(result);
     }
     if (failure) {
         if (error) *error = failure;
@@ -313,3 +297,16 @@ static NSString *UDTextOfParameter(id value) {
 }
 
 @end
+
+#else
+
+@implementation UDPostgreSQLConnection
+
++ (instancetype)openURL:(NSURL *)url password:(NSString *)password error:(NSError **)error {
+    UDLoadLibPQ(error);
+    return nil;
+}
+
+@end
+
+#endif

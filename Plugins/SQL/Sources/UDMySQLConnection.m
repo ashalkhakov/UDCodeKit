@@ -68,7 +68,17 @@ static BOOL UDLoadClient(NSError **error) {
         @"libmariadb.so.3", @"libmariadb.so", @"libmysqlclient.so.21", @"libmysqlclient.so",
 #endif
     ];
-    UDSQLLibrary *library = [UDSQLLibrary libraryForKey:@"libmariadb (MariaDB's and MySQL's client library)" names:names error:error];
+    NSString *install =
+#if defined(__APPLE__)
+        @"To reach MySQL or MariaDB, install it with Homebrew: brew install mariadb-connector-c";
+#elif defined(_WIN32)
+        @"To reach MySQL or MariaDB, install it with MSYS2 (pacman -S mingw-w64-clang-x86_64-libmariadbclient), "
+         "or MariaDB Connector/C's installer, with its folder on the PATH.";
+#else
+        @"To reach MySQL or MariaDB, install it: sudo apt install libmariadb3 (Debian, Ubuntu), "
+         "sudo dnf install mariadb-connector-c (Fedora).";
+#endif
+    UDSQLLibrary *library = [UDSQLLibrary libraryForKey:@"MariaDB's and MySQL's client library (libmariadb)" names:names install:install error:error];
     if (!library) return NO;
 #define UDFIND(name) MY.name = (__typeof__(MY.name))[library function:#name]; if (!MY.name) goto missing;
     UDFIND(mysql_init)

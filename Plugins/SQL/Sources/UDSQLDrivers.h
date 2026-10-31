@@ -33,9 +33,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// A shared library loaded once, by the first of @a names found (each a file
 /// name the system's loader looks for, or a path), its functions looked up.
 @interface UDSQLLibrary : NSObject
-/// The library, loaded; nil (and why, naming what was looked for) when none
-/// of @a names loads. Cached by @a key.
-+ (nullable instancetype)libraryForKey:(NSString *)key names:(NSArray<NSString *> *)names
+/// The library, loaded; nil when none of @a names loads, and why: that it
+/// isn't installed, and @a install, how to install it (UDCode doesn't
+/// bring the client libraries: their users install them). Cached by @a key.
++ (nullable instancetype)libraryForKey:(NSString *)key names:(NSArray<NSString *> *)names install:(NSString *)install
                                  error:(NSError *_Nullable *_Nullable)error;
 /// The function @a name; NULL when the library has none.
 - (nullable void *)function:(const char *)name;

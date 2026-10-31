@@ -61,7 +61,9 @@ pinned commits the first time):
 - **Databases**: SQLite, PostgreSQL, MySQL and MariaDB — connections, their
   tables and keys, queries run with their parameters, results under the
   query; a Core Data store's tables named by their entities, its dates and
-  entities shown as such ([databases](docs/sql.md)).
+  entities shown as such; PostgreSQL's and MySQL's client libraries are
+  yours to install (`brew install libpq mariadb-connector-c`, say:
+  [databases](docs/sql.md)).
 - **More**: Code Review and comparing files side by side (VS Code's diff
   editor); a terminal; the Issues, Find, Test, Debug and Breakpoint
   navigators; Open Quickly.

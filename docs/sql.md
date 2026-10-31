@@ -33,10 +33,16 @@ Open a connection and its tables and views are listed, each with its
 columns (type, primary and foreign keys, NOT NULL), indexes and foreign
 keys. Double-click a table for its first rows.
 
-SQLite is built in. PostgreSQL's client (libpq) and MariaDB's or MySQL's
-(libmariadb, libmysqlclient) are used when installed: Homebrew's `libpq` and
-`mariadb-connector-c` on macOS, `libpq5` and `libmariadb3` on Linux, MSYS2's
-`postgresql` and `libmariadbclient` on Windows.
+SQLite is built in. PostgreSQL's and MySQL's client libraries are not: UDCode
+uses yours, so install the ones for the databases you reach (a connection
+without one says how):
+
+| | PostgreSQL | MySQL and MariaDB |
+|---|---|---|
+| macOS | `brew install libpq` | `brew install mariadb-connector-c` |
+| Debian, Ubuntu | `sudo apt install libpq5` | `sudo apt install libmariadb3` |
+| Fedora | `sudo dnf install libpq` | `sudo dnf install mariadb-connector-c` |
+| Windows | MSYS2's `mingw-w64-clang-x86_64-postgresql`, or PostgreSQL's installer (its `bin` on the PATH) | MSYS2's `mingw-w64-clang-x86_64-libmariadbclient`, or MariaDB Connector/C's installer |
 
 ## Core Data stores
 

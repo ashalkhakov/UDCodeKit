@@ -106,7 +106,7 @@ NSError *UDSQLError(NSInteger code, NSString *message, NSString *state) {
     void *_handle;
 }
 
-+ (instancetype)libraryForKey:(NSString *)key names:(NSArray<NSString *> *)names error:(NSError **)error {
++ (instancetype)libraryForKey:(NSString *)key names:(NSArray<NSString *> *)names install:(NSString *)install error:(NSError **)error {
     static NSMutableDictionary<NSString *, UDSQLLibrary *> *loaded;
     @synchronized (self) {
         if (!loaded) loaded = [NSMutableDictionary dictionary];
@@ -125,8 +125,7 @@ NSError *UDSQLError(NSInteger code, NSString *message, NSString *state) {
             return library;
         }
         if (error) {
-            *error = UDSQLError(0, [NSString stringWithFormat:@"%@ isn't installed (looked for %@).", key,
-                                    [names componentsJoinedByString:@", "]], nil);
+            *error = UDSQLError(0, [NSString stringWithFormat:@"%@ isn't installed. %@", key, install], nil);
         }
         return nil;
     }

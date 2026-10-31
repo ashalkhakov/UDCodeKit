@@ -68,7 +68,16 @@ static BOOL UDLoadLibPQ(NSError **error) {
         @"libpq.so.5", @"libpq.so",
 #endif
     ];
-    UDSQLLibrary *library = [UDSQLLibrary libraryForKey:@"libpq (PostgreSQL's client library)" names:names error:error];
+    NSString *install =
+#if defined(__APPLE__)
+        @"To reach PostgreSQL, install it with Homebrew: brew install libpq";
+#elif defined(_WIN32)
+        @"To reach PostgreSQL, install it with MSYS2 (pacman -S mingw-w64-clang-x86_64-postgresql), "
+         "or PostgreSQL's installer, with its bin folder on the PATH.";
+#else
+        @"To reach PostgreSQL, install it: sudo apt install libpq5 (Debian, Ubuntu), sudo dnf install libpq (Fedora).";
+#endif
+    UDSQLLibrary *library = [UDSQLLibrary libraryForKey:@"PostgreSQL's client library (libpq)" names:names install:install error:error];
     if (!library) return NO;
 #define UDFIND(name) PQ.name = (__typeof__(PQ.name))[library function:#name]; if (!PQ.name) goto missing;
     UDFIND(PQconnectdbParams)

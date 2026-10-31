@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDFileNavigatorViewController.h"
+#import "UDBadgeTextFieldCell.h"
 
 /// A file or folder of the outline; a folder's children listed when first asked for.
 @interface UDFileNode : NSObject
@@ -16,6 +17,7 @@
 
 @interface UDFileNavigatorViewController () <NSMenuDelegate>
 @property (nonatomic, weak) IBOutlet NSOutlineView *outlineView;
+@property (nonatomic, weak) IBOutlet NSButton *changedFilterButton;
 @end
 
 @implementation UDFileNavigatorViewController {
@@ -33,6 +35,43 @@
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
     menu.delegate = self;
     _outlineView.menu = menu;
+}
+
+- (IBAction)toggleChangedFilter:(id)sender {
+    self.showsOnlyChangedFiles = _changedFilterButton.state == NSControlStateValueOn;
+}
+
+- (void)setShowsOnlyChangedFiles:(BOOL)showsOnlyChangedFiles {
+    if (_showsOnlyChangedFiles == showsOnlyChangedFiles) return;
+    _showsOnlyChangedFiles = showsOnlyChangedFiles;
+    _changedFilterButton.state = showsOnlyChangedFiles ? NSControlStateValueOn : NSControlStateValueOff;
+    [_outlineView reloadData];
+    if (showsOnlyChangedFiles) [_outlineView expandItem:nil expandChildren:YES];
+}
+
+- (void)badgesDidChange {
+    if (_showsOnlyChangedFiles) {
+        [_outlineView reloadData];
+        [_outlineView expandItem:nil expandChildren:YES];
+    } else {
+        [_outlineView setNeedsDisplay:YES];
+    }
+}
+
+- (nullable NSString *)_badgeOf:(UDFileNode *)node {
+    if (node.directory || ![_delegate respondsToSelector:@selector(fileNavigator:badgeForURL:)]) return nil;
+    return [_delegate fileNavigator:self badgeForURL:node.url];
+}
+
+/// Shown with only changed files: a file with a badge, a folder with one under it.
+- (BOOL)_isChanged:(UDFileNode *)node {
+    if (!node.directory) return [self _badgeOf:node] != nil;
+    return [_delegate respondsToSelector:@selector(fileNavigator:folderContainsChangesAtURL:)] &&
+           [_delegate fileNavigator:self folderContainsChangesAtURL:node.url];
+}
+
+- (void)outlineView:(NSOutlineView *)outlineView willDisplayCell:(id)cell forTableColumn:(NSTableColumn *)tableColumn item:(id)item {
+    if ([cell isKindOfClass:[UDBadgeTextFieldCell class]]) [(UDBadgeTextFieldCell *)cell setBadge:[self _badgeOf:item]];
 }
 
 /// The clicked row's items, the delegate's.
@@ -95,7 +134,12 @@
     if (!node) node = _root;
     if (!node.directory) return @[];
     if (!node.children) node.children = [self _listFolder:node.url];
-    return node.children;
+    if (!_showsOnlyChangedFiles) return node.children;
+    NSMutableArray<UDFileNode *> *changed = [NSMutableArray array];
+    for (UDFileNode *child in node.children) {
+        if ([self _isChanged:child]) [changed addObject:child];
+    }
+    return changed;
 }
 
 - (void)reload {

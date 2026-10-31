@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		CF0000000000000000000107 /* CFamily.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = CF0000000000000000000105 /* CFamily.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		6A0000000000000000000107 /* Git.bundle in Embed PlugIns */ = {isa = PBXBuildFile; fileRef = 6A0000000000000000000105 /* Git.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C0DEA00000000000000000A1 /* UDCodeKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DEA00000000000000000F1 /* UDCodeKit.framework */; };
 		5BA4C1E00000000000000002 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000001 /* Sparkle.xcframework */; };
 		5BA4C1E00000000000000003 /* Sparkle.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5BA4C1E00000000000000001 /* Sparkle.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -37,12 +38,26 @@
 			remoteGlobalIDString = CF0000000000000000000040;
 			remoteInfo = CFamily;
 		};
+		6A0000000000000000000103 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6A0000000000000000000101 /* Git.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 6A0000000000000000000040;
+			remoteInfo = Git;
+		};
 		CF0000000000000000000104 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CF0000000000000000000101 /* CFamily.xcodeproj */;
 			proxyType = 2;
 			remoteGlobalIDString = CF0000000000000000000001;
 			remoteInfo = CFamily;
+		};
+		6A0000000000000000000104 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6A0000000000000000000101 /* Git.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 6A0000000000000000000001;
+			remoteInfo = Git;
 		};
 		A46FAABD2F5441CB0079BB37 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -203,6 +218,7 @@
 				CE7CFA282F61DA7700F294D4 /* TreeSitterBash.bundle in Embed PlugIns */,
 				CE7257B12F60211700501E10 /* TreeSitterC.bundle in Embed PlugIns */,
 				CF0000000000000000000107 /* CFamily.bundle in Embed PlugIns */,
+				6A0000000000000000000107 /* Git.bundle in Embed PlugIns */,
 				CE7257B02F60210C00501E10 /* TreeSitterHtml.bundle in Embed PlugIns */,
 				CE72576E2F5F30F000501E10 /* TreeSitterJson.bundle in Embed PlugIns */,
 				CE72576D2F5F30E600501E10 /* TreeSitterYaml.bundle in Embed PlugIns */,
@@ -232,6 +248,7 @@
 
 /* Begin PBXFileReference section */
 		CF0000000000000000000101 /* CFamily.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = CFamily.xcodeproj; path = "Plugins/CFamily/CFamily.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		6A0000000000000000000101 /* Git.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Git.xcodeproj; path = "Plugins/Git/Git.xcodeproj"; sourceTree = SOURCE_ROOT; };
 		5BA4C1E00000000000000001 /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Sparkle.xcframework; path = .deps/Sparkle.xcframework; sourceTree = SOURCE_ROOT; };
 		C0DEA00000000000000000F1 /* UDCodeKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDCodeKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0DEA00000000000000000F2 /* UDPieceTable.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = UDPieceTable.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -307,6 +324,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		6A0000000000000000000102 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				6A0000000000000000000105 /* Git.bundle */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		A46FAAA22F5441C80079BB37 = {
 			isa = PBXGroup;
 			children = (
@@ -324,6 +349,7 @@
 				CE7257A02F6020F200501E10 /* TreeSitterHtml.xcodeproj */,
 				CE7257A82F6020FC00501E10 /* TreeSitterC.xcodeproj */,
 				CF0000000000000000000101 /* CFamily.xcodeproj */,
+				6A0000000000000000000101 /* Git.xcodeproj */,
 				CEED68152F61C88200473B16 /* TreeSitterBash.xcodeproj */,
 			);
 			sourceTree = "<group>";
@@ -446,6 +472,7 @@
 				CE7CFA272F61DA6100F294D4 /* PBXTargetDependency */,
 				CE7257AC2F6020FC00501E10 /* PBXTargetDependency */,
 				CF0000000000000000000106 /* PBXTargetDependency */,
+				6A0000000000000000000106 /* PBXTargetDependency */,
 				CE7257A42F6020F200501E10 /* PBXTargetDependency */,
 				CE7257522F5F2ED000501E10 /* PBXTargetDependency */,
 				CE7257482F5F2EC300501E10 /* PBXTargetDependency */,
@@ -553,6 +580,10 @@
 					ProjectRef = CF0000000000000000000101 /* CFamily.xcodeproj */;
 				},
 				{
+					ProductGroup = 6A0000000000000000000102 /* Products */;
+					ProjectRef = 6A0000000000000000000101 /* Git.xcodeproj */;
+				},
+				{
 					ProductGroup = BB22CAFE2F5492DC002200A2 /* Products */;
 					ProjectRef = BB22CAFE2F5492DC002200A1 /* LSPKit.xcodeproj */;
 				},
@@ -607,6 +638,13 @@
 			fileType = wrapper.cfbundle;
 			path = CFamily.bundle;
 			remoteRef = CF0000000000000000000104 /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		6A0000000000000000000105 /* Git.bundle */ = {
+			isa = PBXReferenceProxy;
+			fileType = wrapper.cfbundle;
+			path = Git.bundle;
+			remoteRef = 6A0000000000000000000104 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 		BB22CAFE2F5492DC002200A3 /* LSPKit.framework */ = {
@@ -720,6 +758,11 @@
 			isa = PBXTargetDependency;
 			name = CFamily;
 			targetProxy = CF0000000000000000000103 /* PBXContainerItemProxy */;
+		};
+		6A0000000000000000000106 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = Git;
+			targetProxy = 6A0000000000000000000103 /* PBXContainerItemProxy */;
 		};
 		A46FAABE2F5441CB0079BB37 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -979,6 +1022,7 @@
 					"$(SRCROOT)/Sources/Debug",
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/Plugins/CFamily/Sources",
+					"$(SRCROOT)/Plugins/Git/Sources",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.7;
 				MARKETING_VERSION = 1.0;
@@ -1003,6 +1047,7 @@
 					"$(SRCROOT)/Sources/Debug",
 					"$(SRCROOT)/tree-sitter/include",
 					"$(SRCROOT)/Plugins/CFamily/Sources",
+					"$(SRCROOT)/Plugins/Git/Sources",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.7;
 				MARKETING_VERSION = 1.0;

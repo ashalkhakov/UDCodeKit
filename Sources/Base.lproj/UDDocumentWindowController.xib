@@ -16,6 +16,7 @@
                 <outlet property="projectHost" destination="WS-project-host" id="WS-o-project-host"/>
                 <outlet property="buildLogHost" destination="WS-build-host" id="WS-o-build-host"/>
                 <outlet property="findHost" destination="WS-find-host" id="WS-o-find-host"/>
+                <outlet property="sourceControlHost" destination="WS-sc-host" id="WS-o-sc-host"/>
                 <outlet property="issuesHost" destination="WS-issues-host" id="WS-o-issues"/>
                 <outlet property="testsHost" destination="WS-tests-host" id="WS-o-tests"/>
                 <outlet property="debugNavigatorHost" destination="WS-debug-nav-host" id="WS-o-debug-nav"/>
@@ -74,18 +75,19 @@
                                 <autoresizingMask key="autoresizingMask" heightSizable="YES"/>
                                 <subviews>
                                     <segmentedControl verticalHuggingPriority="750" id="WS-nav-control" userLabel="Navigator Selector">
-                                        <rect key="frame" x="15" y="731" width="210" height="24"/>
+                                        <rect key="frame" x="0.0" y="731" width="240" height="24"/>
                                         <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxX="YES" flexibleMinY="YES"/>
                                         <segmentedCell key="cell" borderStyle="border" alignment="left" style="texturedSquare" trackingMode="selectOne" id="WS-nav-control-cell">
                                             <font key="font" metaFont="smallSystem"/>
                                             <segments>
-                                                <segment toolTip="Files navigator (⌘1)" image="folder" catalog="system" width="30" selected="YES"/>
-                                                <segment toolTip="Find navigator (⌘3)" image="magnifyingglass" catalog="system" width="30" tag="1"/>
-                                                <segment toolTip="Issues navigator (⌘5)" image="exclamationmark.triangle" catalog="system" width="30" tag="2"/>
-                                                <segment toolTip="Test navigator (⌘6)" image="checkmark.diamond" catalog="system" width="30" tag="3"/>
-                                                <segment toolTip="Debug navigator (⌘7)" image="gauge.with.dots.needle.33percent" catalog="system" width="30" tag="4"/>
-                                                <segment toolTip="Breakpoint navigator (⌘8)" image="arrowshape.right" catalog="system" width="30" tag="5"/>
-                                                <segment toolTip="Build log (⌘9)" image="text.bubble" catalog="system" width="30" tag="6"/>
+                                                <segment toolTip="Files navigator (⌘1)" image="folder" catalog="system" width="29" selected="YES"/>
+                                                <segment toolTip="Source Control navigator (⌘2)" image="arrow.triangle.branch" catalog="system" width="29" tag="1"/>
+                                                <segment toolTip="Find navigator (⌘3)" image="magnifyingglass" catalog="system" width="29" tag="2"/>
+                                                <segment toolTip="Issues navigator (⌘5)" image="exclamationmark.triangle" catalog="system" width="29" tag="3"/>
+                                                <segment toolTip="Test navigator (⌘6)" image="checkmark.diamond" catalog="system" width="29" tag="4"/>
+                                                <segment toolTip="Debug navigator (⌘7)" image="gauge.with.dots.needle.33percent" catalog="system" width="29" tag="5"/>
+                                                <segment toolTip="Breakpoint navigator (⌘8)" image="arrowshape.right" catalog="system" width="29" tag="6"/>
+                                                <segment toolTip="Build log (⌘9)" image="text.bubble" catalog="system" width="29" tag="7"/>
                                             </segments>
                                         </segmentedCell>
                                         <connections>
@@ -146,6 +148,18 @@
                                                             </scroller>
                                                         </scrollView>
                                                         <customView hidden="YES" id="WS-project-host" userLabel="Project Files Host">
+                                                            <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                        </customView>
+                                                    </subviews>
+                                                </view>
+                                            </tabViewItem>
+                                            <tabViewItem label="Source Control" identifier="sourceControl" id="WS-nav-sc">
+                                                <view key="view" id="WS-nav-sc-view">
+                                                    <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
+                                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    <subviews>
+                                                        <customView id="WS-sc-host" userLabel="Source Control Navigator Host">
                                                             <rect key="frame" x="0.0" y="0.0" width="240" height="724"/>
                                                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                         </customView>

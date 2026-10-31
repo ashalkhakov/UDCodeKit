@@ -700,6 +700,12 @@
                                     <action selector="formatDocument:" target="-1" id="UDM-format-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Authors" keyEquivalent="A" id="UDM-authors">
+                                <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
+                                <connections>
+                                    <action selector="toggleAuthors:" target="-1" id="UDM-authors-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem title="Fix Issue at Cursor" keyEquivalent="f" id="UDM-fix">
                                 <modifierMask key="keyEquivalentModifierMask" control="YES" option="YES" command="YES"/>
                                 <connections>
@@ -740,6 +746,11 @@
                             <menuItem title="Files" keyEquivalent="1" id="UDM-files">
                                 <connections>
                                     <action selector="showFilesNavigator:" target="-1" id="UDM-files-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Source Control" keyEquivalent="2" id="UDM-scnav">
+                                <connections>
+                                    <action selector="showSourceControlNavigator:" target="-1" id="UDM-scnav-a"/>
                                 </connections>
                             </menuItem>
                             <menuItem title="Find" keyEquivalent="3" id="UDM-findnav">
@@ -896,6 +907,19 @@
                             <menuItem title="Project Settings…" id="UDM-projectsettings">
                                 <connections>
                                     <action selector="showProjectSettings:" target="-1" id="UDM-projectsettings-a"/>
+                                </connections>
+                            </menuItem>
+                        </items>
+                    </menu>
+                </menuItem>
+                <menuItem title="Integrate" id="UDM-integrate">
+                    <modifierMask key="keyEquivalentModifierMask"/>
+                    <menu key="submenu" title="Integrate" id="UDM-integrate-menu">
+                        <items>
+                            <menuItem title="Commit…" keyEquivalent="c" id="UDM-int-1">
+                                <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                                <connections>
+                                    <action selector="commitChanges:" target="-1" id="UDM-int-1-a"/>
                                 </connections>
                             </menuItem>
                         </items>

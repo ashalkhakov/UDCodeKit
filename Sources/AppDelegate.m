@@ -6,6 +6,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "AppDelegate.h"
+#import "UDAskpass.h"
 #import "UDUpdater.h"
 #import "UDDocument.h"
 #import <UDCodeKit/UDCodeKit.h>
@@ -21,6 +22,10 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
 @implementation AppDelegate
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    // git's credential prompts: asked by UDCode itself (VS Code's askpass)
+    NSString *executable = [[NSBundle mainBundle] executablePath];
+    if (executable) UDSourceControlSetCredentialEnvironment(UDAskpassEnvironment(executable));
+
     // Updates, set up before the app finishes launching (as Sparkle asks),
     // and not started under XCTest, which reaches no network. Where there is
     // no updater, no menu item.

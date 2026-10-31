@@ -5,6 +5,7 @@
 #import "UDDemoDebugAdapter.h"
 #import <objc/runtime.h>
 #import <UDCodeKit/UDCodeKit.h>
+#import "AppDelegate.h"
 #ifdef __APPLE__
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #endif
@@ -15,12 +16,13 @@ static const NSInteger UDInspectorPane = 2;
 // The editors' split: the debug area below them.
 static const NSInteger UDDebugAreaPane = 1;
 // The navigator's segments.
-static const NSInteger UDFindNavigatorSegment = 1;
-static const NSInteger UDIssuesNavigatorSegment = 2;
-static const NSInteger UDTestNavigatorSegment = 3;
-static const NSInteger UDDebugNavigatorSegment = 4;
-static const NSInteger UDBreakpointNavigatorSegment = 5;
-static const NSInteger UDBuildNavigatorSegment = 6;
+static const NSInteger UDSourceControlNavigatorSegment = 1;
+static const NSInteger UDFindNavigatorSegment = 2;
+static const NSInteger UDIssuesNavigatorSegment = 3;
+static const NSInteger UDTestNavigatorSegment = 4;
+static const NSInteger UDDebugNavigatorSegment = 5;
+static const NSInteger UDBreakpointNavigatorSegment = 6;
+static const NSInteger UDBuildNavigatorSegment = 7;
 // What follows a build.
 static const NSInteger UDAfterBuildNothing = 0;
 static const NSInteger UDAfterBuildRun = 1;
@@ -34,7 +36,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
-                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
+                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDSourceControlNavigatorDelegate, UDHistoryDelegate, UDCodeEditorSourceControlDelegate, UDSourceControlHost, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
                                           UDCodeEditorLinkDelegate, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -46,6 +48,11 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, weak) IBOutlet NSView             *projectHost;
 @property (nonatomic, weak) IBOutlet NSView             *buildLogHost;
 @property (nonatomic, weak) IBOutlet NSView             *findHost;
+@property (nonatomic, weak) IBOutlet NSView             *sourceControlHost;
+/// The project's source control (an extension's: git's; nil: none), and
+/// Xcode's navigator of it.
+@property (nonatomic, strong, readwrite, nullable) id<UDSourceControl> sourceControl;
+@property (nonatomic, strong) UDSourceControlNavigatorViewController *sourceControlNavigator;
 @property (nonatomic, weak) IBOutlet NSPopUpButton      *schemePopUp;
 @property (nonatomic, weak) IBOutlet NSTextField        *activityLabel;
 @property (nonatomic, strong, readwrite) UDSearchResultsViewController *searchResults;
@@ -134,6 +141,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, strong) NSMapTable<UDTabBarItem *, UDCodeDocument *> *diffOriginals;
 /// Compare with Saved's originals: the file each is the saved text of.
 @property (nonatomic, strong) NSMapTable<UDCodeDocument *, NSURL *> *savedCopies;
+/// Code Review's originals in a repository: the file each is the text at HEAD of.
+@property (nonatomic, strong) NSMapTable<UDCodeDocument *, NSString *> *headCopies;
+/// Texts shown only to read (a file at a commit): no language server, nothing to save.
+@property (nonatomic, strong) NSHashTable<UDCodeDocument *> *scratchDocuments;
+/// History tabs: the ref each shows.
+@property (nonatomic, strong) NSMapTable<UDTabBarItem *, NSString *> *historyTabs;
 /// The file navigator's Select for Compare.
 @property (nonatomic, copy, nullable) NSURL *selectedForCompare;
 
@@ -161,6 +174,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     _sessions       = [NSMapTable strongToStrongObjectsMapTable];
     _diffOriginals  = [NSMapTable strongToStrongObjectsMapTable];
     _savedCopies    = [NSMapTable strongToStrongObjectsMapTable];
+    _headCopies     = [NSMapTable strongToStrongObjectsMapTable];
+    _scratchDocuments = [NSHashTable hashTableWithOptions:NSPointerFunctionsStrongMemory];
+    _historyTabs    = [NSMapTable strongToStrongObjectsMapTable];
     _workspaceModel = [[UDWorkspaceModel alloc] init];
 
 #ifdef __APPLE__
@@ -234,6 +250,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         _fileWatcher = [[UDFileWatcher alloc] initWithFolderURL:_project.folderURL ignoredNames:nil];
         _fileWatcher.delegate = self;
     }
+    _sourceControlNavigator = [[UDSourceControlNavigatorViewController alloc] init];
+    _sourceControlNavigator.delegate = self;
+    [self _putView:_sourceControlNavigator.view inHost:_sourceControlHost];
+    [self reloadSourceControl];
     _testNavigator = [[UDTestNavigatorViewController alloc] init];
     _testNavigator.delegate = self;
     [self _putView:_testNavigator.view inHost:_testsHost];
@@ -765,6 +785,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// VS Code does; with edits, its edits stay); the language servers are told.
 - (void)fileWatcher:(UDFileWatcher *)watcher didSeeChangesAtPaths:(NSSet<NSString *> *)paths {
     [_fileNavigator reload];
+    [_sourceControl filesDidChangeAtPaths:paths];
     [self _updateSchemePopUp];      // launch.json may have changed
     // the tests again when their sources changed (not what a build made)
     BOOL sources = NO;
@@ -1322,6 +1343,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [self navigatorChanged:nil];
 }
 
+- (IBAction)showSourceControlNavigator:(nullable id)sender {
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = UDSourceControlNavigatorSegment;
+    [self navigatorChanged:nil];
+}
+
 - (IBAction)showFindNavigator:(nullable id)sender {
     [_paneSplit setPane:UDNavigatorPane visible:YES];
     _navigatorControl.selectedSegment = UDFindNavigatorSegment;
@@ -1398,6 +1425,13 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return [[self _selectedEditor] validateMenuItem:item];
     } else if (sel_isEqual(action, @selector(toggleBreakpoint:))) {
         return [self _selectedEditor].breakpointFile != nil;
+    } else if (sel_isEqual(action, @selector(toggleAuthors:))) {
+        UDCodeEditorViewController *editor = [self _selectedEditor];
+        item.state = editor.showsAuthors ? NSControlStateValueOn : NSControlStateValueOff;
+        return editor && [_sourceControl respondsToSelector:@selector(blameOfPath:target:action:)] &&
+               [_sourceControl containsPath:[self _documentOfEditor:editor].fileURL.path];
+    } else if (sel_isEqual(action, @selector(commitChanges:))) {
+        return _sourceControl != nil;
     } else if (sel_isEqual(action, @selector(toggleCodeReview:))) {
         UDDiffEditorViewController *review = [self _selectedDiffEditor];
         item.title = review ? @"Hide Code Review" : @"Show Code Review";
@@ -1502,7 +1536,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// Saved's) has only the first.
 - (void)_startSession:(UDEditorSession *)session ofDocument:(UDCodeDocument *)document {
     [session activateWithTheme:_currentTheme];
-    if ([_savedCopies objectForKey:document]) return;
+    if ([self _isCopy:document]) return;
     if (![self _startProjectLanguageServerOf:session document:document]) [session startLanguageServer];
     session.lspCoordinator.editDocuments = self;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
@@ -1517,7 +1551,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 - (void)_configureEditor:(UDCodeEditorViewController *)editor ofDocument:(UDCodeDocument *)document {
     editor.previewBaseURL = document.fileURL;
     editor.linkDelegate = self;
+    editor.sourceControlDelegate = self;
     editor.textView.delegate = self;
+    [self _updateQuickDiffOfDocument:document];
     if (document.fileURL) [editor showBreakpointsOfStore:_breakpoints forFile:document.fileURL.path];
 }
 
@@ -1593,8 +1629,13 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         }
         UDCodeEditorViewController *editor = controller;
         editor.showsPreview = NO;
+        // the source control's (Xcode's: the last commit's), else the saved file's
+        NSString *reviewed = [_sourceControl codeReviewTextOfPath:document.fileURL.path];
+        BOOL inRepository = reviewed != nil;
+        if (inRepository) saved = reviewed;
         UDCodeDocument *copy = [[UDCodeDocument alloc] initWithText:saved fileURL:nil languageMode:document.languageMode];
-        [_savedCopies setObject:document.fileURL forKey:copy];
+        if (inRepository) [_headCopies setObject:document.fileURL.path forKey:copy];
+        else [_savedCopies setObject:document.fileURL forKey:copy];
         BOOL first = NO;
         UDEditorSession *copySession = [self _sessionOpeningDocument:copy first:&first];
         UDDiffEditorViewController *review = [[UDDiffEditorViewController alloc] initWithOriginalTextStorage:copySession.textStorage
@@ -1683,11 +1724,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     }
 }
 
-/// The tab's editor: a diff's, its modified side's (its document's).
+/// The tab's editor: a diff's, its modified side's (its document's); none
+/// of a history's.
 - (nullable UDCodeEditorViewController *)_editorOfItem:(nullable UDTabBarItem *)item {
     id controller = item ? [_editorTabs viewControllerForItem:item] : nil;
     if ([controller isKindOfClass:[UDDiffEditorViewController class]]) return [controller modifiedEditor];
-    return controller;
+    return [controller isKindOfClass:[UDCodeEditorViewController class]] ? controller : nil;
 }
 
 - (nullable UDCodeEditorViewController *)_selectedEditor {
@@ -1712,10 +1754,31 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     return items;
 }
 
-/// The documents @a item shows: a diff's two.
+/// The documents @a item shows: a diff's two; a history's none.
 - (NSArray<UDCodeDocument *> *)_documentsOfItem:(UDTabBarItem *)item {
+    NSMutableArray<UDCodeDocument *> *documents = [NSMutableArray array];
+    if ([item.representedObject isKindOfClass:[UDCodeDocument class]]) [documents addObject:item.representedObject];
     UDCodeDocument *original = [_diffOriginals objectForKey:item];
-    return original ? @[ item.representedObject, original ] : @[ item.representedObject ];
+    if (original) [documents addObject:original];
+    return documents;
+}
+
+/// A text of the window's own, not a file's: Code Review's and history's.
+- (BOOL)_isCopy:(UDCodeDocument *)document {
+    return [_savedCopies objectForKey:document] || [_headCopies objectForKey:document] || [_scratchDocuments containsObject:document];
+}
+
+/// @a before beside @a after (the text of @a path's file at two commits,
+/// say), both read-only, in a tab of their own.
+- (void)_openReadOnlyDiffOf:(NSString *)before and:(NSString *)after path:(NSString *)path title:(NSString *)title {
+    UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:[NSURL fileURLWithPath:path]];
+    UDCodeDocument *original = [[UDCodeDocument alloc] initWithText:before fileURL:nil languageMode:mode];
+    UDCodeDocument *modified = [[UDCodeDocument alloc] initWithText:after fileURL:nil languageMode:mode];
+    [_scratchDocuments addObject:original];
+    [_scratchDocuments addObject:modified];
+    [self _openDiffOfOriginal:original modified:modified title:title originalEditable:NO];
+    UDDiffEditorViewController *diff = [self _selectedDiffEditor];
+    diff.modifiedEditor.textView.editable = NO;
 }
 
 /// The open documents changed: the files navigator and the issues.
@@ -1745,7 +1808,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// The last tab of a document with unsaved changes asks first.
 - (BOOL)editorTabs:(UDEditorTabsController *)tabs shouldCloseItem:(UDTabBarItem *)item {
     for (UDCodeDocument *document in [self _documentsOfItem:item]) {
-        if ([_savedCopies objectForKey:document]) continue;            // the file's own text, nothing to lose
+        if ([self _isCopy:document]) continue;            // the file's own text, nothing to lose
         if (!document.isModified || [self _itemsForDocument:document].count > 1) continue;
         NSAlert *alert = [[NSAlert alloc] init];
         alert.messageText = [NSString stringWithFormat:@"Close “%@” without saving?", document.displayName];
@@ -1761,6 +1824,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 - (void)editorTabs:(UDEditorTabsController *)tabs didCloseItem:(UDTabBarItem *)item {
     NSArray<UDCodeDocument *> *documents = [self _documentsOfItem:item];
     [_diffOriginals removeObjectForKey:item];
+    [_historyTabs removeObjectForKey:item];
     for (UDCodeDocument *document in documents) [self _closeDocumentIfUnshown:document];
 }
 
@@ -1770,6 +1834,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [[self _sessionForDocument:document] close];
     [_sessions removeObjectForKey:document];
     [_savedCopies removeObjectForKey:document];
+    [_headCopies removeObjectForKey:document];
+    [_scratchDocuments removeObject:document];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:document.diagnosticStore];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:document.textModel];
     [_workspaceModel removeDocument:document];
@@ -2025,6 +2091,270 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     if (!text.length || !_hoverTextView) return;
     if (!_hover) _hover = [[UDHoverViewController alloc] init];
     [_hover showText:text atCharacterIndex:_hoverIndex ofTextView:_hoverTextView];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Source control (UDSourceControl: an extension's, git's; Xcode's look)
+// ---------------------------------------------------------------------------
+
+/// The project's source control: the first extension's that has one for its folder.
+- (void)reloadSourceControl {
+    id<UDSourceControl> sourceControl = nil;
+    for (id<UDExtension> extension in _project ? [UDLanguageModeRegistry sharedRegistry].extensions : @[]) {
+        if (![extension respondsToSelector:@selector(sourceControlForFolder:)]) continue;
+        sourceControl = [extension sourceControlForFolder:_project.folderURL.path];
+        if (sourceControl) break;
+    }
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    if (_sourceControl) [center removeObserver:self name:UDSourceControlDidChangeNotification object:_sourceControl];
+    _sourceControl = sourceControl;
+    sourceControl.host = self;
+    _sourceControlNavigator.sourceControl = sourceControl;
+    [self _rebuildIntegrateMenu];
+    [_fileNavigator badgesDidChange];
+    if (!sourceControl) return;
+    [center addObserver:self selector:@selector(_sourceControlDidChange:) name:UDSourceControlDidChangeNotification object:sourceControl];
+    [sourceControl refresh];
+}
+
+- (void)_sourceControlDidChange:(NSNotification *)note {
+    [_fileNavigator badgesDidChange];
+    for (UDCodeDocument *document in _workspaceModel.documents) [self _updateQuickDiffOfDocument:document];
+    for (UDTabBarItem *item in _editorTabs.items) {
+        // Authors, after a commit
+        UDCodeEditorViewController *editor = [self _editorOfItem:item];
+        UDCodeDocument *document = item.representedObject;
+        if (editor.showsAuthors && [document isKindOfClass:[UDCodeDocument class]] && document.fileURL) {
+            [_sourceControl blameOfPath:document.fileURL.path target:self action:@selector(_didReadBlame:)];
+        }
+    }
+    // Code Review's last commit, after a commit
+    for (UDCodeDocument *copy in [_headCopies keyEnumerator].allObjects) {
+        [self _replaceTextOf:copy with:[_sourceControl codeReviewTextOfPath:[_headCopies objectForKey:copy]] ?: @""];
+    }
+}
+
+// MARK: The Integrate menu: Commit… (the editor's), then the source control's and the extensions'
+
+/// The contributed items' tag.
+static const NSInteger UDContributedMenuItemTag = 0x5C;
+
+- (nullable NSMenu *)_integrateMenu {
+    return [[NSApp mainMenu] itemWithTitle:@"Integrate"].submenu;
+}
+
+- (void)_rebuildIntegrateMenu {
+    NSMenu *menu = [self _integrateMenu];
+    if (!menu) return;
+    for (NSMenuItem *item in [menu.itemArray copy]) {
+        if (item.tag == UDContributedMenuItemTag) [menu removeItem:item];
+    }
+    NSMutableArray<NSArray<NSMenuItem *> *> *sections = [NSMutableArray array];
+    if (_sourceControl) [sections addObject:[_sourceControl integrateMenuItems]];
+    NSMutableArray<NSMenuItem *> *global = [NSMutableArray array];
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if (![extension respondsToSelector:@selector(sourceControlMenuItemsForHost:folder:)]) continue;
+        [global addObjectsFromArray:[extension sourceControlMenuItemsForHost:self folder:_project.folderURL.path]];
+    }
+    [sections addObject:global];
+    for (NSArray<NSMenuItem *> *section in sections) {
+        if (section.count == 0) continue;
+        NSMutableArray *items = [NSMutableArray arrayWithObject:[NSMenuItem separatorItem]];
+        [items addObjectsFromArray:section];
+        for (NSMenuItem *item in items) {
+            item.tag = UDContributedMenuItemTag;
+            [menu addItem:item];
+        }
+    }
+}
+
+- (void)windowDidBecomeKey:(NSNotification *)note {
+    [self _rebuildIntegrateMenu];
+}
+
+- (IBAction)commitChanges:(nullable id)sender {
+    [self showSourceControlNavigator:nil];
+    [_sourceControlNavigator focusCommitMessage];
+}
+
+// MARK: The source control's host
+
+- (void)sourceControl:(nullable id<UDSourceControl>)sourceControl didFail:(UDSourceControlResult *)result {
+    if (!self.window) return;
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"The operation didn't succeed.";
+    alert.informativeText = result.message ?: @"";
+    [alert beginSheetModalForWindow:self.window modalDelegate:nil didEndSelector:NULL contextInfo:NULL];
+}
+
+/// The files the Integrate menu's "Selected Files" are: the Changes'
+/// selection when it has the focus, else the project navigator's, else the tab's.
+- (NSArray<NSString *> *)selectedPathsForSourceControl:(id<UDSourceControl>)sourceControl {
+    if (self.window.firstResponder == _sourceControlNavigator.changesView) {
+        NSMutableArray *paths = [NSMutableArray array];
+        for (UDSourceControlResource *resource in _sourceControlNavigator.selectedResources) [paths addObject:resource.path];
+        return paths;
+    }
+    if (self.window.firstResponder == _fileNavigator.outlineView) {
+        NSURL *url = [_fileNavigator URLOfRow:_fileNavigator.outlineView.selectedRow];
+        return url ? @[ url.path ] : @[];
+    }
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    return [document isKindOfClass:[UDCodeDocument class]] && document.fileURL ? @[ document.fileURL.path ] : @[];
+}
+
+- (void)sourceControl:(id<UDSourceControl>)sourceControl showHistoryOfRef:(NSString *)ref title:(NSString *)title {
+    [self _showHistoryOfRef:ref title:title];
+}
+
+- (void)sourceControl:(nullable id<UDSourceControl>)sourceControl openFolder:(NSURL *)folder {
+    [(AppDelegate *)NSApp.delegate openFolderAtURL:folder];
+}
+
+// MARK: The project navigator's badges
+
+- (NSString *)fileNavigator:(UDFileNavigatorViewController *)navigator badgeForURL:(NSURL *)url {
+    return [_sourceControl resourceAtPath:url.path].letter;
+}
+
+- (BOOL)fileNavigator:(UDFileNavigatorViewController *)navigator folderContainsChangesAtURL:(NSURL *)url {
+    return [_sourceControl folderContainsChanges:url.path];
+}
+
+// MARK: The Source Control navigator's
+
+- (void)sourceControlNavigator:(UDSourceControlNavigatorViewController *)navigator openChange:(UDSourceControlResource *)resource {
+    if (resource.deleted || ![[NSFileManager defaultManager] fileExistsAtPath:resource.path]) {
+        // gone: what it was, beside nothing
+        [self _openReadOnlyDiffOf:[_sourceControl codeReviewTextOfPath:resource.path] ?: @"" and:@"" path:resource.path
+                            title:[NSString stringWithFormat:@"%@ (Deleted)", resource.path.lastPathComponent]];
+        return;
+    }
+    [self _showFile:resource.path];
+    if (![self _selectedDiffEditor]) [self toggleCodeReview:nil];
+}
+
+- (void)sourceControlNavigator:(UDSourceControlNavigatorViewController *)navigator revealInProjectNavigator:(NSString *)path {
+    [self showFilesNavigator:nil];
+    [_fileNavigator revealURL:[NSURL fileURLWithPath:path]];
+}
+
+// MARK: Change bars (VS Code's quick diff)
+
+/// @a document's editors' change bars: against the source control's
+/// original (git's index), when it has the file.
+- (void)_updateQuickDiffOfDocument:(UDCodeDocument *)document {
+    NSString *path = document.fileURL.path;
+    if (!path) return;
+    if (!_sourceControl || ![_sourceControl containsPath:path]) {
+        [self _setQuickDiffOriginal:nil ofPath:path];
+        return;
+    }
+    [_sourceControl originalTextOfPath:path target:self action:@selector(_didReadOriginalText:)];
+}
+
+- (void)_didReadOriginalText:(UDSourceControlResult *)result {
+    [self _setQuickDiffOriginal:[result.value isKindOfClass:[NSString class]] ? result.value : nil ofPath:result.context];
+}
+
+- (void)_setQuickDiffOriginal:(nullable NSString *)original ofPath:(nullable NSString *)path {
+    if (!path) return;
+    for (UDTabBarItem *item in _editorTabs.items) {
+        UDCodeDocument *document = item.representedObject;
+        if (![document isKindOfClass:[UDCodeDocument class]] || ![document.fileURL.path isEqualToString:path]) continue;
+        [self _editorOfItem:item].quickDiffOriginal = original;
+    }
+}
+
+- (void)codeEditor:(UDCodeEditorViewController *)editor stageText:(NSString *)indexText {
+    NSString *path = [self _documentOfEditor:editor].fileURL.path;
+    if (path) [_sourceControl stageText:indexText ofPath:path target:nil action:NULL];
+}
+
+- (void)codeEditorShowChanges:(UDCodeEditorViewController *)editor {
+    UDCodeDocument *document = [self _documentOfEditor:editor];
+    if (!document.fileURL) return;
+    [self _showFile:document.fileURL.path];
+    if (![self _selectedDiffEditor]) [self toggleCodeReview:nil];
+}
+
+- (nullable UDCodeDocument *)_documentOfEditor:(UDCodeEditorViewController *)editor {
+    for (UDTabBarItem *item in _editorTabs.items) {
+        if ([self _editorOfItem:item] == editor) return item.representedObject;
+    }
+    return nil;
+}
+
+/// A copy's text replaced (a read-only side's: its file changed).
+- (void)_replaceTextOf:(UDCodeDocument *)copy with:(NSString *)text {
+    UDTextModel *model = copy.textModel;
+    if ([text isEqualToString:[model getValue]]) return;
+    NSInteger lines = [model getLineCount];
+    [model applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 1, lines, [model getLineMaxColumn:lines]) text:text] ]];
+}
+
+// MARK: Authors (Xcode's: blame beside the text)
+
+/// Editor > Authors (⌃⇧⌘A): who last changed the file's lines, beside them.
+- (IBAction)toggleAuthors:(nullable id)sender {
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    NSString *path = [self _documentOfEditor:editor].fileURL.path;
+    if (!editor || !path || ![_sourceControl containsPath:path] ||
+        ![_sourceControl respondsToSelector:@selector(blameOfPath:target:action:)]) {
+        return;
+    }
+    if (editor.showsAuthors) {
+        editor.showsAuthors = NO;
+        return;
+    }
+    editor.showsAuthors = YES;
+    [_sourceControl blameOfPath:path target:self action:@selector(_didReadBlame:)];
+}
+
+- (void)_didReadBlame:(UDSourceControlResult *)result {
+    NSArray<UDSourceControlBlameRange *> *ranges = [result.value isKindOfClass:[NSArray class]] ? result.value : @[];
+    for (UDTabBarItem *item in _editorTabs.items) {
+        UDCodeDocument *document = item.representedObject;
+        UDCodeEditorViewController *editor = [self _editorOfItem:item];
+        if (editor.showsAuthors && [document isKindOfClass:[UDCodeDocument class]] &&
+            [document.fileURL.path isEqualToString:result.context]) {
+            editor.blameRanges = ranges;
+        }
+    }
+}
+
+// MARK: History
+
+/// @a ref's history in a tab (its own, when it has one), as Xcode shows it in
+/// the editor when a branch or tag is selected.
+- (void)_showHistoryOfRef:(NSString *)ref title:(NSString *)title {
+    if (!_sourceControl) return;
+    for (UDTabBarItem *item in _editorTabs.items) {
+        if (![[_historyTabs objectForKey:item] isEqualToString:ref]) continue;
+        [(UDHistoryViewController *)[_editorTabs viewControllerForItem:item] reload];
+        [_editorTabs selectItem:item];
+        return;
+    }
+    UDHistoryViewController *history = [[UDHistoryViewController alloc] initWithSourceControl:_sourceControl ref:ref];
+    history.delegate = self;
+    UDTabBarItem *item = [_editorTabs addItemWithTitle:[NSString stringWithFormat:@"%@ (History)", title]
+                                     representedObject:nil viewController:history];
+    [_historyTabs setObject:ref forKey:item];
+}
+
+/// A file a commit changed: as it was before it, beside it after.
+- (void)history:(UDHistoryViewController *)history openFile:(UDSourceControlCommitFile *)file ofCommit:(UDSourceControlCommit *)commit {
+    if (![_sourceControl respondsToSelector:@selector(textOfPath:atCommit:)]) return;
+    NSString *root = _sourceControl.rootPath;
+    NSString *path = [root stringByAppendingPathComponent:file.path];
+    NSString *before = @"", *after = @"";
+    if (![file.letter isEqualToString:@"A"] && commit.parents.count) {
+        NSString *was = [root stringByAppendingPathComponent:file.originalPath ?: file.path];
+        before = [_sourceControl textOfPath:was atCommit:commit.parents.firstObject] ?: @"";
+    }
+    if (![file.letter isEqualToString:@"D"]) after = [_sourceControl textOfPath:path atCommit:commit.identifier] ?: @"";
+    [self _openReadOnlyDiffOf:before and:after path:path
+                        title:[NSString stringWithFormat:@"%@ (%@)", file.path.lastPathComponent, commit.shortIdentifier]];
 }
 
 // ---------------------------------------------------------------------------

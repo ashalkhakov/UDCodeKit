@@ -11,7 +11,7 @@
 #                                     .xcframework for what builds on them,
 #                                     with the grammar bundles in PlugIns/ for
 #                                     the apps that embed UDCodeKit (CFamily
-#                                     is UDCode's own)
+#                                     and Git are UDCode's own)
 #   make -f Makefile.apple installcheck DESTDIR=<dir>  its signature holds,
 #                                     and it starts and stays up, in a fresh home
 #

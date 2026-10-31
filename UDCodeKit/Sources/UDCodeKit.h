@@ -48,6 +48,11 @@
 #import <UDCodeKit/UDFindModel.h>
 #import <UDCodeKit/UDFindBarViewController.h>
 #import <UDCodeKit/UDDiffEditorViewController.h>
+#import <UDCodeKit/UDSourceControl.h>
+#import <UDCodeKit/UDSourceControlNavigatorViewController.h>
+#import <UDCodeKit/UDHistoryViewController.h>
+#import <UDCodeKit/UDAuthorsView.h>
+#import <UDCodeKit/UDBadgeTextFieldCell.h>
 
 #import <UDCodeKit/UDTabBarView.h>
 #import <UDCodeKit/UDTabItemView.h>

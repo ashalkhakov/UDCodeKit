@@ -14,6 +14,7 @@ static const double UDBoxMinWidth = 140;
 static const double UDBoxMaxWidth = 340;
 static const NSUInteger UDBoxMaxRows = 40;    // more: "+ N more"
 static const double UDMargin = 40;
+static const double UDLinkReach = 5;          // how near a line a click picks it
 
 @interface UDSQLDiagramTable ()
 @property (nonatomic, readwrite) UDSQLTable *table;
@@ -28,6 +29,7 @@ static const double UDMargin = 40;
 @property (nonatomic, readwrite, copy) NSString *from;
 @property (nonatomic, readwrite, copy) NSString *to;
 @property (nonatomic, readwrite, copy) NSArray<NSString *> *columns;
+@property (nonatomic, readwrite, copy) NSArray<NSString *> *referencedColumns;
 @property (nonatomic, readwrite) BOOL inferred;
 @property (nonatomic, readwrite) DKEdgeEnd fromEnd;
 @property (nonatomic, readwrite) DKEdgeEnd toEnd;
@@ -99,11 +101,12 @@ static NSString *UDIdentifierOf(UDSQLTable *table) {
 }
 
 - (void)_addLinkFrom:(UDSQLDiagramTable *)from to:(UDSQLDiagramTable *)to columns:(NSArray<NSString *> *)columns
-            inferred:(BOOL)inferred nullable:(BOOL)nullable {
+          referencing:(NSArray<NSString *> *)referenced inferred:(BOOL)inferred nullable:(BOOL)nullable {
     UDSQLDiagramLink *link = [[UDSQLDiagramLink alloc] init];
     link.from = from.identifier;
     link.to = to.identifier;
     link.columns = columns;
+    link.referencedColumns = referenced;
     link.inferred = inferred;
     link.fromEnd = DKEdgeEndCrowFootZeroOrMany;
     link.toEnd = nullable ? DKEdgeEndCrowFootZeroOrOne : DKEdgeEndCrowFootOne;
@@ -121,7 +124,10 @@ static NSString *UDIdentifierOf(UDSQLTable *table) {
             for (UDSQLColumnInfo *column in box.table.columns) {
                 if ([key.columns containsObject:column.name] && column.nullable) nullable = YES;
             }
-            [self _addLinkFrom:box to:target columns:key.columns inferred:NO nullable:nullable];
+            // a key naming no columns refers to the other table's primary key
+            NSArray *referenced = key.referencedColumns.count ? key.referencedColumns
+                : [[target.table.columns filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"primaryKey == YES"]] valueForKey:@"name"];
+            [self _addLinkFrom:box to:target columns:key.columns referencing:referenced inferred:NO nullable:nullable];
         }
     }
     if (!_coreData) return;
@@ -135,7 +141,7 @@ static NSString *UDIdentifierOf(UDSQLTable *table) {
                 NSNumber *entity = @([[column.name substringWithRange:[match rangeAtIndex:1]] integerValue]);
                 UDSQLTable *table = schema.coreDataTables[entity];
                 UDSQLDiagramTable *target = table ? _byIdentifier[UDIdentifierOf(table)] : nil;
-                if (target) [self _addLinkFrom:box to:target columns:@[ column.name ] inferred:YES nullable:NO];
+                if (target) [self _addLinkFrom:box to:target columns:@[ column.name ] referencing:@[ @"Z_PK" ] inferred:YES nullable:NO];
             }
             continue;
         }
@@ -144,7 +150,7 @@ static NSString *UDIdentifierOf(UDSQLTable *table) {
             if (![column.name hasPrefix:@"Z"] || [column.name hasPrefix:@"Z_"]) continue;
             UDSQLDiagramTable *target = [self _boxNamed:column.name];
             if (!target || target == box) continue;
-            [self _addLinkFrom:box to:target columns:@[ column.name ] inferred:YES nullable:YES];
+            [self _addLinkFrom:box to:target columns:@[ column.name ] referencing:@[ @"Z_PK" ] inferred:YES nullable:YES];
         }
     }
 }
@@ -299,6 +305,51 @@ static NSArray<NSValue *> *UDLoop(NSRect frame) {
     return found;
 }
 
+/// The row of a box's column, as drawn (the first UDBoxMaxRows of them).
+- (NSRect)_rowOf:(NSUInteger)index in:(UDSQLDiagramTable *)box {
+    NSRect frame = box.frame;
+    return NSMakeRect(NSMinX(frame) + 1, NSMinY(frame) + [self _headerHeightOf:box] + 1 + index * UDBoxRow, NSWidth(frame) - 2, UDBoxRow);
+}
+
+- (id)itemAtPoint:(NSPoint)point {
+    for (UDSQLDiagramTable *box in [_tables reverseObjectEnumerator]) {
+        if (!NSPointInRect(point, box.frame)) continue;
+        NSUInteger shown = MIN(box.table.columns.count, UDBoxMaxRows);
+        for (NSUInteger i = 0; i < shown; i++) {
+            if (NSPointInRect(point, [self _rowOf:i in:box])) return box.table.columns[i];
+        }
+        return box.identifier;
+    }
+    UDSQLDiagramLink *nearest = nil;
+    double distance = UDLinkReach;
+    for (UDSQLDiagramLink *link in _links) {
+        double d = DKDistanceToRoute(point, link.route);
+        if (d <= distance) {
+            nearest = link;
+            distance = d;
+        }
+    }
+    return nearest;
+}
+
+- (UDSQLDiagramTable *)tableOfItem:(id)item {
+    if ([item isKindOfClass:[NSString class]]) return _byIdentifier[item];
+    if (![item isKindOfClass:[UDSQLColumnInfo class]]) return nil;
+    for (UDSQLDiagramTable *box in _tables) {
+        if ([box.table.columns indexOfObjectIdenticalTo:item] != NSNotFound) return box;
+    }
+    return nil;
+}
+
+- (NSRect)frameOfItem:(id)item {
+    if ([item isKindOfClass:[UDSQLDiagramLink class]]) return DKRouteBounds([item route]);
+    UDSQLDiagramTable *box = [self tableOfItem:item];
+    if (!box) return NSZeroRect;
+    if ([item isKindOfClass:[NSString class]]) return box.frame;
+    NSUInteger index = [box.table.columns indexOfObjectIdenticalTo:item];
+    return index < UDBoxMaxRows ? [self _rowOf:index in:box] : box.frame;
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - Drawing
 // ---------------------------------------------------------------------------
@@ -318,7 +369,21 @@ static UDColors UDColorsOf(DKDrawingState *state) {
                        DKColorMake(0.35, 0.4, 0.5, 1), DKColorMake(0.85, 0.85, 0.88, 1), DKColorMake(0.1, 0.45, 0.95, 1) };
 }
 
-- (void)_drawBox:(UDSQLDiagramTable *)box surface:(id<DKSurface>)surface colors:(UDColors)colors selected:(BOOL)selected {
+/// The columns a selected line marks: its own at its table, the ones it
+/// refers to at the other (identifier to names).
+static NSDictionary<NSString *, NSSet<NSString *> *> *UDMarkedColumns(NSArray<UDSQLDiagramLink *> *links, DKDrawingState *state) {
+    NSMutableDictionary *marked = [NSMutableDictionary dictionary];
+    for (UDSQLDiagramLink *link in links) {
+        if (![state showsSelected:link]) continue;
+        marked[link.from] = [(marked[link.from] ?: [NSSet set]) setByAddingObjectsFromArray:link.columns];
+        marked[link.to] = [(marked[link.to] ?: [NSSet set]) setByAddingObjectsFromArray:link.referencedColumns];
+    }
+    return marked;
+}
+
+- (void)_drawBox:(UDSQLDiagramTable *)box surface:(id<DKSurface>)surface colors:(UDColors)colors state:(DKDrawingState *)state
+          marked:(nullable NSSet<NSString *> *)marked {
+    BOOL selected = [state showsSelected:box.identifier];
     NSRect frame = box.frame;
     double header = [self _headerHeightOf:box];
     DKPath *outline = [DKPath pathWithRoundedRect:frame radius:5];
@@ -339,13 +404,18 @@ static UDColors UDColorsOf(DKDrawingState *state) {
     NSUInteger shown = MIN(box.table.columns.count, UDBoxMaxRows);
     for (NSUInteger i = 0; i < shown; i++) {
         UDSQLColumnInfo *column = box.table.columns[i];
+        // a selected column, and a selected line's: their rows tinted
+        if ([state showsSelected:column] || [marked containsObject:column.name]) {
+            [surface fillPath:[DKPath pathWithRect:[self _rowOf:i in:box]]
+                        color:DKColorWithAlpha(colors.selection, [state showsSelected:column] ? 0.25 : 0.12)];
+        }
         NSString *key = column.primaryKey ? @"PK" : [box.foreignColumns containsObject:column.name] ? @"FK" : nil;
         if (key) [surface drawText:key inRect:NSMakeRect(NSMinX(frame) + 6, y + 2, UDBoxKeyGutter, 12) font:UDSmallFont() color:colors.line];
         DKFont *font = column.primaryKey ? [DKFont systemFontOfSize:11 bold:YES] : UDTextFont();
         NSSize type = [surface sizeOfText:column.type font:UDSmallFont()];
         double right = NSMaxX(frame) - UDBoxPadding;
         [surface drawText:column.name inRect:NSMakeRect(NSMinX(frame) + UDBoxKeyGutter + 4, y, right - type.width - 8 - (NSMinX(frame) + UDBoxKeyGutter + 4), 15)
-                     font:font color:column.nullable || column.primaryKey ? colors.text : colors.text];
+                     font:font color:colors.text];
         [surface drawText:column.type inRect:NSMakeRect(right - type.width, y + 2, type.width, 12) font:UDSmallFont() color:colors.faint];
         y += UDBoxRow;
     }
@@ -360,14 +430,20 @@ static UDColors UDColorsOf(DKDrawingState *state) {
 - (void)drawInRect:(NSRect)rect surface:(id<DKSurface>)surface state:(DKDrawingState *)state {
     UDColors colors = UDColorsOf(state);
     [surface fillPath:[DKPath pathWithRect:rect] color:colors.paper];
+    // the lines, a selected one over the rest
+    NSMutableArray *selectedLinks = [NSMutableArray array];
     for (UDSQLDiagramLink *link in _links) {
         if (link.route.count < 2) continue;
-        DKDrawRoute(surface, link.route, colors.line, 1.2, link.inferred ? DKStrokeDashed : DKStrokeSolid, link.fromEnd, link.toEnd);
+        if ([state showsSelected:link]) [selectedLinks addObject:link];
+        else DKDrawRoute(surface, link.route, colors.line, 1.2, link.inferred ? DKStrokeDashed : DKStrokeSolid, link.fromEnd, link.toEnd);
     }
+    for (UDSQLDiagramLink *link in selectedLinks) {
+        DKDrawRoute(surface, link.route, colors.selection, 2.2, link.inferred ? DKStrokeDashed : DKStrokeSolid, link.fromEnd, link.toEnd);
+    }
+    NSDictionary *marked = UDMarkedColumns(selectedLinks, state);
     for (UDSQLDiagramTable *box in _tables) {
         if (!NSIntersectsRect(NSInsetRect(box.frame, -4, -4), rect)) continue;
-        BOOL selected = !state.forPrinting && [state.selection containsObject:box.identifier];
-        [self _drawBox:box surface:surface colors:colors selected:selected];
+        [self _drawBox:box surface:surface colors:colors state:state marked:marked[box.identifier]];
     }
 }
 

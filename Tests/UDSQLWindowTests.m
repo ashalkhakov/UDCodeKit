@@ -55,8 +55,9 @@ static Class UDPluginClass(NSString *name) {
     for (NSString *sql in @[ @"CREATE TABLE Z_PRIMARYKEY (Z_ENT INTEGER PRIMARY KEY, Z_NAME VARCHAR, Z_SUPER INTEGER, Z_MAX INTEGER)",
                              @"INSERT INTO Z_PRIMARYKEY VALUES (1, 'Person', 0, 2), (2, 'Employee', 1, 0)",
                              @"CREATE TABLE Z_METADATA (Z_VERSION INTEGER PRIMARY KEY, Z_UUID VARCHAR(255), Z_PLIST BLOB)",
-                             @"CREATE TABLE ZPERSON (Z_PK INTEGER PRIMARY KEY, Z_ENT INTEGER, Z_OPT INTEGER, ZNAME VARCHAR, ZBORN TIMESTAMP)",
-                             @"INSERT INTO ZPERSON VALUES (1, 1, 1, 'Ann', 0), (2, 2, 1, 'Bob', 86400)" ]) {
+                             @"CREATE TABLE ZPERSON (Z_PK INTEGER PRIMARY KEY, Z_ENT INTEGER, Z_OPT INTEGER, ZNAME VARCHAR, ZBORN TIMESTAMP, ZTEAM INTEGER)",
+                             @"INSERT INTO ZPERSON (Z_PK, Z_ENT, Z_OPT, ZNAME, ZBORN) VALUES (1, 1, 1, 'Ann', 0), (2, 2, 1, 'Bob', 86400)",
+                             @"CREATE TABLE ZTEAM (Z_PK INTEGER PRIMARY KEY, Z_ENT INTEGER, Z_OPT INTEGER, ZTITLE VARCHAR)" ]) {
         XCTAssertNotNil([connection execute:sql parameters:@[] maxRows:1 error:&error], @"%@", error);
     }
     [connection close];
@@ -134,8 +135,8 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqual(diagram.canvas.dataSource, (id)diagram);
     XCTAssertEqual(diagram.canvas.delegate, (id)diagram);
     XCTAssertTrue([diagram.canvas.enclosingScrollView isKindOfClass:[NSScrollView class]]);
-    XCTAssertEqualObjects([[diagram.diagram.tables valueForKey:@"identifier"] sortedArrayUsingSelector:@selector(compare:)], @[ @"ZPERSON" ]);
-    XCTAssertTrue([diagram.statusLabel.stringValue isEqualToString:@"1 table, 0 links"], @"%@", diagram.statusLabel.stringValue);
+    XCTAssertEqualObjects([[diagram.diagram.tables valueForKey:@"identifier"] sortedArrayUsingSelector:@selector(compare:)], (@[ @"ZPERSON", @"ZTEAM" ]));
+    XCTAssertEqualObjects(diagram.statusLabel.stringValue, @"2 tables, 1 link (1 inferred, dashed)");
     NSString *person = @"ZPERSON";
     NSRect box = [diagram.diagram tableWithIdentifier:person].frame;
     NSMenu *tableMenu = [diagram canvas:diagram.canvas menuForItem:person];
@@ -152,6 +153,41 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertTrue(undo.canUndo);
     [undo undo];
     XCTAssertEqual(NSMinX([diagram.diagram tableWithIdentifier:person].frame), NSMinX(box), @"undone");
+
+    // a column, selected: described, its own menu and SQL; it drags its table
+    UDSQLDiagramTable *personBox = [diagram.diagram tableWithIdentifier:person];
+    UDSQLColumnInfo *name = personBox.table.columns[3];
+    XCTAssertEqualObjects(name.name, @"ZNAME");
+    NSRect nameRow = [diagram.diagram frameOfItem:name];
+    XCTAssertEqual([diagram canvas:diagram.canvas itemAtPoint:NSMakePoint(NSMidX(nameRow), NSMidY(nameRow))], (id)name);
+    XCTAssertEqualObjects([diagram canvas:diagram.canvas itemAtPoint:NSMakePoint(NSMidX(box), NSMinY(box) + 6)], person, @"its header: the table");
+    diagram.canvas.selection = [NSSet setWithObject:name];
+    [diagram canvasSelectionDidChange:diagram.canvas];
+    XCTAssertEqualObjects(diagram.statusLabel.stringValue, @"ZPERSON.ZNAME VARCHAR");
+    XCTAssertEqualObjects([[diagram canvas:diagram.canvas menuForItem:name].itemArray valueForKey:@"title"],
+                          (@[ @"Select Values", @"New Query", @"Copy Name" ]));
+    XCTAssertEqualObjects([diagram selectQueryOfItem:name],
+                          @"SELECT \"ZNAME\", count(*)\nFROM \"ZPERSON\"\nGROUP BY \"ZNAME\"\nORDER BY count(*) DESC\nLIMIT 100");
+    XCTAssertEqualObjects([diagram newQueryOfItem:name], @"SELECT *\nFROM \"ZPERSON\"\nWHERE \"ZNAME\" = ");
+    XCTAssertTrue(NSEqualRects([diagram canvas:diagram.canvas frameOfItem:name], box), @"dragged as its table");
+    XCTAssertTrue([diagram canvas:diagram.canvas canMoveItem:name]);
+    [diagram canvas:diagram.canvas moveItems:@[ name, person ] by:NSMakeSize(10, 0)];
+    XCTAssertEqual(NSMinX(personBox.frame), NSMinX(box) + 10, @"moved once, its column and itself selected");
+    [undo undo];
+    XCTAssertEqual(NSMinX(personBox.frame), NSMinX(box));
+
+    // a line (ZTEAM, inferred), selected: picked near it, not moved, its join
+    UDSQLDiagramLink *link = diagram.diagram.links.firstObject;
+    NSPoint a = link.route[0].pointValue, b = link.route[1].pointValue;
+    XCTAssertEqual([diagram canvas:diagram.canvas itemAtPoint:NSMakePoint((a.x + b.x) / 2 + 2, (a.y + b.y) / 2 + 2)], (id)link);
+    XCTAssertFalse([diagram canvas:diagram.canvas canMoveItem:link]);
+    XCTAssertEqualObjects([diagram nameOfItem:link], @"ZPERSON.ZTEAM → ZTEAM.Z_PK");
+    XCTAssertEqualObjects([diagram descriptionOfItem:link], @"ZPERSON.ZTEAM → ZTEAM.Z_PK (many to zero or one, inferred)");
+    XCTAssertEqualObjects([[diagram canvas:diagram.canvas menuForItem:link].itemArray valueForKey:@"title"],
+                          (@[ @"Select Joined Rows", @"New Query", @"Copy" ]));
+    XCTAssertEqualObjects([diagram selectQueryOfItem:link],
+                          @"SELECT *\nFROM \"ZPERSON\"\nJOIN \"ZTEAM\" ON \"ZPERSON\".\"ZTEAM\" = \"ZTEAM\".\"Z_PK\"\nLIMIT 100");
+    diagram.canvas.selection = [NSSet set];
     [[NSUserDefaults standardUserDefaults] removeObjectForKey:key];
     [databases.navigator showDiagram:nil];
     XCTAssertEqual(controller.editorTabs.items.count, tabs + 1, @"its tab again, not another");

@@ -3,10 +3,13 @@
  *
  *  A database's ER diagram, in an editor tab of its own (UDSQLDiagram.xib):
  *  its tables on DiagramKit's canvas, zoomed, selected and moved (and the
- *  moves undone), arranged again, exported (PDF, PNG, SVG) and printed. A
- *  table's menu and double-click are the navigator's: Select Rows, New
- *  Query, Copy Name. Where the tables were left is kept, by database, and
- *  the diagram drawn again when its schema is read again (Refresh).
+ *  moves undone), arranged again, exported (PDF, PNG, SVG) and printed.
+ *  Tables, their columns and the lines between them are selected (a
+ *  selected column drags its table), the one selected described under the
+ *  toolbar; each has a menu, and a double-click runs its first item: a
+ *  table's rows, a column's values (the commonest first), a line's join.
+ *  Where the tables were left is kept, by database, and the diagram drawn
+ *  again when its schema is read again (Refresh).
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -27,6 +30,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak, readonly) IBOutlet DKCanvasView *canvas;
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *statusLabel;
+
+/// What an item (a table's identifier, a UDSQLColumnInfo, a link) runs and
+/// opens: its rows, values or join (Select Rows); a query begun on it (New
+/// Query); its name or a link as text (Copy Name); what the status says.
+- (nullable NSString *)selectQueryOfItem:(id)item;
+- (nullable NSString *)newQueryOfItem:(id)item;
+- (nullable NSString *)nameOfItem:(id)item;
+- (nullable NSString *)descriptionOfItem:(id)item;
 
 /// The diagram made again from the database's schema (where its tables were
 /// left kept).

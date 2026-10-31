@@ -33,6 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UDSQLForeignKey : NSObject
 @property (nonatomic, copy) NSArray<NSString *> *columns;
 @property (nonatomic, copy) NSString *referencedTable;
+/// Empty when the key names none: the referenced table's primary key.
 @property (nonatomic, copy) NSArray<NSString *> *referencedColumns;
 @end
 

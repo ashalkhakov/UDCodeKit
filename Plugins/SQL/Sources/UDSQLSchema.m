@@ -166,7 +166,9 @@ static NSInteger UDCompareEntities(NSNumber *a, NSNumber *b, void *context) {
                     [order addObject:identifier];
                 }
                 made.columns = [made.columns arrayByAddingObject:UDString(key, 3)];
-                made.referencedColumns = [made.referencedColumns arrayByAddingObject:UDString(key, 4)];
+                // none named (NULL): the other table's primary key
+                NSString *to = UDString(key, 4);
+                if (to.length) made.referencedColumns = [made.referencedColumns arrayByAddingObject:to];
             }
             table.foreignKeys = [keys objectsForKeys:order notFoundMarker:[NSNull null]];
             NSMutableArray *indexes = [NSMutableArray array];

@@ -11,6 +11,8 @@
                 <outlet property="canvas" destination="ER-canvas" id="ER-o-canvas"/>
                 <outlet property="statusLabel" destination="ER-status" id="ER-o-status"/>
                 <outlet property="tableMenu" destination="ER-menu" id="ER-o-menu"/>
+                <outlet property="columnMenu" destination="ER-cmenu" id="ER-o-cmenu"/>
+                <outlet property="linkMenu" destination="ER-lmenu" id="ER-o-lmenu"/>
             </connections>
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
@@ -30,6 +32,44 @@
                 <menuItem title="Copy Name" id="ER-m-copy">
                     <connections>
                         <action selector="copyName:" target="-2" id="ER-m-copy-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Column" autoenablesItems="YES" id="ER-cmenu" userLabel="A Column's">
+            <items>
+                <menuItem title="Select Values" id="ER-c-values">
+                    <connections>
+                        <action selector="selectRows:" target="-2" id="ER-c-values-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Query" id="ER-c-new">
+                    <connections>
+                        <action selector="newQuery:" target="-2" id="ER-c-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy Name" id="ER-c-copy">
+                    <connections>
+                        <action selector="copyName:" target="-2" id="ER-c-copy-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Foreign Key" autoenablesItems="YES" id="ER-lmenu" userLabel="A Line's (a foreign key's)">
+            <items>
+                <menuItem title="Select Joined Rows" id="ER-l-rows">
+                    <connections>
+                        <action selector="selectRows:" target="-2" id="ER-l-rows-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Query" id="ER-l-new">
+                    <connections>
+                        <action selector="newQuery:" target="-2" id="ER-l-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy" id="ER-l-copy">
+                    <connections>
+                        <action selector="copyName:" target="-2" id="ER-l-copy-a"/>
                     </connections>
                 </menuItem>
             </items>

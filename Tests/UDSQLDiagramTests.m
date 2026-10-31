@@ -92,6 +92,39 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects([diagram tableAtPoint:NSMakePoint(NSMidX(people), NSMidY(people))], @"people");
     XCTAssertNil([diagram tableAtPoint:NSMakePoint(NSMinX(teams) - 20, NSMinY(teams))]);
     XCTAssertEqual([diagram tablesInRect:NSUnionRect(teams, people)].count, 2u);
+    XCTAssertEqualObjects(team.referencedColumns, @[ @"id" ]);
+}
+
+- (void)testItemsArePicked {
+    UDSQLDiagram *diagram = [self diagramOf:@[ @"CREATE TABLE teams (id INTEGER PRIMARY KEY, title TEXT)",
+                                               @"CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT, team INTEGER REFERENCES teams)" ]];
+    UDSQLDiagramTable *people = [diagram tableWithIdentifier:@"people"];
+    NSRect box = people.frame;
+    XCTAssertEqualObjects([diagram itemAtPoint:NSMakePoint(NSMidX(box), NSMinY(box) + 5)], @"people", @"its header");
+    UDSQLColumnInfo *name = people.table.columns[1];
+    NSRect row = [diagram frameOfItem:name];
+    XCTAssertTrue(NSContainsRect(box, row));
+    XCTAssertEqual([diagram itemAtPoint:NSMakePoint(NSMidX(row), NSMidY(row))], (id)name, @"a column's row");
+    XCTAssertEqual([diagram tableOfItem:name], people);
+    XCTAssertEqual([diagram tableOfItem:@"people"], people);
+
+    UDSQLDiagramLink *link = diagram.links.firstObject;
+    XCTAssertEqualObjects(link.referencedColumns, @[ @"id" ], @"no columns named: the primary key");
+    XCTAssertNil([diagram tableOfItem:link]);
+    NSPoint a = link.route[0].pointValue, b = link.route[1].pointValue;
+    NSPoint near = NSMakePoint((a.x + b.x) / 2 + 3, (a.y + b.y) / 2 + 3);
+    XCTAssertEqual([diagram itemAtPoint:near], (id)link, @"within a few points of its line");
+    XCTAssertNil([diagram itemAtPoint:NSMakePoint(near.x + 30, near.y + 30)]);
+    XCTAssertTrue(NSPointInRect(a, NSInsetRect([diagram frameOfItem:link], -0.5, -0.5)));
+
+    // drawn selected: the line over the rest, its columns at both ends marked
+    id surface = [[NSClassFromString(@"DKSVGSurface") alloc] initWithSize:diagram.bounds.size];
+    id state = [[NSClassFromString(@"DKDrawingState") alloc] init];
+    [state setValue:[NSSet setWithObject:link] forKey:@"selection"];
+    [diagram drawInRect:diagram.bounds surface:surface state:state];
+    NSString *svg = [surface SVGString];
+    XCTAssertTrue([svg containsString:@"stroke-width=\"2.2\""], @"the line, selected");
+    XCTAssertEqual([[svg componentsSeparatedByString:@"fill-opacity=\"0.12\""] count], 3u, @"team at people, id at teams: %@", svg);
 }
 
 - (void)testMovedKeptAndSetAgain {

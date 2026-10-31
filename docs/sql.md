@@ -109,8 +109,20 @@ are moved. Drag one (or a selection) and its lines follow, their bends kept
 where they can be; moves are undone with ⌘Z, and where the tables were left
 is kept for the next time. **Arrange** lays them out again. Zoom with the
 buttons or ⌘ and the scroll wheel. **Export** saves the diagram as PDF, PNG
-or SVG; **Print…** prints it. A table's menu and its double-click are the
-navigator's: Select Rows, New Query, Copy Name.
+or SVG; **Print…** prints it.
+
+A table (its header), a column (its row) or a line is selected with a
+click; the one selected is described under the toolbar
+(`orders.customer INTEGER NOT NULL · refers to customers`). A selected
+line is drawn over the rest, the columns at both its ends marked; a
+selected column drags its table. Each has a menu, and a double-click runs
+its first item:
+
+| | | |
+|---|---|---|
+| **A table** | Select Rows | New Query, Copy Name |
+| **A column** | Select Values: each value and how many rows have it, the commonest first | New Query (`WHERE column = `), Copy Name |
+| **A line** | Select Joined Rows: the two tables joined on the key | New Query (the join written out), Copy (`orders.customer → customers.id`) |
 
 The drawing, layout, routing and canvas are
 [DiagramKit](https://github.com/ashalkhakov/DiagramKit)'s.

@@ -10,13 +10,15 @@
 @property (nonatomic, weak) IBOutlet DKCanvasView *canvas;
 @property (nonatomic, weak) IBOutlet NSTextField *statusLabel;
 @property (nonatomic, strong) IBOutlet NSMenu *tableMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *columnMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *linkMenu;
 @end
 
 @implementation UDSQLDiagramViewController {
     __weak UDSQLDatabases *_databases;
     UDSQLDiagram *_diagram;
     UDSQLSchema *_schema;           // the one drawn
-    NSString *_menuTable;           // what the context menu is about
+    id _menuItem;                   // what the context menu is about
 }
 
 - (instancetype)initWithDatabases:(UDSQLDatabases *)databases database:(UDSQLDatabase *)database {
@@ -62,12 +64,18 @@
     NSDictionary *positions = [[NSUserDefaults standardUserDefaults] dictionaryForKey:[[self class] defaultsKeyOfURL:_database.URL]];
     if (positions) [_diagram applyPositions:positions];
     _canvas.selection = [NSSet set];
+    _menuItem = nil;
     [_canvas reloadData];
     [self _showStatus];
 }
 
 - (void)_showStatus {
-    if (_diagram) {
+    NSSet *selection = _canvas.selection;
+    if (_diagram && selection.count == 1 && [self descriptionOfItem:selection.anyObject]) {
+        _statusLabel.stringValue = [self descriptionOfItem:selection.anyObject];
+    } else if (_diagram && selection.count > 1) {
+        _statusLabel.stringValue = [NSString stringWithFormat:@"%lu selected", (unsigned long)selection.count];
+    } else if (_diagram) {
         NSUInteger inferred = [[_diagram.links filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"inferred == YES"]] count];
         NSUInteger tables = _diagram.tables.count, links = _diagram.links.count;
         _statusLabel.stringValue = [NSString stringWithFormat:@"%lu %@, %lu %@%@", (unsigned long)tables, tables == 1 ? @"table" : @"tables",
@@ -98,19 +106,30 @@
 }
 
 - (id)canvas:(DKCanvasView *)canvas itemAtPoint:(NSPoint)point {
-    return [_diagram tableAtPoint:point];
+    return [_diagram itemAtPoint:point];
 }
 
 - (NSArray *)canvas:(DKCanvasView *)canvas itemsInRect:(NSRect)rect {
     return _diagram ? [_diagram tablesInRect:rect] : @[];
 }
 
+/// A column's frame is its table's: a selected column drags its table.
 - (NSRect)canvas:(DKCanvasView *)canvas frameOfItem:(id)item {
-    return [_diagram tableWithIdentifier:item].frame;
+    UDSQLDiagramTable *box = [_diagram tableOfItem:item];
+    return box ? box.frame : [_diagram frameOfItem:item];
+}
+
+- (BOOL)canvas:(DKCanvasView *)canvas canMoveItem:(id)item {
+    return [_diagram tableOfItem:item] != nil;
 }
 
 - (void)canvas:(DKCanvasView *)canvas moveItems:(NSArray *)items by:(NSSize)delta {
-    [self _moveTables:items by:delta];
+    NSMutableOrderedSet *tables = [NSMutableOrderedSet orderedSet];
+    for (id item in items) {
+        UDSQLDiagramTable *box = [_diagram tableOfItem:item];
+        if (box) [tables addObject:box.identifier];
+    }
+    [self _moveTables:tables.array by:delta];
 }
 
 - (void)_moveTables:(NSArray<NSString *> *)tables by:(NSSize)delta {
@@ -127,16 +146,117 @@
     [self _moveTables:move[@"tables"] by:NSMakeSize([move[@"dx"] doubleValue], [move[@"dy"] doubleValue])];
 }
 
+- (void)canvasSelectionDidChange:(DKCanvasView *)canvas {
+    [self _showStatus];
+}
+
 - (void)canvas:(DKCanvasView *)canvas doubleClickedItem:(id)item {
-    if (item) [self _selectRowsOf:item];
+    NSString *sql = item ? [self selectQueryOfItem:item] : nil;
+    if (sql) [_databases openQuery:sql database:_database run:YES];
 }
 
 - (NSMenu *)canvas:(DKCanvasView *)canvas menuForItem:(id)item {
-    if (!item) return nil;
-    _menuTable = item;
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:_tableMenu.title];
-    for (NSMenuItem *source in _tableMenu.itemArray) [menu addItem:[source copy]];
+    NSMenu *source = [item isKindOfClass:[UDSQLDiagramLink class]] ? _linkMenu
+                   : [item isKindOfClass:[UDSQLColumnInfo class]] ? _columnMenu : item ? _tableMenu : nil;
+    if (!source) return nil;
+    _menuItem = item;
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:source.title];
+    for (NSMenuItem *menuItem in source.itemArray) [menu addItem:[menuItem copy]];
     return menu;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - What an item says, and the SQL it opens
+// ---------------------------------------------------------------------------
+
+- (id)_quoter {
+    return _database.runner.connection ?: [[UDSQLConnection alloc] init];
+}
+
+- (NSString *)_nameOf:(UDSQLDiagramTable *)box {
+    return [box.table qualifiedNameFor:[self _quoter]];
+}
+
+/// A link's join: its tables (the one referred to as "parent" when it is
+/// the same table) and its columns' pairs.
+- (NSString *)_joinOf:(UDSQLDiagramLink *)link {
+    UDSQLDiagramTable *from = [_diagram tableWithIdentifier:link.from], *to = [_diagram tableWithIdentifier:link.to];
+    BOOL itself = from == to;
+    NSString *fromName = itself ? @"child" : [self _nameOf:from], *toName = itself ? @"parent" : [self _nameOf:to];
+    NSMutableArray *pairs = [NSMutableArray array];
+    for (NSUInteger i = 0; i < MIN(link.columns.count, link.referencedColumns.count); i++) {
+        [pairs addObject:[NSString stringWithFormat:@"%@.%@ = %@.%@", fromName, [[self _quoter] quotedIdentifier:link.columns[i]],
+                                                    toName, [[self _quoter] quotedIdentifier:link.referencedColumns[i]]]];
+    }
+    return [NSString stringWithFormat:@"FROM %@%@\nJOIN %@%@ ON %@", [self _nameOf:from], itself ? @" AS child" : @"",
+                                      [self _nameOf:to], itself ? @" AS parent" : @"", [pairs componentsJoinedByString:@" AND "]];
+}
+
+- (NSString *)selectQueryOfItem:(id)item {
+    if ([item isKindOfClass:[UDSQLDiagramLink class]]) return [NSString stringWithFormat:@"SELECT *\n%@\nLIMIT 100", [self _joinOf:item]];
+    UDSQLDiagramTable *box = [_diagram tableOfItem:item];
+    if (!box) return nil;
+    if ([item isKindOfClass:[UDSQLColumnInfo class]]) {
+        // a column's values, the commonest first
+        NSString *column = [[self _quoter] quotedIdentifier:[item name]];
+        return [NSString stringWithFormat:@"SELECT %@, count(*)\nFROM %@\nGROUP BY %@\nORDER BY count(*) DESC\nLIMIT 100",
+                                          column, [self _nameOf:box], column];
+    }
+    return [NSString stringWithFormat:@"SELECT * FROM %@ LIMIT 100", [self _nameOf:box]];
+}
+
+- (NSString *)newQueryOfItem:(id)item {
+    if ([item isKindOfClass:[UDSQLDiagramLink class]]) return [NSString stringWithFormat:@"SELECT *\n%@\nWHERE ", [self _joinOf:item]];
+    UDSQLDiagramTable *box = [_diagram tableOfItem:item];
+    if (!box) return nil;
+    if ([item isKindOfClass:[UDSQLColumnInfo class]]) {
+        return [NSString stringWithFormat:@"SELECT *\nFROM %@\nWHERE %@ = ", [self _nameOf:box], [[self _quoter] quotedIdentifier:[item name]]];
+    }
+    return [NSString stringWithFormat:@"SELECT *\nFROM %@\nWHERE ", [self _nameOf:box]];
+}
+
+/// A link as text: people.team → teams.id.
+- (NSString *)_textOf:(UDSQLDiagramLink *)link {
+    UDSQLDiagramTable *from = [_diagram tableWithIdentifier:link.from], *to = [_diagram tableWithIdentifier:link.to];
+    return [NSString stringWithFormat:@"%@.%@ → %@.%@", from.table.name, [link.columns componentsJoinedByString:@", "],
+                                      to.table.name, [link.referencedColumns componentsJoinedByString:@", "]];
+}
+
+- (NSString *)nameOfItem:(id)item {
+    if ([item isKindOfClass:[UDSQLDiagramLink class]]) return [self _textOf:item];
+    if ([item isKindOfClass:[UDSQLColumnInfo class]]) return [item name];
+    return [_diagram tableOfItem:item].table.name;
+}
+
+- (NSString *)descriptionOfItem:(id)item {
+    if ([item isKindOfClass:[UDSQLDiagramLink class]]) {
+        UDSQLDiagramLink *link = item;
+        NSString *many = link.toEnd == DKEdgeEndCrowFootZeroOrOne ? @"many to zero or one" : @"many to one";
+        return [NSString stringWithFormat:@"%@ (%@%@)", [self _textOf:link], many, link.inferred ? @", inferred" : @""];
+    }
+    UDSQLDiagramTable *box = [_diagram tableOfItem:item];
+    if (!box) return nil;
+    if ([item isKindOfClass:[UDSQLColumnInfo class]]) {
+        UDSQLColumnInfo *column = item;
+        NSMutableArray *parts = [NSMutableArray arrayWithObject:[NSString stringWithFormat:@"%@.%@ %@%@", box.table.name, column.name,
+                                                                 column.type, column.nullable ? @"" : @" NOT NULL"]];
+        if (column.primaryKey) [parts addObject:@"primary key"];
+        for (UDSQLDiagramLink *link in _diagram.links) {
+            if ([link.from isEqualToString:box.identifier] && [link.columns containsObject:column.name]) {
+                [parts addObject:[NSString stringWithFormat:@"refers to %@", [_diagram tableWithIdentifier:link.to].table.name]];
+            }
+        }
+        if (column.coreDataMeaning) [parts addObject:column.coreDataMeaning];
+        return [parts componentsJoinedByString:@" · "];
+    }
+    NSUInteger out = 0, in = 0;
+    for (UDSQLDiagramLink *link in _diagram.links) {
+        if ([link.from isEqualToString:box.identifier]) out++;
+        if ([link.to isEqualToString:box.identifier]) in++;
+    }
+    return [NSString stringWithFormat:@"%@: %lu %@, refers to %lu, referred to by %lu", box.table.name,
+                                      (unsigned long)box.table.columns.count, box.table.columns.count == 1 ? @"column" : @"columns",
+                                      (unsigned long)out, (unsigned long)in];
 }
 
 // ---------------------------------------------------------------------------
@@ -152,47 +272,31 @@
     return YES;
 }
 
-/// The context menu's table (its identifier), else the one selected.
-- (nullable NSString *)_actedOnIdentifier:(id)sender {
-    NSString *identifier = [sender isKindOfClass:[NSMenuItem class]] && _menuTable ? _menuTable
-                         : _canvas.selection.count == 1 ? _canvas.selection.anyObject : nil;
-    return [_diagram tableWithIdentifier:identifier ?: @""] ? identifier : nil;
-}
-
-- (nullable UDSQLTable *)_actedOn:(id)sender {
-    NSString *identifier = [self _actedOnIdentifier:sender];
-    return identifier ? [_diagram tableWithIdentifier:identifier].table : nil;
-}
-
-- (id)_quoter {
-    return _database.runner.connection ?: [[UDSQLConnection alloc] init];
-}
-
-- (void)_selectRowsOf:(NSString *)identifier {
-    UDSQLTable *table = [_diagram tableWithIdentifier:identifier].table;
-    if (!table) return;
-    NSString *sql = [NSString stringWithFormat:@"SELECT * FROM %@ LIMIT 100", [table qualifiedNameFor:[self _quoter]]];
-    [_databases openQuery:sql database:_database run:YES];
+/// The context menu's item, else the one selected.
+- (nullable id)_actedOn:(id)sender {
+    if ([sender isKindOfClass:[NSMenuItem class]] && _menuItem) return _menuItem;
+    return _canvas.selection.count == 1 ? _canvas.selection.anyObject : nil;
 }
 
 - (IBAction)selectRows:(id)sender {
-    NSString *identifier = [self _actedOnIdentifier:sender];
-    if (identifier) [self _selectRowsOf:identifier];
+    id item = [self _actedOn:sender];
+    NSString *sql = item ? [self selectQueryOfItem:item] : nil;
+    if (sql) [_databases openQuery:sql database:_database run:YES];
 }
 
 - (IBAction)newQuery:(id)sender {
-    UDSQLTable *table = [self _actedOn:sender];
-    if (!table) return;
-    [_databases openQuery:[NSString stringWithFormat:@"SELECT *\nFROM %@\nWHERE ", [table qualifiedNameFor:[self _quoter]]]
-                 database:_database run:NO];
+    id item = [self _actedOn:sender];
+    NSString *sql = item ? [self newQueryOfItem:item] : nil;
+    if (sql) [_databases openQuery:sql database:_database run:NO];
 }
 
 - (IBAction)copyName:(id)sender {
-    UDSQLTable *table = [self _actedOn:sender];
-    if (!table) return;
+    id item = [self _actedOn:sender];
+    NSString *name = item ? [self nameOfItem:item] : nil;
+    if (!name) return;
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
     [pasteboard declareTypes:@[ NSPasteboardTypeString ] owner:nil];
-    [pasteboard setString:table.name forType:NSPasteboardTypeString];
+    [pasteboard setString:name forType:NSPasteboardTypeString];
 }
 
 - (IBAction)arrange:(id)sender {

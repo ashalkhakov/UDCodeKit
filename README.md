@@ -63,9 +63,9 @@ pinned commits the first time):
   typed under the columns, sorted, a page at a time), queries run with
   their parameters, results under the query; a Core Data store's tables named by their entities, its dates and
   entities shown as such; ER diagrams (crow's feet, a Core Data store's
-  links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's client libraries are
-  yours to install (`brew install libpq mariadb-connector-c`, say:
-  [databases](docs/sql.md)).
+  links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's
+  client libraries (libpq, MariaDB Connector/C) come with the app, nothing
+  to install ([databases](docs/sql.md)).
 - **More**: Code Review and comparing files side by side (VS Code's diff
   editor); a terminal; the Issues, Find, Test, Debug and Breakpoint
   navigators; Open Quickly.
@@ -133,4 +133,7 @@ a XIB, compiled by Xcode and read as it is by GNUstep.
 
 MIT ([LICENSE.md](LICENSE.md)): the ported VS Code code is Microsoft's, under
 MIT. LSPKit, the tree-sitter runtime and the upstream grammars are MIT as
-well.
+well. The packages also carry the database client libraries, each a shared
+library under its own licence (libpq: PostgreSQL; MariaDB Connector/C: LGPL
+2.1; OpenSSL: Apache 2.0; on macOS MIT Kerberos), its text in the app's
+`Resources/Licenses` ([databases](docs/sql.md)).

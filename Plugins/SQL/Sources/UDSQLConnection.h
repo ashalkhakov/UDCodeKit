@@ -11,8 +11,9 @@
  *  SQLite is linked. libpq and libmariadb (or libmysqlclient) are built
  *  against, their own headers declaring what is used, and loaded the first
  *  time a connection needs them (UDSQLLibrary), so neither is needed to run
- *  UDCode without such a database. Built without a header, that driver says
- *  so instead.
+ *  UDCode without such a database. UDCode's packages carry both, looked for
+ *  before the system's (scripts/sql-clients.sh). Built without a header,
+ *  that driver says so instead.
  *
  *  A connection is used from one thread at a time (UDSQLRunner's); only
  *  -cancel may be sent from another.

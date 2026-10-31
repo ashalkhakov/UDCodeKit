@@ -32,12 +32,26 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// A shared library loaded once, by the first of @a names found (each a file
 /// name the system's loader looks for, or a path), its functions looked up.
+/// A file name is looked for first in the directory UDCode carries its own
+/// copies in (ownDirectory), then where the system keeps it.
 @interface UDSQLLibrary : NSObject
+/// Where UDCode carries the client libraries, MariaDB's plug-ins in its
+/// mariadb/plugin: the app's Frameworks (macOS), the AppImage's usr/lib
+/// (Linux), the executable's folder (Windows); nil when there is none (a
+/// GNUstep build on Linux, not in an AppImage).
++ (nullable NSString *)ownDirectory;
+/// What loading @a names tries, in order: each file name in ownDirectory,
+/// then @a names as they are.
++ (NSArray<NSString *> *)candidatesForNames:(NSArray<NSString *> *)names;
 /// The library, loaded; nil when none of @a names loads, and why: that it
-/// isn't installed, and @a install, how to install it (UDCode doesn't
-/// bring the client libraries: their users install them). Cached by @a key.
+/// isn't installed, and @a install, how to install it (for a UDCode that
+/// doesn't carry it: a developer's own build). Cached by @a key.
 + (nullable instancetype)libraryForKey:(NSString *)key names:(NSArray<NSString *> *)names install:(NSString *)install
                                  error:(NSError *_Nullable *_Nullable)error;
+/// What it was loaded by: a path in ownDirectory, or one of the names.
+@property (nonatomic, readonly, copy) NSString *path;
+/// Whether it is UDCode's own copy (loaded from ownDirectory).
+@property (nonatomic, readonly, getter=isOwn) BOOL own;
 /// The function @a name; NULL when the library has none.
 - (nullable void *)function:(const char *)name;
 @end

@@ -34,6 +34,8 @@
 @property (nonatomic, weak) IBOutlet UDDiagnosticTextView    *textView;
 @property (nonatomic, weak) IBOutlet NSView                  *findBarHost;
 @property (nonatomic, weak) IBOutlet NSView                  *editorArea;
+@property (nonatomic, weak) IBOutlet NSSplitView             *bodySplitView;
+@property (nonatomic) CGFloat accessoryHeight;
 @property (nonatomic, weak) IBOutlet UDLineNumberGutterView  *lineNumberGutterView;
 /// Authors (git blame), hidden till shown, at the gutter's left.
 @property (nonatomic, weak) IBOutlet UDAuthorsView *authorsView;
@@ -942,6 +944,30 @@ static NSArray<NSString *> *UDLinesOfText(NSString *text) {
     [self _layoutBars];
 }
 
+- (void)setAccessoryViewController:(NSViewController *)accessoryViewController {
+    (void)self.view;
+    if (accessoryViewController == _accessoryViewController) return;
+    NSView *before = _accessoryViewController.view;
+    if (before.superview == _bodySplitView) {
+        _accessoryHeight = NSHeight(before.frame);
+        [before removeFromSuperview];
+    }
+    _accessoryViewController = accessoryViewController;
+    NSView *view = accessoryViewController.view;
+    if (!view) {
+        [_bodySplitView adjustSubviews];
+        return;
+    }
+    // under the text: as tall as it was, else a third
+    CGFloat total = NSHeight(_bodySplitView.bounds), divider = _bodySplitView.dividerThickness;
+    CGFloat height = _accessoryHeight > 0 ? _accessoryHeight : floor(total / 3);
+    height = MIN(height, MAX(total - 80 - divider, 0));
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [_bodySplitView addSubview:view];
+    [_bodySplitView adjustSubviews];
+    [_bodySplitView setPosition:total - height - divider ofDividerAtIndex:0];
+}
+
 /// The jump bar on top, the Find bar under it (as Xcode's); the text takes the rest.
 - (void)_layoutBars {
     NSRect bounds = self.view.bounds;
@@ -955,7 +981,7 @@ static NSArray<NSString *> *UDLinesOfText(NSString *text) {
         _findBarHost.frame = NSMakeRect(0, top - _findBarHeight, width, _findBarHeight);
         top -= _findBarHeight;
     }
-    _editorArea.frame = NSMakeRect(0, 0, width, top);
+    _bodySplitView.frame = NSMakeRect(0, 0, width, top);
     [self.view setNeedsDisplay:YES];
 }
 

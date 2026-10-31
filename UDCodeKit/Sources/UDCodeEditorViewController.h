@@ -93,6 +93,11 @@ FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotificat
 @property (nonatomic) BOOL showsJumpBar;
 @property (nonatomic, strong, nullable) UDJumpBarController *jumpBarController;
 
+/// An extension's area under the text (as a playground's results are under
+/// its code: a SQL document's results), the two split; nil: none. Its height
+/// is kept while it is replaced.
+@property (nonatomic, strong, nullable) NSViewController *accessoryViewController;
+
 /// Shows the find bar (with the replace row when @a replacing), searching
 /// for the selection when it is a short single line.
 - (void)showFindBarReplacing:(BOOL)replacing;

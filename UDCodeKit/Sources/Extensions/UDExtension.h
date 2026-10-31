@@ -56,8 +56,8 @@
 #endif
 
 // Forward declarations for types used in optional factory methods.
-@class UDDiagnosticStore, UDProject, UDTestRunner, NSMenuItem;
-@protocol UDSourceControl, UDSourceControlHost;
+@class UDDiagnosticStore, UDProject, UDTestRunner, NSMenuItem, NSViewController, NSImage;
+@protocol UDSourceControl, UDSourceControlHost, UDWorkbench;
 
 /// Posted by an extension when a language server that was previously unavailable
 /// becomes ready (e.g. after an async download/install). The object is the
@@ -214,5 +214,26 @@ static NSString * const UDLinkURLKey = @"url";
 /// folder's source control (Clone…, New Git Repository… of @a folder, the
 /// project's, nil when the window has none): what comes of them told to @a host.
 - (NSArray<NSMenuItem *> *)sourceControlMenuItemsForHost:(id<UDSourceControlHost>)host folder:(nullable NSString *)folder;
+
+// ---------------------------------------------------------------------------
+// The workbench: what VS Code's extensions contribute to its window (a view
+// container in the sidebar, commands in menus, a custom editor's files),
+// each given the window's UDWorkbench.
+// ---------------------------------------------------------------------------
+
+/// A navigator of its own (VS Code's view container): its view controller for
+/// @a workbench, asked once per window; its title is the segment's tool tip.
+- (nullable NSViewController *)navigatorViewControllerForWorkbench:(id<UDWorkbench>)workbench;
+/// The navigator's segment's image (16 points square); nil: a generic one.
+- (nullable NSImage *)navigatorImage;
+
+/// Its items in the Editor menu (Run Statement…), for @a workbench's window:
+/// asked again when the window becomes key. Each validates itself (its
+/// target's -validateMenuItem:), against the workbench's selected document.
+- (NSArray<NSMenuItem *> *)editorMenuItemsForWorkbench:(id<UDWorkbench>)workbench;
+
+/// Whether it opens @a url itself (a database file, say) rather than the
+/// window as text: asked before a file is opened in a tab.
+- (BOOL)workbench:(id<UDWorkbench>)workbench openURL:(NSURL *)url;
 
 @end

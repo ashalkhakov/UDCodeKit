@@ -25,6 +25,9 @@
    <FileRef
       location = "group:Plugins/Git/Git.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:Plugins/SQL/SQL.xcodeproj">
+   </FileRef>
    <Group
       location = "group:."
       name = "Grammar Bundles">
@@ -42,6 +45,9 @@
       </FileRef>
       <FileRef
          location = "group:tree-sitter-make/TreeSitterMake.xcodeproj">
+      </FileRef>
+      <FileRef
+         location = "group:tree-sitter-sql/TreeSitterSql.xcodeproj">
       </FileRef>
       <FileRef
          location = "group:tree-sitter-markdown/TreeSitterMarkdown.xcodeproj">

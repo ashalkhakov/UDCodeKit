@@ -1,109 +1,132 @@
-# UDPieceTable
+# UDCode and UDCodeKit
 
-A code editor in Objective-C (ARC) on AppKit: VS Code's text model ported
-(piece tree, decorations, undo, search, multiple cursors), tree-sitter for
-syntax highlighting, folding, auto-indent and parse errors, an LSP client
-for diagnostics, completion and hover, and a debugger with Xcode's UI and VS
-Code's features over any Debug Adapter Protocol adapter.
+[![Build](https://github.com/ashalkhakov/UDCodeKit/actions/workflows/build.yml/badge.svg)](https://github.com/ashalkhakov/UDCodeKit/actions/workflows/build.yml)
 
-It is being restructured into **UDCodeKit**: an editor library other
-applications embed, and a VS Code-like application built on it, on macOS and
-on GNUstep (Linux).
+A native code editor in Objective-C, for **macOS, Linux and Windows
+(GNUstep)**. It looks like Xcode and works like VS Code: VS Code's text
+model, ported; tree-sitter for highlighting, folding and outlines; language
+servers (LSP) for the rest; any debugger that speaks DAP; git as VS Code's
+git extension runs it; databases, Core Data stores among them. **UDCodeKit**
+is the editor as a library, for other apps to embed; **UDCode** is the app
+built on it, a C and Objective-C IDE.
 
-UDCode, the application, is also a C and Objective-C IDE: File › Open
-Folder…, then Build (⌘B), Run (⌘R) and debug, with the project's own build
-command, clangd, and lldb-dap or gdb. See [docs/ide.md](docs/ide.md), and how
-the design compares with VS Code's in [docs/architecture.md](docs/architecture.md).
+| macOS | Linux (GNUstep) |
+|:---:|:---:|
+| ![An Objective-C class, its jump bar, on macOS](Screenshots/objc-macos.png) | ![The same on GNUstep](Screenshots/objc-gnustep.png) |
+| ![A query run against a Core Data store, on macOS](Screenshots/sql-macos.png) | ![The same on GNUstep](Screenshots/sql-gnustep.png) |
 
-## Layout
+## Get it
 
-- `UDPieceTable/` — the text model, `UDPieceTable.framework` (Foundation
-  only): `UDPieceTree`, `UDTextModel` (edits, undo, decorations, search),
-  `UDIntervalTree`, `UDCursorsController`.
-- `UDCodeKit/` — the editor, `UDCodeKit.framework`, for applications to
-  embed: the `NSTextStorage` over the text model, the editor view controller
-  with its text view, gutters and folding, the highlighters, language modes
-  and their registry, the LSP coordinator, and `UDEditorSession`, which ties
-  one document's services together. It compiles the tree-sitter runtime in;
-  only the umbrella header `<UDCodeKit/UDCodeKit.h>` and the headers it
-  names are public. It also has what an Xcode-like window is made of:
-  `UDPaneSplitController` (navigator | editors | inspector, panes that keep
-  their size, hide, and are remembered), `UDEditorTabsController` with
-  `UDTabBarView` (editor tabs), and the find and replace bar. And the
-  debugger (`Debug/`): `UDBreakpointStore`, `UDDebugSession`, the debug bar,
-  the debug and breakpoint navigators, the debug area with its watch
-  expressions, the breakpoint editor and the debug hover, as VS Code's
-  debugging behaves; see [docs/debugging.md](docs/debugging.md). Every view
-  is in a XIB.
-- `Sources/` — the test application on top of it: documents, workspaces,
-  tabs, the issues pane, the debugger, and a demo debug adapter (`UDCode
-  --debug-adapter`, `Sources/Debug/`).
-- `LSPKit/` — the Language Server Protocol client (`LSPKit.framework`), after
-  Christopher Atlan's LSPKit; the Debug Adapter Protocol client
-  (`DAPClient`); and the Content-Length transport both use (`LSPTransport`).
-- `tree-sitter-<lang>/` — grammar bundles (bash, c, html, json, make,
-  markdown, objc, xml, yaml), loaded by the application as plug-ins; see
-  [docs/grammar-bundles.md](docs/grammar-bundles.md). `tree-sitter-sql/` is
-  unfinished and not built: no SQL grammar found yet is both complete enough
-  and small enough to embed.
+Download from [Releases](https://github.com/ashalkhakov/UDCodeKit/releases/latest):
 
-## Building
+| Platform | Download | Contains |
+|---|---|---|
+| macOS 15.7+ | `UDCode-macOS-*.zip` | The app, signed and notarized; updates itself (Sparkle) |
+| Linux x86_64 | `UDCode-*-x86_64.AppImage` | The app; updates itself |
+| Windows x64 | `UDCode-*-win64.msi`, `UDCode-*-win64-portable.zip` | The app, installed or not; updates itself (WinSparkle) |
+| Libraries | `udcodekit-*-apple.zip`, `udcodekit-*-ubuntu22.04-*.tar.xz`, `udcodekit-*-windows-clang64-*.tar.xz` | UDPieceTable, LSPKit and UDCodeKit (XCFrameworks for Apple), with the grammar bundles |
 
-The grammars' C sources and the tree-sitter runtime are fetched, not kept in
-git:
+Every push also uploads unsigned builds to its [Actions run](https://github.com/ashalkhakov/UDCodeKit/actions).
 
-```bash
-bash scripts/update-grammars.sh     # every grammar bundle, and the shared runtime
+Build from source (the grammars and the tree-sitter runtime are fetched at
+pinned commits the first time):
+
+    # macOS: open UDPieceTable.xcworkspace, scheme UDCode; or
+    make -f Makefile.apple
+    # Linux and Windows (MSYS2), with the GNUstep stack from gnustep-patches
+    make && make check
+
+## What works
+
+- **Editing**: VS Code's piece tree, decorations, undo, search and multiple
+  cursors, ported (`UDPieceTable`, each edit costing the edit, tested for
+  it); find and replace; folding; auto-indent; bracket and quote pairs.
+- **Languages**: tree-sitter modes for C, Objective-C, JSON, YAML, Markdown
+  (with a preview), HTML, XML, Make, Bash and SQL, each a bundle; parse
+  errors where the language has no server; links followed (⌘-click).
+- **Language servers**: diagnostics, completion, hover, definitions and
+  references, rename, formatting, fixes, signatures, semantic tokens,
+  occurrences highlighted (clangd for C and Objective-C, LemMinX for XML).
+- **IDE**: open a folder, Build (⌘B), Run (⌘R), Test (⌘U) and debug with
+  the project's own tools — make, CMake, Xcode, GNUstep make; lldb-dap or
+  gdb; XCTest, CTest, GoogleTest — `tasks.json` and `launch.json` read as
+  VS Code reads them ([IDE](docs/ide.md), [debugging](docs/debugging.md)).
+- **Jump bar**: Xcode's, over each editor — the project, its folders, the
+  file, the symbols at the caret (the server's, or the mode's outline) —
+  each a menu to go elsewhere.
+- **Source control**: git, as VS Code's git extension runs it, in Xcode's
+  Source Control navigator: changes, staging, commits, the change bars in the
+  gutter, Code Review, Authors (blame), history, branches, tags, stashes,
+  remotes, push and pull.
+- **Databases**: SQLite, PostgreSQL, MySQL and MariaDB — connections, their
+  tables and keys, queries run with their parameters, results under the
+  query; a Core Data store's tables named by their entities, its dates and
+  entities shown as such ([databases](docs/sql.md)).
+- **More**: Code Review and comparing files side by side (VS Code's diff
+  editor); a terminal; the Issues, Find, Test, Debug and Breakpoint
+  navigators; Open Quickly.
+- **Checked**: about 320 tests on every push, on macOS, Linux (x86_64 and
+  aarch64) and Windows; the database drivers against real PostgreSQL, MySQL
+  and MariaDB servers on Linux.
+
+## Limitations
+
+- **One folder a window**: no multi-root workspaces yet.
+- **Settings**: a project's own (`.udcode/settings.json`, `tasks.json`,
+  `launch.json`); no user or workspace settings layer yet
+  ([#30](https://github.com/ashalkhakov/UDCodeKit/issues/30)).
+- **Databases**: everyday work only — browsing, editing rows, a query
+  builder and ER diagrams are on their way
+  ([#54](https://github.com/ashalkhakov/UDCodeKit/issues/54)); administration
+  is left to each database's own tools.
+- **Extensions** are bundles built with UDCodeKit, loaded into the app; there
+  is no marketplace, and VS Code's extensions don't run.
+- **GNUstep** needs the patched stack from
+  [gnustep-patches](https://github.com/ashalkhakov/gnustep-patches); the
+  fixes are on their way upstream.
+
+## Architecture
+
+```mermaid
+block-beta
+    columns 3
+    app["UDCode: windows, workspaces, the IDE"]:3
+    cfamily["CFamily: make, CMake, Xcode, clangd, lldb-dap, gdb, XCTest"]
+    git["Git: the git command line"]
+    sql["SQL: SQLite, libpq, libmariadb"]
+    kit["UDCodeKit: editor, navigators, jump bar, diff, debugger, source control, extensions"]:3
+    model["UDPieceTable: the text model"]
+    lsp["LSPKit: LSP and DAP clients"]
+    ts["tree-sitter and its grammar bundles"]
+    macos["macOS: AppKit"]:1
+    gnustep["Linux and Windows: GNUstep"]:2
 ```
 
-Then open `UDPieceTable.xcworkspace`: the `UDCodeKit` scheme builds the
-framework, and the `UDCode` scheme builds the application with the
-frameworks and grammar bundles embedded.
+Each layer uses only those below it. The core knows no build system,
+debugger, version control or database: an extension brings them, as VS
+Code's do, through UDCodeKit's protocols (`UDBuildSystem`, `UDDebugger`,
+`UDSourceControl`, a workbench's navigators and commands). Every view is in
+a XIB, compiled by Xcode and read as it is by GNUstep.
 
-On GNUstep, with `GNUstep.sh` sourced, `make` at the root builds the same out
-of the tree, under `build/gnustep/`: the three frameworks, the grammar
-bundles and `UDCode.app` with the bundles in its `PlugIns` folder. It wants
-the patched stack from
-[gnustep-patches](https://github.com/ashalkhakov/gnustep-patches) (view-based
-tables load their prototype cells from a XIB there).
+| Path | What |
+|---|---|
+| `UDPieceTable/` | The text model: piece tree, decorations, undo, search, cursors (Foundation only) |
+| `UDCodeKit/` | The editor and the workbench, as a framework for apps to embed |
+| `LSPKit/` | The Language Server and Debug Adapter Protocol clients |
+| `Sources/` | UDCode, the app |
+| `Plugins/CFamily/` · `Git/` · `SQL/` | UDCode's extensions: C and Objective-C, git, databases |
+| `tree-sitter-<lang>/` | Grammar bundles: the grammar, its queries (`highlights.scm`, `outline.scm`) |
+| `Tests/` · `UDPieceTable/Tests/` | The editor's and the text model's tests |
+| `docs/` | How it works, and how it compares with VS Code |
 
-## Tests
+## Documentation
 
-- `UDPieceTable` scheme — the text model (`UDPieceTable/Tests`), including
-  `UDComplexityTests`, which keep every hot path proportional to the edit or
-  the result rather than to the document, and `UDReferenceTests`, which check
-  the decoration tree and the undo bookkeeping against plain reference
-  implementations.
-- `UDCode` scheme, `UDCodeTests` — the editor (`Tests/`): text storage,
-  incremental parsing and highlighting, parse errors, folding, find and
-  replace, auto-indent, language modes, documents; `UDEditorComplexityTests`
-  for the editor's hot paths; the find bar and the workspace window driven
-  in-process; and the debugger: the transport and `DAPClient`, the
-  breakpoint store and the session against the demo adapter (in-process
-  over pipes, and as a process), and its UI in the workspace window.
-
-```bash
-xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDPieceTable -destination 'platform=macOS' test
-xcodebuild -workspace UDPieceTable.xcworkspace -scheme UDCode -destination 'platform=macOS' test
-make check      # GNUstep: both suites, under Xvfb when there is no display
-```
-
-On GNUstep the editor's tests run without a host application: the
-`UDCodeTests` bundle compiles in UDCode's sources (all but `main.m`) and its
-XIBs, and finds the grammars through `$UD_PLUGINS_PATH`, which `make check`
-points at the `UDCode.app` it built.
-
-## Releases
-
-`.github/workflows/build.yml` builds every push with gnustep-release-actions,
-the familiar way on each system (`make`, `make check`, `make install` on
-GNUstep; `make -f Makefile.apple` and the same targets on macOS), on what
-`.github/pins.env` names. It publishes UDCodeKit as a library (the installed
-frameworks and grammar bundles for Linux; UDPieceTable, LSPKit and UDCodeKit
-as XCFrameworks for Apple) and UDCode as an AppImage and a Mac app; a `v*`
-tag releases them, the Mac app signed, notarized and updated by Sparkle.
+- [UDCode as an IDE](docs/ide.md) · [Debugging](docs/debugging.md) · [Databases](docs/sql.md)
+- [UDCodeKit and VS Code, side by side](docs/architecture.md)
+- [Grammar bundles](docs/grammar-bundles.md)
 
 ## License
 
-MIT (`LICENSE.md`): the ported VS Code code is Microsoft's, under MIT. LSPKit,
-the tree-sitter runtime and the upstream grammars are MIT as well.
+MIT ([LICENSE.md](LICENSE.md)): the ported VS Code code is Microsoft's, under
+MIT. LSPKit, the tree-sitter runtime and the upstream grammars are MIT as
+well.

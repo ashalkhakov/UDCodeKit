@@ -57,6 +57,13 @@ static NSArray<NSString *> *UDFlatten(NSArray<UDDocumentSymbol *> *symbols, NSSt
                     @[ @"One", @"  Two", @"Three", @"  Sub" ] ],
         @"a.c": @[ @"#define N 3\ntypedef struct { int a; } T;\nstruct S { int b; };\nenum E { X, Y };\nstatic int *g(int x) { return 0; }\nint v = 2;\n",
                    @[ @"N", @"T", @"  a", @"S", @"  b", @"E", @"  X", @"  Y", @"g", @"v" ] ],
+        @"a.sql": @[ @"CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT NOT NULL);\n"
+                     "CREATE VIEW adults AS SELECT * FROM people WHERE age > 17;\n"
+                     "CREATE INDEX people_name ON people (name);\n"
+                     "CREATE FUNCTION f(a int) RETURNS int AS $$ SELECT a $$ LANGUAGE sql;\n"
+                     "CREATE TRIGGER t AFTER INSERT ON people FOR EACH ROW EXECUTE FUNCTION f();\n"
+                     "CREATE SCHEMA app;\nWITH recent AS (SELECT 1) SELECT * FROM recent;\n",
+                     @[ @"people", @"  id", @"  name", @"adults", @"people_name", @"f", @"t", @"app", @"recent" ] ],
         @"a.m": @[ @"@interface Foo : NSObject\n@property int x;\n- (void)run;\n- (id)initWithA:(int)a b:(int)b;\n@end\n"
                    "@implementation Foo\n- (void)run { }\n- (id)initWithA:(int)a b:(int)b { return self; }\n@end\n"
                    "@protocol P\n- (void)p;\n@end\n@interface Foo (Cat)\n@end\nstatic int f(void) { return 0; }\n",

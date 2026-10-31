@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		AA1000012F5F2E7F00501AA1 /* lib.c in Sources */ = {isa = PBXBuildFile; fileRef = AA1000002F5F2E7F00501AA1 /* lib.c */; };
 		AA1000032F5F2E8B00501AA1 /* parser.c in Sources */ = {isa = PBXBuildFile; fileRef = AA1000022F5F2E8B00501AA1 /* parser.c */; };
+		AA10000D2F5F2E8B00501AA1 /* scanner.c in Sources */ = {isa = PBXBuildFile; fileRef = AA10000C2F5F2E8B00501AA1 /* scanner.c */; };
+		AA10000F2F5F2EA000501AA1 /* outline.scm in Resources */ = {isa = PBXBuildFile; fileRef = AA10000E2F5F2EA000501AA1 /* outline.scm */; };
 		AA1000062F5F2E9500501AA1 /* TreeSitterSqlPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = AA1000052F5F2E9500501AA1 /* TreeSitterSqlPlugin.m */; };
 		AA1000092F5F2EA000501AA1 /* highlights.scm in Resources */ = {isa = PBXBuildFile; fileRef = AA1000072F5F2EA000501AA1 /* highlights.scm */; };
 		AA10000A2F5F2EA000501AA1 /* LanguageInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = AA1000082F5F2EA000501AA1 /* LanguageInfo.plist */; };
@@ -19,6 +21,8 @@
 		AA100010AACDE171097AA1A1 /* TreeSitterSql.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TreeSitterSql.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA1000002F5F2E7F00501AA1 /* lib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lib.c; sourceTree = "<group>"; };
 		AA1000022F5F2E8B00501AA1 /* parser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = parser.c; sourceTree = "<group>"; };
+		AA10000C2F5F2E8B00501AA1 /* scanner.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = scanner.c; sourceTree = "<group>"; };
+		AA10000E2F5F2EA000501AA1 /* outline.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = outline.scm; sourceTree = "<group>"; };
 		AA1000042F5F2E9500501AA1 /* TreeSitterSqlPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TreeSitterSqlPlugin.h; sourceTree = "<group>"; };
 		AA1000052F5F2E9500501AA1 /* TreeSitterSqlPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TreeSitterSqlPlugin.m; sourceTree = "<group>"; };
 		AA1000072F5F2EA000501AA1 /* highlights.scm */ = {isa = PBXFileReference; lastKnownFileType = text; path = highlights.scm; sourceTree = "<group>"; };
@@ -58,6 +62,7 @@
 			isa = PBXGroup;
 			children = (
 				AA1000072F5F2EA000501AA1 /* highlights.scm */,
+				AA10000E2F5F2EA000501AA1 /* outline.scm */,
 				AA1000072F5F2FA000501AA1 /* Info.plist */,
 				AA1000082F5F2EA000501AA1 /* LanguageInfo.plist */,
 			);
@@ -77,6 +82,7 @@
 			isa = PBXGroup;
 			children = (
 				AA1000022F5F2E8B00501AA1 /* parser.c */,
+				AA10000C2F5F2E8B00501AA1 /* scanner.c */,
 			);
 			path = src;
 			sourceTree = "<group>";
@@ -149,6 +155,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA1000092F5F2EA000501AA1 /* highlights.scm in Resources */,
+				AA10000F2F5F2EA000501AA1 /* outline.scm in Resources */,
 				AA10000A2F5F2EA000501AA1 /* LanguageInfo.plist in Resources */,
 				AA10000B2F5F2EA000501AA1 /* Info.plist in Resources */,
 			);
@@ -164,6 +171,7 @@
 				AA1000012F5F2E7F00501AA1 /* lib.c in Sources */,
 				AA1000062F5F2E9500501AA1 /* TreeSitterSqlPlugin.m in Sources */,
 				AA1000032F5F2E8B00501AA1 /* parser.c in Sources */,
+				AA10000D2F5F2E8B00501AA1 /* scanner.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

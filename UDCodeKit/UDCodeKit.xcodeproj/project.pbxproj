@@ -81,6 +81,7 @@
 				Workbench/UDJumpBarView.h,
 				Extensions/UDDiagnosticItem.h,
 				Extensions/UDExtension.h,
+				Extensions/UDWorkbench.h,
 				Extensions/UDLanguageKeyHandler.h,
 				Find/UDFindBarViewController.h,
 				Find/UDFindModel.h,

@@ -10,6 +10,7 @@
                 <outlet property="view" destination="TE-container-view" id="TE-view-outlet"/>
                 <outlet property="findBarHost" destination="TE-find-host" id="TE-find-host-outlet"/>
                 <outlet property="editorArea" destination="TE-editor-area" id="TE-editor-area-outlet"/>
+                <outlet property="bodySplitView" destination="TE-body" id="TE-body-outlet"/>
                 <outlet property="lineNumberGutterView" destination="TE-line-gutter" id="TE-line-gutter-outlet"/>
                 <outlet property="authorsView" destination="TE-authors" id="TE-authors-outlet"/>
                 <outlet property="jumpBar" destination="TE-jump-bar" id="TE-jump-bar-outlet"/>
@@ -118,53 +119,62 @@
                     <rect key="frame" x="0.0" y="570" width="900" height="30"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                 </customView>
-                <customView id="TE-editor-area" userLabel="Editor Area">
+                <splitView dividerStyle="thin" id="TE-body" userLabel="The Text | An Extension's Area (its results: shown under the text)">
                     <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                     <subviews>
-                        <customView hidden="YES" id="TE-authors" userLabel="Authors (Editor &gt; Authors: the gutter and the text move over)" customClass="UDAuthorsView">
-                            <rect key="frame" x="0.0" y="0.0" width="200" height="600"/>
-                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" heightSizable="YES"/>
-                        </customView>
-                        <customView id="TE-line-gutter" userLabel="Line Numbers" customClass="UDLineNumberGutterView">
-                            <rect key="frame" x="0.0" y="0.0" width="48" height="600"/>
-                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" heightSizable="YES"/>
-                            <connections>
-                                <outlet property="delegate" destination="-2" id="TE-line-gutter-delegate"/>
-                            </connections>
-                        </customView>
-                        <scrollView borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="TE-scroll-view">
-                            <rect key="frame" x="48" y="0.0" width="840" height="600"/>
-                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                            <clipView key="contentView" drawsBackground="NO" id="TE-clip-view">
-                                <rect key="frame" x="0.0" y="0.0" width="825" height="600"/>
+                    <customView id="TE-editor-area" userLabel="Editor Area">
+                        <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <customView hidden="YES" id="TE-authors" userLabel="Authors (Editor &gt; Authors: the gutter and the text move over)" customClass="UDAuthorsView">
+                                <rect key="frame" x="0.0" y="0.0" width="200" height="600"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" heightSizable="YES"/>
+                            </customView>
+                            <customView id="TE-line-gutter" userLabel="Line Numbers" customClass="UDLineNumberGutterView">
+                                <rect key="frame" x="0.0" y="0.0" width="48" height="600"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" heightSizable="YES"/>
+                                <connections>
+                                    <outlet property="delegate" destination="-2" id="TE-line-gutter-delegate"/>
+                                </connections>
+                            </customView>
+                            <scrollView borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="TE-scroll-view">
+                                <rect key="frame" x="48" y="0.0" width="840" height="600"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                <subviews>
-                                    <textView wantsLayer="YES" importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" smartInsertDelete="YES" id="TE-text-view" customClass="UDDiagnosticTextView">
-                                        <rect key="frame" x="0.0" y="0.0" width="825" height="600"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                        <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
-                                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        <size key="minSize" width="825" height="600"/>
-                                        <size key="maxSize" width="10000000" height="10000000"/>
-                                    </textView>
-                                </subviews>
-                            </clipView>
-                            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="TE-hscroll">
-                                <rect key="frame" x="-100" y="-100" width="225" height="15"/>
-                                <autoresizingMask key="autoresizingMask"/>
-                            </scroller>
-                            <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="TE-vscroll">
-                                <rect key="frame" x="825" y="0.0" width="15" height="600"/>
-                                <autoresizingMask key="autoresizingMask"/>
-                            </scroller>
-                        </scrollView>
-                        <customView id="TE-results-gutter" userLabel="Matches and Errors" customClass="UDFindResultsGutterView">
-                            <rect key="frame" x="888" y="0.0" width="12" height="600"/>
-                            <autoresizingMask key="autoresizingMask" flexibleMinX="YES" heightSizable="YES"/>
-                        </customView>
+                                <clipView key="contentView" drawsBackground="NO" id="TE-clip-view">
+                                    <rect key="frame" x="0.0" y="0.0" width="825" height="600"/>
+                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                    <subviews>
+                                        <textView wantsLayer="YES" importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" smartInsertDelete="YES" id="TE-text-view" customClass="UDDiagnosticTextView">
+                                            <rect key="frame" x="0.0" y="0.0" width="825" height="600"/>
+                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                            <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                            <size key="minSize" width="825" height="600"/>
+                                            <size key="maxSize" width="10000000" height="10000000"/>
+                                        </textView>
+                                    </subviews>
+                                </clipView>
+                                <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="TE-hscroll">
+                                    <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                                    <autoresizingMask key="autoresizingMask"/>
+                                </scroller>
+                                <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="TE-vscroll">
+                                    <rect key="frame" x="825" y="0.0" width="15" height="600"/>
+                                    <autoresizingMask key="autoresizingMask"/>
+                                </scroller>
+                            </scrollView>
+                            <customView id="TE-results-gutter" userLabel="Matches and Errors" customClass="UDFindResultsGutterView">
+                                <rect key="frame" x="888" y="0.0" width="12" height="600"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" heightSizable="YES"/>
+                            </customView>
+                        </subviews>
+                    </customView>
                     </subviews>
-                </customView>
+                    <holdingPriorities>
+                        <real value="250"/>
+                    </holdingPriorities>
+                </splitView>
             </subviews>
             <point key="canvasLocation" x="200" y="200"/>
         </customView>

@@ -93,7 +93,8 @@ log "OK"
 info "Fetching grammar ${GRAMMAR_ID}  ($GRAMMAR_URL)"
 
 log "fetching grammar (scripts/grammars.lock)..."
-"$SCRIPT_DIR/../scripts/fetch-pinned.sh" "$GRAMMAR_ID" "$GRAMMAR_URL" "$grammar_work"
+# its generated parser.c and scanner.c are on gh-pages, not its main branch
+"$SCRIPT_DIR/../scripts/fetch-pinned.sh" "$GRAMMAR_ID" "$GRAMMAR_URL" "$grammar_work" gh-pages
 commit_sha="$(git -C "$grammar_work" rev-parse HEAD)"
 log "commit = $commit_sha"
 
@@ -166,6 +167,13 @@ for q in highlights.scm indents.scm locals.scm; do
     fi
 done
 [[ $queries_copied -eq 0 ]] && warn "no .scm query files found in $GRAMMAR_QUERIES_SUBDIR"
+
+# The highlighter evaluates no predicates: the patterns whose #match? picks
+# out numbers would make every literal one (strings too), so they are left out.
+if [[ -f "$DEST/queries/highlights.scm" ]]; then
+    perl -0pi -e 's/\(\(literal\) \@(number|float)\s*\(#match\?[^\n]*\)\)\n*//g' "$DEST/queries/highlights.scm"
+    log "left out queries/highlights.scm's #match? patterns"
+fi
 
 # ── Sync query files into Resources/ ─────────────────────────────────────────
 res_dir="$DEST/Resources"

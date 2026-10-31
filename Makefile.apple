@@ -10,8 +10,8 @@
 #                                     UDPieceTable, LSPKit and UDCodeKit
 #                                     .xcframework for what builds on them,
 #                                     with the grammar bundles in PlugIns/ for
-#                                     the apps that embed UDCodeKit (CFamily
-#                                     and Git are UDCode's own)
+#                                     the apps that embed UDCodeKit (CFamily,
+#                                     Git and SQL are UDCode's own)
 #   make -f Makefile.apple installcheck DESTDIR=<dir>  its signature holds,
 #                                     and it starts and stays up, in a fresh home
 #

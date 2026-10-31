@@ -668,6 +668,19 @@
                                     <action selector="findReferences:" target="-1" id="UDM-references-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem isSeparatorItem="YES" id="UDM-changes-sep"/>
+                            <menuItem title="Next Change" keyEquivalent="&#xF708;" id="UDM-nextchange">
+                                <modifierMask key="keyEquivalentModifierMask" option="YES"/>
+                                <connections>
+                                    <action selector="goToNextChange:" target="-1" id="UDM-nextchange-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Previous Change" keyEquivalent="&#xF708;" id="UDM-previouschange">
+                                <modifierMask key="keyEquivalentModifierMask" shift="YES" option="YES"/>
+                                <connections>
+                                    <action selector="goToPreviousChange:" target="-1" id="UDM-previouschange-a"/>
+                                </connections>
+                            </menuItem>
                         </items>
                     </menu>
                 </menuItem>
@@ -715,6 +728,12 @@
                                 <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                 <connections>
                                     <action selector="togglePreview:" target="-1" id="UDM-preview-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Show Code Review" keyEquivalent="&#xd;" id="UDM-codereview">
+                                <modifierMask key="keyEquivalentModifierMask" shift="YES" option="YES" command="YES"/>
+                                <connections>
+                                    <action selector="toggleCodeReview:" target="-1" id="UDM-codereview-a"/>
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="UDM-view-sep1"/>

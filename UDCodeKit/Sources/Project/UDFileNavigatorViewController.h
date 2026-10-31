@@ -20,6 +20,10 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol UDFileNavigatorDelegate <NSObject>
 /// A file was chosen (a click, or Return).
 - (void)fileNavigator:(UDFileNavigatorViewController *)navigator openFileAtURL:(NSURL *)url;
+@optional
+/// The context menu of the file or folder at @a url (VS Code's Explorer's:
+/// Select for Compare, ...); none when there are none.
+- (NSArray<NSMenuItem *> *)fileNavigator:(UDFileNavigatorViewController *)navigator menuItemsForURL:(NSURL *)url;
 @end
 
 @interface UDFileNavigatorViewController : NSViewController <NSOutlineViewDataSource, NSOutlineViewDelegate>

@@ -11,6 +11,8 @@ include ../../scripts/gnustep.make
 include $(GNUSTEP_MAKEFILES)/common.make
 
 UDPieceTableTests_OBJC_FILES = $(wildcard *.m)
+# VS Code's diffing fixtures
+UDPieceTableTests_RESOURCE_FILES = $(wildcard Fixtures/*.json)
 
 UD_LIBS = $(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable)
 UDPieceTableTests_INCLUDE_DIRS = -I$(UD_INCLUDE) -I../Sources

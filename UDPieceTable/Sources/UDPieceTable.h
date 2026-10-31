@@ -31,3 +31,4 @@ UDPIECETABLE_EXPORT const unsigned char UDPieceTableVersionString[];
 #import <UDPieceTable/UDEditOperationResult.h>
 #import <UDPieceTable/UDCursorTypeEditOperations.h>
 #import <UDPieceTable/UDCursorsController.h>
+#import <UDPieceTable/UDLinesDiffComputer.h>

@@ -41,7 +41,13 @@
     UDTabBarItem *item = [UDTabBarItem itemWithTitle:title representedObject:representedObject];
     NSTabViewItem *page = [[NSTabViewItem alloc] initWithIdentifier:item];
     page.label = title;
-    page.view = viewController.view;
+    // the controller's view in a view of the page's own, so another can take its place
+    NSView *view = viewController.view;
+    NSView *container = [[NSView alloc] initWithFrame:view.frame];
+    view.frame = container.bounds;
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [container addSubview:view];
+    page.view = container;
     [_controllers setObject:viewController forKey:item];
     [_pages setObject:page forKey:item];
     [_tabView addTabViewItem:page];
@@ -52,6 +58,19 @@
 
 - (NSViewController *)viewControllerForItem:(UDTabBarItem *)item {
     return [_controllers objectForKey:item];
+}
+
+- (void)setViewController:(NSViewController *)viewController forItem:(UDTabBarItem *)item {
+    NSTabViewItem *page = [_pages objectForKey:item];
+    if (!page) return;
+    NSView *container = page.view;
+    NSView *old = [_controllers objectForKey:item].view;
+    if (old.superview == container) [old removeFromSuperview];     // (not when the new one took it)
+    NSView *view = viewController.view;
+    view.frame = container.bounds;
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [container addSubview:view];
+    [_controllers setObject:viewController forKey:item];
 }
 
 - (UDTabBarItem *)itemWithRepresentedObject:(id)representedObject {

@@ -103,6 +103,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// Source | Preview, at the tab bar's right: the selected tab's, for a mode
 /// that renders its text (Markdown's).
 @property (nonatomic, weak) IBOutlet NSSegmentedControl *previewControl;
+@property (nonatomic, weak) IBOutlet NSButton *reviewButton;
 @property (nonatomic, strong, readwrite, nullable) UDTerminalViewController *terminal;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorName;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorPath;
@@ -129,6 +130,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// One editor session per open document; a document can show in several
 /// tabs, each with its own editor over the session's text storage.
 @property (nonatomic, strong) NSMapTable<UDCodeDocument *, UDEditorSession *> *sessions;
+/// A diff tab's original side; its modified side is the tab's document.
+@property (nonatomic, strong) NSMapTable<UDTabBarItem *, UDCodeDocument *> *diffOriginals;
+/// Compare with Saved's originals: the file each is the saved text of.
+@property (nonatomic, strong) NSMapTable<UDCodeDocument *, NSURL *> *savedCopies;
+/// The file navigator's Select for Compare.
+@property (nonatomic, copy, nullable) NSURL *selectedForCompare;
 
 /// Cached theme (used when adding new tabs after initial load).
 @property (nonatomic, strong) TreeSitterTheme *currentTheme;
@@ -152,6 +159,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
     UDWorkspace *workspace = (UDWorkspace *)self.document;
     _sessions       = [NSMapTable strongToStrongObjectsMapTable];
+    _diffOriginals  = [NSMapTable strongToStrongObjectsMapTable];
+    _savedCopies    = [NSMapTable strongToStrongObjectsMapTable];
     _workspaceModel = [[UDWorkspaceModel alloc] init];
 
 #ifdef __APPLE__
@@ -330,6 +339,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     NSError *error = nil;
     BOOL saved = [document saveToURL:document.fileURL error:&error];
     [session.lspCoordinator documentDidSave];
+    if (saved) [self _refreshSavedCopiesOfURL:document.fileURL];
     if (!saved && error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
     [self _documentsChanged];
 }
@@ -765,6 +775,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     for (UDCodeDocument *document in _workspaceModel.documents) {
         if (document.fileURL && [changed containsObject:document.fileURL.path.stringByStandardizingPath]) {
             [document reloadFromFileIfUnmodified];
+            [self _refreshSavedCopiesOfURL:document.fileURL];
         }
     }
     NSMutableArray *changes = [NSMutableArray array];
@@ -1387,6 +1398,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return [[self _selectedEditor] validateMenuItem:item];
     } else if (sel_isEqual(action, @selector(toggleBreakpoint:))) {
         return [self _selectedEditor].breakpointFile != nil;
+    } else if (sel_isEqual(action, @selector(toggleCodeReview:))) {
+        UDDiffEditorViewController *review = [self _selectedDiffEditor];
+        item.title = review ? @"Hide Code Review" : @"Show Code Review";
+        return review ? review.modifiedOnLeft : [_editorTabs.selectedItem.representedObject fileURL] != nil;
+    } else if (sel_isEqual(action, @selector(goToNextChange:)) || sel_isEqual(action, @selector(goToPreviousChange:))) {
+        return [self _selectedDiffEditor].diff.changes.count > 0;
     } else if (sel_isEqual(action, @selector(togglePreview:))) {
         UDCodeEditorViewController *editor = [self _selectedEditor];
         return editor && [editor validateMenuItem:item];
@@ -1469,36 +1486,53 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     return document ? [_sessions objectForKey:document] : nil;
 }
 
-/// A tab for @a document: its session (made with its first tab), and an
-/// editor of its own.
-- (void)_openTabForDocument:(UDCodeDocument *)document {
+/// @a document's session, made when it has none (*first then YES); started
+/// by -_startSession:ofDocument: once a view of it has loaded.
+- (UDEditorSession *)_sessionOpeningDocument:(UDCodeDocument *)document first:(BOOL *)first {
     UDEditorSession *session = [self _sessionForDocument:document];
-    BOOL first = session == nil;
-    if (first) {
+    *first = session == nil;
+    if (*first) {
         session = [[UDEditorSession alloc] initWithDocument:document];
         [_sessions setObject:session forKey:document];
     }
+    return session;
+}
+
+/// Highlighting, and a file's language server; a saved copy (Compare with
+/// Saved's) has only the first.
+- (void)_startSession:(UDEditorSession *)session ofDocument:(UDCodeDocument *)document {
+    [session activateWithTheme:_currentTheme];
+    if ([_savedCopies objectForKey:document]) return;
+    if (![self _startProjectLanguageServerOf:session document:document]) [session startLanguageServer];
+    session.lspCoordinator.editDocuments = self;
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
+                                                 name:UDDiagnosticsDidChangeNotification
+                                               object:document.diagnosticStore];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
+                                                 name:UDTextModelDidChangeNotification
+                                               object:document.textModel];
+}
+
+/// An editor of @a document's, as its tabs have: links, hovers, breakpoints.
+- (void)_configureEditor:(UDCodeEditorViewController *)editor ofDocument:(UDCodeDocument *)document {
+    editor.previewBaseURL = document.fileURL;
+    editor.linkDelegate = self;
+    editor.textView.delegate = self;
+    if (document.fileURL) [editor showBreakpointsOfStore:_breakpoints forFile:document.fileURL.path];
+}
+
+/// A tab for @a document: its session (made with its first tab), and an
+/// editor of its own.
+- (void)_openTabForDocument:(UDCodeDocument *)document {
+    BOOL first = NO;
+    UDEditorSession *session = [self _sessionOpeningDocument:document first:&first];
 
     // The editor's view loads first, so its layout manager is attached
     // before the session's first parse.
     UDCodeEditorViewController *editor = [[UDCodeEditorViewController alloc] initWithTextStorage:session.textStorage];
     [editor configureForLanguageMode:document.languageMode];
-    editor.previewBaseURL = document.fileURL;
-    editor.linkDelegate = self;
-    editor.textView.delegate = self;
-    if (document.fileURL) [editor showBreakpointsOfStore:_breakpoints forFile:document.fileURL.path];
-
-    if (first) {
-        [session activateWithTheme:_currentTheme];
-        if (![self _startProjectLanguageServerOf:session document:document]) [session startLanguageServer];
-        session.lspCoordinator.editDocuments = self;
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
-                                                     name:UDDiagnosticsDidChangeNotification
-                                                   object:document.diagnosticStore];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
-                                                     name:UDTextModelDidChangeNotification
-                                                   object:document.textModel];
-    }
+    [self _configureEditor:editor ofDocument:document];
+    if (first) [self _startSession:session ofDocument:document];
 
     [self _documentsChanged];      // before the tab selects its row in the files list
     UDTabBarItem *item = [_editorTabs addItemWithTitle:document.displayName
@@ -1508,21 +1542,180 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     item.dirty = document.isModified;
 }
 
-- (nullable UDCodeEditorViewController *)_selectedEditor {
+/// A diff tab: @a original on the left, @a modified (the tab's document)
+/// on the right, as VS Code's diff editor.
+- (void)_openDiffOfOriginal:(UDCodeDocument *)original modified:(UDCodeDocument *)modified
+                      title:(NSString *)title originalEditable:(BOOL)originalEditable {
+    BOOL originalFirst = NO, modifiedFirst = NO;
+    UDEditorSession *originalSession = [self _sessionOpeningDocument:original first:&originalFirst];
+    UDEditorSession *modifiedSession = [self _sessionOpeningDocument:modified first:&modifiedFirst];
+    UDDiffEditorViewController *diff = [[UDDiffEditorViewController alloc] initWithOriginalTextStorage:originalSession.textStorage
+                                                                                  modifiedTextStorage:modifiedSession.textStorage];
+    diff.originalEditable = originalEditable;
+    [diff configureForLanguageMode:modified.languageMode];
+    [self _configureEditor:diff.modifiedEditor ofDocument:modified];
+    if (originalFirst) [self _startSession:originalSession ofDocument:original];
+    if (modifiedFirst) [self _startSession:modifiedSession ofDocument:modified];
+
+    [self _documentsChanged];
+    UDTabBarItem *item = [_editorTabs addItemWithTitle:title representedObject:modified viewController:diff];
+    [_diffOriginals setObject:original forKey:item];
+    item.toolTip = [NSString stringWithFormat:@"%@ ↔ %@", original.fileURL.path ?: original.displayName,
+                                                          modified.fileURL.path ?: modified.displayName];
+    item.dirty = modified.isModified;
+    [diff computeDiff];
+}
+
+/// Xcode's Code Review of the selected tab's file: its editor (as it is) on
+/// the left, the file as saved on the right (read-only, following the file);
+/// again, the editor alone. A comparison of two files is a tab of its own.
+- (IBAction)toggleCodeReview:(nullable id)sender {
     UDTabBarItem *item = _editorTabs.selectedItem;
-    return item ? (UDCodeEditorViewController *)[_editorTabs viewControllerForItem:item] : nil;
+    id controller = item ? [_editorTabs viewControllerForItem:item] : nil;
+    if ([controller isKindOfClass:[UDDiffEditorViewController class]]) {
+        UDDiffEditorViewController *review = controller;
+        if (!review.modifiedOnLeft) return;
+        UDCodeDocument *copy = [_diffOriginals objectForKey:item];
+        UDCodeEditorViewController *editor = review.modifiedEditor;
+        [review invalidate];
+        [_editorTabs setViewController:editor forItem:item];
+        [_diffOriginals removeObjectForKey:item];
+        if (copy) [self _closeDocumentIfUnshown:copy];
+        [self.window makeFirstResponder:editor.textView];
+    } else if ([controller isKindOfClass:[UDCodeEditorViewController class]]) {
+        UDCodeDocument *document = item.representedObject;
+        if (!document.fileURL) return;
+        NSError *error = nil;
+        NSString *saved = [UDCodeDocument textOfURL:document.fileURL error:&error];
+        if (!saved) {
+            if (error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
+            return;
+        }
+        UDCodeEditorViewController *editor = controller;
+        editor.showsPreview = NO;
+        UDCodeDocument *copy = [[UDCodeDocument alloc] initWithText:saved fileURL:nil languageMode:document.languageMode];
+        [_savedCopies setObject:document.fileURL forKey:copy];
+        BOOL first = NO;
+        UDEditorSession *copySession = [self _sessionOpeningDocument:copy first:&first];
+        UDDiffEditorViewController *review = [[UDDiffEditorViewController alloc] initWithOriginalTextStorage:copySession.textStorage
+                                                                                              modifiedEditor:editor];
+        review.modifiedOnLeft = YES;
+        [review configureForLanguageMode:document.languageMode];
+        [self _startSession:copySession ofDocument:copy];
+        [_diffOriginals setObject:copy forKey:item];
+        [_editorTabs setViewController:review forItem:item];
+        [review computeDiff];
+        [self.window makeFirstResponder:editor.textView];
+    }
+    [self _updatePreviewControl];
+}
+
+/// The file navigator's Select for Compare, then Compare with Selected: the
+/// one selected first on the left, both editable (VS Code's Explorer).
+- (void)_selectForCompare:(NSMenuItem *)sender {
+    self.selectedForCompare = sender.representedObject;
+}
+
+- (void)_compareWithSelected:(NSMenuItem *)sender {
+    NSURL *originalURL = self.selectedForCompare, *modifiedURL = sender.representedObject;
+    if (!originalURL || !modifiedURL) return;
+    UDCodeDocument *original = [self _documentOpeningURL:originalURL], *modified = [self _documentOpeningURL:modifiedURL];
+    if (!original || !modified) return;
+    [self _openDiffOfOriginal:original modified:modified
+                        title:[NSString stringWithFormat:@"%@ ↔ %@", original.displayName, modified.displayName] originalEditable:YES];
+}
+
+/// @a url's document in the workspace, read when it is not there yet.
+- (nullable UDCodeDocument *)_documentOpeningURL:(NSURL *)url {
+    url = [NSURL fileURLWithPath:UDRealPath(url.path)];
+    UDCodeDocument *document = [_workspaceModel documentForFileURL:url];
+    if (document) return document;
+    NSError *error = nil;
+    document = [_workspaceModel addDocumentFromURL:url error:&error];
+    if (!document) NSLog(@"[UDDocumentWindowController] Cannot open %@: %@", url.lastPathComponent, error);
+    return document;
+}
+
+- (NSArray<NSMenuItem *> *)fileNavigator:(UDFileNavigatorViewController *)navigator menuItemsForURL:(NSURL *)url {
+    BOOL folder = NO;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&folder] || folder) return @[];
+    NSMenuItem *select = [[NSMenuItem alloc] initWithTitle:@"Select for Compare" action:@selector(_selectForCompare:) keyEquivalent:@""];
+    select.target = self;
+    select.representedObject = url;
+    NSMutableArray<NSMenuItem *> *items = [NSMutableArray arrayWithObject:select];
+    if (self.selectedForCompare && ![self.selectedForCompare isEqual:url]) {
+        NSMenuItem *compare = [[NSMenuItem alloc]
+            initWithTitle:[NSString stringWithFormat:@"Compare with “%@”", self.selectedForCompare.lastPathComponent]
+                   action:@selector(_compareWithSelected:) keyEquivalent:@""];
+        compare.target = self;
+        compare.representedObject = url;
+        [items addObject:compare];
+    }
+    return items;
+}
+
+- (nullable UDDiffEditorViewController *)_selectedDiffEditor {
+    UDTabBarItem *item = _editorTabs.selectedItem;
+    id controller = item ? [_editorTabs viewControllerForItem:item] : nil;
+    return [controller isKindOfClass:[UDDiffEditorViewController class]] ? controller : nil;
+}
+
+- (IBAction)goToNextChange:(nullable id)sender {
+    [[self _selectedDiffEditor] goToNextChange:sender];
+}
+
+- (IBAction)goToPreviousChange:(nullable id)sender {
+    [[self _selectedDiffEditor] goToPreviousChange:sender];
+}
+
+/// Compare with Saved's originals of @a url's file: its text again.
+- (void)_refreshSavedCopiesOfURL:(nullable NSURL *)url {
+    if (!url) return;
+    NSString *path = url.path.stringByStandardizingPath;
+    for (UDCodeDocument *copy in [_savedCopies keyEnumerator].allObjects) {
+        if (![[[_savedCopies objectForKey:copy] path].stringByStandardizingPath isEqualToString:path]) continue;
+        NSString *saved = [UDCodeDocument textOfURL:url error:NULL];
+        UDTextModel *model = copy.textModel;
+        if (!saved || [saved isEqualToString:[model getValue]]) continue;
+        NSInteger lines = [model getLineCount];
+        [model applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:PTRangeMake(1, 1, lines, [model getLineMaxColumn:lines])
+                                                                text:saved] ]];
+    }
+}
+
+/// The tab's editor: a diff's, its modified side's (its document's).
+- (nullable UDCodeEditorViewController *)_editorOfItem:(nullable UDTabBarItem *)item {
+    id controller = item ? [_editorTabs viewControllerForItem:item] : nil;
+    if ([controller isKindOfClass:[UDDiffEditorViewController class]]) return [controller modifiedEditor];
+    return controller;
+}
+
+- (nullable UDCodeEditorViewController *)_selectedEditor {
+    return [self _editorOfItem:_editorTabs.selectedItem];
 }
 
 - (nullable UDEditorSession *)_activeSession {
     return [self _sessionForDocument:_editorTabs.selectedItem.representedObject];
 }
 
+/// @a document's tabs: its editors', then the diffs it is a side of.
 - (NSArray<UDTabBarItem *> *)_itemsForDocument:(UDCodeDocument *)document {
-    NSMutableArray *items = [NSMutableArray array];
+    NSMutableArray *items = [NSMutableArray array], *diffs = [NSMutableArray array];
     for (UDTabBarItem *item in _editorTabs.items) {
-        if (item.representedObject == document) [items addObject:item];
+        if ([_diffOriginals objectForKey:item]) {
+            if (item.representedObject == document || [_diffOriginals objectForKey:item] == document) [diffs addObject:item];
+        } else if (item.representedObject == document) {
+            [items addObject:item];
+        }
     }
+    [items addObjectsFromArray:diffs];
     return items;
+}
+
+/// The documents @a item shows: a diff's two.
+- (NSArray<UDCodeDocument *> *)_documentsOfItem:(UDTabBarItem *)item {
+    UDCodeDocument *original = [_diffOriginals objectForKey:item];
+    return original ? @[ item.representedObject, original ] : @[ item.representedObject ];
 }
 
 /// The open documents changed: the files navigator and the issues.
@@ -1551,22 +1744,32 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
 /// The last tab of a document with unsaved changes asks first.
 - (BOOL)editorTabs:(UDEditorTabsController *)tabs shouldCloseItem:(UDTabBarItem *)item {
-    UDCodeDocument *document = item.representedObject;
-    if (!document.isModified || [self _itemsForDocument:document].count > 1) return YES;
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = [NSString stringWithFormat:@"Close “%@” without saving?", document.displayName];
-    alert.informativeText = @"Its changes are lost.";
-    [alert addButtonWithTitle:@"Close"];
-    [alert addButtonWithTitle:@"Cancel"];
-    return [alert runModal] == NSAlertFirstButtonReturn;
+    for (UDCodeDocument *document in [self _documentsOfItem:item]) {
+        if ([_savedCopies objectForKey:document]) continue;            // the file's own text, nothing to lose
+        if (!document.isModified || [self _itemsForDocument:document].count > 1) continue;
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = [NSString stringWithFormat:@"Close “%@” without saving?", document.displayName];
+        alert.informativeText = @"Its changes are lost.";
+        [alert addButtonWithTitle:@"Close"];
+        [alert addButtonWithTitle:@"Cancel"];
+        if ([alert runModal] != NSAlertFirstButtonReturn) return NO;
+    }
+    return YES;
 }
 
-/// The document's last tab closed: its session and its place in the workspace go.
+/// A document's last tab closed: its session and its place in the workspace go.
 - (void)editorTabs:(UDEditorTabsController *)tabs didCloseItem:(UDTabBarItem *)item {
-    UDCodeDocument *document = item.representedObject;
+    NSArray<UDCodeDocument *> *documents = [self _documentsOfItem:item];
+    [_diffOriginals removeObjectForKey:item];
+    for (UDCodeDocument *document in documents) [self _closeDocumentIfUnshown:document];
+}
+
+/// @a document, in no tab now: its session and its place in the workspace go.
+- (void)_closeDocumentIfUnshown:(UDCodeDocument *)document {
     if ([self _itemsForDocument:document].count > 0) return;
     [[self _sessionForDocument:document] close];
     [_sessions removeObjectForKey:document];
+    [_savedCopies removeObjectForKey:document];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:document.diagnosticStore];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:document.textModel];
     [_workspaceModel removeDocument:document];
@@ -1597,14 +1800,31 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDCodeEditorViewController *editor = [self _selectedEditor];
     UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
     if (document.fileURL) editor.previewBaseURL = document.fileURL;   // saved as another file since
-    BOOL shown = editor.canShowPreview;
-    _previewControl.hidden = !shown;
+    UDDiffEditorViewController *diff = [self _selectedDiffEditor];
+    BOOL reviewShown = document.fileURL && (!diff || diff.modifiedOnLeft);
+    BOOL previewShown = editor.canShowPreview && !diff;
+    _previewControl.hidden = !previewShown;
     [_previewControl setSelectedSegment:editor.showsPreview ? 1 : 0];
+    _reviewButton.hidden = !reviewShown;
+    _reviewButton.state = diff ? NSControlStateValueOn : NSControlStateValueOff;
 
+    // right to left, at the bar's right: Code Review, Source | Preview, then the tabs
     UDTabBarView *bar = _editorTabs.tabBar;
+    CGFloat right = NSWidth(bar.superview.bounds) - 4;
+    if (reviewShown) {
+        NSRect frame = _reviewButton.frame;
+        frame.origin.x = right - NSWidth(frame);
+        _reviewButton.frame = frame;
+        right = NSMinX(frame) - 4;
+    }
+    if (previewShown) {
+        NSRect frame = _previewControl.frame;
+        frame.origin.x = right - NSWidth(frame);
+        _previewControl.frame = frame;
+        right = NSMinX(frame) - 4;
+    }
     NSRect frame = bar.frame;
-    CGFloat width = NSWidth(bar.superview.bounds);
-    frame.size.width = shown ? MAX(0, NSMinX(_previewControl.frame) - 4 - NSMinX(frame)) : width - NSMinX(frame);
+    frame.size.width = MAX(0, (reviewShown || previewShown ? right : NSWidth(bar.superview.bounds)) - NSMinX(frame));
     bar.frame = frame;
 }
 
@@ -1726,8 +1946,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         [fractions addObject:@(MAX(0.0, MIN(1.0, frac)))];
     }
     for (UDTabBarItem *item in [self _itemsForDocument:doc]) {
-        UDCodeEditorViewController *editor = (UDCodeEditorViewController *)[_editorTabs viewControllerForItem:item];
-        editor.gutterView.errorFractions = fractions;
+        if (item.representedObject != doc) continue;          // (a diff's original side)
+        [self _editorOfItem:item].gutterView.errorFractions = fractions;
     }
 }
 
@@ -1749,7 +1969,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDTabBarItem *item = doc ? [self _itemsForDocument:doc].firstObject : nil;
     if (!item) return;
     [_editorTabs selectItem:item];
-    UDCodeEditorViewController *editor = (UDCodeEditorViewController *)[_editorTabs viewControllerForItem:item];
+    UDCodeEditorViewController *editor = [self _editorOfItem:item];
     UDTextModel *model = doc.textModel;
     // The diagnostic's column is 0-based; the model's 1-based.
     NSInteger offset = [model getOffsetAt:diagnostic.line column:MAX(diagnostic.column, 0) + 1];
@@ -1825,6 +2045,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
 - (void)documentDidSave:(BOOL)success {
     [[self _sessionForDocument:_workspaceModel.documents.firstObject].lspCoordinator documentDidSave];
+    if (success) [self _refreshSavedCopiesOfURL:_workspaceModel.documents.firstObject.fileURL];
     if (!success) {
         NSLog(@"[UDDocumentWindowController] File save failed; all services have been notified of the save attempt.");
     }

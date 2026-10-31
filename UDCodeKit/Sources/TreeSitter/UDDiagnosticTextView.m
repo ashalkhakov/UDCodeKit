@@ -80,11 +80,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 #define UDCompositeSourceOver NSCompositeSourceOver
 #endif
 
-#ifdef __APPLE__
 @interface UDDiagnosticTextView () <NSLayoutManagerDelegate>
-#else
-@interface UDDiagnosticTextView ()
-#endif
 /// Character offset of the cursor position from the last selection-change
 /// notification; used to look up the previous line rect so only that rect
 /// is invalidated when the cursor moves to a different line.
@@ -115,6 +111,8 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 // ---------------------------------------------------------------------------
 
 @implementation UDDiagnosticTextView {
+    NSDictionary<NSNumber *, NSNumber *> *_viewZones;
+    NSMutableDictionary<NSString *, NSArray *> *_viewDecorationStyles;   // owner: @[ color, @(wholeLine) ]
 #ifndef __APPLE__
     NSTrackingRectTag _hoverTrackingTag;
 #endif
@@ -200,7 +198,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     // function's parameters, the document's change count) still does.
     NSRange typedRange = self.selectedRange;
     NSString *typed = event.characters;
-    if ([_autoIndenter handleKeyEvent:event]) {
+    if (self.isEditable && [_autoIndenter handleKeyEvent:event]) {
         if (typed.length > 0) {
             id delegate = self.delegate;
             if ([delegate respondsToSelector:@selector(textView:shouldChangeTextInRange:replacementString:)]) {
@@ -348,6 +346,18 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         [layoutManager characterRangeForGlyphRange:glyphRange actualGlyphRange:nil];
     if (charRange.length == 0) return NO;
 
+    // This view's blank space: above the first line (the text moves down),
+    // after a line's last fragment.
+    CGFloat above = 0, after = 0;
+    [self _viewZonesOfFragmentCharacters:charRange above:&above after:&after];
+    if (above > 0) {
+        lineFragmentRect->size.height += above;
+        lineFragmentUsedRect->origin.y += above;
+        *baselineOffset += above;
+    }
+    if (after > 0) lineFragmentRect->size.height += after;
+    BOOL zoned = above > 0 || after > 0;
+
     NSArray<UDIntervalNode *> *nodes =
         [model decorationNodesInOffsetRange:(NSInteger)charRange.location
                                         end:(NSInteger)NSMaxRange(charRange)];
@@ -359,7 +369,172 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         lineFragmentUsedRect->size.width += kLabelGap + UDDiagnosticLabelWidth(msg);
         labelled = YES;
     }
-    return labelled;
+    return labelled || zoned;
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - View zones, and decorations of this view's own
+// ---------------------------------------------------------------------------
+
+static inline BOOL UDIsLineBreak(unichar c) { return c == '\n' || c == '\r'; }
+
+/// The view zones of the line fragment of @a charRange: above it (the first
+/// line's), after it (when it ends its line). The text's empty last line has
+/// no fragment of its own; its zone goes after the line before.
+- (void)_viewZonesOfFragmentCharacters:(NSRange)charRange above:(CGFloat *)above after:(CGFloat *)after {
+    *above = *after = 0;
+    if (_viewZones.count == 0 || !_textModel || charRange.length == 0) return;
+    NSString *string = self.textStorage.string;
+    NSUInteger length = string.length, end = NSMaxRange(charRange);
+    if (charRange.location == 0) *above = [_viewZones[@0] doubleValue];
+    BOOL endsLine = end >= length || UDIsLineBreak([string characterAtIndex:end - 1]);
+    if (!endsLine) return;
+    NSInteger line = [_textModel getPositionAt:(NSInteger)charRange.location].line;
+    *after = [_viewZones[@(line)] doubleValue];
+    if (end >= length && UDIsLineBreak([string characterAtIndex:length - 1])) *after += [_viewZones[@(line + 1)] doubleValue];
+}
+
+- (NSDictionary<NSNumber *, NSNumber *> *)viewZones {
+    return _viewZones ?: @{};
+}
+
+- (void)setViewZones:(NSDictionary<NSNumber *, NSNumber *> *)viewZones {
+    if ([viewZones isEqualToDictionary:self.viewZones]) return;
+    _viewZones = [viewZones copy];
+    NSUInteger length = self.textStorage.length;
+    if (length > 0) [self.layoutManager invalidateLayoutForCharacterRange:NSMakeRange(0, length) actualCharacterRange:NULL];
+    [self setNeedsDisplay:YES];
+}
+
+- (NSRect)textRectOfLineFragmentForGlyphAtIndex:(NSUInteger)glyphIndex {
+    NSLayoutManager *lm = self.layoutManager;
+    NSRange glyphs;
+    NSRect rect = [lm lineFragmentRectForGlyphAtIndex:glyphIndex effectiveRange:&glyphs];
+    CGFloat above = 0, after = 0;
+    [self _viewZonesOfFragmentCharacters:[lm characterRangeForGlyphRange:glyphs actualGlyphRange:NULL] above:&above after:&after];
+    rect.origin.y += above;
+    rect.size.height = MAX(0.0, NSHeight(rect) - above - after);
+    return rect;
+}
+
+- (CGFloat)lineHeight {
+    NSFont *font = self.textStorage.length ? [self.textStorage attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL] : nil;
+    font = font ?: self.font ?: [NSFont userFixedPitchFontOfSize:13.0];
+    return [self.layoutManager defaultLineHeightForFont:font];
+}
+
+- (NSDictionary<NSNumber *, NSNumber *> *)additionalLineHeights {
+    NSLayoutManager *lm = self.layoutManager;
+    if (!lm || !_textModel) return @{};
+    (void)[lm glyphRangeForTextContainer:self.textContainer];        // all laid out
+    CGFloat lineHeight = self.lineHeight;
+    NSMutableDictionary<NSNumber *, NSNumber *> *heights = [NSMutableDictionary dictionary];
+    NSInteger line = 0;
+    CGFloat height = 0;
+    NSUInteger glyphCount = lm.numberOfGlyphs;
+    for (NSUInteger glyph = 0; glyph < glyphCount;) {
+        NSRange glyphs;
+        (void)[lm lineFragmentRectForGlyphAtIndex:glyph effectiveRange:&glyphs];
+        if (glyphs.length == 0) break;
+        NSInteger fragmentLine = [_textModel getPositionAt:(NSInteger)[lm characterIndexForGlyphAtIndex:glyph]].line;
+        if (fragmentLine != line) {
+            if (height - lineHeight > 0.5) heights[@(line)] = @(height - lineHeight);
+            line = fragmentLine;
+            height = 0;
+        }
+        height += NSHeight([self textRectOfLineFragmentForGlyphAtIndex:glyph]);
+        glyph = NSMaxRange(glyphs);
+    }
+    if (height - lineHeight > 0.5) heights[@(line)] = @(height - lineHeight);
+    return heights;
+}
+
+- (void)setBackgroundColor:(NSColor *)color wholeLine:(BOOL)wholeLine forDecorationOwner:(NSString *)owner {
+    if (!_viewDecorationStyles) _viewDecorationStyles = [NSMutableDictionary dictionary];
+    _viewDecorationStyles[owner] = color ? @[ color, @(wholeLine) ] : nil;
+    [self setNeedsDisplay:YES];
+}
+
+/// The glyphs of the dirty rect's rows, across the whole width.
+- (NSRange)_glyphsOfRowsInRect:(NSRect)rect {
+    NSRect rows = NSMakeRect(0, NSMinY(rect) - self.textContainerOrigin.y,
+                             self.textContainer.containerSize.width, NSHeight(rect));
+    return [self.layoutManager glyphRangeForBoundingRect:rows inTextContainer:self.textContainer];
+}
+
+/// VS Code's diagonal fill, in the view zones the rect shows.
+- (void)_drawViewZonesInRect:(NSRect)rect {
+    if (_viewZones.count == 0) return;
+    NSLayoutManager *lm = self.layoutManager;
+    NSRange glyphs = [self _glyphsOfRowsInRect:rect];
+    NSPoint origin = self.textContainerOrigin;
+    NSColor *stripe = [NSColor colorWithCalibratedWhite:0.5 alpha:0.3];
+    for (NSUInteger glyph = glyphs.location; glyph < NSMaxRange(glyphs);) {
+        NSRange fragment;
+        NSRect line = [lm lineFragmentRectForGlyphAtIndex:glyph effectiveRange:&fragment];
+        if (fragment.length == 0) break;
+        NSRect text = [self textRectOfLineFragmentForGlyphAtIndex:glyph];
+        NSRect zones[2] = {
+            NSMakeRect(0, NSMinY(line) + origin.y, NSWidth(self.bounds), NSMinY(text) - NSMinY(line)),
+            NSMakeRect(0, NSMaxY(text) + origin.y, NSWidth(self.bounds), NSMaxY(line) - NSMaxY(text)),
+        };
+        for (int i = 0; i < 2; i++) {
+            NSRect zone = NSIntersectionRect(zones[i], rect);
+            if (NSHeight(zones[i]) < 0.5 || NSIsEmptyRect(zone)) continue;
+            [NSGraphicsContext saveGraphicsState];
+            NSRectClip(zone);
+            [stripe setStroke];
+            CGFloat top = NSMinY(zones[i]), height = NSHeight(zones[i]);
+            for (CGFloat x = floor(NSMinX(zone) / 8.0) * 8.0 - height; x < NSMaxX(zone); x += 8.0) {
+                [NSBezierPath strokeLineFromPoint:NSMakePoint(x, top + height) toPoint:NSMakePoint(x + height, top)];
+            }
+            [NSGraphicsContext restoreGraphicsState];
+        }
+        glyph = NSMaxRange(fragment);
+    }
+}
+
+/// This view's own decorations (-setBackgroundColor:wholeLine:forDecorationOwner:).
+- (void)_drawViewDecorationsInRect:(NSRect)rect {
+    if (_viewDecorationStyles.count == 0 || !_textModel) return;
+    NSLayoutManager *lm = self.layoutManager;
+    NSString *string = self.textStorage.string;
+    NSUInteger length = string.length;
+    NSRange glyphs = [self _glyphsOfRowsInRect:rect];
+    if (glyphs.length == 0 || length == 0) return;
+    NSRange chars = [lm characterRangeForGlyphRange:glyphs actualGlyphRange:NULL];
+    NSPoint origin = self.textContainerOrigin;
+    for (UDIntervalNode *node in [_textModel decorationNodesInOffsetRange:(NSInteger)chars.location end:(NSInteger)NSMaxRange(chars)]) {
+        NSArray *style = _viewDecorationStyles[node.owner];
+        if (!style) continue;
+        NSUInteger start = (NSUInteger)MAX(0LL, node.start), end = MIN((NSUInteger)MAX(0LL, node.end), length);
+        if (start > end || start >= length) continue;
+        BOOL wholeLine = [style[1] boolValue];
+        NSRange nodeChars = NSMakeRange(start, end - start);
+        if (wholeLine) {
+            nodeChars = [string lineRangeForRange:nodeChars];
+        } else if (nodeChars.length == 0) {
+            continue;
+        }
+        [(NSColor *)style[0] setFill];
+        NSRange nodeGlyphs = [lm glyphRangeForCharacterRange:nodeChars actualCharacterRange:NULL];
+        for (NSUInteger glyph = nodeGlyphs.location; glyph < NSMaxRange(nodeGlyphs);) {
+            NSRange fragment;
+            (void)[lm lineFragmentRectForGlyphAtIndex:glyph effectiveRange:&fragment];
+            if (fragment.length == 0) break;
+            NSRect text = [self textRectOfLineFragmentForGlyphAtIndex:glyph];
+            NSRect fill;
+            if (wholeLine) {
+                fill = NSMakeRect(0, NSMinY(text) + origin.y, NSWidth(self.bounds), NSHeight(text));
+            } else {
+                NSRect bounds = [lm boundingRectForGlyphRange:NSIntersectionRange(nodeGlyphs, fragment) inTextContainer:self.textContainer];
+                fill = NSMakeRect(NSMinX(bounds) + origin.x, NSMinY(text) + origin.y, NSWidth(bounds), NSHeight(text));
+            }
+            fill = NSIntersectionRect(fill, rect);
+            if (!NSIsEmptyRect(fill)) NSRectFillUsingOperation(fill, UDCompositeSourceOver);
+            glyph = NSMaxRange(fragment);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +592,10 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     // What shows of it: GNUstep asks for the whole view's background.
     rect = NSIntersectionRect(rect, self.visibleRect);
     if (NSIsEmptyRect(rect)) return;
+
+    // --- This view's own: its decorations and view zones (the diff's)
+    [self _drawViewDecorationsInRect:rect];
+    [self _drawViewZonesInRect:rect];
 
     // --- The debugger's line (Xcode's green), then the current line
     [self _drawInstructionPointerLineInRect:rect];
@@ -490,7 +669,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     for (UDIntervalNode *node in [_textModel decorationNodesForOwner:UDInstructionPointerDecorationOwner]) {
         NSUInteger glyphIdx = UDGlyphIndex(lm, (NSUInteger)MAX(0LL, node.start));
         if (glyphIdx == NSNotFound) continue;
-        NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:glyphIdx effectiveRange:NULL];
+        NSRect lineRect = [self textRectOfLineFragmentForGlyphAtIndex:glyphIdx];
         lineRect.origin.y += self.textContainerOrigin.y;
         lineRect.origin.x = 0;
         lineRect.size.width = NSWidth(self.bounds);
@@ -515,8 +694,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     NSUInteger glyphIdx = UDGlyphIndex(lm, charIdx);
     if (glyphIdx == NSNotFound) return;
 
-    NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:glyphIdx
-                                           effectiveRange:nil];
+    NSRect lineRect = [self textRectOfLineFragmentForGlyphAtIndex:glyphIdx];
     if (NSIsEmptyRect(lineRect)) return;
 
     // Translate to view coordinates and stretch to full view width.
@@ -562,6 +740,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     }
 
     // Multi-cursor: bypass NSTextView and drive all cursors at once.
+    if (!self.isEditable) return;
     NSString *text = [string isKindOfClass:[NSAttributedString class]]
         ? [(NSAttributedString *)string string] : string;
     [_cursorsController typeText:text source:@"keyboard"];
@@ -578,6 +757,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         [super deleteBackward:sender];
         return;
     }
+    if (!self.isEditable) return;
     [_cursorsController deleteLeftWithSource:nil];
     [self _syncSelectionsFromController];
 }
@@ -592,6 +772,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         [super deleteForward:sender];
         return;
     }
+    if (!self.isEditable) return;
     [_cursorsController deleteRightWithSource:nil];
     [self _syncSelectionsFromController];
 }
@@ -601,6 +782,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         [super insertNewline:sender];
         return;
     }
+    if (!self.isEditable) return;
     [_cursorsController typeText:@"\n" source:@"keyboard"];
     [self _syncSelectionsFromController];
 }
@@ -610,6 +792,7 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
         [super insertTab:sender];
         return;
     }
+    if (!self.isEditable) return;
     [_cursorsController typeText:@"\t" source:@"keyboard"];
     [self _syncSelectionsFromController];
 }
@@ -617,11 +800,11 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
 // MARK: - Undo / Redo
 
 - (IBAction)undo:(id)sender {
-    [self.textModel.undoManager undo];
+    if (self.isEditable) [self.textModel.undoManager undo];
 }
 
 - (IBAction)redo:(id)sender {
-    [self.textModel.undoManager redo];
+    if (self.isEditable) [self.textModel.undoManager redo];
 }
 
 // sel_isEqual, not ==: on GNUstep a menu item's selector and this
@@ -637,9 +820,9 @@ static NSUInteger UDGlyphIndex(NSLayoutManager *lm, NSUInteger charIndex) {
     if ([self _isDebugAction:action])
         return [_debugHandler canPerformDebugAction:action];
     if (sel_isEqual(action, @selector(undo:)))
-        return [self.textModel.undoManager canUndo];
+        return self.isEditable && [self.textModel.undoManager canUndo];
     if (sel_isEqual(action, @selector(redo:)))
-        return [self.textModel.undoManager canRedo];
+        return self.isEditable && [self.textModel.undoManager canRedo];
     return [super validateUserInterfaceItem:item];
 }
 

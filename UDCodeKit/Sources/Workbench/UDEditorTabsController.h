@@ -42,6 +42,8 @@ NS_ASSUME_NONNULL_BEGIN
                     viewController:(NSViewController *)viewController;
 
 - (nullable NSViewController *)viewControllerForItem:(UDTabBarItem *)item;
+/// @a viewController's view in place of the tab's (its editor's review, say).
+- (void)setViewController:(NSViewController *)viewController forItem:(UDTabBarItem *)item;
 - (nullable UDTabBarItem *)itemWithRepresentedObject:(id)representedObject;
 
 - (void)selectItem:(UDTabBarItem *)item;

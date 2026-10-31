@@ -123,6 +123,30 @@ NS_ASSUME_NONNULL_BEGIN
 /// Set by UDCodeEditorViewController after -viewDidLoad.
 @property (nonatomic, weak, nullable) UDLinkDetector *linkDetector;
 
+/// Blank space between lines, this view's only (VS Code's view zones): a
+/// line number (0: above the first line) and the height after it, hatched.
+/// The diff editor's, to align its two sides. Laid out by the layout
+/// manager's delegate (this view), so other views of the same text have none.
+@property (nonatomic, copy) NSDictionary<NSNumber *, NSNumber *> *viewZones;
+
+/// The model's decorations of @a owner, drawn by this view only (VS Code's
+/// decorations of an editor, not of every one of its model): their
+/// background in @a color, across the view's width when @a wholeLine (their
+/// lines'). nil: no longer drawn. The owner is not the decoration layer
+/// registry's, so the text's attributes have none of it.
+- (void)setBackgroundColor:(nullable NSColor *)color wholeLine:(BOOL)wholeLine forDecorationOwner:(NSString *)owner;
+
+/// The height of a line of text, unwrapped: what VS Code's lineHeight is.
+@property (nonatomic, readonly) CGFloat lineHeight;
+
+/// The lines that take more than lineHeight (wrapped), and how much more:
+/// line number → extra height. Their view zones aside.
+- (NSDictionary<NSNumber *, NSNumber *> *)additionalLineHeights;
+
+/// Line fragment @a glyphIndex is in, without its view zones: where its text
+/// is, in the text container's coordinates.
+- (NSRect)textRectOfLineFragmentForGlyphAtIndex:(NSUInteger)glyphIndex;
+
 /// Synchronise the cursors controller's primary selection from NSTextView's
 /// current selectedRange. Call once after the view has loaded and the
 /// cursors controller has been assigned.

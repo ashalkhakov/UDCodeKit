@@ -14,7 +14,7 @@
 @implementation UDFileNode
 @end
 
-@interface UDFileNavigatorViewController ()
+@interface UDFileNavigatorViewController () <NSMenuDelegate>
 @property (nonatomic, weak) IBOutlet NSOutlineView *outlineView;
 @end
 
@@ -26,6 +26,26 @@
     self = [super initWithNibName:@"UDFileNavigator" bundle:[NSBundle bundleForClass:[UDFileNavigatorViewController class]]];
     if (self) _hiddenNames = [NSSet setWithObjects:@".git", @".udcode", @".DS_Store", @".svn", @".hg", nil];
     return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
+    menu.delegate = self;
+    _outlineView.menu = menu;
+}
+
+/// The clicked row's items, the delegate's.
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    [menu removeAllItems];
+    NSInteger row = _outlineView.clickedRow;
+    if (row < 0) {
+        NSPoint point = [_outlineView convertPoint:[NSApp currentEvent].locationInWindow fromView:nil];
+        row = [_outlineView rowAtPoint:point];
+    }
+    NSURL *url = row >= 0 ? [self URLOfRow:row] : nil;
+    if (!url || ![_delegate respondsToSelector:@selector(fileNavigator:menuItemsForURL:)]) return;
+    for (NSMenuItem *item in [_delegate fileNavigator:self menuItemsForURL:url]) [menu addItem:item];
 }
 
 - (void)setFolderURL:(NSURL *)folderURL {

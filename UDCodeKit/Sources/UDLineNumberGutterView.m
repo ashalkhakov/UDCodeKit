@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDLineNumberGutterView.h"
+#import "UDDiagnosticTextView.h"
 
 /// The separator colour; GNUstep's NSColor has no -separatorColor.
 static NSColor *UDSeparatorColor(void) {
@@ -197,6 +198,11 @@ static NSBezierPath *UDTagPath(NSRect rect) {
             glyphIdx = NSMaxRange(fragGlyphRange);
             if (fragGlyphRange.length == 0) glyphIdx++;
             continue;
+        }
+
+        // Where its text is (a diff's view zones aside).
+        if ([_textView isKindOfClass:[UDDiagnosticTextView class]]) {
+            fragInContainer = [(UDDiagnosticTextView *)_textView textRectOfLineFragmentForGlyphAtIndex:glyphIdx];
         }
 
         // Text-container rect → text view rect (add containerInset).

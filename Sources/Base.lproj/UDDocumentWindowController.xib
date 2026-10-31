@@ -26,6 +26,7 @@
                 <outlet property="terminalHost" destination="WS-terminal-host" id="WS-o-terminal-host"/>
                 <outlet property="bottomAreaControl" destination="WS-bottom-control" id="WS-o-bottom-control"/>
                 <outlet property="previewControl" destination="WS-preview-control" id="WS-o-preview-control"/>
+                <outlet property="reviewButton" destination="WS-review-button" id="WS-o-review-button"/>
                 <outlet property="inspectorName" destination="WS-insp-name" id="WS-o-insp-name"/>
                 <outlet property="inspectorPath" destination="WS-insp-path" id="WS-o-insp-path"/>
                 <outlet property="inspectorLanguage" destination="WS-insp-language" id="WS-o-insp-language"/>
@@ -249,6 +250,17 @@
                                             <action selector="previewControlChanged:" target="-2" id="WS-a-preview"/>
                                         </connections>
                                     </segmentedControl>
+                                    <button hidden="YES" toolTip="Code Review: the file beside it as saved (⌥⇧⌘↩)" verticalHuggingPriority="750" id="WS-review-button" userLabel="Code Review">
+                                        <rect key="frame" x="664" y="734" width="30" height="24"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                        <buttonCell key="cell" type="push" bezelStyle="texturedSquare" image="arrow.left.arrow.right" catalog="system" imagePosition="only" alignment="center" borderStyle="border" inset="2" id="WS-review-button-cell">
+                                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES" changeBackground="YES" changeGray="YES"/>
+                                            <font key="font" metaFont="smallSystem"/>
+                                        </buttonCell>
+                                        <connections>
+                                            <action selector="toggleCodeReview:" target="-2" id="WS-a-review"/>
+                                        </connections>
+                                    </button>
                                     <splitView dividerStyle="thin" id="WS-editor-split" userLabel="Editors | Debug Area">
                                         <rect key="frame" x="0.0" y="0.0" width="698" height="732"/>
                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>

@@ -92,6 +92,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, readonly, nullable) UDProjectSettingsController *projectSettings;
 /// File > Save in a project: the selected tab's file (and every edited one, Save All).
 - (IBAction)saveDocument:(nullable id)sender;
+
+/// Xcode's Code Review: the selected tab's editor, the file as saved beside
+/// it (⌥⇧⌘↩, the button at the tab bar's right). Two files compared: the
+/// file navigator's Select for Compare, then Compare with “…”, a tab of its
+/// own (VS Code's diff editor). Next / Previous Change go from change to change.
+- (IBAction)toggleCodeReview:(nullable id)sender;
+- (IBAction)goToNextChange:(nullable id)sender;
+- (IBAction)goToPreviousChange:(nullable id)sender;
 - (IBAction)saveAllDocuments:(nullable id)sender;
 
 // MARK: - The language's (LSP), as Xcode's Navigate and Editor menus

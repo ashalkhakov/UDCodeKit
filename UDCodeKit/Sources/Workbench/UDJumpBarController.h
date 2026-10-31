@@ -11,7 +11,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
-#import <UDCodeKit/UDJumpBarView.h>
+#import "UDJumpBarView.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

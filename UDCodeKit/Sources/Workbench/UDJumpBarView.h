@@ -10,7 +10,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
-#import <UDCodeKit/UDDocumentSymbol.h>
+#import "UDDocumentSymbol.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

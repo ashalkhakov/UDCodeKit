@@ -13,8 +13,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
-#import <UDCodeKit/UDTreeSitterTypes.h>
-#import <UDCodeKit/UDDocumentSymbol.h>
+#import "UDTreeSitterTypes.h"
+#import "UDDocumentSymbol.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

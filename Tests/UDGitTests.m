@@ -64,6 +64,8 @@ static Class UDPluginClass(NSString *name) {
     [self git:@[ @"config", @"user.name", @"Test Person" ] in:_folder];
     [self git:@[ @"config", @"user.email", @"test@example.com" ] in:_folder];
     [self git:@[ @"config", @"commit.gpgsign", @"false" ] in:_folder];
+    // the texts as written (Git for Windows' own default converts them)
+    [self git:@[ @"config", @"core.autocrlf", @"false" ] in:_folder];
     for (NSString *name in files) [self write:files[name] to:name];
     if (files.count) {
         [self git:@[ @"add", @"-A" ] in:_folder];

@@ -159,7 +159,7 @@ static const NSInteger UDGitLockedAttempts = 10;
     NSArray<NSString *> *lines = [[top.output stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]]
                                   componentsSeparatedByString:@"\n"];
     if (lines.count < 2) return nil;
-    return [[self alloc] initWithRoot:lines[0] gitDirectory:lines[1] git:git];
+    return [[self alloc] initWithRoot:[git nativePathOf:lines[0]] gitDirectory:[git nativePathOf:lines[1]] git:git];
 }
 
 + (instancetype)initializeRepositoryInFolder:(NSString *)folder git:(UDGit *)git error:(NSString **)error {

@@ -73,6 +73,8 @@ static UDGitRepository *UDRepositoryOf(UDDocumentWindowController *controller) {
     [self git:@[ @"config", @"user.name", @"Test Person" ]];
     [self git:@[ @"config", @"user.email", @"test@example.com" ]];
     [self git:@[ @"config", @"commit.gpgsign", @"false" ]];
+    // the texts as written (Git for Windows' own default converts them)
+    [self git:@[ @"config", @"core.autocrlf", @"false" ]];
     [self write:@"one\ntwo\nthree\n" to:@"Sources/a.txt"];
     [self write:@"b\n" to:@"b.txt"];
     [self git:@[ @"add", @"-A" ]];

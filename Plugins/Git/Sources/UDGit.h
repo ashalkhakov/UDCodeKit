@@ -105,6 +105,10 @@ typedef NS_ENUM(NSInteger, UDGitErrorCode) {
 /// The same, waited for: for what must be known before going on (and tests).
 - (UDGitResult *)runAndWait:(NSArray<NSString *> *)arguments inFolder:(NSString *)folder input:(nullable NSData *)input;
 
+/// A path git wrote, as the system's: on Windows an MSYS2 or Cygwin git's
+/// (/c/…, /tmp/…) as Windows' (cygpath -m); else @a path.
+- (NSString *)nativePathOf:(NSString *)path;
+
 /// What @a errorOutput of `git <command>` says went wrong (getGitErrorCode).
 + (UDGitErrorCode)errorCodeOfOutput:(NSString *)errorOutput command:(nullable NSString *)command;
 

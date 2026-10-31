@@ -173,14 +173,27 @@ static NSArray<NSString *> *UDReadingModes(void) {
     }
     NSString *local = environment[@"LocalAppData"];
     if (local) [candidates addObject:[local stringByAppendingPathComponent:@"Programs/Git/cmd/git.exe"]];
-    NSString *found = [UDToolLocator pathOfTool:@"git"];
-    if (found) return found;
+    // Git for Windows first, as VS Code looks (its paths are Windows'), then the PATH's
     for (NSString *candidate in candidates) {
         if ([[NSFileManager defaultManager] isExecutableFileAtPath:candidate]) return candidate;
     }
-    return nil;
+    return [UDToolLocator pathOfTool:@"git"];
 #else
     return [UDToolLocator pathOfTool:@"git"];
+#endif
+}
+
+- (NSString *)nativePathOf:(NSString *)path {
+#ifdef _WIN32
+    // an MSYS2 or Cygwin git's /c/…, /tmp/…: Windows' (cygpath, beside it)
+    if (![path hasPrefix:@"/"]) return path;
+    NSString *cygpath = [[_path stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"cygpath.exe"];
+    if (![[NSFileManager defaultManager] isExecutableFileAtPath:cygpath]) cygpath = [UDToolLocator pathOfTool:@"cygpath"];
+    NSString *native = cygpath ? [UDToolLocator outputOf:cygpath arguments:@[ @"-m", path ]] : nil;
+    native = [native stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return native.length ? native : path;
+#else
+    return path;
 #endif
 }
 

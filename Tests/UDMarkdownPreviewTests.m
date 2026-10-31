@@ -80,7 +80,7 @@
     NSFont *bold = [preview attribute:NSFontAttributeName atIndex:[text rangeOfString:@"bold"].location effectiveRange:NULL];
     XCTAssertTrue([[NSFontManager sharedFontManager] traitsOfFont:bold] & NSBoldFontMask);
     NSURL *link = [preview attribute:NSLinkAttributeName atIndex:[text rangeOfString:@"link"].location effectiveRange:NULL];
-    XCTAssertEqualObjects(link.path, @"/tmp/notes/other.md", @"a relative link, against the file");
+    XCTAssertEqualObjects(link.path, [NSURL fileURLWithPath:@"/tmp/notes/other.md"].path, @"a relative link, against the file");
     XCTAssertEqualObjects([preview attribute:UDPreviewAnchorAttributeName atIndex:0 effectiveRange:NULL], @"title");
 }
 
@@ -111,15 +111,15 @@
     NSTextView *preview = _editor.previewTextView;
 
     // its own heading: scrolled to, in the preview
-    NSUInteger far = [preview.string rangeOfString:@"Far down"].location;
-    XCTAssertFalse(NSLocationInRange(far, [preview.layoutManager characterRangeForGlyphRange:
+    NSUInteger farDown = [preview.string rangeOfString:@"Far down"].location;
+    XCTAssertFalse(NSLocationInRange(farDown, [preview.layoutManager characterRangeForGlyphRange:
         [preview.layoutManager glyphRangeForBoundingRect:preview.visibleRect inTextContainer:preview.textContainer]
                                                                             actualGlyphRange:NULL]));
     [_editor followPreviewLink:[NSURL URLWithString:@"README.md#far-down" relativeToURL:_editor.previewBaseURL] editing:NO];
     NSRange visible = [preview.layoutManager characterRangeForGlyphRange:
         [preview.layoutManager glyphRangeForBoundingRect:preview.visibleRect inTextContainer:preview.textContainer]
                                                         actualGlyphRange:NULL];
-    XCTAssertTrue(NSLocationInRange(far, visible), @"scrolled to its heading");
+    XCTAssertTrue(NSLocationInRange(farDown, visible), @"scrolled to its heading");
     XCTAssertTrue(_editor.showsPreview);
     XCTAssertFalse([_editor revealPreviewAnchor:@"nowhere"]);
     XCTAssertNil(recorder.followed, @"its own: not the delegate's");
@@ -152,7 +152,7 @@
     for (NSDictionary *link in [_markdown linksInText:text baseURL:file]) {
         NSRange range = [link[UDLinkRangeKey] rangeValue];
         [found addObject:[NSString stringWithFormat:@"%@ %@", [text substringWithRange:range],
-                                                    [link[UDLinkURLKey] absoluteString]]];
+                                                    [UDCodeTestCase tmpURLsWrittenAsUnix:[link[UDLinkURLKey] absoluteString]]]];
     }
     XCTAssertEqualObjects(found, (@[ @"docs/other.md#part file:///tmp/notes/docs/other.md#part",
                                      @"r file:///tmp/up.md",

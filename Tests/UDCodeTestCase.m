@@ -43,6 +43,11 @@
     return [path stringByStandardizingPath];
 }
 
++ (NSString *)tmpURLsWrittenAsUnix:(NSString *)string {
+    NSString *file = [NSURL fileURLWithPath:@"/tmp/x"].absoluteString;
+    return [string stringByReplacingOccurrencesOfString:[file substringToIndex:file.length - 1] withString:@"file:///tmp/"];
+}
+
 + (void)clickTextView:(NSTextView *)view atIndex:(NSUInteger)index command:(BOOL)command {
     NSLayoutManager *lm = view.layoutManager;
     NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(index, 1) actualCharacterRange:NULL];

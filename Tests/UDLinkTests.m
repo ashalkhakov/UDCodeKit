@@ -54,8 +54,8 @@
 static NSArray<NSString *> *UDFound(NSArray<NSDictionary *> *links, NSString *text) {
     NSMutableArray<NSString *> *found = [NSMutableArray array];
     for (NSDictionary *link in links) {
-        [found addObject:[NSString stringWithFormat:@"%@ %@", [text substringWithRange:[link[UDLinkRangeKey] rangeValue]],
-                                                    [link[UDLinkURLKey] absoluteString]]];
+        NSString *url = [UDCodeTestCase tmpURLsWrittenAsUnix:[link[UDLinkURLKey] absoluteString]];
+        [found addObject:[NSString stringWithFormat:@"%@ %@", [text substringWithRange:[link[UDLinkRangeKey] rangeValue]], url]];
     }
     return found;
 }

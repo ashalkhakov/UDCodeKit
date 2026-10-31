@@ -114,7 +114,9 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertTrue(store.schema.coreDataStore);
     NSArray *titles = [databases.navigator visibleTitles];
     XCTAssertTrue([titles containsObject:@"Model.sqlite"], @"%@", titles);
-    XCTAssertTrue([titles containsObject:@"  Core Data Store"], @"%@", titles);
+    XCTAssertTrue([titles containsObject:@"  Entities"], @"%@", titles);
+    XCTAssertTrue([titles containsObject:@"    Person"], @"%@", titles);
+    XCTAssertTrue([titles containsObject:@"      Employee"], @"a subentity under its superentity: %@", titles);
     XCTAssertTrue([titles containsObject:@"    ZPERSON"], @"%@", titles);
 
     // the query: run against it (its only database), every statement

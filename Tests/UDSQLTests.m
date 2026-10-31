@@ -157,11 +157,23 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertNotNil(([connection execute:@"INSERT INTO Z_METADATA VALUES (1, 'ABC', ?)" parameters:@[ plist ] maxRows:1 error:&error]), @"%@", error);
     [self run:@"CREATE TABLE ZPERSON (Z_PK INTEGER PRIMARY KEY, Z_ENT INTEGER, Z_OPT INTEGER, ZNAME VARCHAR, ZBIRTHDAY TIMESTAMP)" on:connection];
     [self run:@"CREATE TABLE ZTEAM (Z_PK INTEGER PRIMARY KEY, Z_ENT INTEGER, Z_OPT INTEGER, ZTITLE VARCHAR)" on:connection];
+    [self run:@"INSERT INTO ZPERSON VALUES (1, 1, 1, 'Ann', 0), (2, 2, 1, 'Bob', 0), (3, 2, 1, 'Cy', 0)" on:connection];
+    [self run:@"CREATE TABLE Z_1TEAMS (Z_1PEOPLE INTEGER, Z_3TEAMS INTEGER)" on:connection];
     UDSQLSchema *schema = [UDPlugin(UDSQLSchema) schemaOfConnection:connection error:&error];
     XCTAssertTrue(schema.coreDataStore);
     XCTAssertEqualObjects([schema tableNamed:@"ZPERSON"].entities, (@[ @"Person", @"Employee" ]), @"a subentity's rows are its root's");
     XCTAssertEqualObjects([schema tableNamed:@"ZTEAM"].entities, @[ @"Team" ]);
     XCTAssertEqualObjects(schema.coreDataEntities[@2], @"Employee");
+    XCTAssertEqualObjects(schema.coreDataSuperentities[@2], @1);
+    XCTAssertEqualObjects([schema coreDataSubentitiesOf:nil], (@[ @1, @3 ]), @"the roots, by name: Person, Team");
+    XCTAssertEqualObjects([schema coreDataSubentitiesOf:@1], @[ @2 ]);
+    XCTAssertEqualObjects(schema.coreDataTables[@2].name, @"ZPERSON", @"a subentity's rows are its root's table's");
+    XCTAssertEqualObjects(schema.coreDataRowCounts, (@{ @1: @1, @2: @2, @3: @0 }), @"each entity's own rows");
+    XCTAssertEqualObjects([schema tableNamed:@"Z_1TEAMS"].joinOf, @"Person.teams", @"a many-to-many join table");
+    XCTAssertEqualObjects([schema coreDataRowsOfEntity:@1 connection:connection limit:100],
+                          @"SELECT * FROM \"ZPERSON\" ORDER BY \"Z_PK\" LIMIT 100", @"Person's and Employee's: the whole table");
+    XCTAssertEqualObjects([schema coreDataRowsOfEntity:@2 connection:connection limit:100],
+                          @"SELECT * FROM \"ZPERSON\" WHERE \"Z_ENT\" IN (2) ORDER BY \"Z_PK\" LIMIT 100", @"Employee's only");
     XCTAssertEqualObjects(schema.coreDataMetadata[@"NSStoreType"], @"SQLite");
     UDSQLTable *person = [schema tableNamed:@"ZPERSON"];
     XCTAssertEqualObjects(person.columns[1].coreDataMeaning, @"The row's entity (Z_PRIMARYKEY's Z_ENT)");

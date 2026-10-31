@@ -46,11 +46,20 @@ without one says how):
 
 ## Core Data stores
 
-A store's tables are named by what they hold: `ZPERSON` holds Person (and
-Employee, its subentity, whose rows are its root's). The store's metadata —
-its type, UUID and model version — is under **Core Data Store**. In results,
-Core Data's dates (seconds since 2001) show as dates, and `Z_ENT` names its
-entity: `2 · Employee`. `Z_PK` is the row's key, `Z_OPT` its version.
+A Core Data store opens as the entities it holds, not only as tables:
+
+- **Entities**: each under its superentity, with its table and how many of
+  its rows there are (its own: its subentities' are theirs). Double-click
+  one (or Select Rows) for its rows — its own and its subentities': a
+  subentity's rows are in its root entity's table, told apart by `Z_ENT`.
+- **Tables**: each `Z` table named by the entities whose rows it holds
+  (`ZPERSON`: Person, Employee); a many-to-many join table (`Z_1TEAMS`) by
+  the relationship it holds (`Person.teams`).
+- **Store Metadata**: its type, UUID and model version.
+
+In results, Core Data's dates (seconds since 2001) show as dates, and
+`Z_ENT` names its entity: `2 · Employee`. `Z_PK` is the row's key, `Z_OPT`
+its version.
 
 ## Running a query
 

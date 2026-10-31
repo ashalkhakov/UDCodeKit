@@ -70,8 +70,46 @@ static const NSUInteger UDCatalogueRows = 100000;
     schema->_tables = tables;
     schema->_coreDataMetadata = @{};
     schema->_coreDataEntities = @{};
+    schema->_coreDataSuperentities = @{};
+    schema->_coreDataTables = @{};
+    schema->_coreDataRowCounts = @{};
     [schema _readCoreData:connection];
     return schema;
+}
+
+static NSInteger UDCompareEntities(NSNumber *a, NSNumber *b, void *context) {
+    NSDictionary *names = (__bridge NSDictionary *)context;
+    return [names[a] localizedStandardCompare:names[b]];
+}
+
+- (NSArray<NSNumber *> *)coreDataSubentitiesOf:(NSNumber *)entity {
+    NSMutableArray<NSNumber *> *subentities = [NSMutableArray array];
+    for (NSNumber *candidate in _coreDataEntities) {
+        NSNumber *parent = _coreDataSuperentities[candidate];
+        if ((entity && [parent isEqual:entity]) || (!entity && !parent)) [subentities addObject:candidate];
+    }
+    [subentities sortUsingFunction:UDCompareEntities context:(__bridge void *)_coreDataEntities];
+    return subentities;
+}
+
+- (void)_addEntity:(NSNumber *)entity to:(NSMutableArray<NSNumber *> *)found {
+    [found addObject:entity];
+    for (NSNumber *subentity in [self coreDataSubentitiesOf:entity]) [self _addEntity:subentity to:found];
+}
+
+- (NSString *)coreDataRowsOfEntity:(NSNumber *)entity connection:(UDSQLConnection *)connection limit:(NSUInteger)limit {
+    UDSQLTable *table = _coreDataTables[entity];
+    NSMutableArray<NSNumber *> *mine = [NSMutableArray array];
+    [self _addEntity:entity to:mine];
+    NSUInteger holding = 0;
+    for (NSNumber *other in _coreDataTables) if (_coreDataTables[other] == table) holding++;
+    NSString *sql = [NSString stringWithFormat:@"SELECT * FROM %@", [table qualifiedNameFor:connection]];
+    if (holding > mine.count) {
+        // its table holds others' rows too: its own, and its subentities'
+        sql = [sql stringByAppendingFormat:@" WHERE %@ IN (%@)", [connection quotedIdentifier:@"Z_ENT"],
+               [[mine valueForKey:@"stringValue"] componentsJoinedByString:@", "]];
+    }
+    return [sql stringByAppendingFormat:@" ORDER BY %@ LIMIT %lu", [connection quotedIdentifier:@"Z_PK"], (unsigned long)limit];
 }
 
 - (UDSQLTable *)tableNamed:(NSString *)name {
@@ -314,15 +352,43 @@ static const NSUInteger UDCatalogueRows = 100000;
         supers[entity] = @([UDString(row, 2) integerValue]);
     }
     _coreDataEntities = names;
+    NSMutableDictionary *superentities = [NSMutableDictionary dictionary];
+    for (NSNumber *entity in supers) {
+        if ([supers[entity] integerValue] > 0 && names[supers[entity]]) superentities[entity] = supers[entity];
+    }
+    _coreDataSuperentities = superentities;
+    NSMutableDictionary<NSNumber *, UDSQLTable *> *tables = [NSMutableDictionary dictionary];
     // each entity's rows: its root's table (Z + the root's name, upper case)
     for (NSNumber *entity in [names.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
         NSNumber *root = entity;
         for (NSUInteger depth = 0; [supers[root] integerValue] > 0 && depth < names.count; depth++) root = supers[root];
         UDSQLTable *table = [self tableNamed:[@"Z" stringByAppendingString:[names[root] uppercaseString]]];
+        if (table) tables[entity] = table;
         if (table && ![table.entities containsObject:names[entity]]) {
             table.entities = [entity isEqual:root] ? [@[ names[entity] ] arrayByAddingObjectsFromArray:table.entities]
                                                    : [table.entities arrayByAddingObject:names[entity]];
         }
+    }
+    _coreDataTables = tables;
+    // each entity's own rows: counted in its table by Z_ENT
+    NSMutableDictionary<NSNumber *, NSNumber *> *counts = [NSMutableDictionary dictionary];
+    for (UDSQLTable *table in [NSSet setWithArray:tables.allValues]) {
+        BOOL entities = NO;
+        for (UDSQLColumnInfo *column in table.columns) entities = entities || [column.name caseInsensitiveCompare:@"Z_ENT"] == NSOrderedSame;
+        if (!entities) continue;
+        UDSQLResult *counted = [connection execute:[NSString stringWithFormat:@"SELECT %@, count(*) FROM %@ GROUP BY %@", ent,
+                                                    [table qualifiedNameFor:connection], ent]
+                                        parameters:@[] maxRows:UDCatalogueRows error:NULL];
+        for (NSArray *row in counted.rows) counts[@([UDString(row, 0) integerValue])] = @([UDString(row, 1) longLongValue]);
+    }
+    for (NSNumber *entity in names) if (tables[entity] && !counts[entity]) counts[entity] = @0;
+    _coreDataRowCounts = counts;
+    // many-to-many join tables: Z_<the entity's number><THE RELATIONSHIP>
+    NSRegularExpression *join = [NSRegularExpression regularExpressionWithPattern:@"^Z_([0-9]+)([A-Z0-9_]+)$" options:0 error:NULL];
+    for (UDSQLTable *table in _tables) {
+        NSTextCheckingResult *match = [join firstMatchInString:table.name options:0 range:NSMakeRange(0, table.name.length)];
+        NSString *entity = match ? names[@([[table.name substringWithRange:[match rangeAtIndex:1]] integerValue])] : nil;
+        if (entity) table.joinOf = [NSString stringWithFormat:@"%@.%@", entity, [[table.name substringWithRange:[match rangeAtIndex:2]] lowercaseString]];
     }
     for (UDSQLTable *table in _tables) {
         for (UDSQLColumnInfo *column in table.columns) {

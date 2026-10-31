@@ -10,7 +10,8 @@
 typedef NS_ENUM(NSInteger, UDSQLNodeKind) {
     UDSQLNodeDatabase,
     UDSQLNodeNote,              // Connecting…, an error, the store's metadata
-    UDSQLNodeGroup,             // Tables, Views, Core Data
+    UDSQLNodeGroup,             // Entities, Store Metadata, Tables, Views
+    UDSQLNodeEntity,            // a Core Data store's
     UDSQLNodeTable,
     UDSQLNodeColumn,
     UDSQLNodeIndex,
@@ -110,8 +111,9 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     NSString *title = table.schema.length && ![table.schema isEqualToString:@"public"]
         ? [NSString stringWithFormat:@"%@.%@", table.schema, table.name] : table.name;
     UDSQLNode *node = [UDSQLNode nodeOfKind:UDSQLNodeTable title:title object:table];
-    // a Core Data store's: its entities
+    // a Core Data store's: its entities, or the relationship it joins
     if (table.entities.count) node.badge = [table.entities componentsJoinedByString:@", "];
+    else if (table.joinOf) node.badge = [table.joinOf stringByAppendingString:@" (many-to-many)"];
     NSMutableArray *children = [NSMutableArray array];
     for (UDSQLColumnInfo *column in table.columns) {
         UDSQLNode *child = [UDSQLNode nodeOfKind:UDSQLNodeColumn title:column.name object:column];
@@ -134,6 +136,25 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     return node;
 }
 
+/// @a entities, each with its subentities under it.
+- (NSArray<UDSQLNode *> *)_nodesOfEntities:(NSArray<NSNumber *> *)entities schema:(UDSQLSchema *)schema {
+    NSMutableArray *nodes = [NSMutableArray array];
+    for (NSNumber *entity in entities) {
+        UDSQLNode *node = [UDSQLNode nodeOfKind:UDSQLNodeEntity title:schema.coreDataEntities[entity] object:entity];
+        NSNumber *rows = schema.coreDataRowCounts[entity];
+        NSString *table = schema.coreDataTables[entity].name;
+        // its table named once, at its root (a subentity's rows are there too)
+        NSString *count = [NSString stringWithFormat:@"%@ row%@", rows ?: @0, [rows isEqual:@1] ? @"" : @"s"];
+        BOOL root = schema.coreDataSuperentities[entity] == nil;
+        node.badge = table && root ? [NSString stringWithFormat:@"%@ · %@", table, count] : count;
+        node.toolTip = [NSString stringWithFormat:@"In %@, Z_ENT %@: its own rows%@", table ?: @"no table", entity,
+                        [schema coreDataSubentitiesOf:entity].count ? @" (its subentities' are theirs)" : @""];
+        node.children = [self _nodesOfEntities:[schema coreDataSubentitiesOf:entity] schema:schema];
+        [nodes addObject:node];
+    }
+    return nodes;
+}
+
 - (NSArray<UDSQLNode *> *)_childrenOf:(UDSQLDatabase *)database {
     if (database.connecting) return @[ [UDSQLNode nodeOfKind:UDSQLNodeNote title:@"Connecting…" object:nil] ];
     if (database.error) {
@@ -145,9 +166,13 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     if (!schema) return @[];
     NSMutableArray *groups = [NSMutableArray array];
     if (schema.coreDataStore) {
+        // its entities, each under its superentity: their rows, by Z_ENT
+        UDSQLNode *entities = [UDSQLNode nodeOfKind:UDSQLNodeGroup title:@"Entities" object:nil];
+        entities.badge = [NSString stringWithFormat:@"%lu", (unsigned long)schema.coreDataEntities.count];
+        entities.children = [self _nodesOfEntities:[schema coreDataSubentitiesOf:nil] schema:schema];
+        [groups addObject:entities];
         // the store's metadata: its identity, and the model's
-        UDSQLNode *store = [UDSQLNode nodeOfKind:UDSQLNodeGroup title:@"Core Data Store" object:nil];
-        store.badge = [NSString stringWithFormat:@"%lu entities", (unsigned long)schema.coreDataEntities.count];
+        UDSQLNode *store = [UDSQLNode nodeOfKind:UDSQLNodeGroup title:@"Store Metadata" object:nil];
         NSMutableArray *notes = [NSMutableArray array];
         for (NSString *key in @[ @"NSStoreType", @"NSStoreUUID", @"NSPersistenceFrameworkVersion", @"NSStoreModelVersionIdentifiers" ]) {
             id value = schema.coreDataMetadata[key];
@@ -155,10 +180,11 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
             if ([value isKindOfClass:[NSArray class]]) value = [value componentsJoinedByString:@", "];
             UDSQLNode *note = [UDSQLNode nodeOfKind:UDSQLNodeNote title:[key stringByReplacingOccurrencesOfString:@"NS" withString:@""] object:nil];
             note.badge = [value description];
+            note.toolTip = [value description];
             [notes addObject:note];
         }
         store.children = notes;
-        [groups addObject:store];
+        if (notes.count) [groups addObject:store];
     }
     NSMutableArray *tables = [NSMutableArray array], *views = [NSMutableArray array];
     for (UDSQLTable *table in schema.tables) [table.view ? views : tables addObject:[self _nodeOfTable:table]];
@@ -197,8 +223,10 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
         // a database opened: what it holds, its groups too
         BOOL wasOpen = [open containsObject:node.path];
         BOOL connected = node.kind == UDSQLNodeDatabase && ([node.object isConnected] || [node.object error] || [node.object isConnecting]);
-        BOOL group = node.kind == UDSQLNodeGroup && node.parent && [open containsObject:node.parent.path] && ![node.title isEqualToString:@"Core Data Store"];
-        if (wasOpen || (connected && [open containsObject:node.path]) || group) [_outlineView expandItem:node];
+        BOOL group = node.kind == UDSQLNodeGroup && node.parent && [open containsObject:node.parent.path] && ![node.title isEqualToString:@"Store Metadata"];
+        // an entity's subentities shown: the store's hierarchy at a glance
+        BOOL entity = node.kind == UDSQLNodeEntity && node.children.count;
+        if (wasOpen || (connected && [open containsObject:node.path]) || group || entity) [_outlineView expandItem:node];
         if (selected && [node.path isEqualToString:selected]) {
             [_outlineView selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)row] byExtendingSelection:NO];
         }
@@ -261,7 +289,7 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     if ([cell isKindOfClass:[UDBadgeTextFieldCell class]]) [(UDBadgeTextFieldCell *)cell setBadge:node.badge];
     BOOL bold = node.kind == UDSQLNodeDatabase || node.kind == UDSQLNodeGroup;
     [cell setFont:bold ? [NSFont boldSystemFontOfSize:[NSFont smallSystemFontSize]] : [NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];
-    BOOL dim = node.kind == UDSQLNodeNote && ![node.parent.title isEqualToString:@"Core Data Store"];
+    BOOL dim = node.kind == UDSQLNodeNote && ![node.parent.title isEqualToString:@"Store Metadata"];
     [cell setTextColor:dim ? [NSColor disabledControlTextColor] : [NSColor controlTextColor]];
 }
 
@@ -300,7 +328,7 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     [menu removeAllItems];
     NSInteger row = _outlineView.clickedRow;
     _menuNode = row >= 0 ? [_outlineView itemAtRow:row] : nil;
-    NSMenu *source = _menuNode.kind == UDSQLNodeTable ? _tableMenu : _menuNode ? _databaseMenu : nil;
+    NSMenu *source = _menuNode.kind == UDSQLNodeTable || _menuNode.kind == UDSQLNodeEntity ? _tableMenu : _menuNode ? _databaseMenu : nil;
     for (NSMenuItem *item in source.itemArray) [menu addItem:[item copy]];
 }
 
@@ -402,9 +430,8 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     UDSQLDatabase *database = [self _databaseOf:node];
     if (!database) return;
     NSString *text = @"";
-    if (node.kind == UDSQLNodeTable) {
-        text = [NSString stringWithFormat:@"SELECT *\nFROM %@\nWHERE ", [node.object qualifiedNameFor:(id)[self _quoter:database]]];
-    }
+    UDSQLTable *table = [self _tableOf:node];
+    if (table) text = [NSString stringWithFormat:@"SELECT *\nFROM %@\nWHERE ", [table qualifiedNameFor:[self _quoter:database]]];
     [_databases openQuery:text database:database run:NO];
 }
 
@@ -414,24 +441,37 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     return database.runner.connection ?: [[UDSQLConnection alloc] init];
 }
 
+/// A table's row's table; an entity's, its table (its root entity's).
+- (nullable UDSQLTable *)_tableOf:(UDSQLNode *)node {
+    if (node.kind == UDSQLNodeTable) return node.object;
+    if (node.kind == UDSQLNodeEntity) return [self _databaseOf:node].schema.coreDataTables[node.object];
+    return nil;
+}
+
 - (IBAction)selectRows:(id)sender {
     UDSQLNode *node = [self _actedOn:sender];
-    if (node.kind != UDSQLNodeTable) return;
     UDSQLDatabase *database = [self _databaseOf:node];
-    NSString *name = [node.object qualifiedNameFor:[self _quoter:database]];
-    [_databases openQuery:[NSString stringWithFormat:@"SELECT * FROM %@ LIMIT 100", name] database:database run:YES];
+    NSString *sql = nil;
+    if (node.kind == UDSQLNodeTable) {
+        sql = [NSString stringWithFormat:@"SELECT * FROM %@ LIMIT 100", [node.object qualifiedNameFor:[self _quoter:database]]];
+    } else if (node.kind == UDSQLNodeEntity && [self _tableOf:node]) {
+        // an entity's rows: its own and its subentities', in its table
+        sql = [database.schema coreDataRowsOfEntity:node.object connection:[self _quoter:database] limit:100];
+    }
+    if (sql) [_databases openQuery:sql database:database run:YES];
 }
 
 - (IBAction)copyName:(id)sender {
     UDSQLNode *node = [self _actedOn:sender];
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
     [pasteboard declareTypes:@[ NSPasteboardTypeString ] owner:nil];
-    [pasteboard setString:node.kind == UDSQLNodeTable ? [node.object name] : node.title forType:NSPasteboardTypeString];
+    UDSQLTable *table = [self _tableOf:node];
+    [pasteboard setString:table ? table.name : node.title forType:NSPasteboardTypeString];
 }
 
 - (IBAction)openItem:(id)sender {
     UDSQLNode *node = [self _clickedNode];
-    if (node.kind == UDSQLNodeTable) [self selectRows:nil];
+    if (node.kind == UDSQLNodeTable || node.kind == UDSQLNodeEntity) [self selectRows:nil];
     else if (node.kind == UDSQLNodeDatabase) {
         if ([_outlineView isItemExpanded:node]) [_outlineView collapseItem:node];
         else [_outlineView expandItem:node];

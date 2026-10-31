@@ -52,6 +52,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSArray<UDSQLIndex *> *indexes;
 /// A Core Data store's: the entities whose rows it holds (the root first).
 @property (nonatomic, copy) NSArray<NSString *> *entities;
+/// A Core Data store's many-to-many join table: the relationship it holds
+/// ("Person.tags"); nil for another table.
+@property (nonatomic, copy, nullable) NSString *joinOf;
 /// The name to write in SQL: schema-qualified where there are schemas.
 - (NSString *)qualifiedNameFor:(UDSQLConnection *)connection;
 @end
@@ -68,8 +71,17 @@ NS_ASSUME_NONNULL_BEGIN
 /// Whether it is a Core Data store, and its metadata (Z_METADATA's plist).
 @property (nonatomic, readonly, getter=isCoreDataStore) BOOL coreDataStore;
 @property (nonatomic, readonly, copy) NSDictionary *coreDataMetadata;
-/// Z_ENT's values: the entity each numbers.
+/// Z_ENT's values: the entity each numbers; each's superentity (none: absent),
+/// its table (its root entity's), and its own rows (not its subentities').
 @property (nonatomic, readonly, copy) NSDictionary<NSNumber *, NSString *> *coreDataEntities;
+@property (nonatomic, readonly, copy) NSDictionary<NSNumber *, NSNumber *> *coreDataSuperentities;
+@property (nonatomic, readonly, copy) NSDictionary<NSNumber *, UDSQLTable *> *coreDataTables;
+@property (nonatomic, readonly, copy) NSDictionary<NSNumber *, NSNumber *> *coreDataRowCounts;
+/// @a entity's subentities, by name.
+- (NSArray<NSNumber *> *)coreDataSubentitiesOf:(nullable NSNumber *)entity;
+/// The SQL of @a entity's rows: its own and its subentities' (a WHERE on
+/// Z_ENT when its table holds others' too).
+- (NSString *)coreDataRowsOfEntity:(NSNumber *)entity connection:(UDSQLConnection *)connection limit:(NSUInteger)limit;
 
 @end
 

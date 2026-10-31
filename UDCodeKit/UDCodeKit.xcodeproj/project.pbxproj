@@ -69,6 +69,7 @@
 				Debug/UDDebugNavigatorViewController.h,
 				Debug/UDDebugSession.h,
 				Diagnostics/UDDiagnosticStore.h,
+				Diff/UDDiffEditorViewController.h,
 				Extensions/UDDiagnosticItem.h,
 				Extensions/UDExtension.h,
 				Extensions/UDLanguageKeyHandler.h,

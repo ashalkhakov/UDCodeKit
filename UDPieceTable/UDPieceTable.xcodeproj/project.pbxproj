@@ -35,6 +35,7 @@
 				UDCursorTypeEditOperations.h,
 				UDEditOperationResult.h,
 				UDIntervalTree.h,
+				UDLinesDiffComputer.h,
 				UDPieceTable.h,
 				UDPieceTree.h,
 				UDReplaceCommand.h,

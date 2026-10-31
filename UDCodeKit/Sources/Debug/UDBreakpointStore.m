@@ -258,14 +258,14 @@ static BOOL UDSame(NSString *a, NSString *b) {
 /// The whole of @a line, clamped to the model's: a decoration that moves
 /// with the line's text (an insertion at its start pushes it down, one at
 /// its end leaves it).
-static UDRange UDLineRange(UDTextModel *model, NSInteger line) {
+static UDRange UDWholeLineRange(UDTextModel *model, NSInteger line) {
     line = MAX(1, MIN(line, [model getLineCount]));
     return PTRangeMake(line, 1, line, [model getLineMaxColumn:line]);
 }
 
 - (NSString *)_decorateLine:(NSInteger)line inModel:(UDTextModel *)model owner:(NSString *)owner {
     UDDecorationOptions *options = [[UDDecorationOptions alloc] initWithClassName:owner userInfo:nil];
-    UDModelDeltaDecoration *decoration = [[UDModelDeltaDecoration alloc] initWithRange:UDLineRange(model, line)
+    UDModelDeltaDecoration *decoration = [[UDModelDeltaDecoration alloc] initWithRange:UDWholeLineRange(model, line)
                                                                                options:options];
     decoration.stickiness = UDTrackedRangeNeverGrowsWhenTypingAtEdges;
     return [model deltaDecorations:nil newDecorations:@[ decoration ] owner:owner].firstObject;

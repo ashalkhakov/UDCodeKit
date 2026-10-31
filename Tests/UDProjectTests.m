@@ -666,6 +666,62 @@ static Class UDPluginClass(NSString *name) {
     [workspace close];
 }
 
+/// Xcode's Code Review, in the file's tab: its editor (the same one) on the
+/// left, the file as saved on the right, read-only, following the file; and
+/// back. Two files: the file navigator's Select for Compare, then Compare
+/// with “…”, a tab of its own (VS Code's), both sides editable.
+- (void)testCodeReviewAndComparingTwoFiles {
+    [self write:@"one\ntwo\n" to:@"a.txt"];
+    [self write:@"one\n2\n" to:@"b.txt"];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+    NSURL *a = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"a.txt"]];
+    NSURL *b = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"b.txt"]];
+    [controller openURLInNewTab:a];
+    UDTabBarItem *item = controller.editorTabs.selectedItem;
+    UDCodeEditorViewController *editor = (UDCodeEditorViewController *)[controller.editorTabs viewControllerForItem:item];
+    UDCodeDocument *document = item.representedObject;
+    [document.textModel applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:PTRangeMake(3, 1, 3, 1) text:@"three\n"] ]];
+
+    [controller toggleCodeReview:nil];
+    XCTAssertEqual(controller.editorTabs.selectedItem, item, @"in its tab");
+    XCTAssertEqualObjects(item.title, @"a.txt");
+    UDDiffEditorViewController *review = (UDDiffEditorViewController *)[controller.editorTabs viewControllerForItem:item];
+    XCTAssertTrue([review isKindOfClass:[UDDiffEditorViewController class]]);
+    XCTAssertEqual(review.modifiedEditor, editor, @"the tab's own editor");
+    XCTAssertEqual(review.view.subviews.firstObject, editor.view, @"on the left (Xcode's)");
+    XCTAssertFalse(review.originalEditor.textView.isEditable);
+    XCTAssertEqual(review.diff.changes.count, 1u, @"the line typed");
+
+    [controller saveDocument:nil];
+    UDRunUntil(review.diff.changes.count == 0, 2.0);
+    XCTAssertEqual(review.diff.changes.count, 0u, @"saved: the right side follows the file");
+
+    [controller toggleCodeReview:nil];
+    XCTAssertEqual([controller.editorTabs viewControllerForItem:item], editor, @"the editor alone again");
+    XCTAssertEqualObjects(editor.textView.viewZones, @{});
+    XCTAssertNotNil(editor.view.window);
+
+    id<UDFileNavigatorDelegate> navigator = (id<UDFileNavigatorDelegate>)controller;
+    NSArray<NSMenuItem *> *menu = [navigator fileNavigator:controller.fileNavigator menuItemsForURL:a];
+    XCTAssertEqualObjects([menu valueForKey:@"title"], @[ @"Select for Compare" ]);
+    [NSApp sendAction:menu[0].action to:menu[0].target from:menu[0]];
+    menu = [navigator fileNavigator:controller.fileNavigator menuItemsForURL:b];
+    XCTAssertEqualObjects([menu valueForKey:@"title"], (@[ @"Select for Compare", @"Compare with “a.txt”" ]));
+    [NSApp sendAction:menu[1].action to:menu[1].target from:menu[1]];
+    UDTabBarItem *compared = controller.editorTabs.selectedItem;
+    XCTAssertEqualObjects(compared.title, @"a.txt ↔ b.txt");
+    UDDiffEditorViewController *both = (UDDiffEditorViewController *)[controller.editorTabs viewControllerForItem:compared];
+    XCTAssertTrue(both.originalEditor.textView.isEditable);
+    XCTAssertEqual(both.diff.changes.count, 1u);
+
+    // closing the comparison leaves a.txt's tab; b.txt, shown only by it, goes
+    XCTAssertTrue([controller.editorTabs closeItem:compared]);
+    XCTAssertEqualObjects([controller.editorTabs.items valueForKey:@"title"], @[ @"a.txt" ]);
+    [controller close];
+    [workspace close];
+}
+
 /// Files changed by another program: an open file with no edits of its own
 /// takes the new text (only what differs replaced); one with edits keeps them;
 /// a new file is listed.

@@ -354,7 +354,7 @@ static UDColors UDColorsOf(DKDrawingState *state) {
                    inRect:NSMakeRect(NSMinX(frame) + UDBoxKeyGutter + 4, y, NSWidth(frame) - UDBoxKeyGutter - 14, 15)
                      font:UDSmallFont() color:colors.faint];
     }
-    [surface strokePath:outline color:selected ? colors.selection : colors.rule width:selected ? 2.5 : 1 dashed:NO];
+    [surface strokePath:outline color:selected ? colors.selection : colors.rule width:selected ? 2.5 : 1 style:DKStrokeSolid];
 }
 
 - (void)drawInRect:(NSRect)rect surface:(id<DKSurface>)surface state:(DKDrawingState *)state {
@@ -362,7 +362,7 @@ static UDColors UDColorsOf(DKDrawingState *state) {
     [surface fillPath:[DKPath pathWithRect:rect] color:colors.paper];
     for (UDSQLDiagramLink *link in _links) {
         if (link.route.count < 2) continue;
-        DKDrawRoute(surface, link.route, colors.line, 1.2, link.inferred, link.fromEnd, link.toEnd);
+        DKDrawRoute(surface, link.route, colors.line, 1.2, link.inferred ? DKStrokeDashed : DKStrokeSolid, link.fromEnd, link.toEnd);
     }
     for (UDSQLDiagramTable *box in _tables) {
         if (!NSIntersectsRect(NSInsetRect(box.frame, -4, -4), rect)) continue;

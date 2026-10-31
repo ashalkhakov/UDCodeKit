@@ -6,8 +6,6 @@
 #import "UDDiagnosticTextView.h"
 #import "UDHoverViewController.h"
 
-const CGFloat UDAuthorsViewWidth = 200.0;
-
 @implementation UDAuthorsView {
     __weak NSTextView *_textView;
     __weak UDTextModel *_textModel;
@@ -15,21 +13,35 @@ const CGFloat UDAuthorsViewWidth = 200.0;
     UDHoverViewController *_hover;
 }
 
-- (instancetype)initWithFrame:(NSRect)frame textView:(NSTextView *)textView textModel:(UDTextModel *)textModel {
+- (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
-    if (self) {
-        _textView = textView;
-        _textModel = textModel;
-        _ranges = @[];
-        _dates = [[NSDateFormatter alloc] init];
-        _dates.dateStyle = NSDateFormatterShortStyle;
-        _dates.timeStyle = NSDateFormatterNoStyle;
-        NSClipView *clip = textView.enclosingScrollView.contentView;
-        clip.postsBoundsChangedNotifications = YES;
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidScroll:)
-                                                     name:NSViewBoundsDidChangeNotification object:clip];
-    }
+    if (self) [self _setUp];
     return self;
+}
+
+- (instancetype)initWithCoder:(NSCoder *)coder {
+    self = [super initWithCoder:coder];
+    if (self) [self _setUp];
+    return self;
+}
+
+- (void)_setUp {
+    _ranges = @[];
+    _dates = [[NSDateFormatter alloc] init];
+    _dates.dateStyle = NSDateFormatterShortStyle;
+    _dates.timeStyle = NSDateFormatterNoStyle;
+}
+
+- (void)attachToTextView:(NSTextView *)textView textModel:(UDTextModel *)textModel {
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    NSTextView *before = _textView;
+    if (before) [center removeObserver:self name:NSViewBoundsDidChangeNotification object:before.enclosingScrollView.contentView];
+    _textView = textView;
+    _textModel = textModel;
+    NSClipView *clip = textView.enclosingScrollView.contentView;
+    clip.postsBoundsChangedNotifications = YES;
+    [center addObserver:self selector:@selector(_textDidScroll:) name:NSViewBoundsDidChangeNotification object:clip];
+    [self setNeedsDisplay:YES];
 }
 
 - (void)dealloc {

@@ -8,7 +8,7 @@
  *  the index's text for the change bars, HEAD's for Code Review, its
  *  history and blame, its context menus, its Integrate menu items (Push…,
  *  Pull…, Fetch Changes, Stage, Discard, Stash, Cherry-Pick) and its
- *  Repositories view.
+ *  Repositories view. Its menus are UDGitMenus.xib's.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>

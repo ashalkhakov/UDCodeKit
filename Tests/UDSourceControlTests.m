@@ -17,6 +17,8 @@
 #import "UDGit.h"
 #import "UDGitRepository.h"
 #import "UDGitSourceControl.h"
+#import "UDGitRepositoriesViewController.h"
+#import "UDGitDialogs.h"
 
 @interface UDDocumentWindowController (SourceControlTesting)
 @property (nonatomic, strong) UDEditorTabsController *editorTabs;
@@ -159,6 +161,63 @@ static UDGitRepository *UDRepositoryOf(UDDocumentWindowController *controller) {
     [controller reloadSourceControl];
     XCTAssertEqualObjects([integrate.submenu.itemArray valueForKey:@"title"], titles, @"rebuilt, not added again");
     NSApp.mainMenu = before;
+    [controller close];
+    [workspace close];
+}
+
+- (void)testTheViewsAndMenusLoadFromTheirXIBs {
+    [self makeRepository];
+    UDWorkspace *workspace = nil;
+    UDDocumentWindowController *controller = [self openProject:&workspace];
+
+    // the core's: UDSourceControlNavigator.xib, UDFileNavigator.xib, the editor's, UDHistory.xib
+    UDSourceControlNavigatorViewController *navigator = controller.sourceControlNavigator;
+    XCTAssertNotNil(navigator.changesView.menu, @"its context menu");
+    XCTAssertTrue([[(NSTableColumn *)navigator.changesView.tableColumns.firstObject dataCell] isKindOfClass:[UDBadgeTextFieldCell class]]);
+    XCTAssertEqualObjects(navigator.messageField.placeholderString, @"Commit message (required)");
+    UDFileNavigatorViewController *files = controller.fileNavigator;
+    XCTAssertEqualObjects(files.changedFilterButton.title, @"±");
+    XCTAssertTrue([files.outlineView.outlineTableColumn.dataCell isKindOfClass:[UDBadgeTextFieldCell class]]);
+    [files toggleChangedFilter:nil];
+    XCTAssertFalse(files.showsOnlyChangedFiles, @"the button's state: off");
+    files.showsOnlyChangedFiles = YES;
+    XCTAssertEqual(files.changedFilterButton.state, NSControlStateValueOn);
+    files.showsOnlyChangedFiles = NO;
+
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"b.txt"]]];
+    UDCodeEditorViewController *editor = (UDCodeEditorViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertEqualObjects([[(NSMenu *)[editor valueForKey:@"changeMenu"] itemArray] valueForKey:@"title"],
+                          (@[ @"Show Change", @"Stage Change", @"Discard Change" ]));
+    XCTAssertTrue([[editor valueForKey:@"authorsView"] isHidden], @"Authors: hidden till shown");
+
+    UDHistoryViewController *history = [[UDHistoryViewController alloc] initWithSourceControl:controller.sourceControl ref:@"main"];
+    XCTAssertEqualObjects([history.commitsTable.tableColumns valueForKey:@"identifier"], (@[ @"message", @"author", @"date", @"commit" ]));
+    XCTAssertNotNil(history.commitsTable.headerView);
+    XCTAssertEqual(history.filesTable.tableColumns.count, 1u);
+
+    // the Git extension's: UDGitRepositories.xib, UDGitMenus.xib, UDGitDialogs.xib
+    UDGitRepositoriesViewController *repositories = (UDGitRepositoriesViewController *)[controller.sourceControl repositoriesViewController];
+    XCTAssertNotNil(repositories.outlineView.menu);
+    XCTAssertTrue([repositories.outlineView.outlineTableColumn.dataCell isKindOfClass:[UDBadgeTextFieldCell class]]);
+    for (NSString *menu in @[ @"branchMenu", @"remoteBranchMenu", @"tagMenu", @"remoteMenu", @"stashMenu", @"branchesMenu", @"remotesMenu" ]) {
+        XCTAssertGreaterThan([(NSMenu *)[repositories valueForKey:menu] numberOfItems], 0, @"%@", menu);
+    }
+    NSArray<NSMenuItem *> *integrate = [controller.sourceControl integrateMenuItems];
+    NSMenuItem *pull = integrate[[[integrate valueForKey:@"title"] indexOfObject:@"Pull…"]];
+    XCTAssertEqualObjects(pull.keyEquivalent, @"x", @"⌥⌘X");
+    XCTAssertEqual(pull.target, controller.sourceControl);
+    [self write:@"b, changed\n" to:@"b.txt"];
+    [self refresh:controller];
+    UDSourceControlResource *resource = [controller.sourceControl resourceAtPath:[_folder stringByAppendingPathComponent:@"b.txt"]];
+    XCTAssertNotNil(resource);
+    NSArray<NSMenuItem *> *items = [controller.sourceControl menuItemsForResources:@[ resource ]];
+    XCTAssertEqualObjects([items valueForKey:@"title"], (@[ @"Stage", @"Discard Changes…" ]));
+    XCTAssertEqualObjects(items.firstObject.representedObject, @[ resource.path ]);
+    UDGitAccessories *accessories = [UDPluginClass(@"UDGitAccessories") accessories];
+    XCTAssertNotNil(accessories.field);
+    XCTAssertNotNil(accessories.checkBox);
+    XCTAssertEqual(accessories.remotesButton.superview, accessories.pushView);
+    XCTAssertEqual(accessories.tagsCheckBox.superview, accessories.pushView);
     [controller close];
     [workspace close];
 }

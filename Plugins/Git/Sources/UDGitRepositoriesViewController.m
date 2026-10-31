@@ -4,6 +4,7 @@
 
 #import "UDGitRepositoriesViewController.h"
 #import "UDGitDialogs.h"
+#import <objc/runtime.h>
 
 typedef NS_ENUM(NSInteger, UDGitItemKind) {
     UDGitItemGroup,                    // Branches, Tags, Remotes, Stashed Changes
@@ -34,17 +35,26 @@ typedef NS_ENUM(NSInteger, UDGitItemKind) {
 @end
 
 @interface UDGitRepositoriesViewController () <NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate>
+@property (nonatomic, weak) IBOutlet NSOutlineView *outlineView;
+// Each kind's context menu, UDGitRepositories.xib's: “{name}” in a title is
+// the row's, “{current}” the current branch.
+@property (nonatomic, strong) IBOutlet NSMenu *branchMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *remoteBranchMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *tagMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *remoteMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *stashMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *branchesMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *remotesMenu;
 @end
 
 @implementation UDGitRepositoriesViewController {
     UDGitRepository *_repository;
     __weak id<UDSourceControl> _sourceControl;
-    NSOutlineView *_outlineView;
     NSArray<UDGitItem *> *_groups;
 }
 
 - (instancetype)initWithRepository:(UDGitRepository *)repository sourceControl:(id<UDSourceControl>)sourceControl {
-    self = [super initWithNibName:nil bundle:nil];
+    self = [super initWithNibName:@"UDGitRepositories" bundle:[NSBundle bundleForClass:[UDGitRepositoriesViewController class]]];
     if (self) {
         _repository = repository;
         _sourceControl = sourceControl;
@@ -59,39 +69,11 @@ typedef NS_ENUM(NSInteger, UDGitItemKind) {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
-- (void)loadView {
-    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 240, 600)];
-    scroll.hasVerticalScroller = YES;
-    scroll.autohidesScrollers = YES;
-    scroll.borderType = NSNoBorder;
-    scroll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _outlineView = [[NSOutlineView alloc] initWithFrame:scroll.bounds];
-    NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:@"name"];
-    UDBadgeTextFieldCell *cell = [[UDBadgeTextFieldCell alloc] initTextCell:@""];
-    cell.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-    cell.lineBreakMode = NSLineBreakByTruncatingMiddle;
-    cell.editable = NO;
-    column.dataCell = cell;
-    column.width = NSWidth(scroll.bounds) - 16;
-    column.resizingMask = NSTableColumnAutoresizingMask;
-    [_outlineView addTableColumn:column];
-    _outlineView.outlineTableColumn = column;
-    _outlineView.headerView = nil;
-    _outlineView.rowHeight = 18;
-    _outlineView.indentationPerLevel = 12;
-    _outlineView.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
-    _outlineView.dataSource = self;
-    _outlineView.delegate = self;
-    _outlineView.target = self;
-    _outlineView.action = @selector(_selectRef:);
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
-    menu.delegate = self;
-    _outlineView.menu = menu;
-    scroll.documentView = _outlineView;
-    _outlineView.autoresizingMask = NSViewWidthSizable;
-    _outlineView.frame = scroll.contentView.bounds;
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // as wide as what shows it: the badges at its right edge
+    _outlineView.frame = _outlineView.enclosingScrollView.contentView.bounds;
     [_outlineView sizeLastColumnToFit];
-    self.view = scroll;
     [self _reload];
 }
 
@@ -172,7 +154,7 @@ typedef NS_ENUM(NSInteger, UDGitItemKind) {
                                              : [NSFont systemFontOfSize:[NSFont smallSystemFontSize]]];
 }
 
-- (void)_selectRef:(id)sender {
+- (IBAction)showHistory:(id)sender {
     NSInteger row = _outlineView.clickedRow >= 0 ? _outlineView.clickedRow : _outlineView.selectedRow;
     UDGitItem *item = row >= 0 ? [_outlineView itemAtRow:row] : nil;
     if (item.kind != UDGitItemBranch && item.kind != UDGitItemTag && item.kind != UDGitItemRemoteBranch) return;
@@ -192,64 +174,51 @@ typedef NS_ENUM(NSInteger, UDGitItemKind) {
                               didFail:[[UDSourceControlResult alloc] initSucceeded:NO message:result.message value:nil context:nil]];
 }
 
-static NSMenuItem *UDItem(NSString *title, SEL action, id target, id object) {
-    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:@""];
-    item.target = target;
-    item.representedObject = object;
-    return item;
+- (nullable NSMenu *)_menuOfItem:(UDGitItem *)item {
+    switch (item.kind) {
+        case UDGitItemBranch: return _branchMenu;
+        case UDGitItemRemoteBranch: return _remoteBranchMenu;
+        case UDGitItemTag: return _tagMenu;
+        case UDGitItemRemote: return _remoteMenu;
+        case UDGitItemStash: return _stashMenu;
+        case UDGitItemGroup:
+            if ([item.title isEqualToString:@"Branches"]) return _branchesMenu;
+            if ([item.title isEqualToString:@"Remotes"]) return _remotesMenu;
+            return nil;
+    }
+    return nil;
 }
 
+/// The clicked row's kind's menu: its items for the row (the current branch
+/// can't be switched to, merged or deleted; with none, nothing is merged).
 - (void)menuNeedsUpdate:(NSMenu *)menu {
+    if (menu != _outlineView.menu) return;
     [menu removeAllItems];
     NSInteger row = _outlineView.clickedRow;
     if (row < 0) row = [_outlineView rowAtPoint:[_outlineView convertPoint:[NSApp currentEvent].locationInWindow fromView:nil]];
     UDGitItem *item = row >= 0 ? [_outlineView itemAtRow:row] : nil;
-    UDGitRef *ref = [item.object isKindOfClass:[UDGitRef class]] ? item.object : nil;
     NSString *current = _repository.branch;
-    switch (item.kind) {
-        case UDGitItemBranch:
-            if (![ref.name isEqualToString:current]) [menu addItem:UDItem(@"Switch…", @selector(_switch:), self, ref)];
-            [menu addItem:UDItem([NSString stringWithFormat:@"New Branch from “%@”…", ref.name], @selector(_newBranch:), self, ref)];
-            [menu addItem:UDItem([NSString stringWithFormat:@"Rename “%@”…", ref.name], @selector(_renameBranch:), self, ref)];
-            if (current && ![ref.name isEqualToString:current]) {
-                [menu addItem:UDItem([NSString stringWithFormat:@"Merge “%@” into “%@”…", ref.name, current], @selector(_merge:), self, ref)];
-            }
-            [menu addItem:UDItem([NSString stringWithFormat:@"New Tag from “%@”…", ref.name], @selector(_newTag:), self, ref)];
-            if (![ref.name isEqualToString:current]) {
-                [menu addItem:[NSMenuItem separatorItem]];
-                [menu addItem:UDItem(@"Delete…", @selector(_deleteBranch:), self, ref)];
-            }
-            break;
-        case UDGitItemRemoteBranch:
-            [menu addItem:UDItem(@"Switch…", @selector(_switch:), self, ref)];
-            [menu addItem:UDItem([NSString stringWithFormat:@"New Branch from “%@”…", ref.name], @selector(_newBranch:), self, ref)];
-            if (current) {
-                [menu addItem:UDItem([NSString stringWithFormat:@"Merge “%@” into “%@”…", ref.name, current], @selector(_merge:), self, ref)];
-            }
-            break;
-        case UDGitItemTag:
-            [menu addItem:UDItem([NSString stringWithFormat:@"New Branch from “%@”…", ref.name], @selector(_newBranch:), self, ref)];
-            [menu addItem:[NSMenuItem separatorItem]];
-            [menu addItem:UDItem(@"Delete…", @selector(_deleteTag:), self, ref)];
-            break;
-        case UDGitItemRemote:
-            [menu addItem:UDItem(@"Remove…", @selector(_removeRemote:), self, item.object)];
-            break;
-        case UDGitItemStash:
-            [menu addItem:UDItem(@"Apply Stashed Changes…", @selector(_applyStash:), self, item.object)];
-            [menu addItem:[NSMenuItem separatorItem]];
-            [menu addItem:UDItem(@"Delete…", @selector(_dropStash:), self, item.object)];
-            break;
-        case UDGitItemGroup:
-            if ([item.title isEqualToString:@"Remotes"]) [menu addItem:UDItem(@"Add Existing Remote…", @selector(_addRemote:), self, nil)];
-            if ([item.title isEqualToString:@"Branches"] && current) {
-                [menu addItem:UDItem([NSString stringWithFormat:@"New Branch from “%@”…", current], @selector(_newBranch:), self, nil)];
-            }
-            break;
+    UDGitRef *ref = [item.object isKindOfClass:[UDGitRef class]] ? item.object : nil;
+    BOOL isCurrent = item.kind == UDGitItemBranch && [ref.name isEqualToString:current];
+    for (NSMenuItem *entry in [self _menuOfItem:item].itemArray) {
+        SEL action = entry.action;
+        if (isCurrent && (sel_isEqual(action, @selector(switchToRef:)) || sel_isEqual(action, @selector(merge:)) ||
+                          sel_isEqual(action, @selector(deleteBranch:)))) {
+            continue;
+        }
+        if (!current && sel_isEqual(action, @selector(merge:))) continue;
+        if (!current && item.kind == UDGitItemGroup && sel_isEqual(action, @selector(newBranch:))) continue;
+        if (entry.isSeparatorItem && (menu.numberOfItems == 0 || [menu itemAtIndex:menu.numberOfItems - 1].isSeparatorItem)) continue;
+        NSMenuItem *copy = [entry copy];
+        NSString *title = [copy.title stringByReplacingOccurrencesOfString:@"{name}" withString:ref.name ?: @""];
+        copy.title = [title stringByReplacingOccurrencesOfString:@"{current}" withString:current ?: @""];
+        copy.representedObject = item.object;
+        [menu addItem:copy];
     }
+    while (menu.numberOfItems && [menu itemAtIndex:menu.numberOfItems - 1].isSeparatorItem) [menu removeItemAtIndex:menu.numberOfItems - 1];
 }
 
-- (void)_switch:(NSMenuItem *)sender {
+- (IBAction)switchToRef:(NSMenuItem *)sender {
     UDGitRef *ref = sender.representedObject;
     if (ref.type == UDGitRefTypeRemoteHead) {
         // a remote's branch: a branch of its own that tracks it
@@ -262,73 +231,73 @@ static NSMenuItem *UDItem(NSString *title, SEL action, id target, id object) {
     [_repository checkout:ref.name target:self action:@selector(_operationDidFinish:)];
 }
 
-- (void)_newBranch:(NSMenuItem *)sender {
+- (IBAction)newBranch:(NSMenuItem *)sender {
     UDGitRef *ref = sender.representedObject;
     NSString *from = ref.name ?: _repository.branch ?: @"HEAD";
     NSString *name = UDGitAsk([NSString stringWithFormat:@"New Branch from “%@”", from], @"The new branch is checked out.", @"", @"Create");
     if (name) [_repository createBranch:name fromRef:ref.name checkout:YES target:self action:@selector(_operationDidFinish:)];
 }
 
-- (void)_renameBranch:(NSMenuItem *)sender {
+- (IBAction)renameBranch:(NSMenuItem *)sender {
     UDGitRef *ref = sender.representedObject;
     NSString *name = UDGitAsk([NSString stringWithFormat:@"Rename “%@”", ref.name], nil, ref.name, @"Rename");
     if (name && ![name isEqualToString:ref.name]) [_repository renameBranch:ref.name to:name target:self action:@selector(_operationDidFinish:)];
 }
 
-- (void)_merge:(NSMenuItem *)sender {
+- (IBAction)merge:(NSMenuItem *)sender {
     UDGitRef *ref = sender.representedObject;
     if (UDGitConfirm([NSString stringWithFormat:@"Merge “%@” into “%@”?", ref.name, _repository.branch], nil, @"Merge")) {
         [_repository merge:ref.name target:self action:@selector(_operationDidFinish:)];
     }
 }
 
-- (void)_newTag:(NSMenuItem *)sender {
+- (IBAction)newTag:(NSMenuItem *)sender {
     UDGitRef *ref = sender.representedObject;
     NSString *name = UDGitAsk([NSString stringWithFormat:@"New Tag from “%@”", ref.name], nil, @"", @"Create");
     if (name) [_repository createTag:name message:nil atRef:ref.name target:self action:@selector(_operationDidFinish:)];
 }
 
-- (void)_deleteBranch:(NSMenuItem *)sender {
+- (IBAction)deleteBranch:(NSMenuItem *)sender {
     UDGitRef *ref = sender.representedObject;
     if (UDGitConfirm([NSString stringWithFormat:@"Delete the branch “%@”?", ref.name], @"This can't be undone.", @"Delete")) {
         [_repository deleteBranch:ref.name force:NO target:self action:@selector(_operationDidFinish:)];
     }
 }
 
-- (void)_deleteTag:(NSMenuItem *)sender {
+- (IBAction)deleteTag:(NSMenuItem *)sender {
     UDGitRef *ref = sender.representedObject;
     if (UDGitConfirm([NSString stringWithFormat:@"Delete the tag “%@”?", ref.name], nil, @"Delete")) {
         [_repository deleteTag:ref.name target:self action:@selector(_operationDidFinish:)];
     }
 }
 
-- (void)_addRemote:(id)sender {
+- (IBAction)addRemote:(id)sender {
     NSString *name = UDGitAsk(@"Add Existing Remote", @"The remote's name.", _repository.remotes.count ? @"" : @"origin", @"Next");
     if (!name) return;
     NSString *url = UDGitAsk(@"Add Existing Remote", [NSString stringWithFormat:@"The address of “%@”.", name], @"", @"Add");
     if (url) [_repository addRemote:name url:url target:self action:@selector(_operationDidFinish:)];
 }
 
-- (void)_removeRemote:(NSMenuItem *)sender {
+- (IBAction)removeRemote:(NSMenuItem *)sender {
     UDGitRemote *remote = sender.representedObject;
     if (UDGitConfirm([NSString stringWithFormat:@"Remove the remote “%@”?", remote.name], nil, @"Remove")) {
         [_repository removeRemote:remote.name target:self action:@selector(_operationDidFinish:)];
     }
 }
 
-- (void)_applyStash:(NSMenuItem *)sender {
+- (IBAction)applyStash:(NSMenuItem *)sender {
     UDGitStash *stash = sender.representedObject;
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = [NSString stringWithFormat:@"Apply “%@”?", stash.message];
     [alert addButtonWithTitle:@"Apply"];
     [alert addButtonWithTitle:@"Cancel"];
-    NSButton *keep = UDGitCheckBox(@"Keep the stashed changes", 260);
+    NSButton *keep = UDGitCheckBox(@"Keep the stashed changes");
     alert.accessoryView = keep;
     if ([alert runModal] != NSAlertFirstButtonReturn) return;
     [_repository applyStash:stash.index pop:keep.state != NSControlStateValueOn target:self action:@selector(_operationDidFinish:)];
 }
 
-- (void)_dropStash:(NSMenuItem *)sender {
+- (IBAction)dropStash:(NSMenuItem *)sender {
     UDGitStash *stash = sender.representedObject;
     if (UDGitConfirm([NSString stringWithFormat:@"Delete “%@”?", stash.message], @"This can't be undone.", @"Delete")) {
         [_repository dropStash:stash.index target:self action:@selector(_operationDidFinish:)];

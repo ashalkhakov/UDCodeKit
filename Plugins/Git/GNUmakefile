@@ -15,7 +15,7 @@ Git_OBJC_FILES = $(wildcard Sources/*.m)
 Git_PRINCIPAL_CLASS = UDGitPlugin
 # its dialogs and Repositories view: AppKit's
 Git_NEEDS_GUI = yes
-Git_RESOURCE_FILES = Resources/LanguageInfo.plist
+Git_RESOURCE_FILES = Resources/LanguageInfo.plist $(wildcard Resources/*.xib)
 Git_INCLUDE_DIRS = -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit -ISources
 Git_STANDARD_INSTALL = no
 Git_BUNDLE_LIBS += $(UD_PLUGIN_LIBS)

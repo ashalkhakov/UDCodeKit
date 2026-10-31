@@ -4,32 +4,30 @@
 
 #import "UDSourceControlNavigatorViewController.h"
 #import "UDBadgeTextFieldCell.h"
-
-// GNUstep has AppKit's older names
-#ifdef __APPLE__
-#define UDTexturedRoundedBezel NSBezelStyleTexturedRounded
-#define UDRoundedBezel NSBezelStyleRounded
-#else
-#define UDTexturedRoundedBezel NSTexturedRoundedBezelStyle
-#define UDRoundedBezel NSRoundedBezelStyle
-#endif
+#import <objc/runtime.h>
 
 @interface UDSourceControlNavigatorViewController () <NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate>
+@property (nonatomic, weak) IBOutlet NSSegmentedControl *tabsControl;
+@property (nonatomic, weak) IBOutlet NSView *changesPane;
+@property (nonatomic, weak) IBOutlet NSView *repositoriesPane;
+@property (nonatomic, weak) IBOutlet NSTextField *statusLabel;
+@property (nonatomic, weak) IBOutlet NSTextField *emptyLabel;
+@property (nonatomic, weak) IBOutlet NSOutlineView *changesView;
+@property (nonatomic, weak) IBOutlet NSTextField *messageField;
+@property (nonatomic, weak) IBOutlet NSButton *commitButton;
+@property (nonatomic, weak) IBOutlet NSPopUpButton *commitOptionsButton;
+/// A file's own items, after the source control's (Show Change, Reveal).
+@property (nonatomic, strong) IBOutlet NSMenu *fileMenu;
 @end
 
 @implementation UDSourceControlNavigatorViewController {
-    NSSegmentedControl *_tabs;
-    NSView *_changesPane, *_repositoriesPane;
-    NSTextField *_statusLabel, *_emptyLabel;
-    NSButton *_commitButton;
-    NSPopUpButton *_commitOptions;
-    NSOutlineView *_changesView;
-    NSTextField *_messageField;
     NSArray<UDSourceControlResourceGroup *> *_groups;
+    UDSourceControlResource *_menuResource;     // what the context menu is about
 }
 
 - (instancetype)init {
-    return [super initWithNibName:nil bundle:nil];
+    return [super initWithNibName:@"UDSourceControlNavigator"
+                           bundle:[NSBundle bundleForClass:[UDSourceControlNavigatorViewController class]]];
 }
 
 - (void)dealloc {
@@ -37,116 +35,14 @@
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - The view
+// MARK: - The view (UDSourceControlNavigator.xib)
 // ---------------------------------------------------------------------------
 
-- (void)loadView {
-    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 240, 700)];
-    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    CGFloat width = NSWidth(view.bounds), height = NSHeight(view.bounds);
-
-    _tabs = [NSSegmentedControl segmentedControlWithLabels:@[ @"Changes", @"Repositories" ]
-                                              trackingMode:NSSegmentSwitchTrackingSelectOne
-                                                    target:self action:@selector(_tabChanged:)];
-    _tabs.frame = NSMakeRect(8, height - 28, width - 16, 24);
-    _tabs.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
-    _tabs.selectedSegment = 0;
-    [view addSubview:_tabs];
-
-    NSRect paneFrame = NSMakeRect(0, 0, width, height - 32);
-
-    // Changes: where it is, the files, the commit
-    _changesPane = [[NSView alloc] initWithFrame:paneFrame];
-    _changesPane.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _statusLabel = [NSTextField labelWithString:@""];
-    _statusLabel.frame = NSMakeRect(8, NSHeight(paneFrame) - 20, width - 16, 16);
-    _statusLabel.font = [NSFont boldSystemFontOfSize:[NSFont smallSystemFontSize]];
-    [_statusLabel.cell setLineBreakMode:NSLineBreakByTruncatingTail];
-    _statusLabel.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
-    [_changesPane addSubview:_statusLabel];
-
-    const CGFloat commitHeight = 96;
-    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, commitHeight, width, NSHeight(paneFrame) - commitHeight - 24)];
-    scroll.hasVerticalScroller = YES;
-    scroll.autohidesScrollers = YES;
-    scroll.borderType = NSNoBorder;
-    scroll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _changesView = [[NSOutlineView alloc] initWithFrame:scroll.bounds];
-    NSTableColumn *column = [[NSTableColumn alloc] initWithIdentifier:@"name"];
-    UDBadgeTextFieldCell *cell = [[UDBadgeTextFieldCell alloc] initTextCell:@""];
-    cell.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-    cell.lineBreakMode = NSLineBreakByTruncatingMiddle;
-    cell.editable = NO;
-    column.dataCell = cell;
-    column.width = width - 16;
-    column.resizingMask = NSTableColumnAutoresizingMask;
-    [_changesView addTableColumn:column];
-    _changesView.outlineTableColumn = column;
-    _changesView.headerView = nil;
-    _changesView.rowHeight = 18;
-    _changesView.indentationPerLevel = 12;
-    _changesView.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
-    _changesView.allowsMultipleSelection = YES;
-    _changesView.dataSource = self;
-    _changesView.delegate = self;
-    _changesView.target = self;
-    _changesView.action = @selector(_openSelectedChange:);
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
-    menu.delegate = self;
-    _changesView.menu = menu;
-    scroll.documentView = _changesView;
+- (void)viewDidLoad {
+    [super viewDidLoad];
     // as wide as what shows it: the badges at its right edge
-    _changesView.autoresizingMask = NSViewWidthSizable;
-    _changesView.frame = scroll.contentView.bounds;
+    _changesView.frame = _changesView.enclosingScrollView.contentView.bounds;
     [_changesView sizeLastColumnToFit];
-    [_changesPane addSubview:scroll];
-
-    _messageField = [[NSTextField alloc] initWithFrame:NSMakeRect(8, 36, width - 16, 56)];
-    _messageField.placeholderString = @"Commit message (required)";
-    _messageField.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-    [_messageField.cell setWraps:YES];
-    [_messageField.cell setScrollable:NO];
-    [_messageField.cell setUsesSingleLineMode:NO];
-    _messageField.autoresizingMask = NSViewWidthSizable | NSViewMaxYMargin;
-    [_changesPane addSubview:_messageField];
-
-    _commitButton = [[NSButton alloc] initWithFrame:NSMakeRect(width - 8 - 120, 6, 90, 26)];
-    _commitButton.title = @"Commit";
-    _commitButton.bezelStyle = UDRoundedBezel;
-    _commitButton.target = self;
-    _commitButton.action = @selector(commit:);
-    _commitButton.keyEquivalent = @"\r";
-    _commitButton.keyEquivalentModifierMask = NSEventModifierFlagCommand;
-    _commitButton.autoresizingMask = NSViewMinXMargin | NSViewMaxYMargin;
-    [_changesPane addSubview:_commitButton];
-
-    _commitOptions = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(width - 8 - 30, 6, 30, 26) pullsDown:YES];
-    _commitOptions.bezelStyle = UDTexturedRoundedBezel;
-    [_commitOptions addItemWithTitle:@""];                    // a pull-down's title
-    for (NSArray *option in @[ @[ @"Commit and Push", NSStringFromSelector(@selector(commitAndPush:)) ],
-                               @[ @"Amend", NSStringFromSelector(@selector(amend:)) ] ]) {
-        NSMenuItem *item = [_commitOptions.menu addItemWithTitle:option[0] action:NSSelectorFromString(option[1]) keyEquivalent:@""];
-        item.target = self;
-    }
-    _commitOptions.autoresizingMask = NSViewMinXMargin | NSViewMaxYMargin;
-    [_changesPane addSubview:_commitOptions];
-    [view addSubview:_changesPane];
-
-    // Repositories: the provider's view
-    _repositoriesPane = [[NSView alloc] initWithFrame:paneFrame];
-    _repositoriesPane.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _repositoriesPane.hidden = YES;
-    [view addSubview:_repositoriesPane];
-
-    // none: said so (Integrate > New Git Repository… makes one)
-    _emptyLabel = [NSTextField labelWithString:@"No Source Control"];
-    _emptyLabel.alignment = NSTextAlignmentCenter;
-    _emptyLabel.textColor = [NSColor disabledControlTextColor];
-    _emptyLabel.frame = NSMakeRect(8, height / 2, width - 16, 18);
-    _emptyLabel.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin | NSViewMaxYMargin;
-    [view addSubview:_emptyLabel];
-
-    self.view = view;
     [self _installRepositoriesView];
     [self _reload];
 }
@@ -161,14 +57,14 @@
     return _messageField;
 }
 
-- (void)_tabChanged:(id)sender {
-    self.selectedTab = _tabs.selectedSegment;
+- (IBAction)tabChanged:(id)sender {
+    self.selectedTab = _tabsControl.selectedSegment;
 }
 
 - (void)setSelectedTab:(NSInteger)selectedTab {
     (void)self.view;
     _selectedTab = selectedTab;
-    _tabs.selectedSegment = selectedTab;
+    _tabsControl.selectedSegment = selectedTab;
     [self _showPanes];
 }
 
@@ -178,7 +74,7 @@
 
 - (void)_showPanes {
     BOOL has = _sourceControl != nil, repositories = [self _hasRepositoriesView];
-    _tabs.hidden = !has || !repositories;
+    _tabsControl.hidden = !has || !repositories;
     _changesPane.hidden = !has || (repositories && _selectedTab != 0);
     _repositoriesPane.hidden = !has || !repositories || _selectedTab != 1;
     _emptyLabel.hidden = has;
@@ -307,9 +203,13 @@
     return resources;
 }
 
-- (void)_openSelectedChange:(id)sender {
-    NSInteger row = _changesView.clickedRow >= 0 ? _changesView.clickedRow : _changesView.selectedRow;
-    id item = row >= 0 ? [_changesView itemAtRow:row] : nil;
+/// The file clicked (or the menu's) shown: its change.
+- (IBAction)showChange:(id)sender {
+    id item = [sender isKindOfClass:[NSMenuItem class]] ? _menuResource : nil;
+    if (!item) {
+        NSInteger row = _changesView.clickedRow >= 0 ? _changesView.clickedRow : _changesView.selectedRow;
+        item = row >= 0 ? [_changesView itemAtRow:row] : nil;
+    }
     if ([item isKindOfClass:[UDSourceControlResource class]]) [_delegate sourceControlNavigator:self openChange:item];
 }
 
@@ -318,7 +218,9 @@
 // ---------------------------------------------------------------------------
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
+    if (menu != _changesView.menu) return;
     [menu removeAllItems];
+    _menuResource = nil;
     id<UDSourceControl> sourceControl = _sourceControl;
     if (!sourceControl) return;
     NSInteger row = _changesView.clickedRow;
@@ -333,18 +235,21 @@
     NSArray<UDSourceControlResource *> *resources = self.selectedResources;
     if (![resources containsObject:item]) resources = @[ item ];
     for (NSMenuItem *entry in [sourceControl menuItemsForResources:resources]) [menu addItem:entry];
+    // then the file's own, from the XIB
+    _menuResource = item;
     [menu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *show = [menu addItemWithTitle:@"Show Change" action:@selector(_openSelectedChange:) keyEquivalent:@""];
-    show.target = self;
-    if ([_delegate respondsToSelector:@selector(sourceControlNavigator:revealInProjectNavigator:)]) {
-        NSMenuItem *reveal = [menu addItemWithTitle:@"Reveal in Project Navigator" action:@selector(_reveal:) keyEquivalent:@""];
-        reveal.target = self;
-        reveal.representedObject = [item path];
-    }
+    for (NSMenuItem *entry in _fileMenu.itemArray) [menu addItem:[entry copy]];
 }
 
-- (void)_reveal:(NSMenuItem *)sender {
-    [_delegate sourceControlNavigator:self revealInProjectNavigator:sender.representedObject];
+- (IBAction)revealInProjectNavigator:(id)sender {
+    if (_menuResource) [_delegate sourceControlNavigator:self revealInProjectNavigator:_menuResource.path];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    if (sel_isEqual(item.action, @selector(revealInProjectNavigator:))) {
+        return _menuResource && [_delegate respondsToSelector:@selector(sourceControlNavigator:revealInProjectNavigator:)];
+    }
+    return YES;
 }
 
 // ---------------------------------------------------------------------------

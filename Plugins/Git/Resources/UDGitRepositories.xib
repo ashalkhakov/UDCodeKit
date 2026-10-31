@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDGitRepositoriesViewController">
+            <connections>
+                <outlet property="view" destination="GR-scroll" id="GR-o-view"/>
+                <outlet property="outlineView" destination="GR-outline" id="GR-o-outline"/>
+                <outlet property="branchMenu" destination="GR-branch" id="GR-branch-o"/>
+                <outlet property="remoteBranchMenu" destination="GR-rbranch" id="GR-rbranch-o"/>
+                <outlet property="tagMenu" destination="GR-tag" id="GR-tag-o"/>
+                <outlet property="remoteMenu" destination="GR-remote" id="GR-remote-o"/>
+                <outlet property="stashMenu" destination="GR-stash" id="GR-stash-o"/>
+                <outlet property="branchesMenu" destination="GR-branches" id="GR-branches-o"/>
+                <outlet property="remotesMenu" destination="GR-remotes" id="GR-remotes-o"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Repositories" autoenablesItems="YES" id="GR-menu" userLabel="Repositories Menu (the clicked row's kind's items)">
+            <connections>
+                <outlet property="delegate" destination="-2" id="GR-o-menu-delegate"/>
+            </connections>
+        </menu>
+        <menu title="Branch" autoenablesItems="YES" id="GR-branch" userLabel="A Branch's (“{name}”: it; “{current}”: the current one)">
+            <items>
+                <menuItem title="Switch…" id="GR-b-switch">
+                    <connections>
+                        <action selector="switchToRef:" target="-2" id="GR-b-switch-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Branch from “{name}”…" id="GR-b-new">
+                    <connections>
+                        <action selector="newBranch:" target="-2" id="GR-b-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Rename “{name}”…" id="GR-b-rename">
+                    <connections>
+                        <action selector="renameBranch:" target="-2" id="GR-b-rename-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Merge “{name}” into “{current}”…" id="GR-b-merge">
+                    <connections>
+                        <action selector="merge:" target="-2" id="GR-b-merge-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Tag from “{name}”…" id="GR-b-tag">
+                    <connections>
+                        <action selector="newTag:" target="-2" id="GR-b-tag-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="GR-b-sep"/>
+                <menuItem title="Delete…" id="GR-b-delete">
+                    <connections>
+                        <action selector="deleteBranch:" target="-2" id="GR-b-delete-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Remote Branch" autoenablesItems="YES" id="GR-rbranch" userLabel="A Remote's Branch">
+            <items>
+                <menuItem title="Switch…" id="GR-rb-switch">
+                    <connections>
+                        <action selector="switchToRef:" target="-2" id="GR-rb-switch-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Branch from “{name}”…" id="GR-rb-new">
+                    <connections>
+                        <action selector="newBranch:" target="-2" id="GR-rb-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Merge “{name}” into “{current}”…" id="GR-rb-merge">
+                    <connections>
+                        <action selector="merge:" target="-2" id="GR-rb-merge-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Tag" autoenablesItems="YES" id="GR-tag" userLabel="A Tag's">
+            <items>
+                <menuItem title="New Branch from “{name}”…" id="GR-t-new">
+                    <connections>
+                        <action selector="newBranch:" target="-2" id="GR-t-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="GR-t-sep"/>
+                <menuItem title="Delete…" id="GR-t-delete">
+                    <connections>
+                        <action selector="deleteTag:" target="-2" id="GR-t-delete-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Remote" autoenablesItems="YES" id="GR-remote" userLabel="A Remote's">
+            <items>
+                <menuItem title="Remove…" id="GR-r-remove">
+                    <connections>
+                        <action selector="removeRemote:" target="-2" id="GR-r-remove-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Stash" autoenablesItems="YES" id="GR-stash" userLabel="Stashed Changes'">
+            <items>
+                <menuItem title="Apply Stashed Changes…" id="GR-s-apply">
+                    <connections>
+                        <action selector="applyStash:" target="-2" id="GR-s-apply-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="GR-s-sep"/>
+                <menuItem title="Delete…" id="GR-s-delete">
+                    <connections>
+                        <action selector="dropStash:" target="-2" id="GR-s-delete-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Branches" autoenablesItems="YES" id="GR-branches" userLabel="Branches'">
+            <items>
+                <menuItem title="New Branch from “{current}”…" id="GR-bs-new">
+                    <connections>
+                        <action selector="newBranch:" target="-2" id="GR-bs-new-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Remotes" autoenablesItems="YES" id="GR-remotes" userLabel="Remotes'">
+            <items>
+                <menuItem title="Add Existing Remote…" id="GR-rs-add">
+                    <connections>
+                        <action selector="addRemote:" target="-2" id="GR-rs-add-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="GR-scroll" userLabel="Repositories">
+            <rect key="frame" x="0.0" y="0.0" width="240" height="600"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <clipView key="contentView" drawsBackground="NO" id="GR-clip">
+                <rect key="frame" x="0.0" y="0.0" width="240" height="600"/>
+                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                <subviews>
+                    <outlineView verticalHuggingPriority="750" allowsExpansionToolTips="YES" columnAutoresizingStyle="lastColumnOnly" columnReordering="NO" columnResizing="NO" multipleSelection="NO" autosaveColumns="NO" rowHeight="18" rowSizeStyle="small" indentationPerLevel="12" outlineTableColumn="GR-col-name" id="GR-outline" userLabel="Branches, Tags, Remotes, Stashed Changes">
+                        <rect key="frame" x="0.0" y="0.0" width="240" height="600"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <size key="intercellSpacing" width="3" height="0.0"/>
+                        <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                        <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
+                        <tableColumns>
+                            <tableColumn identifier="name" editable="NO" width="234" minWidth="40" maxWidth="1000" id="GR-col-name">
+                                <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Repositories">
+                                    <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                </tableHeaderCell>
+                                <textFieldCell key="dataCell" lineBreakMode="truncatingMiddle" selectable="YES" title="Text Cell" id="GR-cell-name" customClass="UDBadgeTextFieldCell" userLabel="Name, with Current">
+                                    <font key="font" metaFont="smallSystem"/>
+                                    <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                                <tableColumnResizingMask key="resizingMask" resizeWithTable="YES"/>
+                            </tableColumn>
+                        </tableColumns>
+                        <connections>
+                            <action selector="showHistory:" target="-2" id="GR-a-click"/>
+                            <outlet property="dataSource" destination="-2" id="GR-o-source"/>
+                            <outlet property="delegate" destination="-2" id="GR-o-delegate"/>
+                            <outlet property="menu" destination="GR-menu" id="GR-o-menu"/>
+                        </connections>
+                    </outlineView>
+                </subviews>
+                <nil key="backgroundColor"/>
+            </clipView>
+            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="GR-hscroll">
+                <rect key="frame" x="-100" y="-100" width="223" height="15"/>
+                <autoresizingMask key="autoresizingMask"/>
+            </scroller>
+            <scroller key="verticalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="NO" id="GR-vscroll">
+                <rect key="frame" x="-100" y="-100" width="15" height="102"/>
+                <autoresizingMask key="autoresizingMask"/>
+            </scroller>
+            <point key="canvasLocation" x="200" y="200"/>
+        </scrollView>
+    </objects>
+</document>

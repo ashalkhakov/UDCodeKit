@@ -2179,7 +2179,7 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
 
 // MARK: The source control's host
 
-- (void)sourceControl:(id<UDSourceControl>)sourceControl didFail:(UDSourceControlResult *)result {
+- (void)sourceControl:(nullable id<UDSourceControl>)sourceControl didFail:(UDSourceControlResult *)result {
     if (!self.window) return;
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"The operation didn't succeed.";
@@ -2207,7 +2207,7 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     [self _showHistoryOfRef:ref title:title];
 }
 
-- (void)sourceControl:(id<UDSourceControl>)sourceControl openFolder:(NSURL *)folder {
+- (void)sourceControl:(nullable id<UDSourceControl>)sourceControl openFolder:(NSURL *)folder {
     [(AppDelegate *)NSApp.delegate openFolderAtURL:folder];
 }
 

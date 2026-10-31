@@ -5,15 +5,6 @@
 #import "UDFileNavigatorViewController.h"
 #import "UDBadgeTextFieldCell.h"
 
-// GNUstep has AppKit's older names
-#ifdef __APPLE__
-#define UDPushOnPushOffButton NSButtonTypePushOnPushOff
-#define UDTexturedRoundedBezel NSBezelStyleTexturedRounded
-#else
-#define UDPushOnPushOffButton NSPushOnPushOffButton
-#define UDTexturedRoundedBezel NSTexturedRoundedBezelStyle
-#endif
-
 /// A file or folder of the outline; a folder's children listed when first asked for.
 @interface UDFileNode : NSObject
 @property (nonatomic, copy) NSURL *url;
@@ -26,11 +17,11 @@
 
 @interface UDFileNavigatorViewController () <NSMenuDelegate>
 @property (nonatomic, weak) IBOutlet NSOutlineView *outlineView;
+@property (nonatomic, weak) IBOutlet NSButton *changedFilterButton;
 @end
 
 @implementation UDFileNavigatorViewController {
     UDFileNode *_root;
-    NSButton *_changedFilter;
 }
 
 - (instancetype)init {
@@ -44,41 +35,16 @@
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
     menu.delegate = self;
     _outlineView.menu = menu;
-
-    // a file's source-control badge at its right
-    NSTableColumn *column = _outlineView.outlineTableColumn;
-    UDBadgeTextFieldCell *cell = [[UDBadgeTextFieldCell alloc] initTextCell:@""];
-    cell.font = [column.dataCell font];
-    cell.lineBreakMode = NSLineBreakByTruncatingMiddle;
-    cell.editable = NO;
-    column.dataCell = cell;
-
-    // the filter bar below, as Xcode's navigators have
-    NSScrollView *scroll = _outlineView.enclosingScrollView;
-    const CGFloat barHeight = 24.0;
-    NSRect frame = scroll.frame;
-    frame.origin.y += barHeight;
-    frame.size.height -= barHeight;
-    scroll.frame = frame;
-    _changedFilter = [[NSButton alloc] initWithFrame:NSMakeRect(4, 2, 24, barHeight - 4)];
-    _changedFilter.bezelStyle = UDTexturedRoundedBezel;
-    [_changedFilter setButtonType:UDPushOnPushOffButton];
-    _changedFilter.title = @"±";
-    _changedFilter.toolTip = @"Show only files with source-control status";
-    _changedFilter.target = self;
-    _changedFilter.action = @selector(_toggleChangedFilter:);
-    _changedFilter.autoresizingMask = NSViewMaxXMargin | NSViewMaxYMargin;
-    [self.view addSubview:_changedFilter];
 }
 
-- (void)_toggleChangedFilter:(NSButton *)sender {
-    self.showsOnlyChangedFiles = sender.state == NSControlStateValueOn;
+- (IBAction)toggleChangedFilter:(id)sender {
+    self.showsOnlyChangedFiles = _changedFilterButton.state == NSControlStateValueOn;
 }
 
 - (void)setShowsOnlyChangedFiles:(BOOL)showsOnlyChangedFiles {
     if (_showsOnlyChangedFiles == showsOnlyChangedFiles) return;
     _showsOnlyChangedFiles = showsOnlyChangedFiles;
-    _changedFilter.state = showsOnlyChangedFiles ? NSControlStateValueOn : NSControlStateValueOff;
+    _changedFilterButton.state = showsOnlyChangedFiles ? NSControlStateValueOn : NSControlStateValueOff;
     [_outlineView reloadData];
     if (showsOnlyChangedFiles) [_outlineView expandItem:nil expandChildren:YES];
 }

@@ -33,6 +33,8 @@
 @property (nonatomic, weak) IBOutlet NSView                  *findBarHost;
 @property (nonatomic, weak) IBOutlet NSView                  *editorArea;
 @property (nonatomic, weak) IBOutlet UDLineNumberGutterView  *lineNumberGutterView;
+/// Authors (git blame), hidden till shown, at the gutter's left.
+@property (nonatomic, weak) IBOutlet UDAuthorsView *authorsView;
 @property (nonatomic, weak) IBOutlet UDFindResultsGutterView *gutterView;
 
 @property (nonatomic, strong, nullable) UDFindBarViewController *findBar;
@@ -60,6 +62,10 @@
 @property (nonatomic, strong) IBOutlet NSMenu *lineMenu;
 @property (nonatomic, strong) IBOutlet NSMenu *debugTextMenu;
 @property (nonatomic) NSInteger menuLine;
+// Source control's: a change bar's menu (Show, Stage, Discard Change), from
+// the XIB, and the change it is about.
+@property (nonatomic, strong) IBOutlet NSMenu *changeMenu;
+@property (nonatomic, strong, nullable) UDDetailedLineRangeMapping *menuChange;
 @property (nonatomic, strong, nullable) UDDebugHoverViewController *debugHover;
 @property (nonatomic) NSRange debugHoverRange;
 
@@ -116,6 +122,7 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
     [_lineNumberGutterView attachToScrollView:_scrollView
                                      textView:_textView
                                     textModel:_textStorage.textModel];
+    [_authorsView attachToTextView:_textView textModel:_textStorage.textModel];
     _textView.findActionHandler = self;
     _textView.debugHandler = self;
 
@@ -220,21 +227,14 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
 // MARK: - Authors (Xcode's: git blame beside the text)
 // ---------------------------------------------------------------------------
 
-- (UDAuthorsView *)_authorsView {
-    for (NSView *view in _editorArea.subviews) {
-        if ([view isKindOfClass:[UDAuthorsView class]]) return (UDAuthorsView *)view;
-    }
-    return nil;
-}
-
 - (BOOL)showsAuthors {
-    return [self _authorsView] != nil;
+    return _authorsView && ![_authorsView isHidden];
 }
 
 - (void)setShowsAuthors:(BOOL)showsAuthors {
     (void)self.view;
     if (showsAuthors == self.showsAuthors) return;
-    CGFloat width = UDAuthorsViewWidth * (showsAuthors ? 1 : -1);
+    CGFloat width = NSWidth(_authorsView.frame) * (showsAuthors ? 1 : -1);
     // the gutter and the text moved over, or back
     for (NSView *view in @[ _lineNumberGutterView, _scrollView ]) {
         NSRect frame = view.frame;
@@ -242,23 +242,17 @@ NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEdit
         if (view == _scrollView) frame.size.width -= width;
         view.frame = frame;
     }
-    if (showsAuthors) {
-        UDAuthorsView *authors = [[UDAuthorsView alloc] initWithFrame:NSMakeRect(0, 0, UDAuthorsViewWidth, NSHeight(_editorArea.bounds))
-                                                             textView:_textView textModel:_textStorage.textModel];
-        authors.autoresizingMask = NSViewHeightSizable | NSViewMaxXMargin;
-        [_editorArea addSubview:authors];
-    } else {
-        [[self _authorsView] removeFromSuperview];
-    }
+    if (!showsAuthors) _authorsView.ranges = @[];
+    [_authorsView setHidden:!showsAuthors];
     [_editorArea setNeedsDisplay:YES];
 }
 
 - (NSArray<UDSourceControlBlameRange *> *)blameRanges {
-    return [self _authorsView].ranges ?: @[];
+    return _authorsView.ranges ?: @[];
 }
 
 - (void)setBlameRanges:(NSArray<UDSourceControlBlameRange *> *)blameRanges {
-    [self _authorsView].ranges = blameRanges;
+    _authorsView.ranges = blameRanges;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,24 +320,18 @@ static NSArray<NSString *> *UDLinesOfText(NSString *text) {
 - (void)lineNumberGutterView:(UDLineNumberGutterView *)view didClickChangeAtLine:(NSInteger)lineNumber event:(NSEvent *)event {
     UDDetailedLineRangeMapping *change = [self _quickDiffChangeAtLine:lineNumber];
     if (!change) return;
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
-    for (NSArray *entry in @[ @[ @"Show Change", NSStringFromSelector(@selector(_showChange:)) ],
-                              @[ @"Stage Change", NSStringFromSelector(@selector(_stageChange:)) ],
-                              @[ @"Discard Change", NSStringFromSelector(@selector(_discardChange:)) ] ]) {
-        NSMenuItem *item = [menu addItemWithTitle:entry[0] action:NSSelectorFromString(entry[1]) keyEquivalent:@""];
-        item.target = self;
-        item.representedObject = change;
-    }
-    [NSMenu popUpContextMenu:menu withEvent:event forView:view];
+    _menuChange = change;
+    [NSMenu popUpContextMenu:_changeMenu withEvent:event forView:view];
 }
 
-- (void)_showChange:(NSMenuItem *)sender {
+- (IBAction)showChange:(nullable id)sender {
     [_sourceControlDelegate codeEditorShowChanges:self];
 }
 
 /// The original's text with @a change in it: what Stage Change stages.
-- (void)_stageChange:(NSMenuItem *)sender {
-    UDDetailedLineRangeMapping *change = sender.representedObject;
+- (IBAction)stageChange:(nullable id)sender {
+    UDDetailedLineRangeMapping *change = _menuChange;
+    if (!change) return;
     NSMutableArray<NSString *> *lines = [UDLinesOfText(_quickDiffOriginal) mutableCopy];
     NSArray<NSString *> *current = [self _currentLines];
     NSRange original = NSMakeRange((NSUInteger)change.original.startLineNumber - 1, (NSUInteger)UDLineRangeLength(change.original));
@@ -353,8 +341,9 @@ static NSArray<NSString *> *UDLinesOfText(NSString *text) {
 }
 
 /// The change's lines as they were (Xcode asks first).
-- (void)_discardChange:(NSMenuItem *)sender {
-    UDDetailedLineRangeMapping *change = sender.representedObject;
+- (IBAction)discardChange:(nullable id)sender {
+    UDDetailedLineRangeMapping *change = _menuChange;
+    if (!change) return;
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"The selected change will be discarded.";
     [alert addButtonWithTitle:@"Discard Change"];
@@ -719,6 +708,8 @@ static NSArray<NSString *> *UDLinesOfText(NSString *text) {
         sel_isEqual(action, @selector(addLogpoint:))) {
         return _breakpointFile != nil && _menuLine > 0;
     }
+    if (sel_isEqual(action, @selector(showChange:)) || sel_isEqual(action, @selector(stageChange:))) return _menuChange != nil;
+    if (sel_isEqual(action, @selector(discardChange:))) return _menuChange != nil && _textView.isEditable;
     return YES;
 }
 

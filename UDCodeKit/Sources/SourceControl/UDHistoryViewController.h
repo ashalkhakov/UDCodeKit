@@ -6,6 +6,7 @@
  *  commits' files, UDSourceControl's): its commits (message, author, date,
  *  commit), newest first; the one selected, its details and the files it
  *  changed, each to open as it was before and after it (the delegate's).
+ *  Its view is UDHistory.xib.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -32,8 +33,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// Its commits (once read) and the one selected's files.
 @property (nonatomic, readonly, copy) NSArray<UDSourceControlCommit *> *commits;
 @property (nonatomic, readonly, copy) NSArray<UDSourceControlCommitFile *> *selectedCommitFiles;
-@property (nonatomic, readonly) NSTableView *commitsTable;
-@property (nonatomic, readonly) NSTableView *filesTable;
+@property (nonatomic, weak, readonly) IBOutlet NSTableView *commitsTable;
+@property (nonatomic, weak, readonly) IBOutlet NSTableView *filesTable;
 
 /// Its commits read again.
 - (void)reload;

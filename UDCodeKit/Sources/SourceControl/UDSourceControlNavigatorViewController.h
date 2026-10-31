@@ -5,7 +5,8 @@
  *  git's, an extension's): Changes (where it is; its groups of changed files
  *  with Xcode's letters and its context menus; a commit message and Commit,
  *  with Commit and Push and Amend) and Repositories (the provider's own
- *  view, when it has one). A file chosen is the delegate's to show.
+ *  view, when it has one). A file chosen is the delegate's to show. Its
+ *  view is UDSourceControlNavigator.xib.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -33,8 +34,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// Changes (0) or Repositories (1).
 @property (nonatomic) NSInteger selectedTab;
 
-@property (nonatomic, readonly) NSOutlineView *changesView;
-@property (nonatomic, readonly) NSTextField *messageField;
+@property (nonatomic, weak, readonly) IBOutlet NSOutlineView *changesView;
+@property (nonatomic, weak, readonly) IBOutlet NSTextField *messageField;
 
 /// The files selected in Changes.
 @property (nonatomic, readonly, copy) NSArray<UDSourceControlResource *> *selectedResources;

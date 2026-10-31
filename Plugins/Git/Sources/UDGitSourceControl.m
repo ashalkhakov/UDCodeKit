@@ -28,6 +28,12 @@ typedef NS_ENUM(NSInteger, UDGitReading) {
 
 @interface UDGitSourceControl ()
 - (void)_tellFailure:(UDGitResult *)result;
+// UDGitMenus.xib's: the Integrate menu's items, the Changes' context menus
+@property (nonatomic, strong) IBOutlet NSMenu *integrateMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *unstagedMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *stagedMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *conflictsMenu;
+@property (nonatomic, strong) IBOutlet NSMenu *groupMenu;
 @end
 
 @implementation UDGitForward
@@ -272,11 +278,23 @@ static BOOL UDIsDeleted(UDGitResource *resource) {
 // MARK: - Menus
 // ---------------------------------------------------------------------------
 
-static NSMenuItem *UDItem(NSString *title, SEL action, id target, id object) {
-    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:@""];
-    item.target = target;
-    item.representedObject = object;
-    return item;
+/// UDGitMenus.xib's menus, loaded when first asked for.
+- (void)_loadMenus {
+    if (_integrateMenu) return;
+    NSNib *nib = [[NSNib alloc] initWithNibNamed:@"UDGitMenus" bundle:[NSBundle bundleForClass:[UDGitSourceControl class]]];
+    NSArray *objects = nil;     // held by the outlets
+    if (![nib instantiateWithOwner:self topLevelObjects:&objects]) NSLog(@"UDGitSourceControl: could not load UDGitMenus.xib");
+}
+
+/// Copies of @a menu's items (each in a menu of the caller's), about @a object.
+static NSArray<NSMenuItem *> *UDItemsOf(NSMenu *menu, id object) {
+    NSMutableArray<NSMenuItem *> *items = [NSMutableArray array];
+    for (NSMenuItem *item in menu.itemArray) {
+        NSMenuItem *copy = [item copy];
+        copy.representedObject = object;
+        [items addObject:copy];
+    }
+    return items;
 }
 
 static NSArray<NSString *> *UDPathsOf(NSArray<UDSourceControlResource *> *resources) {
@@ -286,42 +304,21 @@ static NSArray<NSString *> *UDPathsOf(NSArray<UDSourceControlResource *> *resour
 }
 
 - (NSArray<NSMenuItem *> *)menuItemsForResources:(NSArray<UDSourceControlResource *> *)resources {
+    [self _loadMenus];
     UDGitResource *first = resources.firstObject.object;
-    NSArray *paths = UDPathsOf(resources);
-    if (first.group == UDGitResourceGroupMerge) return @[ UDItem(@"Mark as Resolved", @selector(_stagePaths:), self, paths) ];
-    if (first.group == UDGitResourceGroupIndex) return @[ UDItem(@"Unstage", @selector(_unstagePaths:), self, paths) ];
-    return @[ UDItem(@"Stage", @selector(_stagePaths:), self, paths),
-              UDItem(@"Discard Changes…", @selector(_discardPaths:), self, paths) ];
+    NSMenu *menu = first.group == UDGitResourceGroupMerge ? _conflictsMenu
+                 : first.group == UDGitResourceGroupIndex ? _stagedMenu : _unstagedMenu;
+    return UDItemsOf(menu, UDPathsOf(resources));
 }
 
 - (NSArray<NSMenuItem *> *)menuItemsForGroup:(UDSourceControlResourceGroup *)group {
-    return @[ UDItem(@"Stage All Changes", @selector(stageAllChanges:), self, nil),
-              UDItem(@"Unstage All Changes", @selector(unstageAllChanges:), self, nil) ];
+    [self _loadMenus];
+    return UDItemsOf(_groupMenu, nil);
 }
 
 - (NSArray<NSMenuItem *> *)integrateMenuItems {
-    NSMutableArray<NSMenuItem *> *items = [NSMutableArray array];
-    NSArray *entries = @[
-        @[ @"Push…", @"pushChanges:", @"" ], @[ @"Pull…", @"pullChanges:", @"x" ],
-        @[ @"Fetch Changes", @"fetchChanges:", @"" ], @[ @"Refresh File Status", @"refreshFileStatus:", @"" ], @[],
-        @[ @"Stage All Changes", @"stageAllChanges:", @"" ], @[ @"Stage Selected Files", @"stageSelectedFiles:", @"" ],
-        @[ @"Unstage All Changes", @"unstageAllChanges:", @"" ], @[ @"Unstage Selected Files", @"unstageSelectedFiles:", @"" ], @[],
-        @[ @"Mark as Resolved", @"stageSelectedFiles:", @"" ], @[ @"Cherry-Pick…", @"cherryPick:", @"" ],
-        @[ @"Stash Changes…", @"stashChanges:", @"" ], @[],
-        @[ @"Discard All Changes…", @"discardAllChanges:", @"" ],
-        @[ @"Discard Changes in Selected Files…", @"discardChangesInSelectedFiles:", @"" ],
-    ];
-    for (NSArray *entry in entries) {
-        if (entry.count == 0) {
-            [items addObject:[NSMenuItem separatorItem]];
-            continue;
-        }
-        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:entry[0] action:NSSelectorFromString(entry[1]) keyEquivalent:entry[2]];
-        if ([entry[2] length]) item.keyEquivalentModifierMask = NSEventModifierFlagOption | NSEventModifierFlagCommand;
-        item.target = self;
-        [items addObject:item];
-    }
-    return items;
+    [self _loadMenus];
+    return UDItemsOf(_integrateMenu, nil);
 }
 
 - (NSArray<NSString *> *)_selectedPaths {
@@ -341,15 +338,15 @@ static NSArray<NSString *> *UDPathsOf(NSArray<UDSourceControlResource *> *resour
     return [self _forward:UDGitReadingOperation target:nil action:NULL];
 }
 
-- (void)_stagePaths:(NSMenuItem *)sender {
+- (IBAction)stagePaths:(NSMenuItem *)sender {
     [_repository stagePaths:sender.representedObject target:[self _operation] action:@selector(gitDidFinish:)];
 }
 
-- (void)_unstagePaths:(NSMenuItem *)sender {
+- (IBAction)unstagePaths:(NSMenuItem *)sender {
     [_repository unstagePaths:sender.representedObject target:[self _operation] action:@selector(gitDidFinish:)];
 }
 
-- (void)_discardPaths:(NSMenuItem *)sender {
+- (IBAction)discardPaths:(NSMenuItem *)sender {
     NSArray<NSString *> *paths = sender.representedObject;
     NSString *title = paths.count == 1
         ? [NSString stringWithFormat:@"Do you want to permanently discard all changes to “%@”?", paths.firstObject.lastPathComponent]
@@ -371,14 +368,13 @@ static NSArray<NSString *> *UDPathsOf(NSArray<UDSourceControlResource *> *resour
                                                  : @"It has no upstream branch yet: it becomes the remote's.";
     [alert addButtonWithTitle:@"Push"];
     [alert addButtonWithTitle:@"Cancel"];
-    NSView *accessory = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 260, 52)];
-    NSPopUpButton *remotes = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(0, 26, 260, 24) pullsDown:NO];
+    UDGitAccessories *accessories = [UDGitAccessories accessories];
+    NSPopUpButton *remotes = accessories.remotesButton;
+    [remotes removeAllItems];
     for (UDGitRemote *remote in _repository.remotes) [remotes addItemWithTitle:remote.name];
     remotes.enabled = _repository.upstream == nil;
-    [accessory addSubview:remotes];
-    NSButton *tags = UDGitCheckBox(@"Include tags", 260);
-    [accessory addSubview:tags];
-    alert.accessoryView = accessory;
+    NSButton *tags = accessories.tagsCheckBox;
+    alert.accessoryView = accessories.pushView;
     if ([alert runModal] != NSAlertFirstButtonReturn) return;
     [_repository pushToRemote:remotes.titleOfSelectedItem tags:tags.state == NSControlStateValueOn
                        target:[self _operation] action:@selector(gitDidFinish:)];
@@ -389,7 +385,7 @@ static NSArray<NSString *> *UDPathsOf(NSArray<UDSourceControlResource *> *resour
     alert.messageText = [NSString stringWithFormat:@"Pull “%@”", _repository.upstream ?: _repository.branch ?: @"HEAD"];
     [alert addButtonWithTitle:@"Pull"];
     [alert addButtonWithTitle:@"Cancel"];
-    NSButton *rebase = UDGitCheckBox(@"Rebase local changes onto upstream changes", 300);
+    NSButton *rebase = UDGitCheckBox(@"Rebase local changes onto upstream changes");
     alert.accessoryView = rebase;
     if ([alert runModal] != NSAlertFirstButtonReturn) return;
     [_repository pullRebasing:rebase.state == NSControlStateValueOn target:[self _operation] action:@selector(gitDidFinish:)];
@@ -430,7 +426,7 @@ static NSArray<NSString *> *UDPathsOf(NSArray<UDSourceControlResource *> *resour
     alert.informativeText = @"A description of the changes stashed (optional).";
     [alert addButtonWithTitle:@"Stash"];
     [alert addButtonWithTitle:@"Cancel"];
-    NSTextField *field = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 300, 22)];
+    NSTextField *field = [UDGitAccessories accessories].field;
     alert.accessoryView = field;
     [alert.window setInitialFirstResponder:field];
     if ([alert runModal] != NSAlertFirstButtonReturn) return;

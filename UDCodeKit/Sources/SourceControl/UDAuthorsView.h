@@ -14,13 +14,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class UDAuthorsView, UDTextModel;
 
-/// Its width beside the text.
-UDCODEKIT_EXPORT const CGFloat UDAuthorsViewWidth;
-
 @interface UDAuthorsView : NSView
 
-/// Draws @a ranges beside @a textView's lines (of @a textModel).
-- (instancetype)initWithFrame:(NSRect)frame textView:(NSTextView *)textView textModel:(UDTextModel *)textModel;
+/// Draws its ranges beside @a textView's lines (of @a textModel): for a view
+/// loaded from a XIB (the editor's), or to move it to another text view.
+- (void)attachToTextView:(NSTextView *)textView textModel:(UDTextModel *)textModel;
 
 @property (nonatomic, copy) NSArray<UDSourceControlBlameRange *> *ranges;
 

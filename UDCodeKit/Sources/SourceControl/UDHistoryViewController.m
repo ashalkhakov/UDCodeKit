@@ -9,16 +9,17 @@
 static const NSInteger UDHistoryLength = 500;
 
 @interface UDHistoryViewController () <NSTableViewDataSource, NSTableViewDelegate>
+@property (nonatomic, weak) IBOutlet NSTableView *commitsTable;
+@property (nonatomic, weak) IBOutlet NSTableView *filesTable;
+@property (nonatomic, strong) IBOutlet NSTextView *detailsView;
 @end
 
 @implementation UDHistoryViewController {
-    NSTableView *_commitsTable, *_filesTable;
-    NSTextView *_details;
     NSDateFormatter *_dates;
 }
 
 - (instancetype)initWithSourceControl:(id<UDSourceControl>)sourceControl ref:(NSString *)ref {
-    self = [super initWithNibName:nil bundle:nil];
+    self = [super initWithNibName:@"UDHistory" bundle:[NSBundle bundleForClass:[UDHistoryViewController class]]];
     if (self) {
         _sourceControl = sourceControl;
         _ref = [ref copy];
@@ -31,69 +32,18 @@ static const NSInteger UDHistoryLength = 500;
     return self;
 }
 
-static NSTableView *UDMakeTable(NSRect frame, NSArray<NSArray *> *columns, id owner, NSScrollView *__autoreleasing *scroll) {
-    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:frame];
-    scrollView.hasVerticalScroller = YES;
-    scrollView.autohidesScrollers = YES;
-    scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    NSTableView *table = [[NSTableView alloc] initWithFrame:scrollView.bounds];
-    for (NSArray *column in columns) {
-        NSTableColumn *tableColumn = [[NSTableColumn alloc] initWithIdentifier:column[0]];
-        [tableColumn.headerCell setStringValue:column[1]];
-        tableColumn.width = [column[2] doubleValue];
-        UDBadgeTextFieldCell *cell = [[UDBadgeTextFieldCell alloc] initTextCell:@""];
-        cell.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-        cell.lineBreakMode = NSLineBreakByTruncatingTail;
-        cell.editable = NO;
-        tableColumn.dataCell = cell;
-        [table addTableColumn:tableColumn];
+// ---------------------------------------------------------------------------
+// MARK: - The view (UDHistory.xib)
+// ---------------------------------------------------------------------------
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    _detailsView.textContainerInset = NSMakeSize(8, 8);
+    // as wide as what shows them, the first column taking what the others leave
+    for (NSTableView *table in @[ _commitsTable, _filesTable ]) {
+        table.frame = table.enclosingScrollView.contentView.bounds;
+        [table sizeToFit];
     }
-    table.rowHeight = 18;
-    table.columnAutoresizingStyle = NSTableViewFirstColumnOnlyAutoresizingStyle;
-    table.dataSource = owner;
-    table.delegate = owner;
-    table.target = owner;
-    scrollView.documentView = table;
-    // as wide as what shows it, the first column taking what the others leave
-    table.autoresizingMask = NSViewWidthSizable;
-    table.frame = scrollView.contentView.bounds;
-    [table sizeToFit];
-    *scroll = scrollView;
-    return table;
-}
-
-- (void)loadView {
-    NSSplitView *split = [[NSSplitView alloc] initWithFrame:NSMakeRect(0, 0, 800, 600)];
-    split.vertical = NO;
-    split.dividerStyle = NSSplitViewDividerStyleThin;
-    split.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-
-    NSScrollView *scroll = nil;
-    _commitsTable = UDMakeTable(NSMakeRect(0, 0, 800, 340), @[ @[ @"message", @"Message", @420 ], @[ @"author", @"Author", @140 ],
-                                                                @[ @"date", @"Date", @140 ], @[ @"commit", @"Commit", @70 ] ],
-                                self, &scroll);
-    [split addSubview:scroll];
-
-    NSSplitView *detail = [[NSSplitView alloc] initWithFrame:NSMakeRect(0, 0, 800, 260)];
-    detail.vertical = YES;
-    detail.dividerStyle = NSSplitViewDividerStyleThin;
-    detail.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    NSScrollView *detailsScroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 480, 260)];
-    detailsScroll.hasVerticalScroller = YES;
-    detailsScroll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    _details = [[NSTextView alloc] initWithFrame:detailsScroll.bounds];
-    _details.editable = NO;
-    _details.textContainerInset = NSMakeSize(8, 8);
-    _details.autoresizingMask = NSViewWidthSizable;
-    detailsScroll.documentView = _details;
-    [detail addSubview:detailsScroll];
-    _filesTable = UDMakeTable(NSMakeRect(0, 0, 320, 260), @[ @[ @"file", @"Files Changed", @300 ] ], self, &scroll);
-    _filesTable.doubleAction = @selector(_openFile:);
-    [detail addSubview:scroll];
-    [detail adjustSubviews];
-    [split addSubview:detail];
-    [split adjustSubviews];
-    self.view = split;
     [self reload];
 }
 
@@ -130,7 +80,7 @@ static NSTableView *UDMakeTable(NSRect frame, NSArray<NSArray *> *columns, id ow
     _selectedCommitFiles = @[];
     [_filesTable reloadData];
     if (!commit) {
-        _details.string = @"";
+        _detailsView.string = @"";
         return;
     }
     NSMutableString *details = [NSMutableString string];
@@ -139,7 +89,7 @@ static NSTableView *UDMakeTable(NSRect frame, NSArray<NSArray *> *columns, id ow
     [details appendFormat:@"Commit %@\n", commit.identifier];
     if (commit.parents.count) [details appendFormat:@"Parent %@\n", [commit.parents componentsJoinedByString:@", "]];
     if (commit.refNames.count) [details appendFormat:@"%@\n", [commit.refNames componentsJoinedByString:@", "]];
-    _details.string = details;
+    _detailsView.string = details;
     if ([_sourceControl respondsToSelector:@selector(filesOfCommit:target:action:)]) {
         [_sourceControl filesOfCommit:commit.identifier target:self action:@selector(_didReadFiles:)];
     }
@@ -151,7 +101,7 @@ static NSTableView *UDMakeTable(NSRect frame, NSArray<NSArray *> *columns, id ow
     [_filesTable reloadData];
 }
 
-- (void)_openFile:(id)sender {
+- (IBAction)openFile:(id)sender {
     NSInteger row = _filesTable.clickedRow >= 0 ? _filesTable.clickedRow : _filesTable.selectedRow;
     UDSourceControlCommit *commit = [self _selectedCommit];
     if (row < 0 || row >= (NSInteger)_selectedCommitFiles.count || !commit) return;

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDGitSourceControl">
+            <connections>
+                <outlet property="integrateMenu" destination="GM-integrate" id="GM-o-integrate"/>
+                <outlet property="unstagedMenu" destination="GM-unstaged" id="GM-o-unstaged"/>
+                <outlet property="stagedMenu" destination="GM-staged" id="GM-o-staged"/>
+                <outlet property="conflictsMenu" destination="GM-conflicts" id="GM-o-conflicts"/>
+                <outlet property="groupMenu" destination="GM-group" id="GM-o-group"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Integrate" autoenablesItems="YES" id="GM-integrate" userLabel="Git's Integrate Items">
+            <items>
+                <menuItem title="Push…" id="GM-i-push">
+                    <connections>
+                        <action selector="pushChanges:" target="-2" id="GM-i-push-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Pull…" keyEquivalent="x" id="GM-i-pull">
+                    <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
+                    <connections>
+                        <action selector="pullChanges:" target="-2" id="GM-i-pull-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Fetch Changes" id="GM-i-fetch">
+                    <connections>
+                        <action selector="fetchChanges:" target="-2" id="GM-i-fetch-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Refresh File Status" id="GM-i-refresh">
+                    <connections>
+                        <action selector="refreshFileStatus:" target="-2" id="GM-i-refresh-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="GM-i-sep1"/>
+                <menuItem title="Stage All Changes" id="GM-i-stage-all">
+                    <connections>
+                        <action selector="stageAllChanges:" target="-2" id="GM-i-stage-all-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Stage Selected Files" id="GM-i-stage">
+                    <connections>
+                        <action selector="stageSelectedFiles:" target="-2" id="GM-i-stage-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Unstage All Changes" id="GM-i-unstage-all">
+                    <connections>
+                        <action selector="unstageAllChanges:" target="-2" id="GM-i-unstage-all-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Unstage Selected Files" id="GM-i-unstage">
+                    <connections>
+                        <action selector="unstageSelectedFiles:" target="-2" id="GM-i-unstage-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="GM-i-sep2"/>
+                <menuItem title="Mark as Resolved" id="GM-i-resolved">
+                    <connections>
+                        <action selector="stageSelectedFiles:" target="-2" id="GM-i-resolved-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Cherry-Pick…" id="GM-i-cherry">
+                    <connections>
+                        <action selector="cherryPick:" target="-2" id="GM-i-cherry-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Stash Changes…" id="GM-i-stash">
+                    <connections>
+                        <action selector="stashChanges:" target="-2" id="GM-i-stash-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="GM-i-sep3"/>
+                <menuItem title="Discard All Changes…" id="GM-i-discard-all">
+                    <connections>
+                        <action selector="discardAllChanges:" target="-2" id="GM-i-discard-all-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Discard Changes in Selected Files…" id="GM-i-discard">
+                    <connections>
+                        <action selector="discardChangesInSelectedFiles:" target="-2" id="GM-i-discard-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Unstaged" autoenablesItems="YES" id="GM-unstaged" userLabel="An Unstaged File's">
+            <items>
+                <menuItem title="Stage" id="GM-u-stage">
+                    <connections>
+                        <action selector="stagePaths:" target="-2" id="GM-u-stage-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Discard Changes…" id="GM-u-discard">
+                    <connections>
+                        <action selector="discardPaths:" target="-2" id="GM-u-discard-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Staged" autoenablesItems="YES" id="GM-staged" userLabel="A Staged File's">
+            <items>
+                <menuItem title="Unstage" id="GM-s-unstage">
+                    <connections>
+                        <action selector="unstagePaths:" target="-2" id="GM-s-unstage-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Conflicts" autoenablesItems="YES" id="GM-conflicts" userLabel="A Conflicted File's">
+            <items>
+                <menuItem title="Mark as Resolved" id="GM-c-resolved">
+                    <connections>
+                        <action selector="stagePaths:" target="-2" id="GM-c-resolved-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Group" autoenablesItems="YES" id="GM-group" userLabel="A Group's">
+            <items>
+                <menuItem title="Stage All Changes" id="GM-g-stage">
+                    <connections>
+                        <action selector="stageAllChanges:" target="-2" id="GM-g-stage-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Unstage All Changes" id="GM-g-unstage">
+                    <connections>
+                        <action selector="unstageAllChanges:" target="-2" id="GM-g-unstage-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+    </objects>
+</document>

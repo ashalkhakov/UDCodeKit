@@ -51,6 +51,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// Only the files with a badge, and their folders (Xcode's "Show only files
 /// with source-control status", the button below).
 @property (nonatomic) BOOL showsOnlyChangedFiles;
+@property (nonatomic, weak, readonly) IBOutlet NSButton *changedFilterButton;
+- (IBAction)toggleChangedFilter:(nullable id)sender;
 /// The badges changed (a repository's status): drawn again (listed again
 /// when only changed files are shown).
 - (void)badgesDidChange;

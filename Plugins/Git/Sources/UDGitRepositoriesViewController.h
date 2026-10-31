@@ -6,6 +6,7 @@
  *  Stashed Changes, each with Xcode's context menu (Switch…, New Branch…,
  *  Merge…, New Tag…, Delete…, Add Existing Remote…, Apply Stashed
  *  Changes…). A branch or tag selected: its history, the host's to show.
+ *  Its view and menus are UDGitRepositories.xib's.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -19,7 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Of @a repository, for @a sourceControl (whose host is told).
 - (instancetype)initWithRepository:(UDGitRepository *)repository sourceControl:(id<UDSourceControl>)sourceControl;
 
-@property (nonatomic, readonly) NSOutlineView *outlineView;
+@property (nonatomic, weak, readonly) IBOutlet NSOutlineView *outlineView;
 
 @end
 

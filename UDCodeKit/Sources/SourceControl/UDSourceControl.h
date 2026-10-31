@@ -168,8 +168,9 @@ typedef NS_OPTIONS(NSUInteger, UDSourceControlCommitOptions) {
 @protocol UDSourceControlHost <NSObject>
 /// The window its sheets go on.
 @property (nonatomic, readonly, nullable) NSWindow *window;
-/// An operation that failed: what went wrong, told.
-- (void)sourceControl:(id<UDSourceControl>)sourceControl didFail:(UDSourceControlResult *)result;
+/// An operation that failed (nil: an extension's, of no source control): what
+/// went wrong, told.
+- (void)sourceControl:(nullable id<UDSourceControl>)sourceControl didFail:(UDSourceControlResult *)result;
 /// The files the Integrate menu's "Selected Files" are.
 - (NSArray<NSString *> *)selectedPathsForSourceControl:(id<UDSourceControl>)sourceControl;
 /// A ref's history, shown (a branch selected in Repositories).

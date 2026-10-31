@@ -6,6 +6,7 @@
 #import "UDSQLText.h"
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLResultsViewController.h"
+#import "UDSQLBrowserViewController.h"
 #import "UDSQLSheets.h"
 
 NSNotificationName const UDSQLDatabasesDidChangeNotification = @"UDSQLDatabasesDidChange";
@@ -60,6 +61,7 @@ static const NSUInteger UDSQLMaxRows = 1000;
     NSMapTable<UDCodeDocument *, UDSQLResultsViewController *> *_results;
     NSMapTable<UDCodeDocument *, NSString *> *_documentDatabases;     // untitled documents'
     NSMapTable<UDCodeDocument *, NSDictionary *> *_parameterValues;   // the last given, a document's
+    NSMutableDictionary<NSString *, UDSQLBrowserViewController *> *_browsers;   // by database, table and entity
 }
 
 - (instancetype)initWithWorkbench:(id<UDWorkbench>)workbench {
@@ -263,6 +265,18 @@ static BOOL UDWantsPassword(NSError *error) {
         [[NSUserDefaults standardUserDefaults] setObject:saved forKey:UDSQLDocumentsDefaultsKey];
     }
     [[_results objectForKey:document] reloadDatabases];
+}
+
+- (void)browseTable:(UDSQLTable *)table entity:(NSNumber *)entity database:(UDSQLDatabase *)database {
+    if (!_browsers) _browsers = [NSMutableDictionary dictionary];
+    NSString *key = [@[ database.name, table.schema ?: @"", table.name, entity ?: @"" ] componentsJoinedByString:@"\t"];
+    UDSQLBrowserViewController *browser = _browsers[key];
+    if (!browser) {
+        browser = [[UDSQLBrowserViewController alloc] initWithDatabases:self database:database table:table entity:entity];
+        _browsers[key] = browser;
+    }
+    NSString *name = entity ? database.schema.coreDataEntities[entity] ?: table.name : table.name;
+    [_workbench showViewController:browser title:[NSString stringWithFormat:@"%@ (%@)", name, database.name]];
 }
 
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run {

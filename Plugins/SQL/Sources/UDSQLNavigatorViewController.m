@@ -462,17 +462,12 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     return nil;
 }
 
-- (IBAction)selectRows:(id)sender {
+- (IBAction)browseRows:(id)sender {
     UDSQLNode *node = [self _actedOn:sender];
     UDSQLDatabase *database = [self _databaseOf:node];
-    NSString *sql = nil;
-    if (node.kind == UDSQLNodeTable) {
-        sql = [NSString stringWithFormat:@"SELECT * FROM %@ LIMIT 100", [node.object qualifiedNameFor:[self _quoter:database]]];
-    } else if (node.kind == UDSQLNodeEntity && [self _tableOf:node]) {
-        // an entity's rows: its own and its subentities', in its table
-        sql = [database.schema coreDataRowsOfEntity:node.object connection:[self _quoter:database] limit:100];
-    }
-    if (sql) [_databases openQuery:sql database:database run:YES];
+    UDSQLTable *table = [self _tableOf:node];
+    // an entity's rows: its own and its subentities', in its table
+    if (table) [_databases browseTable:table entity:node.kind == UDSQLNodeEntity ? node.object : nil database:database];
 }
 
 - (IBAction)copyName:(id)sender {
@@ -485,7 +480,7 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
 
 - (IBAction)openItem:(id)sender {
     UDSQLNode *node = [self _clickedNode];
-    if (node.kind == UDSQLNodeTable || node.kind == UDSQLNodeEntity) [self selectRows:nil];
+    if (node.kind == UDSQLNodeTable || node.kind == UDSQLNodeEntity) [self browseRows:nil];
     else if (node.kind == UDSQLNodeDatabase) {
         if ([_outlineView isItemExpanded:node]) [_outlineView collapseItem:node];
         else [_outlineView expandItem:node];

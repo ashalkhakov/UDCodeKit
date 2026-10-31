@@ -58,9 +58,9 @@
         </menu>
         <menu title="Table" autoenablesItems="YES" id="DB-menu-table" userLabel="A Table's">
             <items>
-                <menuItem title="Select Rows" id="DB-t-rows">
+                <menuItem title="Browse Rows" id="DB-t-rows">
                     <connections>
-                        <action selector="selectRows:" target="-2" id="DB-t-rows-a"/>
+                        <action selector="browseRows:" target="-2" id="DB-t-rows-a"/>
                     </connections>
                 </menuItem>
                 <menuItem title="New Query" id="DB-t-new">

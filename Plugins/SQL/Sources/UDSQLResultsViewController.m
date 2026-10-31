@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDSQLResultsViewController.h"
+#import "UDSQLValues.h"
 #import "UDSQLDatabases.h"
 
 @interface UDSQLResultsViewController ()
@@ -24,7 +25,6 @@
     NSArray<UDSQLResult *> *_results;
     NSInteger _shown;                   // the result in the grid; -1: the messages
     NSDate *_started;
-    NSDateFormatter *_dates;
 }
 
 - (instancetype)initWithDatabases:(UDSQLDatabases *)databases document:(UDCodeDocument *)document {
@@ -34,8 +34,6 @@
         _document = document;
         _results = @[];
         _shown = -1;
-        _dates = [[NSDateFormatter alloc] init];
-        _dates.dateFormat = @"yyyy-MM-dd HH:mm:ss";
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(reloadDatabases)
                                                      name:UDSQLDatabasesDidChangeNotification object:databases];
     }
@@ -137,7 +135,7 @@ static NSString *UDFirstLine(NSString *statement) {
     _statements = [statements copy];
     _results = @[];
     _started = [NSDate date];
-    [self _log:[NSString stringWithFormat:@"— %@ — %@", database.name, [_dates stringFromDate:_started]] color:[NSColor secondaryLabelColor]];
+    [self _log:[NSString stringWithFormat:@"— %@ — %@", database.name, [UDSQLDateFormatter() stringFromDate:_started]] color:[NSColor secondaryLabelColor]];
     _statusLabel.stringValue = statements.count == 1 ? @"Running…" : [NSString stringWithFormat:@"Running %lu statements…", (unsigned long)statements.count];
     [_stopButton setEnabled:YES];
     [self _showResults];
@@ -237,21 +235,8 @@ static NSString *UDFirstLine(NSString *statement) {
 }
 
 - (NSString *)textOfValue:(id)value column:(NSUInteger)column {
-    if (value == [NSNull null]) return @"NULL";
-    if ([value isKindOfClass:[NSData class]]) return [NSString stringWithFormat:@"⟨%lu bytes⟩", (unsigned long)[value length]];
     UDSQLColumn *described = column < self.shownResult.columns.count ? self.shownResult.columns[column] : nil;
-    UDSQLSchema *schema = _database.schema;
-    if (schema.coreDataStore && [value isKindOfClass:[NSNumber class]]) {
-        // a Core Data store's dates and entities, as such
-        if ([described.type caseInsensitiveCompare:@"TIMESTAMP"] == NSOrderedSame) {
-            return [_dates stringFromDate:UDSQLDateOfCoreDataTimestamp([value doubleValue])];
-        }
-        if ([described.name isEqualToString:@"Z_ENT"] && schema.coreDataEntities[value]) {
-            return [NSString stringWithFormat:@"%@ · %@", value, schema.coreDataEntities[value]];
-        }
-    }
-    NSString *text = [value description];
-    return [[text stringByReplacingOccurrencesOfString:@"\r\n" withString:@" ↵ "] stringByReplacingOccurrencesOfString:@"\n" withString:@" ↵ "];
+    return UDSQLTextOfValue(value, described.name, described.type, _database.schema);
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
@@ -262,14 +247,8 @@ static NSString *UDFirstLine(NSString *statement) {
     NSUInteger index = (NSUInteger)[column.identifier integerValue];
     NSArray *values = self.shownResult.rows[(NSUInteger)row];
     id value = index < values.count ? values[index] : [NSNull null];
-    NSString *text = [self textOfValue:value column:index];
-    if (value == [NSNull null] || [value isKindOfClass:[NSData class]]) {
-        // not the value itself: told apart
-        return [[NSAttributedString alloc] initWithString:text attributes:@{
-            NSForegroundColorAttributeName: [NSColor disabledControlTextColor],
-            NSFontAttributeName: [NSFont systemFontOfSize:[NSFont smallSystemFontSize]] }];
-    }
-    return text;
+    UDSQLColumn *described = index < self.shownResult.columns.count ? self.shownResult.columns[index] : nil;
+    return UDSQLCellOfValue(value, described.name, described.type, _database.schema);
 }
 
 - (NSString *)tableView:(NSTableView *)tableView toolTipForCell:(NSCell *)cell rect:(NSRectPointer)rect tableColumn:(NSTableColumn *)column

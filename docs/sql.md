@@ -50,8 +50,8 @@ A Core Data store opens as the entities it holds, not only as tables:
 
 - **Entities**: each under its superentity, with its table and how many of
   its rows there are (its own: its subentities' are theirs). Double-click
-  one (or Select Rows) for its rows — its own and its subentities': a
-  subentity's rows are in its root entity's table, told apart by `Z_ENT`.
+  one (or Browse Rows) to browse its rows — its own and its subentities':
+  a subentity's rows are in its root entity's table, told apart by `Z_ENT`.
 - **Tables**: each `Z` table named by the entities whose rows it holds
   (`ZPERSON`: Person, Employee); a many-to-many join table (`Z_1TEAMS`) by
   the relationship it holds (`Person.teams`).
@@ -60,6 +60,47 @@ A Core Data store opens as the entities it holds, not only as tables:
 In results, Core Data's dates (seconds since 2001) show as dates, and
 `Z_ENT` names its entity: `2 · Employee`. `Z_PK` is the row's key, `Z_OPT`
 its version.
+
+## Browsing a table's rows
+
+Double-click a table (or an entity) in the navigator, or choose **Browse
+Rows** in its menu or the ER diagram's, and its rows open in a tab of their
+own, a page of 100 at a time, with how many there are. Nothing is changed:
+browsing only reads.
+
+Over the rows, under each column's name, type what its rows are to be —
+query by example. What is typed is a value, never SQL: each becomes a
+parameter.
+
+| Typed | Rows whose value is |
+|---|---|
+| `Ann`, `5` | that (a number where the column holds numbers) |
+| `> 5`, `<= 3`, `<> x` | compared (`>=`, `<`, `=` and `!=` too) |
+| `NULL`, `NOT NULL` | NULL, or not |
+| `Ann*`, `%ann%` | like it: `*` and `%` stand for any text, case aside |
+| `1..10` | between the two, both included |
+| `a, b, c` | one of them |
+| `!x`, `not x` | not so (any of the above) |
+| `'x'`, `"5, 6"` | the text in quotes, as it is |
+
+An empty condition shows an example of what its column takes (`e.g. > 5`,
+`e.g. Ann*`), and its tooltip all of the above. The ▾ at a condition's
+right (or a right-click) offers them as a menu — Equal To, Greater Than,
+Like, Between, One Of, Is NULL, Not… — made of what is typed: `5` and
+Greater Than make `> 5`, and what still wants a value (Between, One Of) is
+left to type.
+
+The conditions in a row all hold; **Or** adds a row of them, and rows
+meeting any row are shown (− takes one away, **Clear** all). A condition
+that can't be read says why and turns red. In a Core Data store, dates are
+typed as dates (`2024-05-01`, `> 2024-05-01 14:30`: a day alone is the
+whole day) and `Z_ENT` by entity name (`Employee`).
+
+Click a column's name to sort by it, again for the other way (▲ ▼); the
+column clicked before sorts within it. ◀ and ▶ turn the pages. **Show
+SQL** opens the query as a document of its own, its values written in, to
+change and run; the rows selected copy as tab-separated text (Copy with
+Column Names, their names first).
 
 ## Running a query
 
@@ -120,7 +161,7 @@ its first item:
 
 | | | |
 |---|---|---|
-| **A table** | Select Rows | New Query, Copy Name |
+| **A table** | Browse Rows | New Query, Copy Name |
 | **A column** | Select Values: each value and how many rows have it, the commonest first | New Query (`WHERE column = `), Copy Name |
 | **A line** | Select Joined Rows: the two tables joined on the key | New Query (the join written out), Copy (`orders.customer → customers.id`) |
 
@@ -141,6 +182,8 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLSchema` | tables, views, columns, keys and indexes from each catalogue; a Core Data store read as one |
 | `UDSQLRunner` | a connection's work off the main thread, one operation at a time |
 | `UDSQLDatabases` | a window's connections, which database each document uses, running |
+| `UDSQLQbE` | query by example: what is typed under each column as a WHERE of parameters, an order, pages, a count |
+| `UDSQLBrowserViewController` | a table's rows browsed: the conditions over them, sorting, paging, Show SQL |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |
 | `UDSQLDiagramViewController` | the diagram's tab: DiagramKit's canvas, Arrange, zoom, export, a table's menu |
 

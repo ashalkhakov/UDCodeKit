@@ -7,7 +7,8 @@
  *  Tables, their columns and the lines between them are selected (a
  *  selected column drags its table), the one selected described under the
  *  toolbar; each has a menu, and a double-click runs its first item: a
- *  table's rows, a column's values (the commonest first), a line's join.
+ *  table's rows browsed, a column's values (the commonest first), a
+ *  line's join.
  *  Where the tables were left is kept, by database, and the diagram drawn
  *  again when its schema is read again (Refresh).
  *--------------------------------------------------------------------------------------------*/
@@ -47,6 +48,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)exportPDF:(nullable id)sender;
 - (IBAction)exportPNG:(nullable id)sender;
 - (IBAction)exportSVG:(nullable id)sender;
+- (IBAction)browseRows:(nullable id)sender;
 - (IBAction)selectRows:(nullable id)sender;
 - (IBAction)newQuery:(nullable id)sender;
 - (IBAction)copyName:(nullable id)sender;

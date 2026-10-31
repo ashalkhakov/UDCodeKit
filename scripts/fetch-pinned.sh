@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# scripts/fetch-pinned.sh <name> <url> <dir>
+# scripts/fetch-pinned.sh <name> <url> <dir> [branch]
 #
 # Checks out <url> into <dir> (which must not exist) at <name>'s commit in
 # scripts/grammars.lock. With UD_FETCH_LATEST=1 (update-grammars.sh
-# --latest), or when the lock has no <name>, its default branch's head
+# --latest), or when the lock has no <name>, the head of <branch> (its
+# default branch when none is named: SQL's generated parser is on gh-pages)
 # instead, and the lock records that commit.
 set -euo pipefail
 
-name=$1 url=$2 dir=$3
+name=$1 url=$2 dir=$3 branch=${4:-}
 lock="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/grammars.lock"
 pin=$(awk -v n="$name" '$1 == n { print $2 }' "$lock")
 
@@ -18,7 +19,7 @@ if [[ "${UD_FETCH_LATEST:-}" != 1 && -n "$pin" ]]; then
     exit 0
 fi
 
-git clone --depth=1 --quiet "$url" "$dir"
+git clone --depth=1 --quiet ${branch:+--branch "$branch"} "$url" "$dir"
 sha=$(git -C "$dir" rev-parse HEAD)
 [[ -n "$pin" ]] || echo "  [warn] $name has no pin in grammars.lock: its head, $sha, is recorded" >&2
 tmp=$(mktemp)

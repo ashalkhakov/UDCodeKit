@@ -205,7 +205,8 @@ static NSString * const UDProgram =
     XCTAssertEqual(_controller.debugBarHost.subviews.count, 1u);
     XCTAssertEqual(_controller.debugAreaHost.subviews.count, 1u);
     XCTAssertNotNil(_controller.debugSplit.splitView);
-    XCTAssertEqual(_controller.navigatorControl.segmentCount, 8, @"Source Control second, as Xcode's ⌘2");
+    XCTAssertGreaterThanOrEqual(_controller.navigatorControl.segmentCount, 8, @"the window's own, then the extensions' (Databases)");
+    XCTAssertEqualObjects([_controller.navigatorControl.cell toolTipForSegment:1], @"Source Control navigator (⌘2)", @"second, as Xcode's ⌘2");
     UDDebugBarViewController *bar = _controller.debugBar;
     for (NSString *outlet in @[ @"continueButton", @"stepOverButton", @"stepIntoButton", @"stepOutButton", @"stopButton", @"statusLabel" ]) {
         XCTAssertNotNil([bar valueForKey:outlet], @"%@ is connected in UDDebugBar.xib", outlet);

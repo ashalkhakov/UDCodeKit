@@ -36,7 +36,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @interface UDDocumentWindowController () <UDDiagnosticTextViewDelegate, UDErrorsViewControllerDelegate,
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
-                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDSourceControlNavigatorDelegate, UDHistoryDelegate, UDCodeEditorSourceControlDelegate, UDSourceControlHost, UDJumpBarControllerDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
+                                          UDFileWatcherDelegate, UDSearchResultsDelegate, UDSourceControlNavigatorDelegate, UDHistoryDelegate, UDCodeEditorSourceControlDelegate, UDSourceControlHost, UDJumpBarControllerDelegate, UDWorkbench, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
                                           UDCodeEditorLinkDelegate, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
@@ -84,6 +84,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// The build's diagnostics' stores for files no tab has, listed in Issues.
 @property (nonatomic, copy) NSArray<NSString *> *buildIssuePaths;
 @property (nonatomic, strong, readwrite, nullable) UDProject *project;
+/// The extensions' navigators: each its view controller and segment.
+@property (nonatomic, strong, nullable) NSMapTable<id, NSArray *> *extensionNavigators;
 @property (nonatomic, strong, readwrite, nullable) UDFileNavigatorViewController *fileNavigator;
 /// The project's language servers, one per command, which its documents share
 /// (one clangd for the project, as VS Code has it).
@@ -254,6 +256,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     _sourceControlNavigator.delegate = self;
     [self _putView:_sourceControlNavigator.view inHost:_sourceControlHost];
     [self reloadSourceControl];
+    [self _addExtensionNavigators];
     _testNavigator = [[UDTestNavigatorViewController alloc] init];
     _testNavigator.delegate = self;
     [self _putView:_testNavigator.view inHost:_testsHost];
@@ -1499,6 +1502,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 }
 
 - (void)openURLInNewTab:(NSURL *)url {
+    // a file an extension opens itself (a database's), not as text
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if ([extension respondsToSelector:@selector(workbench:openURL:)] && [extension workbench:self openURL:url]) return;
+    }
     // by its real path, as the project's folder is known: a file reached by
     // another (a link, Windows' C:/Users/ARTYOM~1) is still the project's,
     // and its language server's
@@ -2176,6 +2183,106 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
 
 - (void)windowDidBecomeKey:(NSNotification *)note {
     [self _rebuildIntegrateMenu];
+    [self _rebuildEditorMenu];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - The workbench (UDWorkbench): what extensions contribute to the window
+// ---------------------------------------------------------------------------
+
+/// Each extension's navigator: a segment after the window's own, its view in
+/// a tab of the navigator's.
+- (void)_addExtensionNavigators {
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if (![extension respondsToSelector:@selector(navigatorViewControllerForWorkbench:)]) continue;
+        NSViewController *navigator = [extension navigatorViewControllerForWorkbench:self];
+        if (!navigator) continue;
+        if (!_extensionNavigators) _extensionNavigators = [NSMapTable strongToStrongObjectsMapTable];
+        NSInteger segment = _navigatorControl.segmentCount;
+        _navigatorControl.segmentCount = segment + 1;
+        NSImage *image = [extension respondsToSelector:@selector(navigatorImage)] ? [extension navigatorImage] : nil;
+        if (image) [_navigatorControl setImage:image forSegment:segment];
+        else [_navigatorControl setLabel:@"•" forSegment:segment];
+        [_navigatorControl.cell setToolTip:navigator.title ?: @"" forSegment:segment];
+        [_navigatorControl.cell setTag:segment forSegment:segment];
+        NSTabViewItem *item = [[NSTabViewItem alloc] initWithIdentifier:navigator.title ?: @"extension"];
+        NSView *host = [[NSView alloc] initWithFrame:_navigatorTabView.contentRect];
+        item.view = host;
+        [_navigatorTabView addTabViewItem:item];
+        [self _putView:navigator.view inHost:host];
+        [_extensionNavigators setObject:@[ navigator, @(segment) ] forKey:extension];
+    }
+    // the segments shared out over the control's width, as Xcode's
+    CGFloat width = floor(NSWidth(_navigatorControl.frame) / MAX(_navigatorControl.segmentCount, 1)) - 1;
+    for (NSInteger segment = 0; segment < _navigatorControl.segmentCount; segment++) {
+        [_navigatorControl setWidth:width forSegment:segment];
+    }
+}
+
+- (void)showViewController:(NSViewController *)viewController title:(NSString *)title {
+    for (UDTabBarItem *item in _editorTabs.items) {
+        if ([_editorTabs viewControllerForItem:item] != viewController) continue;
+        [_editorTabs selectItem:item];
+        return;
+    }
+    [_editorTabs addItemWithTitle:title representedObject:nil viewController:viewController];
+}
+
+- (void)showNavigatorOfExtension:(id<UDExtension>)extension {
+    NSArray *entry = [_extensionNavigators objectForKey:extension];
+    if (!entry) return;
+    [_paneSplit setPane:UDNavigatorPane visible:YES];
+    _navigatorControl.selectedSegment = [entry[1] integerValue];
+    [self navigatorChanged:nil];
+}
+
+- (nullable UDCodeDocument *)selectedDocument {
+    UDTabBarItem *item = _editorTabs.selectedItem;
+    if ([_diffOriginals objectForKey:item]) return nil;
+    return [item.representedObject isKindOfClass:[UDCodeDocument class]] ? item.representedObject : nil;
+}
+
+- (nullable UDCodeEditorViewController *)selectedEditor {
+    return [_diffOriginals objectForKey:_editorTabs.selectedItem] ? nil : [self _selectedEditor];
+}
+
+- (void)showURL:(NSURL *)url {
+    [self _showFile:url.path];
+}
+
+- (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier {
+    UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:identifier];
+    UDCodeDocument *document = [_workspaceModel addDocumentWithText:text fileURL:nil languageMode:mode];
+    [self _openTabForDocument:document];
+}
+
+- (NSArray<UDCodeEditorViewController *> *)editorsOfDocument:(UDCodeDocument *)document {
+    NSMutableArray *editors = [NSMutableArray array];
+    for (UDTabBarItem *item in [self _itemsForDocument:document]) {
+        UDCodeEditorViewController *editor = [_diffOriginals objectForKey:item] ? nil : [self _editorOfItem:item];
+        if (editor) [editors addObject:editor];
+    }
+    return editors;
+}
+
+/// The extensions' Editor menu items (Run Statement…), after the menu's own.
+- (void)_rebuildEditorMenu {
+    NSMenu *menu = [[NSApp mainMenu] itemWithTitle:@"Editor"].submenu;
+    if (!menu) return;
+    for (NSMenuItem *item in [menu.itemArray copy]) {
+        if (item.tag == UDContributedMenuItemTag) [menu removeItem:item];
+    }
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if (![extension respondsToSelector:@selector(editorMenuItemsForWorkbench:)]) continue;
+        NSArray<NSMenuItem *> *items = [extension editorMenuItemsForWorkbench:self];
+        if (!items.count) continue;
+        NSMutableArray *section = [NSMutableArray arrayWithObject:[NSMenuItem separatorItem]];
+        [section addObjectsFromArray:items];
+        for (NSMenuItem *item in section) {
+            item.tag = UDContributedMenuItemTag;
+            [menu addItem:item];
+        }
+    }
 }
 
 - (IBAction)commitChanges:(nullable id)sender {

@@ -15,7 +15,7 @@ include $(GNUSTEP_MAKEFILES)/common.make
 
 PACKAGE_NAME = UDCode
 UD_GRAMMAR_DIRS = $(patsubst %/GNUmakefile,%,$(wildcard tree-sitter-*/GNUmakefile))
-SUBPROJECTS = UDPieceTable LSPKit UDCodeKit $(UD_GRAMMAR_DIRS) Plugins/CFamily Plugins/Git Sources \
+SUBPROJECTS = UDPieceTable LSPKit UDCodeKit $(UD_GRAMMAR_DIRS) Plugins/CFamily Plugins/Git Plugins/SQL Sources \
               UDPieceTable/Tests Tests
 
 include $(GNUSTEP_MAKEFILES)/aggregate.make

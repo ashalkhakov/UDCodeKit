@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDSQLNavigatorViewController">
+            <connections>
+                <outlet property="view" destination="DB-root" id="DB-o-view"/>
+                <outlet property="outlineView" destination="DB-outline" id="DB-o-outline"/>
+                <outlet property="databaseMenu" destination="DB-menu-db" id="DB-o-db"/>
+                <outlet property="tableMenu" destination="DB-menu-table" id="DB-o-table"/>
+                <outlet property="editorMenu" destination="DB-menu-editor" id="DB-o-editor"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Databases" autoenablesItems="YES" id="DB-menu" userLabel="Databases Menu (the clicked row's kind's items)">
+            <connections>
+                <outlet property="delegate" destination="-2" id="DB-o-menu-delegate"/>
+            </connections>
+        </menu>
+        <menu title="Database" autoenablesItems="YES" id="DB-menu-db" userLabel="A Database's">
+            <items>
+                <menuItem title="New Query" id="DB-m-new">
+                    <connections>
+                        <action selector="newQuery:" target="-2" id="DB-m-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Show ER Diagram" id="DB-m-diagram">
+                    <connections>
+                        <action selector="showDiagram:" target="-2" id="DB-m-diagram-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Refresh" id="DB-m-refresh">
+                    <connections>
+                        <action selector="refreshDatabase:" target="-2" id="DB-m-refresh-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Edit Connection…" id="DB-m-edit">
+                    <connections>
+                        <action selector="editDatabase:" target="-2" id="DB-m-edit-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Disconnect" id="DB-m-disconnect">
+                    <connections>
+                        <action selector="disconnectDatabase:" target="-2" id="DB-m-disconnect-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="DB-m-sep"/>
+                <menuItem title="Remove Connection…" id="DB-m-remove">
+                    <connections>
+                        <action selector="removeDatabase:" target="-2" id="DB-m-remove-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Table" autoenablesItems="YES" id="DB-menu-table" userLabel="A Table's">
+            <items>
+                <menuItem title="Select Rows" id="DB-t-rows">
+                    <connections>
+                        <action selector="selectRows:" target="-2" id="DB-t-rows-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Query" id="DB-t-new">
+                    <connections>
+                        <action selector="newQuery:" target="-2" id="DB-t-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy Name" id="DB-t-copy">
+                    <connections>
+                        <action selector="copyName:" target="-2" id="DB-t-copy-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <menu title="Editor" autoenablesItems="YES" id="DB-menu-editor" userLabel="The Editor Menu's (a SQL document's)">
+            <items>
+                <menuItem title="Run Statement" keyEquivalent="&#xd;" id="DB-e-run">
+                    <modifierMask key="keyEquivalentModifierMask" command="YES"/>
+                    <connections>
+                        <action selector="runStatement:" target="-2" id="DB-e-run-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Run All" keyEquivalent="&#xd;" id="DB-e-all">
+                    <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
+                    <connections>
+                        <action selector="runAll:" target="-2" id="DB-e-all-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Stop Running" id="DB-e-stop">
+                    <connections>
+                        <action selector="stopRunning:" target="-2" id="DB-e-stop-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <customView id="DB-root" userLabel="Databases Navigator">
+            <rect key="frame" x="0.0" y="0.0" width="240" height="600"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="DB-scroll">
+                    <rect key="frame" x="0.0" y="24.0" width="240" height="576"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" drawsBackground="NO" id="DB-clip">
+                        <rect key="frame" x="0.0" y="0.0" width="240" height="576"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <outlineView verticalHuggingPriority="750" allowsExpansionToolTips="YES" columnAutoresizingStyle="lastColumnOnly" columnReordering="NO" columnResizing="NO" multipleSelection="NO" autosaveColumns="NO" rowHeight="18" rowSizeStyle="small" indentationPerLevel="12" outlineTableColumn="DB-col" id="DB-outline" userLabel="Connections and What They Hold">
+                                <rect key="frame" x="0.0" y="0.0" width="240" height="576"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <size key="intercellSpacing" width="3" height="0.0"/>
+                                <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
+                                <tableColumns>
+                                    <tableColumn identifier="name" editable="NO" width="234" minWidth="40" maxWidth="1000" id="DB-col">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Databases">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" selectable="YES" title="Text Cell" id="DB-cell" customClass="UDBadgeTextFieldCell" userLabel="Name, with its Type or Entities">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                        <tableColumnResizingMask key="resizingMask" resizeWithTable="YES"/>
+                                    </tableColumn>
+                                </tableColumns>
+                                <connections>
+                                    <action trigger="doubleAction" selector="openItem:" target="-2" id="DB-a-double"/>
+                                    <outlet property="dataSource" destination="-2" id="DB-o-source"/>
+                                    <outlet property="delegate" destination="-2" id="DB-o-delegate"/>
+                                    <outlet property="menu" destination="DB-menu" id="DB-o-menu"/>
+                                </connections>
+                            </outlineView>
+                        </subviews>
+                        <nil key="backgroundColor"/>
+                    </clipView>
+                    <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="DB-hscroll">
+                        <rect key="frame" x="-100" y="-100" width="223" height="15"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="NO" id="DB-vscroll">
+                        <rect key="frame" x="-100" y="-100" width="15" height="102"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                </scrollView>
+                <popUpButton toolTip="Add a connection" verticalHuggingPriority="750" id="DB-add" userLabel="Add">
+                    <rect key="frame" x="4.0" y="2.0" width="36.0" height="20.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="+" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" pullsDown="YES" id="DB-add-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                        <menu key="menu" id="DB-add-menu">
+                            <items>
+                                <menuItem title="+" hidden="YES" id="DB-add-title"/>
+                                <menuItem title="Add SQLite Database…" id="DB-add-sqlite">
+                                    <connections>
+                                        <action selector="addSQLiteDatabase:" target="-2" id="DB-add-sqlite-a"/>
+                                    </connections>
+                                </menuItem>
+                                <menuItem title="Add PostgreSQL Database…" id="DB-add-pg">
+                                    <connections>
+                                        <action selector="addPostgreSQLDatabase:" target="-2" id="DB-add-pg-a"/>
+                                    </connections>
+                                </menuItem>
+                                <menuItem title="Add MySQL or MariaDB Database…" id="DB-add-my">
+                                    <connections>
+                                        <action selector="addMySQLDatabase:" target="-2" id="DB-add-my-a"/>
+                                    </connections>
+                                </menuItem>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                </popUpButton>
+                <button toolTip="Remove the connection" verticalHuggingPriority="750" id="DB-remove" userLabel="Remove">
+                    <rect key="frame" x="44.0" y="2.0" width="24.0" height="20.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                    <buttonCell key="cell" type="smallSquare" title="−" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="DB-remove-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="removeDatabase:" target="-2" id="DB-a-remove"/>
+                    </connections>
+                </button>
+                <button toolTip="Read its tables again" verticalHuggingPriority="750" id="DB-refresh" userLabel="Refresh">
+                    <rect key="frame" x="72.0" y="2.0" width="24.0" height="20.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                    <buttonCell key="cell" type="smallSquare" title="↻" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="DB-refresh-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="refreshDatabase:" target="-2" id="DB-a-refresh"/>
+                    </connections>
+                </button>
+            </subviews>
+            <point key="canvasLocation" x="200" y="200"/>
+        </customView>
+    </objects>
+</document>

@@ -83,6 +83,25 @@ image("folder", size: 16) {
     stroke(path)
     line(1.5, 9.5, 14.5, 9.5, 1)
 }
+image("arrow.triangle.branch", size: 16) {
+    // Source Control: a branch leaving its trunk
+    line(4, 2, 4, 14)
+    let branch = NSBezierPath()
+    branch.move(to: NSPoint(x: 4, y: 6))
+    branch.curve(to: NSPoint(x: 12, y: 12), controlPoint1: NSPoint(x: 4, y: 10), controlPoint2: NSPoint(x: 12, y: 8))
+    stroke(branch)
+    NSBezierPath(ovalIn: NSRect(x: 10, y: 11, width: 4, height: 4)).fill()
+    NSBezierPath(ovalIn: NSRect(x: 2, y: 0.5, width: 4, height: 4)).fill()
+}
+image("arrow.left.arrow.right", size: 16) {
+    // Code Review: the two sides, each toward the other
+    line(2, 11, 14, 11)
+    line(11, 14, 14, 11)
+    line(11, 8, 14, 11)
+    line(14, 5, 2, 5)
+    line(5, 8, 2, 5)
+    line(5, 2, 2, 5)
+}
 image("magnifyingglass", size: 16) {
     stroke(NSBezierPath(ovalIn: NSRect(x: 2, y: 6, width: 8, height: 8)), 1.4)
     line(9, 7, 14, 2, 1.8)

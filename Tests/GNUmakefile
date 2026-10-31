@@ -23,9 +23,9 @@ UDCodeTests_OBJC_FILES = $(call UD_SOURCES,$(wildcard *.m) $(wildcard posix/*.m)
 UDCodeTests_RESOURCE_FILES = $(filter-out %/MainMenu.xib,$(shell find $(APP_DIR) -name '*.xib' | sort))
 UDCodeTests_NEEDS_GUI = yes
 
-# CFamily's and Git's headers: its classes are reached by name (the bundle, UDCode.app's, is loaded)
+# CFamily's, Git's and SQL's headers: its classes are reached by name (the bundle, UDCode.app's, is loaded)
 UDCodeTests_INCLUDE_DIRS = -I$(UD_INCLUDE) -I$(UD_INCLUDE)/UDCodeKit -I$(APP_DIR) -I$(APP_DIR)/Model -I$(APP_DIR)/Debug \
-    -I../tree-sitter/include -I../Plugins/CFamily/Sources -I../Plugins/Git/Sources
+    -I../tree-sitter/include -I../Plugins/CFamily/Sources -I../Plugins/Git/Sources -I../Plugins/SQL/Sources
 UD_LIBS = $(call UD_FRAMEWORK_LIB,UDCodeKit,UDCodeKit) \
           $(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \
           $(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)

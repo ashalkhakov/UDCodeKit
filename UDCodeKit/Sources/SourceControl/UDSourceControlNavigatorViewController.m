@@ -6,7 +6,7 @@
 #import "UDBadgeTextFieldCell.h"
 #import <objc/runtime.h>
 
-@interface UDSourceControlNavigatorViewController () <NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate>
+@interface UDSourceControlNavigatorViewController () <NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuDelegate, NSTextFieldDelegate>
 @property (nonatomic, weak) IBOutlet NSSegmentedControl *tabsControl;
 @property (nonatomic, weak) IBOutlet NSView *changesPane;
 @property (nonatomic, weak) IBOutlet NSView *repositoriesPane;
@@ -268,6 +268,25 @@
         return;
     }
     [_sourceControl commitWithMessage:message options:options target:self action:@selector(_didCommit:)];
+}
+
+/// ⌘↩ in the message commits (Return alone starts a line). Not the button's
+/// key equivalent: the window's buttons get a key before its menu, and ⌘↩
+/// in an editor is the editor's (Run Statement in a SQL document).
+- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)selector {
+    if (control != _messageField) return NO;
+    NSEvent *event = [NSApp currentEvent];
+    BOOL commandReturn = event.type == NSEventTypeKeyDown && (event.modifierFlags & NSEventModifierFlagCommand) &&
+                         [event.charactersIgnoringModifiers isEqualToString:@"\r"];
+    if (commandReturn && (sel_isEqual(selector, @selector(insertNewline:)) || sel_isEqual(selector, @selector(noop:)))) {
+        [self commit:control];
+        return YES;
+    }
+    if (sel_isEqual(selector, @selector(insertNewline:))) {
+        [textView insertNewlineIgnoringFieldEditor:self];
+        return YES;
+    }
+    return NO;
 }
 
 - (IBAction)commit:(id)sender {

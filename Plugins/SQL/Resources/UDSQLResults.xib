@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDSQLResultsViewController">
+            <connections>
+                <outlet property="view" destination="RS-root" id="RS-o-view"/>
+                <outlet property="databaseButton" destination="RS-database" id="RS-o-database"/>
+                <outlet property="resultsControl" destination="RS-results" id="RS-o-results"/>
+                <outlet property="grid" destination="RS-grid" id="RS-o-grid"/>
+                <outlet property="templateColumn" destination="RS-template" id="RS-o-template"/>
+                <outlet property="messagesView" destination="RS-messages" id="RS-o-messages"/>
+                <outlet property="statusLabel" destination="RS-status" id="RS-o-status"/>
+                <outlet property="stopButton" destination="RS-stop" id="RS-o-stop"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Rows" autoenablesItems="YES" id="RS-menu" userLabel="Rows Menu">
+            <items>
+                <menuItem title="Copy" id="RS-m-copy">
+                    <connections>
+                        <action selector="copy:" target="-2" id="RS-m-copy-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy with Column Names" id="RS-m-headers">
+                    <connections>
+                        <action selector="copyWithColumnNames:" target="-2" id="RS-m-headers-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <customView id="RS-root" userLabel="Results">
+            <rect key="frame" x="0.0" y="0.0" width="900" height="220"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <popUpButton toolTip="The database the document runs against" verticalHuggingPriority="750" id="RS-database" userLabel="Database">
+                    <rect key="frame" x="6.0" y="193.0" width="180.0" height="24.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="No Database" bezelStyle="texturedRounded" alignment="left" controlSize="small" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" selectedItem="RS-database-none" id="RS-database-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                        <menu key="menu" id="RS-database-menu">
+                            <items>
+                                <menuItem title="No Database" state="on" id="RS-database-none"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                    <connections>
+                        <action selector="chooseDatabase:" target="-2" id="RS-a-database"/>
+                    </connections>
+                </popUpButton>
+                <button toolTip="Run the statement at the caret, or the selection (⌘↩)" verticalHuggingPriority="750" id="RS-run">
+                    <rect key="frame" x="192.0" y="194.0" width="96.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Run Statement" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="RS-run-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="runStatement:" target="-2" id="RS-run-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Run every statement (⇧⌘↩)" verticalHuggingPriority="750" id="RS-all">
+                    <rect key="frame" x="290.0" y="194.0" width="64.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Run All" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="RS-all-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="runAll:" target="-2" id="RS-all-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Stop what runs" verticalHuggingPriority="750" id="RS-stop">
+                    <rect key="frame" x="356.0" y="194.0" width="50.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Stop" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="RS-stop-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="stopRunning:" target="-2" id="RS-stop-a"/>
+                    </connections>
+                </button>
+                <segmentedControl verticalHuggingPriority="750" id="RS-results" userLabel="Each Result, then Messages">
+                    <rect key="frame" x="414.0" y="194.0" width="90.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <segmentedCell key="cell" borderStyle="border" alignment="left" controlSize="small" style="texturedSquare" trackingMode="selectOne" id="RS-results-cell">
+                        <font key="font" metaFont="smallSystem"/>
+                        <segments>
+                            <segment label="Messages" width="84" selected="YES"/>
+                        </segments>
+                    </segmentedCell>
+                    <connections>
+                        <action selector="showResult:" target="-2" id="RS-a-results"/>
+                    </connections>
+                </segmentedControl>
+                <textField verticalHuggingPriority="750" id="RS-status" userLabel="Status">
+                    <rect key="frame" x="560.0" y="197.0" width="334.0" height="16.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                    <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" id="RS-status-cell">
+                        <font key="font" metaFont="smallSystem"/>
+                        <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" usesPredominantAxisScrolling="NO" id="RS-grid-scroll">
+                    <rect key="frame" x="0.0" y="0.0" width="900.0" height="188.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" id="RS-grid-clip">
+                        <rect key="frame" x="0.0" y="23.0" width="900.0" height="165.0"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <tableView verticalHuggingPriority="750" allowsExpansionToolTips="YES" columnAutoresizingStyle="none" multipleSelection="YES" autosaveColumns="NO" rowHeight="18" rowSizeStyle="small" headerView="RS-grid-header" id="RS-grid" userLabel="Rows">
+                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="165.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <size key="intercellSpacing" width="3" height="0.0"/>
+                                <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
+                                <tableViewGridLines key="gridStyleMask" vertical="YES"/>
+                                <tableColumns>
+                                    <tableColumn identifier="template" editable="NO" width="120" minWidth="30" maxWidth="2000" id="RS-template" userLabel="Each Result's Columns Are Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Column">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" selectable="YES" title="Text Cell" id="RS-template-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                </tableColumns>
+                                <connections>
+                                    <outlet property="dataSource" destination="-2" id="RS-o-source"/>
+                                    <outlet property="delegate" destination="-2" id="RS-o-delegate"/>
+                                    <outlet property="menu" destination="RS-menu" id="RS-o-menu"/>
+                                </connections>
+                            </tableView>
+                        </subviews>
+                    </clipView>
+                    <scroller key="horizontalScroller" verticalHuggingPriority="750" horizontal="YES" id="RS-grid-hscroll">
+                        <rect key="frame" x="0.0" y="172.0" width="900.0" height="16.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="NO" id="RS-grid-vscroll">
+                        <rect key="frame" x="-100" y="-100" width="15" height="102"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <tableHeaderView key="headerView" id="RS-grid-header">
+                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="23.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </tableHeaderView>
+                </scrollView>
+                <scrollView hidden="YES" borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="RS-messages-scroll">
+                    <rect key="frame" x="0.0" y="0.0" width="900.0" height="188.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" drawsBackground="NO" id="RS-messages-clip">
+                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="188.0"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <textView editable="NO" importsGraphics="NO" verticallyResizable="YES" allowsUndo="NO" id="RS-messages" userLabel="Messages">
+                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="188.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
+                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <size key="minSize" width="0.0" height="0.0"/>
+                                <size key="maxSize" width="10000000" height="10000000"/>
+                            </textView>
+                        </subviews>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </clipView>
+                    <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="RS-messages-hscroll">
+                        <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="RS-messages-vscroll">
+                        <rect key="frame" x="885.0" y="0.0" width="15.0" height="188.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                </scrollView>
+            </subviews>
+            <point key="canvasLocation" x="200" y="200"/>
+        </customView>
+    </objects>
+</document>

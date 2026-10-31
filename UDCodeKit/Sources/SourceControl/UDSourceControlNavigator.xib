@@ -126,17 +126,16 @@
                                 <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
                                 <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                             </textFieldCell>
+                            <connections>
+                                <outlet property="delegate" destination="-2" id="SC-o-message-delegate"/>
+                            </connections>
                         </textField>
-                        <button toolTip="Commit (⌘↩)" verticalHuggingPriority="750" id="SC-commit" userLabel="Commit">
+                        <button toolTip="Commit (⌘↩ in the message)" verticalHuggingPriority="750" id="SC-commit" userLabel="Commit">
                             <rect key="frame" x="112" y="6" width="90" height="26"/>
                             <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxY="YES"/>
                             <buttonCell key="cell" type="push" title="Commit" bezelStyle="rounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="SC-commit-cell">
                                 <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                 <font key="font" metaFont="system"/>
-                                <string key="keyEquivalent" base64-UTF8="YES">
-DQ
-</string>
-                                <modifierMask key="keyEquivalentModifierMask" command="YES"/>
                             </buttonCell>
                             <connections>
                                 <action selector="commit:" target="-2" id="SC-a-commit"/>

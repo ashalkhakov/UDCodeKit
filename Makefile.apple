@@ -2,7 +2,7 @@
 # macos.yml runs the same):
 #
 #   make -f Makefile.apple            UDCode, universal (Release), with its
-#                                     frameworks, grammar bundles and Sparkle;
+#                                     frameworks, grammar bundles, Sparkle and DiagramKit;
 #                                     and the frameworks as XCFrameworks
 #   make -f Makefile.apple check      the tests: the text model's and the
 #                                     editor's (which drive UDCode's windows)
@@ -10,15 +10,15 @@
 #                                     UDPieceTable, LSPKit and UDCodeKit
 #                                     .xcframework for what builds on them,
 #                                     with the grammar bundles in PlugIns/ for
-#                                     the apps that embed UDCodeKit (CFamily
-#                                     and Git are UDCode's own)
+#                                     the apps that embed UDCodeKit (CFamily,
+#                                     Git and SQL are UDCode's own)
 #   make -f Makefile.apple installcheck DESTDIR=<dir>  its signature holds,
 #                                     and it starts and stays up, in a fresh home
 #
 # The tree-sitter runtime and the grammars are fetched at their pinned
-# commits (scripts/grammars.lock) when missing; Sparkle's XCFramework is in
-# .deps/, by the version .github/pins.env names (gnustep-release-actions'
-# scripts/deps.sh apple).
+# commits (scripts/grammars.lock) when missing; Sparkle's and DiagramKit's
+# XCFrameworks are in .deps/, by the versions .github/pins.env names
+# (gnustep-release-actions' scripts/deps.sh apple).
 
 BUILD = build/apple
 DERIVED = $(BUILD)/DerivedData
@@ -26,9 +26,9 @@ RELEASE = $(DERIVED)/Build/Products/Release
 XCODEBUILD = xcodebuild -workspace UDPieceTable.xcworkspace -derivedDataPath $(DERIVED)
 FRAMEWORKS = UDPieceTable LSPKit UDCodeKit
 
-all: fetched
-	@test -d .deps/Sparkle.xcframework \
-	  || { echo "no Sparkle in .deps: gnustep-release-actions' scripts/deps.sh apple fetches what .github/pins.env names"; exit 1; }
+all: fetched clients
+	@for f in Sparkle DiagramKit DiagramKitUI; do test -d .deps/$$f.xcframework \
+	  || { echo "no $$f in .deps: gnustep-release-actions' scripts/deps.sh apple fetches what .github/pins.env names"; exit 1; }; done
 	$(XCODEBUILD) -scheme UDCode -configuration Release -destination 'generic/platform=macOS' build
 	for f in $(FRAMEWORKS); do \
 	  rm -rf $(BUILD)/$$f.xcarchive $(BUILD)/$$f.xcframework; \
@@ -38,12 +38,18 @@ all: fetched
 	  xcodebuild -create-xcframework -framework "$$framework" -output $(BUILD)/$$f.xcframework || exit 1; \
 	done
 
+# The SQL extension's client libraries' headers (it loads the libraries when
+# a connection needs them): Homebrew's libpq and MariaDB Connector/C, installed
+# in CI. Without them it builds, and says it can't reach those databases.
+clients:
+	@if [ -n "$$CI" ]; then brew install libpq mariadb-connector-c; fi
+
 # The runtime and the grammars' C sources, the first time.
 fetched:
 	@ls tree-sitter/src/lib.c libvterm/src/vterm.c tree-sitter-*/src/parser.c > /dev/null 2>&1 || bash scripts/update-grammars.sh
 
 # The test bundles are not signed: nothing ships from them.
-check: fetched
+check: fetched clients
 	$(XCODEBUILD) -scheme UDPieceTable -configuration Debug -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
 	$(XCODEBUILD) -scheme UDCode -configuration Debug -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
 
@@ -70,4 +76,4 @@ installcheck:
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all fetched check install installcheck clean
+.PHONY: all fetched clients check install installcheck clean

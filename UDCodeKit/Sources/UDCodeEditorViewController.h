@@ -6,6 +6,8 @@
  *    – line-number gutter (left)
  *    – find-results / error-marks gutter (right)
  *    – the find and replace bar (top, on Find), UDFindBar.xib
+ *    – Preview: the text rendered, in its place (for a mode that has one,
+ *      Markdown's)
  *    – folding, bracket-match, structured-navigation, auto-indentation
  *    – breakpoints in the gutter and the debugger's line, once given a
  *      UDBreakpointStore (-showBreakpointsOfStore:forFile:); the gutter's
@@ -30,6 +32,19 @@
 @class UDFindBarViewController, UDBreakpointStore, UDBreakpointEditorViewController, UDDebugHoverViewController;
 
 NS_ASSUME_NONNULL_BEGIN
+
+/// The editor switched between its text and Preview; the object is the editor.
+FOUNDATION_EXPORT NSNotificationName const UDCodeEditorPreviewDidChangeNotification;
+
+@class UDCodeEditorViewController;
+
+/// What a link in the preview opens: the host's to say, as it has the tabs.
+@protocol UDCodeEditorLinkDelegate <NSObject>
+/// A link in the preview followed: clicked (to read, @a editing NO) or
+/// ⌘-clicked (to edit). Return NO to have it opened as any other link is
+/// (NSWorkspace: a web page in the browser).
+- (BOOL)codeEditor:(UDCodeEditorViewController *)editor openLink:(NSURL *)url editing:(BOOL)editing;
+@end
 
 @interface UDCodeEditorViewController : NSViewController
 
@@ -94,6 +109,46 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)runToCursor:(nullable id)sender;
 - (IBAction)jumpToCursor:(nullable id)sender;
 - (IBAction)addToWatch:(nullable id)sender;
+
+// ---------------------------------------------------------------------------
+// MARK: - Preview
+// ---------------------------------------------------------------------------
+
+/// Whether the mode it was configured for renders its text (UDLanguageMode
+/// hasPreview): Source | Preview then switches it.
+@property (nonatomic, readonly) BOOL canShowPreview;
+
+/// The text rendered, read-only, in place of the editor: its links open,
+/// it follows the text's edits. Set NO, the text again; Find, Jump to Line
+/// and going to a line (an issue's, the debugger's) set it NO. Posts
+/// UDCodeEditorPreviewDidChangeNotification.
+@property (nonatomic) BOOL showsPreview;
+
+/// The file the preview's relative links and images, and the text's links,
+/// are resolved against.
+@property (nonatomic, copy, nullable) NSURL *previewBaseURL;
+
+/// The preview's text view, once shown.
+@property (nonatomic, readonly, nullable) NSTextView *previewTextView;
+
+/// View > Show Preview (⌥⌘↩): Preview, or the text again.
+- (IBAction)togglePreview:(nullable id)sender;
+
+/// Opens the preview's links: other files (another Markdown file, read or
+/// edited) are its to open; nil, or one that declines, and a link opens as
+/// any other does.
+@property (nonatomic, weak, nullable) id<UDCodeEditorLinkDelegate> linkDelegate;
+
+/// What a click on a link in the preview does (a ⌘-click: @a editing): a
+/// #fragment of this file's scrolls to its heading (⌘: the text, to edit;
+/// VS Code's #L12, at that line);
+/// any other link goes to the link delegate, else to NSWorkspace. A link
+/// ⌘-clicked in the text (the mode's -linksInText:…) is followed so, to edit.
+- (void)followPreviewLink:(NSURL *)url editing:(BOOL)editing;
+
+/// Scrolls the preview to the heading @a anchor names (a link's #fragment,
+/// UDPreviewAnchorAttributeName). NO when there is none.
+- (BOOL)revealPreviewAnchor:(NSString *)anchor;
 
 - (instancetype)initWithTextStorage:(UDTextModelTextStorage *)textStorage
     NS_DESIGNATED_INITIALIZER;

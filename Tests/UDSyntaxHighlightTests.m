@@ -107,4 +107,47 @@ static NSArray<NSString *> *UDHighlights(UDTextModelTextStorage *storage) {
     }
 }
 
+
+/// Markdown's markup gets the theme's styles, a capture's dotted name falling
+/// back to a shorter one ("markup.link.url" has its own, "markup.link.label"
+/// is "markup.link"'s).
+- (void)testMarkdownMarkupIsStyled {
+    UDLanguageMode *md = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"markdown"];
+    if (!md.languageFunc) {
+        XCTFail(@"%@", @"the Markdown grammar bundle did not load");
+        return;
+    }
+    NSString *text = @"# Title\n\nSome **bold**, *em* and `code`, a [link](http://x.y).\n";
+    UDTextModelTextStorage *storage = [[UDTextModelTextStorage alloc] initWithText:text];
+    TreeSitterTheme *theme = [[TreeSitterTheme alloc] initWithMode:NO];
+    storage.theme = theme;
+    [storage setLanguageFunc:md.languageFunc withHighlightsQuery:md.highlightsQuery];
+    UDDrainMainQueue();
+
+    NSArray<NSString *> *highlights = UDHighlights(storage);
+    NSString *(^span)(NSString *, NSString *) = ^NSString *(NSString *of, NSString *name) {
+        NSRange r = [text rangeOfString:of];
+        return [NSString stringWithFormat:@"%08lu-%08lu %@", (unsigned long)r.location, (unsigned long)NSMaxRange(r), name];
+    };
+    XCTAssertTrue([highlights containsObject:span(@"# Title", @"markup.heading")], @"%@", highlights);
+    XCTAssertTrue([highlights containsObject:span(@"**bold**", @"markup.bold")], @"%@", highlights);
+    XCTAssertTrue([highlights containsObject:span(@"*em*", @"markup.italic")], @"%@", highlights);
+    XCTAssertTrue([highlights containsObject:span(@"`code`", @"markup.raw")], @"%@", highlights);
+    XCTAssertTrue([highlights containsObject:span(@"link", @"markup.link.label")], @"%@", highlights);
+    XCTAssertTrue([highlights containsObject:span(@"http://x.y", @"markup.link.url")], @"%@", highlights);
+
+    NSFontTraitMask (^traits)(NSString *) = ^NSFontTraitMask(NSString *of) {
+        NSFont *font = [storage attribute:NSFontAttributeName atIndex:[text rangeOfString:of].location + 2 effectiveRange:NULL];
+        return [[NSFontManager sharedFontManager] traitsOfFont:font];
+    };
+    XCTAssertTrue(traits(@"# Title") & NSBoldFontMask);
+    XCTAssertTrue(traits(@"**bold**") & NSBoldFontMask);
+    XCTAssertTrue(traits(@"*em*") & NSItalicFontMask);
+    NSUInteger url = [text rangeOfString:@"http://x.y"].location;
+    XCTAssertNotNil([storage attribute:NSUnderlineStyleAttributeName atIndex:url effectiveRange:NULL]);
+    NSUInteger label = [text rangeOfString:@"link"].location;
+    XCTAssertEqualObjects([storage attribute:NSForegroundColorAttributeName atIndex:label effectiveRange:NULL],
+                          [theme styleAttributesForName:@"markup.link"][NSForegroundColorAttributeName]);
+}
+
 @end

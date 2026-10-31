@@ -68,6 +68,17 @@
 UDCODEKIT_EXPORT NSNotificationName const UDExtensionLanguageServerDidBecomeReadyNotification;
 UDCODEKIT_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 
+/// On a preview's (-previewOfText:…) heading: the anchor a link's #fragment
+/// names it by (GitHub's: "Getting Started" is "getting-started"). A link to
+/// it scrolls the preview there. Defined here, not exported: a bundle needs
+/// no symbol of the host's for it.
+static NSString * const UDPreviewAnchorAttributeName = @"UDPreviewAnchor";
+
+/// A link in a text (-linksInText:…), as VS Code's ILink: its range in the
+/// text (an NSValue of an NSRange) and where it goes (an NSURL).
+static NSString * const UDLinkRangeKey = @"range";
+static NSString * const UDLinkURLKey = @"url";
+
 @protocol UDExtension <NSObject>
 
 /// Called by the host after the bundle has been loaded and the principal-class
@@ -126,6 +137,26 @@ UDCODEKIT_EXPORT NSString * const UDExtensionLanguageServerReadyIdentifierKey;
 ///
 /// Implement this method only for modes that need custom key handling.
 - (nullable id<UDLanguageKeyHandler>)keyHandlerForIdentifier:(NSString *)identifier;
+
+/// The text of a document of the mode as it reads: Markdown's, rendered.
+/// The editor shows it in place of the text when its tab is switched to
+/// Preview, and asks again as the text changes (a moment after an edit), so
+/// it should be quick. Relative links and images are resolved against
+/// @a baseURL, the document's file (nil: not saved); headings carry
+/// UDPreviewAnchorAttributeName, for links' #fragments. Return nil for a mode
+/// without a preview; asked once with empty text to find out whether the
+/// mode has one.
+- (nullable NSAttributedString *)previewOfText:(NSString *)text
+                                 forIdentifier:(NSString *)identifier
+                                       baseURL:(nullable NSURL *)baseURL;
+
+/// The links in @a text, as VS Code's LinkProvider gives them: each its
+/// range and URL (UDLinkRangeKey, UDLinkURLKey), relative ones resolved
+/// against @a baseURL. The editor underlines them and follows one ⌘-clicked;
+/// it asks again a moment after an edit.
+- (nullable NSArray<NSDictionary<NSString *, id> *> *)linksInText:(NSString *)text
+                                                    forIdentifier:(NSString *)identifier
+                                                          baseURL:(nullable NSURL *)baseURL;
 
 /// Returns the command that starts the debug adapter for the given language
 /// mode identifier, or @c nil when this extension has none for it.

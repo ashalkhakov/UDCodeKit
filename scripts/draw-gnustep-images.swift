@@ -162,4 +162,26 @@ image("checkmark.diamond", size: 16) {
     check.line(to: NSPoint(x: 10.8, y: 10.2))
     stroke(check, 1.4)
 }
+image("doc.plaintext", size: 16) {
+    let page = NSBezierPath()
+    page.move(to: NSPoint(x: 3.5, y: 1.5))
+    page.line(to: NSPoint(x: 3.5, y: 14.5))
+    page.line(to: NSPoint(x: 9.5, y: 14.5))
+    page.line(to: NSPoint(x: 12.5, y: 11.5))
+    page.line(to: NSPoint(x: 12.5, y: 1.5))
+    page.close()
+    stroke(page)
+    line(5.5, 10.5, 8.5, 10.5, 1)
+    line(5.5, 8, 10.5, 8, 1)
+    line(5.5, 5.5, 10.5, 5.5, 1)
+}
+image("eye", size: 16) {
+    let lid = NSBezierPath()
+    lid.move(to: NSPoint(x: 1.5, y: 8))
+    lid.curve(to: NSPoint(x: 14.5, y: 8), controlPoint1: NSPoint(x: 4.5, y: 13), controlPoint2: NSPoint(x: 11.5, y: 13))
+    lid.curve(to: NSPoint(x: 1.5, y: 8), controlPoint1: NSPoint(x: 11.5, y: 3), controlPoint2: NSPoint(x: 4.5, y: 3))
+    lid.close()
+    stroke(lid)
+    NSBezierPath(ovalIn: NSRect(x: 6, y: 6, width: 4, height: 4)).fill()
+}
 print("drawn in \(out)")

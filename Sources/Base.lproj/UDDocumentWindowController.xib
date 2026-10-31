@@ -25,6 +25,7 @@
                 <outlet property="debugAreaHost" destination="WS-debug-area-host" id="WS-o-debug-area"/>
                 <outlet property="terminalHost" destination="WS-terminal-host" id="WS-o-terminal-host"/>
                 <outlet property="bottomAreaControl" destination="WS-bottom-control" id="WS-o-bottom-control"/>
+                <outlet property="previewControl" destination="WS-preview-control" id="WS-o-preview-control"/>
                 <outlet property="inspectorName" destination="WS-insp-name" id="WS-o-insp-name"/>
                 <outlet property="inspectorPath" destination="WS-insp-path" id="WS-o-insp-path"/>
                 <outlet property="inspectorLanguage" destination="WS-insp-language" id="WS-o-insp-language"/>
@@ -234,6 +235,20 @@
                                         <rect key="frame" x="0.0" y="732" width="698" height="28"/>
                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                     </customView>
+                                    <segmentedControl hidden="YES" verticalHuggingPriority="750" id="WS-preview-control" userLabel="Source | Preview">
+                                        <rect key="frame" x="630" y="734" width="64" height="24"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                        <segmentedCell key="cell" borderStyle="border" alignment="left" style="texturedSquare" trackingMode="selectOne" id="WS-preview-control-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <segments>
+                                                <segment toolTip="Source: the text, to edit" image="doc.plaintext" catalog="system" width="30" selected="YES"/>
+                                                <segment toolTip="Preview: the text as it reads (⌥⌘↩)" image="eye" catalog="system" width="30" tag="1"/>
+                                            </segments>
+                                        </segmentedCell>
+                                        <connections>
+                                            <action selector="previewControlChanged:" target="-2" id="WS-a-preview"/>
+                                        </connections>
+                                    </segmentedControl>
                                     <splitView dividerStyle="thin" id="WS-editor-split" userLabel="Editors | Debug Area">
                                         <rect key="frame" x="0.0" y="0.0" width="698" height="732"/>
                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>

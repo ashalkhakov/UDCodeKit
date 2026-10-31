@@ -26,6 +26,7 @@
 
 @class UDCursorsController;
 @class UDDiagnosticTextView;
+@class UDLinkDetector;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -116,6 +117,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Structured navigator for Option+Arrow tree navigation.
 /// Set by UDCodeEditorViewController after -viewDidLoad.
 @property (nonatomic, weak, nullable) UDStructuredNavigator *structuredNavigator;
+
+/// The text's links, for the ⌘ gesture (VS Code's ClickLinkGesture): the
+/// one under the mouse shown while ⌘ is down, followed at a ⌘-click.
+/// Set by UDCodeEditorViewController after -viewDidLoad.
+@property (nonatomic, weak, nullable) UDLinkDetector *linkDetector;
 
 /// Synchronise the cursors controller's primary selection from NSTextView's
 /// current selectedRange. Call once after the view has loaded and the

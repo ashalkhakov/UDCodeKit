@@ -536,6 +536,17 @@ static int UDCompareOffsets(const void *x, const void *y) {
 #pragma mark - Attribute-run cache helpers
 // ---------------------------------------------------------------------------
 
+/// The theme's style for a capture or token name, else for a shorter one
+/// ("markup.link.url", then "markup.link", then "markup").
+- (nullable NSDictionary<NSAttributedStringKey, id> *)_themeAttributesForName:(nullable NSString *)name {
+    NSDictionary *themeAttrs = nil;
+    while (_theme && name.length && !(themeAttrs = [_theme styleAttributesForName:name])) {
+        NSRange dot = [name rangeOfString:@"." options:NSBackwardsSearch];
+        name = dot.location == NSNotFound ? nil : [name substringToIndex:dot.location];
+    }
+    return themeAttrs;
+}
+
 /// Returns the merged attribute dictionary for the given set of decoration
 /// nodes covering a single text segment.  Syntax-highlight nodes (owner ==
 /// UDHighlightDecorationOwner) are resolved against the current theme; all
@@ -550,11 +561,8 @@ static int UDCompareOffsets(const void *x, const void *y) {
 
     for (UDIntervalNode *node in covering) {
         if ([node.owner isEqualToString:UDHighlightDecorationOwner]) {
-            if (_theme && node.options.className) {
-                NSDictionary *themeAttrs =
-                    [_theme styleAttributesForName:node.options.className];
-                if (themeAttrs) [merged addEntriesFromDictionary:themeAttrs];
-            }
+            NSDictionary *themeAttrs = [self _themeAttributesForName:node.options.className];
+            if (themeAttrs) [merged addEntriesFromDictionary:themeAttrs];
         } else if ([node.owner isEqualToString:UDSemanticTokensDecorationOwner]) {
             if (!semantic) semantic = [NSMutableArray array];
             [semantic addObject:node];
@@ -564,16 +572,9 @@ static int UDCompareOffsets(const void *x, const void *y) {
         }
     }
 
-    // A language server's semantic tokens, over the syntax's colours: the
-    // theme's style for the name, else for a shorter one ("constant.macro",
-    // then "constant").
+    // A language server's semantic tokens, over the syntax's colours.
     for (UDIntervalNode *node in semantic) {
-        NSString *name = node.options.className;
-        NSDictionary *themeAttrs = nil;
-        while (_theme && name.length && !(themeAttrs = [_theme styleAttributesForName:name])) {
-            NSRange dot = [name rangeOfString:@"." options:NSBackwardsSearch];
-            name = dot.location == NSNotFound ? nil : [name substringToIndex:dot.location];
-        }
+        NSDictionary *themeAttrs = [self _themeAttributesForName:node.options.className];
         if (themeAttrs) [merged addEntriesFromDictionary:themeAttrs];
     }
 

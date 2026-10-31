@@ -16,6 +16,13 @@
 
 @implementation TreeSitterTheme
 
+/// The editor's fixed-pitch font, with the traits markup asks for: the text
+/// keeps its columns.
+static NSFont *UDMarkupFont(NSFontTraitMask traits) {
+    NSFont *font = [NSFont userFixedPitchFontOfSize:13.0] ?: [NSFont systemFontOfSize:13.0];
+    return traits ? [[NSFontManager sharedFontManager] convertFont:font toHaveTrait:traits] : font;
+}
+
 - (instancetype)initWithMode:(BOOL)darkMode {
     self = [super init];
     if (self) {
@@ -190,6 +197,43 @@
         @"string.special.key": @{
             NSForegroundColorAttributeName: [NSColor colorWithRed:0.61 green:0.79 blue:0.95 alpha:1.0], // #9CDCFE - Light Blue
             NSFontAttributeName: [NSFont systemFontOfSize:13]
+        },
+
+        // Markdown: the markup's own styles; a nested one (bold in a heading)
+        // adds its font to the outer one's colour
+        @"markup.heading": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.31 green:0.58 blue:0.80 alpha:1.0] /* #569CD6 */,
+            NSFontAttributeName: UDMarkupFont(NSBoldFontMask)
+        },
+        @"markup.bold": @{
+            NSFontAttributeName: UDMarkupFont(NSBoldFontMask)
+        },
+        @"markup.italic": @{
+            NSFontAttributeName: UDMarkupFont(NSItalicFontMask)
+        },
+        @"markup.strikethrough": @{
+            NSStrikethroughStyleAttributeName: @(NSUnderlineStyleSingle)
+        },
+        @"markup.raw": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.81 green:0.57 blue:0.47 alpha:1.0] /* #CE9178 */,
+            NSFontAttributeName: UDMarkupFont(0)
+        },
+        @"markup.quote": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.42 green:0.60 blue:0.33 alpha:1.0] /* #6A9955 */,
+            NSFontAttributeName: UDMarkupFont(NSItalicFontMask)
+        },
+        @"markup.link": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.31 green:0.79 blue:0.69 alpha:1.0] /* #4EC9B0 */,
+            NSFontAttributeName: UDMarkupFont(0)
+        },
+        @"markup.link.url": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.22 green:0.58 blue:1.00 alpha:1.0] /* #3794FF */,
+            NSFontAttributeName: UDMarkupFont(0),
+            NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle)
+        },
+        @"markup.punctuation": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.50 green:0.50 blue:0.50 alpha:1.0] /* #808080 */,
+            NSFontAttributeName: UDMarkupFont(NSBoldFontMask)
         }
     };
 }
@@ -351,6 +395,43 @@
         @"string.special.key": @{
             NSForegroundColorAttributeName: [NSColor colorWithRed:0.00 green:0.11 blue:0.78 alpha:1.0], // #001080 - Dark Blue
             NSFontAttributeName: [NSFont systemFontOfSize:13]
+        },
+
+        // Markdown: the markup's own styles; a nested one (bold in a heading)
+        // adds its font to the outer one's colour
+        @"markup.heading": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.50 green:0.00 blue:0.00 alpha:1.0] /* #800000 */,
+            NSFontAttributeName: UDMarkupFont(NSBoldFontMask)
+        },
+        @"markup.bold": @{
+            NSFontAttributeName: UDMarkupFont(NSBoldFontMask)
+        },
+        @"markup.italic": @{
+            NSFontAttributeName: UDMarkupFont(NSItalicFontMask)
+        },
+        @"markup.strikethrough": @{
+            NSStrikethroughStyleAttributeName: @(NSUnderlineStyleSingle)
+        },
+        @"markup.raw": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.64 green:0.08 blue:0.08 alpha:1.0] /* #A31515 */,
+            NSFontAttributeName: UDMarkupFont(0)
+        },
+        @"markup.quote": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.02 green:0.32 blue:0.65 alpha:1.0] /* #0451A5 */,
+            NSFontAttributeName: UDMarkupFont(NSItalicFontMask)
+        },
+        @"markup.link": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.15 green:0.50 blue:0.60 alpha:1.0] /* #267F99 */,
+            NSFontAttributeName: UDMarkupFont(0)
+        },
+        @"markup.link.url": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.00 green:0.00 blue:1.00 alpha:1.0] /* #0000FF */,
+            NSFontAttributeName: UDMarkupFont(0),
+            NSUnderlineStyleAttributeName: @(NSUnderlineStyleSingle)
+        },
+        @"markup.punctuation": @{
+            NSForegroundColorAttributeName: [NSColor colorWithRed:0.50 green:0.50 blue:0.50 alpha:1.0] /* #808080 */,
+            NSFontAttributeName: UDMarkupFont(NSBoldFontMask)
         }
     };
 }

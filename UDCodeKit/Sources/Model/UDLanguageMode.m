@@ -96,4 +96,18 @@
     return fileURL.path ? @{ @"program": fileURL.path } : @{};
 }
 
+- (BOOL)hasPreview {
+    return [self previewOfText:@"" baseURL:nil] != nil;
+}
+
+- (NSAttributedString *)previewOfText:(NSString *)text baseURL:(NSURL *)baseURL {
+    if (![_extension respondsToSelector:@selector(previewOfText:forIdentifier:baseURL:)]) return nil;
+    return [_extension previewOfText:text forIdentifier:_identifier baseURL:baseURL];
+}
+
+- (NSArray<NSDictionary<NSString *, id> *> *)linksInText:(NSString *)text baseURL:(NSURL *)baseURL {
+    if (![_extension respondsToSelector:@selector(linksInText:forIdentifier:baseURL:)]) return @[];
+    return [_extension linksInText:text forIdentifier:_identifier baseURL:baseURL] ?: @[];
+}
+
 @end

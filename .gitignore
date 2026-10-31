@@ -18,6 +18,8 @@ tree-sitter-*/common/
 tree-sitter-*/Resources/highlights.scm
 tree-sitter-*/Resources/indents.scm
 tree-sitter-*/Resources/locals.scm
+# ...but Markdown's is ours: ikatyang/tree-sitter-markdown ships no queries
+!tree-sitter-markdown/Resources/highlights.scm
 
 # Provenance files written by fetch-deps.sh
 tree-sitter-*/UPSTREAM

@@ -35,7 +35,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
                                           UDEditorTabsControllerDelegate, UDDebugSessionDelegate,
                                           UDBreakpointNavigatorDelegate, UDFileNavigatorDelegate, UDBuildRunnerDelegate,
                                           UDFileWatcherDelegate, UDSearchResultsDelegate, UDWorkspaceEditDocuments, UDOpenQuicklyDelegate, UDLinkedEditingDelegate, UDIssuePopupDelegate, UDTestNavigatorDelegate,
-                                          NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
+                                          UDCodeEditorLinkDelegate, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate>
 
 // The window's layout, all in the XIB.
 @property (nonatomic, strong) IBOutlet UDPaneSplitController  *paneSplit;
@@ -100,6 +100,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, weak) IBOutlet NSView             *debugAreaHost;
 @property (nonatomic, weak) IBOutlet NSView             *terminalHost;
 @property (nonatomic, weak) IBOutlet NSSegmentedControl *bottomAreaControl;
+/// Source | Preview, at the tab bar's right: the selected tab's, for a mode
+/// that renders its text (Markdown's).
+@property (nonatomic, weak) IBOutlet NSSegmentedControl *previewControl;
 @property (nonatomic, strong, readwrite, nullable) UDTerminalViewController *terminal;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorName;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorPath;
@@ -202,6 +205,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_debugPaneDidResize:)
                                                  name:NSViewFrameDidChangeNotification object:debugPane];
     [self _layoutDebugPane];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_editorPreviewDidChange:)
+                                                 name:UDCodeEditorPreviewDidChangeNotification object:nil];
+    [self _updatePreviewControl];
 
     // A project: its files in the Files tab, instead of the open files' list.
     _project = workspace.project;
@@ -1380,6 +1387,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return [[self _selectedEditor] validateMenuItem:item];
     } else if (sel_isEqual(action, @selector(toggleBreakpoint:))) {
         return [self _selectedEditor].breakpointFile != nil;
+    } else if (sel_isEqual(action, @selector(togglePreview:))) {
+        UDCodeEditorViewController *editor = [self _selectedEditor];
+        return editor && [editor validateMenuItem:item];
     } else if (sel_isEqual(action, @selector(toggleDebugArea:))) {
         item.title = [_debugSplit isPaneVisible:UDDebugAreaPane] ? @"Hide Debug Area" : @"Show Debug Area";
     }
@@ -1473,6 +1483,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     // before the session's first parse.
     UDCodeEditorViewController *editor = [[UDCodeEditorViewController alloc] initWithTextStorage:session.textStorage];
     [editor configureForLanguageMode:document.languageMode];
+    editor.previewBaseURL = document.fileURL;
+    editor.linkDelegate = self;
     editor.textView.delegate = self;
     if (document.fileURL) [editor showBreakpointsOfStore:_breakpoints forFile:document.fileURL.path];
 
@@ -1570,8 +1582,81 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         [_filesTable deselectAll:nil];
     }
     [self _updateInspector];
+    [self _updatePreviewControl];
     UDCodeEditorViewController *editor = [self _selectedEditor];
-    if (editor) [self.window makeFirstResponder:editor.textView];
+    if (editor) [self.window makeFirstResponder:editor.showsPreview ? editor.previewTextView : editor.textView];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Source | Preview
+// ---------------------------------------------------------------------------
+
+/// The switch follows the selected tab: shown for a mode with a preview, the
+/// tab bar taking the room otherwise.
+- (void)_updatePreviewControl {
+    UDCodeEditorViewController *editor = [self _selectedEditor];
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    if (document.fileURL) editor.previewBaseURL = document.fileURL;   // saved as another file since
+    BOOL shown = editor.canShowPreview;
+    _previewControl.hidden = !shown;
+    [_previewControl setSelectedSegment:editor.showsPreview ? 1 : 0];
+
+    UDTabBarView *bar = _editorTabs.tabBar;
+    NSRect frame = bar.frame;
+    CGFloat width = NSWidth(bar.superview.bounds);
+    frame.size.width = shown ? MAX(0, NSMinX(_previewControl.frame) - 4 - NSMinX(frame)) : width - NSMinX(frame);
+    bar.frame = frame;
+}
+
+- (void)_editorPreviewDidChange:(NSNotification *)note {
+    if (note.object == [self _selectedEditor]) [self _updatePreviewControl];
+}
+
+- (IBAction)previewControlChanged:(nullable id)sender {
+    [self _selectedEditor].showsPreview = _previewControl.selectedSegment == 1;
+}
+
+/// A link in a preview to a file of ours: its tab (a new one, or the one it
+/// has), read in Preview, or ⌘: its text, to edit. Anything else (a web
+/// page, an image, a folder) opens as any link does.
+- (BOOL)codeEditor:(UDCodeEditorViewController *)editor openLink:(NSURL *)url editing:(BOOL)editing {
+    if (!url.isFileURL) return NO;
+    BOOL folder = NO;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&folder]) {
+        NSBeep();                      // a link to nothing: nothing to open
+        return YES;
+    }
+    if (folder || ![self _isTextFile:url]) return NO;
+    [self _showFile:url.path];
+    UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
+    UDCodeEditorViewController *shown = [self _selectedEditor];
+    if (!shown || !document.fileURL || ![UDRealPath(document.fileURL.path) isEqualToString:UDRealPath(url.path)]) {
+        return YES;                    // it would not open (logged)
+    }
+    if (editing || !shown.canShowPreview) {
+        [shown followPreviewLink:url editing:YES];     // its text, at the line a #L12 names
+    } else {
+        shown.showsPreview = YES;
+        if (url.fragment.length) [shown revealPreviewAnchor:url.fragment];
+        [self.window makeFirstResponder:shown.previewTextView];
+    }
+    return YES;
+}
+
+/// A file for a tab: one a language mode knows, else text (no NUL in its
+/// first 4 KB).
+- (BOOL)_isTextFile:(NSURL *)url {
+    UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:url];
+    if (![mode.identifier isEqualToString:@"plaintext"]) return YES;
+    NSFileHandle *file = [NSFileHandle fileHandleForReadingAtPath:url.path];
+    NSData *head = [file readDataOfLength:4096];
+    [file closeFile];
+    return head && memchr(head.bytes, 0, head.length) == NULL;
+}
+
+/// View > Show Preview (⌥⌘↩), wherever the focus is.
+- (IBAction)togglePreview:(nullable id)sender {
+    [[self _selectedEditor] togglePreview:sender];
 }
 
 // ---------------------------------------------------------------------------

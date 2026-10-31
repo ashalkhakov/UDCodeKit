@@ -79,6 +79,8 @@
 #import <UDCodeKit/UDPaths.h>
 #import <UDCodeKit/UDIssuePopupController.h>
 #import <UDCodeKit/UDLinkedEditing.h>
+#import <UDCodeKit/UDLinkComputer.h>
+#import <UDCodeKit/UDLinkDetector.h>
 #import <UDCodeKit/UDOpenQuicklyController.h>
 #import <UDCodeKit/UDOccurrencesHighlighter.h>
 #import <UDCodeKit/UDSearchResultsViewController.h>

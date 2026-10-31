@@ -37,6 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *className;
 /// Arbitrary user-supplied metadata (e.g., hover message, diagnostic info).
 @property (nonatomic, strong, nullable) id userInfo;
+/// Shown when the mouse rests on the decoration (VS Code's hoverMessage).
+@property (nonatomic, copy, nullable) NSString *hoverMessage;
 - (instancetype)initWithClassName:(nullable NSString *)className
                          userInfo:(nullable id)userInfo;
 @end

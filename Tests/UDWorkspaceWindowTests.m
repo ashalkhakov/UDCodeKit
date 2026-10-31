@@ -29,6 +29,7 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
 - (IBAction)toggleInspector:(id)sender;
 - (IBAction)showIssuesNavigator:(id)sender;
 - (IBAction)closeEditorTab:(id)sender;
+- (BOOL)codeEditor:(UDCodeEditorViewController *)editor openLink:(NSURL *)url editing:(BOOL)editing;
 @end
 
 @interface UDWorkspaceWindowTests : UDCodeTestCase
@@ -166,6 +167,59 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     [first.textView insertText:@" "];
     XCTAssertEqualObjects(second.textView.string, @" {\"a\": 1}\n");
     XCTAssertTrue(tabs.items[1].dirty && tabs.items[2].dirty);
+}
+
+/// A Markdown file's preview links to another: a click reads it (its tab,
+/// in Preview, at the heading), ⌘-click edits it (the same tab, its text).
+- (void)testAPreviewsLinkOpensTheOtherFileToReadOrEdit {
+    if (![[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:@"markdown"].hasPreview) {
+        XCTFail(@"%@", @"the Markdown bundle did not load");
+        return;
+    }
+    NSURL *folder = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
+                     URLByAppendingPathComponent:[@"UDLinks-" stringByAppendingString:[NSUUID UUID].UUIDString]];
+    [[NSFileManager defaultManager] createDirectoryAtURL:folder withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSURL *a = [folder URLByAppendingPathComponent:@"a.md"], *b = [folder URLByAppendingPathComponent:@"b.md"];
+    [@"# A\n\nSee [b](b.md#two).\n" writeToURL:a atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    NSMutableString *bText = [NSMutableString stringWithString:@"# One\n\n"];
+    for (int i = 0; i < 200; i++) [bText appendFormat:@"Paragraph %d.\n\n", i];
+    [bText appendString:@"## Two\n\nhere\n"];
+    [bText writeToURL:b atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    NSData *png = [NSData dataWithBytes:"\x89PNG\r\n\x1a\n\0\0\0\0" length:12];
+    [png writeToURL:[folder URLByAppendingPathComponent:@"pic.png"] atomically:YES];
+
+    UDEditorTabsController *tabs = _controller.editorTabs;
+    [_controller openURLInNewTab:a];
+    UDCodeEditorViewController *aEditor = (UDCodeEditorViewController *)[tabs viewControllerForItem:tabs.selectedItem];
+    aEditor.showsPreview = YES;
+    NSUInteger count = tabs.items.count;
+
+    [aEditor followPreviewLink:[NSURL URLWithString:@"b.md#two" relativeToURL:a] editing:NO];
+    XCTAssertEqual(tabs.items.count, count + 1, @"b in a tab of its own");
+    UDCodeEditorViewController *bEditor = (UDCodeEditorViewController *)[tabs viewControllerForItem:tabs.selectedItem];
+    XCTAssertEqualObjects(((UDCodeDocument *)tabs.selectedItem.representedObject).fileURL.lastPathComponent, @"b.md");
+    XCTAssertTrue(bEditor.showsPreview, @"to read");
+    XCTAssertEqualObjects(_controller.window.firstResponder, bEditor.previewTextView);
+    NSTextView *preview = bEditor.previewTextView;
+    NSRange visible = [preview.layoutManager characterRangeForGlyphRange:
+        [preview.layoutManager glyphRangeForBoundingRect:preview.visibleRect inTextContainer:preview.textContainer]
+                                                        actualGlyphRange:NULL];
+    XCTAssertTrue(NSLocationInRange([preview.string rangeOfString:@"Two"].location, visible), @"at its heading");
+
+    [tabs selectItem:tabs.items[count - 1]];
+    [aEditor followPreviewLink:[NSURL URLWithString:@"b.md" relativeToURL:a] editing:YES];
+    XCTAssertEqual(tabs.items.count, count + 1, @"b's tab again");
+    XCTAssertEqual([tabs viewControllerForItem:tabs.selectedItem], bEditor);
+    XCTAssertFalse(bEditor.showsPreview, @"to edit");
+    XCTAssertEqualObjects(_controller.window.firstResponder, bEditor.textView);
+
+    // not ours to open: an image (the default app's), a file not there
+    XCTAssertFalse([_controller codeEditor:aEditor openLink:[folder URLByAppendingPathComponent:@"pic.png"] editing:NO]);
+    XCTAssertFalse([_controller codeEditor:aEditor openLink:[NSURL URLWithString:@"https://example.com/"] editing:NO]);
+    XCTAssertTrue([_controller codeEditor:aEditor openLink:[folder URLByAppendingPathComponent:@"none.md"] editing:NO],
+                  @"nothing there: a beep, not the browser");
+    XCTAssertEqual(tabs.items.count, count + 1);
+    [[NSFileManager defaultManager] removeItemAtURL:folder error:NULL];
 }
 
 - (void)testTheIssuesNavigator {

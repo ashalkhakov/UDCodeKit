@@ -39,6 +39,8 @@
 				<string>fsproj</string>
 				<string>nuspec</string>
 				<string>resx</string>
+				<string>rdl</string>
+				<string>rdlc</string>
 				<string>xul</string>
 				<string>orm</string>
 				<string>xmi</string>

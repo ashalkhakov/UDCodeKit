@@ -13,6 +13,8 @@
 #import "UDDebugSession.h"
 #import "UDBreakpointEditorViewController.h"
 #import "UDDebugHoverViewController.h"
+#import "UDExtension.h"
+#import "UDLinkDetector.h"
 #import <UDPieceTable/UDPieceTable.h>
 #import <objc/runtime.h>
 
@@ -22,7 +24,7 @@
 
 @interface UDCodeEditorViewController () <UDLineNumberGutterViewDelegate, UDLineNumberGutterBreakpointSource,
                                           UDFindBarDelegate, UDFindActionHandler, UDJumpToLineDelegate,
-                                          UDDebugTextHandler, UDBreakpointEditorDelegate>
+                                          UDDebugTextHandler, UDBreakpointEditorDelegate, NSTextViewDelegate>
 
 // IBOutlets wired from UDCodeEditorViewController.xib.
 @property (nonatomic, weak) IBOutlet NSScrollView            *scrollView;
@@ -40,6 +42,7 @@
 @property (nonatomic, strong) UDPlaceholderHighlighter *placeholderHighlighter;
 @property (nonatomic, strong) UDStructuredNavigator    *structuredNavigator;
 @property (nonatomic, strong) UDAutoIndenter           *autoIndenter;
+@property (nonatomic, strong) UDLinkDetector           *linkDetector;
 
 // Text-model state.
 @property (nonatomic, strong) UDTextModelTextStorage   *textStorage;
@@ -59,7 +62,15 @@
 @property (nonatomic, strong, nullable) UDDebugHoverViewController *debugHover;
 @property (nonatomic) NSRange debugHoverRange;
 
+// Preview: the mode's rendering of the text, over the editor.
+@property (nonatomic, strong, nullable) UDLanguageMode *languageMode;
+@property (nonatomic) BOOL canShowPreview;
+@property (nonatomic, strong, nullable) NSScrollView *previewScrollView;
+@property (nonatomic, strong, nullable) NSTextView *previewTextView;
+
 @end
+
+NSNotificationName const UDCodeEditorPreviewDidChangeNotification = @"UDCodeEditorPreviewDidChangeNotification";
 
 // ---------------------------------------------------------------------------
 
@@ -146,6 +157,12 @@
     _textView.autoIndenter        = _autoIndenter;
     _textView.structuredNavigator = _structuredNavigator;
 
+    // 12b. The text's links (Markdown's, say), followed with ⌘ to edit.
+    _linkDetector = [[UDLinkDetector alloc] initWithTextStorage:_textStorage highlighter:_textStorage.highlighter];
+    __weak UDCodeEditorViewController *weakSelf = self;
+    _linkDetector.openLink = ^(NSURL *url) { [weakSelf followPreviewLink:url editing:YES]; };
+    _textView.linkDetector = _linkDetector;
+
     // 13. Observe text-storage edits for folding and bracket match.
     [[NSNotificationCenter defaultCenter]
         addObserver:self
@@ -162,6 +179,12 @@
     }
     _autoIndenter.languageConfiguration = mode.languageConfiguration;
     _autoIndenter.languageKeyHandler    = mode.keyHandler;
+    _languageMode = mode;
+    _linkDetector.languageMode = mode;
+    [_linkDetector update];
+    _canShowPreview = mode.hasPreview;
+    if (!_canShowPreview) self.showsPreview = NO;
+    else if (_showsPreview) [self _renderPreview];
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +202,12 @@
 - (void)_updateAfterEdit {
     [_foldingController update];
     [_bracketMatchHighlighter update];
+    [_linkDetector scheduleUpdate];
+    if (_showsPreview) {
+        // a moment after the typing, not each keystroke
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_renderPreview) object:nil];
+        [self performSelector:@selector(_renderPreview) withObject:nil afterDelay:0.3];
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -499,6 +528,10 @@
         return [self canPerformDebugAction:action];
     }
     if (sel_isEqual(action, @selector(runToLine:))) return [self _session].canContinue;
+    if (sel_isEqual(action, @selector(togglePreview:))) {
+        item.title = _showsPreview ? @"Hide Preview" : @"Show Preview";
+        return _canShowPreview;
+    }
     if (sel_isEqual(action, @selector(toggleBreakpointEnabled:))) {
         UDBreakpoint *breakpoint = [self _menuBreakpoint];
         item.title = breakpoint.enabled ? @"Disable Breakpoint" : @"Enable Breakpoint";
@@ -515,6 +548,174 @@
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - Preview
+// ---------------------------------------------------------------------------
+
+- (void)setShowsPreview:(BOOL)showsPreview {
+    if (showsPreview && !_canShowPreview) showsPreview = NO;
+    if (showsPreview == _showsPreview) return;
+    (void)self.view;
+    _showsPreview = showsPreview;
+    NSWindow *window = self.view.window;
+    if (showsPreview) {
+        BOOL editing = window.firstResponder == _textView;
+        if (!_previewScrollView) [self _makePreview];
+        [self _renderPreview];
+        _previewScrollView.hidden = NO;
+        _editorArea.hidden = YES;
+        if (editing) [window makeFirstResponder:_previewTextView];
+    } else {
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(_renderPreview) object:nil];
+        BOOL reading = window.firstResponder == _previewTextView;
+        _previewScrollView.hidden = YES;
+        _editorArea.hidden = NO;
+        if (reading) [window makeFirstResponder:_textView];
+    }
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDCodeEditorPreviewDidChangeNotification object:self];
+}
+
+- (void)setPreviewBaseURL:(NSURL *)previewBaseURL {
+    if (previewBaseURL == _previewBaseURL || [previewBaseURL isEqual:_previewBaseURL]) return;
+    _previewBaseURL = [previewBaseURL copy];
+    (void)self.view;
+    _linkDetector.baseURL = _previewBaseURL;
+    [_linkDetector update];
+}
+
+- (IBAction)togglePreview:(id)sender {
+    self.showsPreview = !_showsPreview;
+}
+
+/// A read-only text view over the whole editor, the find bar's place and all.
+- (void)_makePreview {
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:self.view.bounds];
+    scroll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    scroll.hasVerticalScroller = YES;
+    scroll.borderType = NSNoBorder;
+    NSSize size = scroll.contentSize;
+    NSTextView *text = [[NSTextView alloc] initWithFrame:NSMakeRect(0, 0, size.width, size.height)];
+    text.editable = NO;
+    text.selectable = YES;
+    text.richText = YES;
+    text.importsGraphics = NO;
+    text.textContainerInset = NSMakeSize(20, 16);
+    text.minSize = NSMakeSize(0, size.height);
+    text.maxSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
+    text.verticallyResizable = YES;
+    text.horizontallyResizable = NO;
+    text.autoresizingMask = NSViewWidthSizable;
+    text.textContainer.widthTracksTextView = YES;
+    text.drawsBackground = YES;
+    text.backgroundColor = [NSColor textBackgroundColor];
+    text.delegate = self;
+    scroll.documentView = text;
+    scroll.hidden = YES;
+    [self.view addSubview:scroll positioned:NSWindowAbove relativeTo:nil];
+    _previewScrollView = scroll;
+    _previewTextView = text;
+}
+
+/// The text rendered again, where it was scrolled to.
+- (void)_renderPreview {
+    if (!_previewTextView) return;
+    NSString *text = [_textStorage.string copy];
+    NSAttributedString *rendered = [_languageMode previewOfText:text baseURL:_previewBaseURL]
+        ?: [[NSAttributedString alloc] initWithString:@""];
+    NSPoint scrolled = _previewScrollView.contentView.bounds.origin;
+    NSMutableAttributedString *shown = [rendered mutableCopy];
+    // a file's link says where it goes, and what ⌘ does (run by run: GNUstep
+    // has no -enumerateAttribute:…usingBlock:)
+    NSRange range = NSMakeRange(0, 0);
+    for (NSUInteger at = 0; at < rendered.length; at = NSMaxRange(range)) {
+        id link = [rendered attribute:NSLinkAttributeName atIndex:at effectiveRange:&range];
+        NSURL *url = [link isKindOfClass:[NSURL class]] ? link : nil;
+        if (!url.isFileURL || [self _isThisFile:url]) continue;
+        NSString *where = url.path.lastPathComponent;
+        if (url.fragment.length) where = [NSString stringWithFormat:@"%@#%@", where, url.fragment];
+        [shown addAttribute:NSToolTipAttributeName
+                      value:[NSString stringWithFormat:@"%@ — click to read, ⌘-click to edit", where] range:range];
+    }
+    [_previewTextView.textStorage setAttributedString:shown];
+    [_previewTextView scrollPoint:scrolled];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Links in the preview
+// ---------------------------------------------------------------------------
+
+/// A link into this very file (its #heading), or one with only a fragment
+/// (the file not saved).
+- (BOOL)_isThisFile:(NSURL *)url {
+    if (!url.path.length) return url.fragment.length > 0;
+    return _previewBaseURL.path && [url.path.stringByStandardizingPath isEqualToString:_previewBaseURL.path.stringByStandardizingPath];
+}
+
+- (BOOL)textView:(NSTextView *)textView clickedOnLink:(id)link atIndex:(NSUInteger)charIndex {
+    if (textView != _previewTextView) return NO;
+    NSURL *url = [link isKindOfClass:[NSURL class]] ? link : [NSURL URLWithString:[link description]];
+    if (!url) return NO;
+    BOOL editing = ([NSApp currentEvent].modifierFlags & NSEventModifierFlagCommand) != 0;
+    [self followPreviewLink:url editing:editing];
+    return YES;
+}
+
+- (void)followPreviewLink:(NSURL *)url editing:(BOOL)editing {
+    if ([self _isThisFile:url]) {
+        if (editing) {
+            self.showsPreview = NO;
+            [self.view.window makeFirstResponder:_textView];
+            [self _placeCaretAtFragment:url.fragment];
+        } else if (url.fragment.length && ![self revealPreviewAnchor:url.fragment]) {
+            NSBeep();
+        }
+        return;
+    }
+    if ([_linkDelegate codeEditor:self openLink:url editing:editing]) return;
+    [[NSWorkspace sharedWorkspace] openURL:url];
+}
+
+/// VS Code's #L12, #L12,3 (or #12,3) of a link to a place in a file: the
+/// caret there, its line in the middle of the view.
+- (void)_placeCaretAtFragment:(nullable NSString *)fragment {
+    NSScanner *scanner = fragment ? [NSScanner scannerWithString:fragment] : nil;
+    [scanner scanString:@"L" intoString:NULL];
+    NSInteger line = 0, column = 1;
+    if (![scanner scanInteger:&line] || line < 1) return;
+    if ([scanner scanString:@"," intoString:NULL] && ![scanner scanInteger:&column]) column = 1;
+    UDTextModel *model = _textStorage.textModel;
+    line = MIN(line, [model getLineCount]);
+    column = MAX(1, MIN(column, [model getLineMaxColumn:line]));
+    NSRange caret = NSMakeRange((NSUInteger)[model getOffsetAt:line column:column], 0);
+    [_textView setSelectedRange:caret];
+    [_textView scrollRangeToVisible:caret];
+    [_textView centerSelectionInVisibleArea:nil];
+}
+
+- (BOOL)revealPreviewAnchor:(NSString *)anchor {
+    NSTextStorage *text = _previewTextView.textStorage;
+    NSString *wanted = (anchor.stringByRemovingPercentEncoding ?: anchor).lowercaseString;
+    NSRange found = NSMakeRange(NSNotFound, 0), range = NSMakeRange(0, 0);
+    for (NSUInteger at = 0; at < text.length; at = NSMaxRange(range)) {
+        id value = [text attribute:UDPreviewAnchorAttributeName atIndex:at effectiveRange:&range];
+        if ([value isKindOfClass:[NSString class]] && [[value lowercaseString] isEqualToString:wanted]) {
+            found = range;
+            break;
+        }
+    }
+    if (found.location == NSNotFound) return NO;
+    // the heading at the top, the text laid out and the view its height first
+    // (GNUstep sizes it only when it is drawn)
+    NSLayoutManager *lm = _previewTextView.layoutManager;
+    (void)[lm glyphRangeForTextContainer:_previewTextView.textContainer];
+    [_previewTextView sizeToFit];
+    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(found.location, 0) actualCharacterRange:NULL];
+    NSRect line = [lm lineFragmentRectForGlyphAtIndex:glyphs.location effectiveRange:NULL];
+    [_previewTextView scrollPoint:NSMakePoint(0, MAX(0.0, NSMinY(line) + _previewTextView.textContainerOrigin.y - 8.0))];
+    [_previewTextView setSelectedRange:NSMakeRange(found.location, 0)];
+    return YES;
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Find
 // ---------------------------------------------------------------------------
 
@@ -524,6 +725,7 @@
 
 - (void)showFindBarReplacing:(BOOL)replacing {
     (void)self.view;
+    self.showsPreview = NO;
     if (!_findBar) {
         _findModel = [[UDFindModel alloc] initWithTextModel:_textStorage.textModel];
         _findBar = [[UDFindBarViewController alloc] initWithFindModel:_findModel textView:_textView];
@@ -583,6 +785,7 @@
 /// The box over the top of the text (Xcode's), laid over it.
 - (void)showJumpToLine {
     (void)self.view;
+    self.showsPreview = NO;
     if (!_jumpToLine) {
         _jumpToLine = [[UDJumpToLineViewController alloc] init];
         _jumpToLine.delegate = self;
@@ -605,6 +808,7 @@
 }
 
 - (void)selectLine:(NSInteger)line {
+    self.showsPreview = NO;
     UDTextModel *model = _textStorage.textModel;
     line = MAX(1, MIN(line, [model getLineCount]));
     NSUInteger start = (NSUInteger)[model getOffsetAt:line column:1];
@@ -617,6 +821,7 @@
 
 - (void)revealLine:(NSInteger)line {
     (void)self.view;
+    self.showsPreview = NO;
     UDTextModel *model = _textStorage.textModel;
     line = MAX(1, MIN(line, [model getLineCount]));
     NSLayoutManager *lm = _textView.layoutManager;

@@ -307,56 +307,56 @@ static BOOL UDMatches(NSString *text, NSString *pattern, NSRegularExpressionOpti
     return [expression firstMatchInString:text options:0 range:NSMakeRange(0, text.length)] != nil;
 }
 
-+ (UDGitErrorCode)errorCodeOfOutput:(NSString *)stderr command:(NSString *)command {
++ (UDGitErrorCode)errorCodeOfOutput:(NSString *)output command:(NSString *)command {
     // the command's own first
     if ([command isEqualToString:@"commit"]) {
-        if (UDMatches(stderr, @"Please tell me who you are|unable to auto-detect email address", 0)) return UDGitErrorNoUserNameConfigured;
-        if (UDMatches(stderr, @"Aborting commit due to empty commit message", 0)) return UDGitErrorEmptyCommitMessage;
+        if (UDMatches(output, @"Please tell me who you are|unable to auto-detect email address", 0)) return UDGitErrorNoUserNameConfigured;
+        if (UDMatches(output, @"Aborting commit due to empty commit message", 0)) return UDGitErrorEmptyCommitMessage;
     }
     if ([command isEqualToString:@"push"]) {
-        if (UDMatches(stderr, @"! \\[rejected\\].*\\(non-fast-forward\\)|! \\[rejected\\].*\\(fetch first\\)", 0)) return UDGitErrorPushRejected;
-        if (UDMatches(stderr, @"has no upstream branch", 0)) return UDGitErrorNoUpstreamBranch;
-        if (UDMatches(stderr, @"Could not read from remote repository", 0)) return UDGitErrorRemoteConnectionError;
+        if (UDMatches(output, @"! \\[rejected\\].*\\(non-fast-forward\\)|! \\[rejected\\].*\\(fetch first\\)", 0)) return UDGitErrorPushRejected;
+        if (UDMatches(output, @"has no upstream branch", 0)) return UDGitErrorNoUpstreamBranch;
+        if (UDMatches(output, @"Could not read from remote repository", 0)) return UDGitErrorRemoteConnectionError;
     }
     if ([command isEqualToString:@"pull"] || [command isEqualToString:@"merge"] || [command isEqualToString:@"rebase"] ||
         [command isEqualToString:@"cherry-pick"]) {
-        if (UDMatches(stderr, @"^CONFLICT \\(", NSRegularExpressionAnchorsMatchLines) ||
-            UDMatches(stderr, @"Automatic merge failed; fix conflicts", 0)) {
+        if (UDMatches(output, @"^CONFLICT \\(", NSRegularExpressionAnchorsMatchLines) ||
+            UDMatches(output, @"Automatic merge failed; fix conflicts", 0)) {
             return UDGitErrorConflict;
         }
-        if (UDMatches(stderr, @"Your local changes to the following files would be overwritten", 0)) return UDGitErrorLocalChangesOverwritten;
-        if (UDMatches(stderr, @"Could not read from remote repository", 0)) return UDGitErrorRemoteConnectionError;
-        if (UDMatches(stderr, @"Couldn't find remote ref", 0)) return UDGitErrorNoRemoteReference;
+        if (UDMatches(output, @"Your local changes to the following files would be overwritten", 0)) return UDGitErrorLocalChangesOverwritten;
+        if (UDMatches(output, @"Could not read from remote repository", 0)) return UDGitErrorRemoteConnectionError;
+        if (UDMatches(output, @"Couldn't find remote ref", 0)) return UDGitErrorNoRemoteReference;
     }
     if ([command isEqualToString:@"fetch"]) {
-        if (UDMatches(stderr, @"Could not read from remote repository", 0)) return UDGitErrorRemoteConnectionError;
+        if (UDMatches(output, @"Could not read from remote repository", 0)) return UDGitErrorRemoteConnectionError;
     }
     if ([command isEqualToString:@"stash"]) {
-        if (UDMatches(stderr, @"No local changes to save", 0)) return UDGitErrorNoLocalChanges;
-        if (UDMatches(stderr, @"No stash entries found|No stash found", 0)) return UDGitErrorNoStashFound;
-        if (UDMatches(stderr, @"^CONFLICT \\(|conflict", NSRegularExpressionAnchorsMatchLines)) return UDGitErrorStashConflict;
+        if (UDMatches(output, @"No local changes to save", 0)) return UDGitErrorNoLocalChanges;
+        if (UDMatches(output, @"No stash entries found|No stash found", 0)) return UDGitErrorNoStashFound;
+        if (UDMatches(output, @"^CONFLICT \\(|conflict", NSRegularExpressionAnchorsMatchLines)) return UDGitErrorStashConflict;
     }
     if ([command isEqualToString:@"checkout"] || [command isEqualToString:@"switch"]) {
-        if (UDMatches(stderr, @"Your local changes to the following files would be overwritten", 0)) return UDGitErrorDirtyWorkTree;
+        if (UDMatches(output, @"Your local changes to the following files would be overwritten", 0)) return UDGitErrorDirtyWorkTree;
     }
 
     // getGitErrorCode
-    if (UDMatches(stderr, @"Another git process seems to be running in this repository|If no other git process is currently running", 0)) {
+    if (UDMatches(output, @"Another git process seems to be running in this repository|If no other git process is currently running", 0)) {
         return UDGitErrorRepositoryIsLocked;
     }
-    if (UDMatches(stderr, @"cannot lock ref|unable to update local ref", 0)) return UDGitErrorCantLockRef;
-    if (UDMatches(stderr, @"Authentication failed", NSRegularExpressionCaseInsensitive)) return UDGitErrorAuthenticationFailed;
-    if (UDMatches(stderr, @"Not a git repository", NSRegularExpressionCaseInsensitive)) return UDGitErrorNotAGitRepository;
-    if (UDMatches(stderr, @"detected dubious ownership in repository at", 0)) return UDGitErrorNotASafeGitRepository;
-    if (UDMatches(stderr, @"bad config file", 0)) return UDGitErrorBadConfigFile;
-    if (UDMatches(stderr, @"Repository not found", 0)) return UDGitErrorRepositoryNotFound;
-    if (UDMatches(stderr, @"unable to access", 0)) return UDGitErrorCantAccessRemote;
-    if (UDMatches(stderr, @"branch '.+' is not fully merged", 0)) return UDGitErrorBranchNotFullyMerged;
-    if (UDMatches(stderr, @"Couldn't find remote ref", 0)) return UDGitErrorNoRemoteReference;
-    if (UDMatches(stderr, @"A branch named '.+' already exists", 0)) return UDGitErrorBranchAlreadyExists;
-    if (UDMatches(stderr, @"'.+' is not a valid branch name", 0)) return UDGitErrorInvalidBranchName;
-    if (UDMatches(stderr, @"Please,? commit your changes or stash them", 0)) return UDGitErrorDirtyWorkTree;
-    if (UDMatches(stderr, @"needs merge|you need to resolve your current index first", 0)) return UDGitErrorUnmergedChanges;
+    if (UDMatches(output, @"cannot lock ref|unable to update local ref", 0)) return UDGitErrorCantLockRef;
+    if (UDMatches(output, @"Authentication failed", NSRegularExpressionCaseInsensitive)) return UDGitErrorAuthenticationFailed;
+    if (UDMatches(output, @"Not a git repository", NSRegularExpressionCaseInsensitive)) return UDGitErrorNotAGitRepository;
+    if (UDMatches(output, @"detected dubious ownership in repository at", 0)) return UDGitErrorNotASafeGitRepository;
+    if (UDMatches(output, @"bad config file", 0)) return UDGitErrorBadConfigFile;
+    if (UDMatches(output, @"Repository not found", 0)) return UDGitErrorRepositoryNotFound;
+    if (UDMatches(output, @"unable to access", 0)) return UDGitErrorCantAccessRemote;
+    if (UDMatches(output, @"branch '.+' is not fully merged", 0)) return UDGitErrorBranchNotFullyMerged;
+    if (UDMatches(output, @"Couldn't find remote ref", 0)) return UDGitErrorNoRemoteReference;
+    if (UDMatches(output, @"A branch named '.+' already exists", 0)) return UDGitErrorBranchAlreadyExists;
+    if (UDMatches(output, @"'.+' is not a valid branch name", 0)) return UDGitErrorInvalidBranchName;
+    if (UDMatches(output, @"Please,? commit your changes or stash them", 0)) return UDGitErrorDirtyWorkTree;
+    if (UDMatches(output, @"needs merge|you need to resolve your current index first", 0)) return UDGitErrorUnmergedChanges;
     return UDGitErrorUnknown;
 }
 

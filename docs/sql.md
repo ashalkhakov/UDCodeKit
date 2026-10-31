@@ -26,8 +26,15 @@ The Databases navigator (the last segment, a cylinder) lists them:
 Add one with **+** at the bottom (or edit one from its menu). It is kept in
 the project's `.udcode/settings.json`, under `"databases"` (a name and a URL,
 to share with the folder), or in your own defaults, for every project.
-**Passwords are never written**: asked for when the server wants one, kept
-until UDCode quits.
+**Passwords are never written to settings or a project's files.** One is
+asked for when the server wants it (or given in the connection's sheet)
+and, with **Remember password** ticked, kept where the system keeps
+passwords: the Keychain on macOS, the Secret Service on Linux (GNOME
+Keyring, KWallet: through libsecret, when it and a D-Bus session are
+there), Credential Manager on Windows, under "UDCode database" and the
+connection's URL. Unticked, or where the system keeps none, it is kept
+until UDCode quits. A kept password that fails is asked for again;
+removing a connection forgets its password.
 
 Open a connection and its tables and views are listed, each with its
 columns (type, primary and foreign keys, NOT NULL), indexes and foreign

@@ -41,9 +41,9 @@ jobs:
       library: true
       # lldb (lldb-vscode), which speaks DAP: the tests debug programs with
       # it, gdb (the runner's) where it does not; SQLite's, libpq's and
-      # MariaDB Connector/C's headers, for the SQL extension (the last two loaded
-      # when there, not linked)
-      extra-packages: lldb libsqlite3-dev libpq-dev libmariadb-dev
+      # MariaDB Connector/C's headers, for the SQL extension, and libsecret's,
+      # for UDCodeKit's passwords (those three loaded when there, not linked)
+      extra-packages: lldb libsqlite3-dev libpq-dev libmariadb-dev libsecret-1-dev
       # the SQL extension's tests run against these too (POSTGRES_URL, MYSQL_URL, MARIADB_URL)
       databases: postgres mysql mariadb
 

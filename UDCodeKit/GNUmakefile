@@ -22,6 +22,7 @@ UD_HEADER_LINKS := $(shell mkdir -p $(UD_INCLUDE)/UDCodeKit && \
     for h in `find $(CURDIR)/Sources -name '*.h'`; do $(UD_HEADER_LINK) $$h $(UD_INCLUDE)/UDCodeKit/; done)
 UDCodeKit_HEADER_FILES_DIR = $(UD_INCLUDE)/UDCodeKit
 UDCodeKit_HEADER_FILES = \
+    UDCredentialStore.h \
     UDDebugger.h \
     UDTestRunner.h \
     UDCommandTestRunner.h \
@@ -110,7 +111,13 @@ UDCodeKit_INCLUDE_DIRS = $(addprefix -I,$(filter-out $(foreach d,$(UD_OTHER_DIRS
 UDCodeKit_LIB_DIRS = -L$(call UD_FRAMEWORK_LIB,UDPieceTable,UDPieceTable) \
     -L$(call UD_FRAMEWORK_LIB,LSPKit,LSPKit)
 UDCodeKit_LIBRARIES_DEPEND_UPON = -lUDPieceTable -lLSPKit $(GUI_LIBS) $(FND_LIBS) $(OBJC_LIBS) \
-    -ldispatch $(UD_BLOCKS_LIBS) $(UD_PTY_LIBS)
+    -ldispatch $(UD_BLOCKS_LIBS) $(UD_PTY_LIBS) $(UD_CREDENTIAL_LIBS)
+# The system's credential store: libsecret's header on Linux (the library
+# is loaded when first needed: -ldl), Credential Manager's advapi32 on
+# Windows.
+UD_SECRET_CFLAGS = $(shell pkg-config --cflags libsecret-1 2>/dev/null)
+UDCodeKit_INCLUDE_DIRS += $(UD_SECRET_CFLAGS)
+UD_CREDENTIAL_LIBS = $(if $(UD_WINDOWS),-ladvapi32,-ldl)
 # tree-sitter's and libvterm's C want C11 (and C99's features) and their own warnings left alone.
 ADDITIONAL_CFLAGS += -std=gnu11 -w
 

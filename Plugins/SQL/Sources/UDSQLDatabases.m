@@ -154,6 +154,12 @@ static const NSUInteger UDSQLMaxRows = 1000;
 - (void)removeDatabase:(UDSQLDatabase *)database {
     [database.runner close];
     [_databases removeObjectIdenticalTo:database];
+    // its password forgotten, unless another connection is to the same
+    BOOL shared = NO;
+    for (UDSQLDatabase *other in _databases) {
+        if ([[UDSQLPasswords accountOfURL:other.URL] isEqualToString:[UDSQLPasswords accountOfURL:database.URL]]) shared = YES;
+    }
+    if (!shared && database.dialect != UDSQLDialectSQLite) [UDSQLPasswords forgetPasswordOfURL:database.URL];
     [self _save];
     [self _changed];
 }
@@ -164,7 +170,7 @@ static const NSUInteger UDSQLMaxRows = 1000;
 
 - (UDSQLRunner *)_runnerOf:(UDSQLDatabase *)database {
     if (!database.runner) {
-        database.runner = [[UDSQLRunner alloc] initWithURL:database.URL password:UDSQLPasswordOfURL(database.URL)];
+        database.runner = [[UDSQLRunner alloc] initWithURL:database.URL password:[UDSQLPasswords passwordOfURL:database.URL]];
     }
     return database.runner;
 }
@@ -191,10 +197,13 @@ static BOOL UDWantsPassword(NSError *error) {
 /// (its runner then made again, with it).
 - (BOOL)_askPasswordOf:(UDSQLDatabase *)database after:(NSError *)error {
     if (database.dialect == UDSQLDialectSQLite || !UDWantsPassword(error)) return NO;
-    NSString *password = [UDSQLSheets askPasswordOfDatabase:database.name message:error.localizedDescription
+    // asked again: a kept password that failed, forgotten for the session
+    BOOL keep = [UDSQLPasswords isKeptForURL:database.URL] || [UDSQLPasswords passwordOfURL:database.URL] == nil;
+    NSString *password = [UDSQLSheets askPasswordOfDatabase:database.name message:error.localizedDescription keep:&keep
                                                      window:_workbench.window];
     if (!password) return NO;
-    UDSQLRememberPassword(database.URL, password);
+    NSError *failure = [UDSQLPasswords rememberPassword:password ofURL:database.URL keep:keep];
+    if (failure) NSLog(@"%@", failure.localizedDescription);
     [database.runner close];
     database.runner = nil;
     return YES;

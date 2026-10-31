@@ -8,6 +8,8 @@
         <customObject id="-2" userLabel="File's Owner" customClass="UDSQLSheets">
             <connections>
                 <outlet property="passwordField" destination="SQ-pw" id="o-passwordField"/>
+                <outlet property="passwordBox" destination="SQ-pwbox" id="o-passwordBox"/>
+                <outlet property="keepPasswordButton" destination="SQ-keep" id="o-keepPassword"/>
                 <outlet property="parametersPanel" destination="SP-panel" id="o-parametersPanel"/>
                 <outlet property="parametersTable" destination="SP-table" id="o-parametersTable"/>
                 <outlet property="connectionPanel" destination="SQ-panel" id="o-connectionPanel"/>
@@ -21,6 +23,7 @@
                 <outlet property="databaseField" destination="SQ-database" id="o-databaseField"/>
                 <outlet property="userField" destination="SQ-user" id="o-userField"/>
                 <outlet property="serverPasswordField" destination="SQ-password" id="o-serverPasswordField"/>
+                <outlet property="keepServerPasswordButton" destination="SQ-keepserver" id="o-keepServerPassword"/>
                 <outlet property="optionsField" destination="SQ-options" id="o-optionsField"/>
                 <outlet property="keptButton" destination="SQ-kept" id="o-keptButton"/>
                 <outlet property="testLabel" destination="SQ-test" id="o-testLabel"/>
@@ -214,9 +217,9 @@
                                 </textFieldCell>
                             </textField>
                             <secureTextField verticalHuggingPriority="750" id="SQ-password">
-                                <rect key="frame" x="128.0" y="41.0" width="332.0" height="22.0"/>
+                                <rect key="frame" x="128.0" y="41.0" width="226.0" height="22.0"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                <secureTextFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" placeholderString="Kept until UDCode quits, never written" drawsBackground="YES" usesSingleLineMode="YES" id="SQ-password-cell">
+                                <secureTextFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" placeholderString="Asked for when it connects" drawsBackground="YES" usesSingleLineMode="YES" id="SQ-password-cell">
                                     <font key="font" metaFont="system"/>
                                     <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
@@ -225,6 +228,14 @@
                                     </allowedInputSourceLocales>
                                 </secureTextFieldCell>
                             </secureTextField>
+                            <button verticalHuggingPriority="750" id="SQ-keepserver">
+                                <rect key="frame" x="362.0" y="43.0" width="100.0" height="18.0"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                <buttonCell key="cell" type="check" title="Remember" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="SQ-keepserver-cell">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                            </button>
                             <textField verticalHuggingPriority="750" id="SL-8">
                                 <rect key="frame" x="20.0" y="14.0" width="100.0" height="17.0"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMinY="YES"/>
@@ -443,8 +454,20 @@
             </view>
             <point key="canvasLocation" x="200" y="200"/>
         </window>
+        <customView id="SQ-pwbox" userLabel="A Password's (the alert's accessory)">
+            <rect key="frame" x="0.0" y="0.0" width="260.0" height="50.0"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+            <subviews>
+                            <button verticalHuggingPriority="750" id="SQ-keep">
+                                <rect key="frame" x="0.0" y="2.0" width="260.0" height="18.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
+                                <buttonCell key="cell" type="check" title="Remember password" bezelStyle="regularSquare" imagePosition="left" state="on" inset="2" id="SQ-keep-cell">
+                                    <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                    <font key="font" metaFont="system"/>
+                                </buttonCell>
+                            </button>
         <secureTextField verticalHuggingPriority="750" id="SQ-pw">
-            <rect key="frame" x="0.0" y="0.0" width="260.0" height="22.0"/>
+            <rect key="frame" x="0.0" y="28.0" width="260.0" height="22.0"/>
             <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
             <secureTextFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" drawsBackground="YES" usesSingleLineMode="YES" id="SQ-pw-cell">
                 <font key="font" metaFont="system"/>
@@ -455,6 +478,8 @@
                 </allowedInputSourceLocales>
             </secureTextFieldCell>
         </secureTextField>
+            </subviews>
+        </customView>
 
     </objects>
 </document>

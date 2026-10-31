@@ -29,6 +29,7 @@
 #import <UDCodeKit/UDLanguageKeyHandler.h>
 #import <UDCodeKit/UDExtension.h>
 #import <UDCodeKit/UDWorkbench.h>
+#import <UDCodeKit/UDCredentialStore.h>
 #import <UDCodeKit/UDLanguageConfiguration.h>
 #import <UDCodeKit/UDLanguageMode.h>
 #import <UDCodeKit/UDLanguageModeRegistry.h>

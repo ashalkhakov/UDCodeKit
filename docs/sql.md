@@ -33,9 +33,35 @@ Open a connection and its tables and views are listed, each with its
 columns (type, primary and foreign keys, NOT NULL), indexes and foreign
 keys. Double-click a table for its first rows.
 
-SQLite is built in. PostgreSQL's and MySQL's client libraries are not: UDCode
-uses yours, so install the ones for the databases you reach (a connection
-without one says how):
+SQLite is built in. PostgreSQL's and MySQL's client libraries come with
+UDCode, so there is nothing to install: the Mac app, the AppImage and the
+Windows installer (and portable zip) each carry libpq and MariaDB
+Connector/C's libmariadb (which speaks to MySQL servers too, MySQL 8's
+`caching_sha2_password` included), with what they link that a machine need
+not have:
+
+| | Where | What |
+|---|---|---|
+| macOS | `UDCode.app/Contents/Frameworks` | Homebrew's libpq, libmariadb and its authentication plug-ins (`mariadb/plugin`), OpenSSL, and Kerberos' GSSAPI, which Homebrew's libpq links (arm64: Homebrew has no Intel builds; an Intel Mac uses a libpq and libmariadb of its own, below) |
+| Linux (AppImage) | `usr/lib` in the image | Ubuntu 22.04's libpq5 and libmariadb3 (and its plug-ins), with the libraries they link (OpenSSL, GSSAPI, LDAP and theirs) |
+| Windows | beside `UDCode.exe` | MSYS2's libpq and libmariadb, with the DLLs they link (OpenSSL and theirs) |
+
+UDCode loads them when a connection first needs them, looking in its own
+copies first and then for the system's. Each is a shared library of its own,
+unmodified (on macOS but for the names they find each other by), and can be
+replaced by another build of it. Their licences are in the app's
+`Resources/Licenses` (`Contents/Resources/Licenses` on macOS), with a README
+naming each library's version and where its source is: libpq is under the
+PostgreSQL Licence, libmariadb under the LGPL 2.1, OpenSSL under the Apache
+Licence 2.0, MIT Kerberos under its own BSD-style licence. MySQL's own
+libmysqlclient (GPL) is not carried; a system's is still used when no
+libmariadb is found.
+
+A build of your own (Xcode, `make` on GNUstep) carries none of them: it
+uses the system's, so install the ones for the databases you reach (a
+connection without one says how). `make -f Makefile.apple install` copies
+Homebrew's into the app it installs (`scripts/sql-clients.sh`), as the
+release does.
 
 | | PostgreSQL | MySQL and MariaDB |
 |---|---|---|
@@ -136,7 +162,7 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 
 | | |
 |---|---|
-| `UDSQLConnection` | a connection: SQLite's (linked), PostgreSQL's (libpq) and MySQL's (libmariadb), loaded when first needed |
+| `UDSQLConnection` | a connection: SQLite's (linked), PostgreSQL's (libpq) and MySQL's (libmariadb), loaded when first needed (`UDSQLLibrary`: UDCode's own copies first, then the system's) |
 | `UDSQLText` | SQL read as far as running it needs: statements, the one at the caret, parameters in each driver's style |
 | `UDSQLSchema` | tables, views, columns, keys and indexes from each catalogue; a Core Data store read as one |
 | `UDSQLRunner` | a connection's work off the main thread, one operation at a time |

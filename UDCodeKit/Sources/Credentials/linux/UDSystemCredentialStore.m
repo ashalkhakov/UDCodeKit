@@ -65,7 +65,13 @@ static BOOL UDLoadSecret(void) {
         UDSecret.errorFree = (__typeof__(UDSecret.errorFree))dlsym(handle, "g_error_free");
     }
     loaded = handle && UDSecret.store && UDSecret.lookup && UDSecret.clear && UDSecret.free && UDSecret.errorFree;
-    if (!loaded) UDUnavailable = @"libsecret isn't installed (libsecret-1-0), which UDCode keeps passwords with.";
+    if (!loaded) {
+        // why, as the loader says it (not there; there, but its libraries
+        // not ours: an AppImage's)
+        const char *why = handle ? NULL : dlerror();
+        UDUnavailable = why ? [NSString stringWithFormat:@"libsecret, which UDCode keeps passwords with, can't be loaded: %s.", why]
+                            : @"libsecret isn't installed (libsecret-1-0), which UDCode keeps passwords with.";
+    }
     return loaded;
 }
 

@@ -167,9 +167,17 @@ appimage() {
   mariadb=$(/sbin/ldconfig -p | awk '/libmariadb\.so\.3 /{print $NF; exit}')
   [ -n "$libpq" ] || missing "no libpq.so.5 (apt install libpq5)"
   [ -n "$mariadb" ] || missing "no libmariadb.so.3 (apt install libmariadb3)"
+  # And libsecret, UDCodeKit's passwords' (loaded by name too): the host's
+  # wants the host's GnuTLS and GLib, newer than those the image carries
+  # (Fedora's: GNUTLS_3_8_2), and won't load beside them; this one, with
+  # what it links, does, and speaks to any Secret Service (D-Bus).
+  local secret
+  secret=$(/sbin/ldconfig -p | awk '/libsecret-1\.so\.0 /{print $NF; exit}')
+  [ -n "$secret" ] || missing "no libsecret-1.so.0 (apt install libsecret-1-0)"
   mkdir -p "$lib/mariadb/plugin" "$licenses"
   cp -fL "$libpq" "$lib/libpq.so.5"
   cp -fL "$mariadb" "$lib/libmariadb.so.3"
+  cp -fL "$secret" "$lib/libsecret-1.so.0"
   # Debian's plug-in directory (libmariadb3's); its authentication plug-ins
   local plugins; plugins=$(dirname "$(readlink -f "$mariadb")")/libmariadb3/plugin
   for p in caching_sha2_password sha256_password client_ed25519 parsec dialog mysql_clear_password auth_gssapi_client; do
@@ -178,10 +186,11 @@ appimage() {
   # Each package's copyright file (its licence, Debian's way), theirs and
   # those of what they link (which linuxdeploy brings, but the C library's),
   # and the README.
-  local files=("$lib/libpq.so.5" "$lib/libmariadb.so.3" "$lib"/mariadb/plugin/*.so)
+  local files=("$lib/libpq.so.5" "$lib/libmariadb.so.3" "$lib/libsecret-1.so.0" "$lib"/mariadb/plugin/*.so)
   # (merged /usr: dpkg knows a file by one of its two paths)
   local packages f
   packages=$( { readlink -f "$libpq" "$mariadb"
+                readlink -f "$secret"
                 ldd "${files[@]}" 2>/dev/null | awk '$2 == "=>" && $3 ~ /^\// {print $3}' | xargs -r readlink -f; } \
               | sort -u | while read -r f; do dpkg -S "$f" 2>/dev/null || dpkg -S "${f#/usr}" 2>/dev/null || true; done \
               | cut -d: -f1 | sort -u | grep -v '^libc6$' || true)
@@ -193,6 +202,7 @@ appimage() {
     case "$name" in
       libpq5) licence=PostgreSQL ;;
       libmariadb3) licence=LGPL-2.1-or-later ;;
+      libsecret-1-0) licence=LGPL-2.1-or-later ;;
       libssl3) licence=Apache-2.0 ;;
       *) licence="as its copyright file says" ;;
     esac
@@ -200,7 +210,7 @@ appimage() {
   done | readme "$licenses"
   # What they link (OpenSSL, GSSAPI, LDAP...) is linuxdeploy's to bring, as
   # for any library in usr/lib (appimage.sh's PREPARE).
-  echo "sql-clients: $(cd "$lib" && ls libpq.so.5 libmariadb.so.3 mariadb/plugin | tr '\n' ' ')"
+  echo "sql-clients: $(cd "$lib" && ls libpq.so.5 libmariadb.so.3 libsecret-1.so.0 mariadb/plugin | tr '\n' ' ')"
 }
 
 windows() {

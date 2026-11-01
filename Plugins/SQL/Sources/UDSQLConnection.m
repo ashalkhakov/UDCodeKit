@@ -110,7 +110,11 @@ NSError *UDSQLError(NSInteger code, NSString *message, NSString *state) {
 #if defined(__APPLE__)
     return [NSBundle mainBundle].privateFrameworksPath;
 #elif defined(_WIN32)
-    return [[NSBundle mainBundle].executablePath stringByDeletingLastPathComponent];
+    // a folder of their own, not UDCode.exe's: Windows looks in an exe's
+    // folder first, and their copies (zlib1, libiconv-2, OpenSSL...) would
+    // stand in for the GNUstep runtime's; loaded by their path, a
+    // library's own libraries are looked for beside it
+    return [[[NSBundle mainBundle].executablePath stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"SQLClients"];
 #else
     // the AppImage's, when UDCode is the app it runs (APPDIR is inherited
     // by whatever an app in another image starts)

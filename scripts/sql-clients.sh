@@ -209,10 +209,14 @@ windows() {
   [ -f "$app/UDCode.exe" ] || { echo "sql-clients: no $app/UDCode.exe" >&2; exit 1; }
   local prefix=${MINGW_PREFIX:-/clang64}
   local licenses=$app/Resources/Licenses
+  # A folder of their own, not UDCode.exe's: Windows looks in an exe's folder
+  # first, and these (zlib1, libiconv-2, OpenSSL...) would stand in for the
+  # GNUstep runtime's own. UDSQLConnection loads them by their path there.
+  local clients=$app/SQLClients
   [ -f "$prefix/bin/libpq.dll" ] || missing "no libpq.dll (pacman -S ${MINGW_PACKAGE_PREFIX:-mingw-w64-clang-x86_64}-postgresql)"
   [ -f "$prefix/bin/libmariadb.dll" ] || missing "no libmariadb.dll (pacman -S ${MINGW_PACKAGE_PREFIX:-mingw-w64-clang-x86_64}-libmariadbclient)"
   local objdump; objdump=$(command -v llvm-objdump || command -v objdump)
-  mkdir -p "$app/mariadb/plugin" "$licenses"
+  mkdir -p "$clients/mariadb/plugin" "$licenses"
   local queue=("$prefix/bin/libpq.dll" "$prefix/bin/libmariadb.dll")
   for p in "$prefix"/lib/mariadb/plugin/*.dll; do [ -f "$p" ] && queue+=("$p"); done
   local -A seen=() packages=()
@@ -227,8 +231,8 @@ windows() {
     [ -z "${seen[$key]:-}" ] || continue
     seen[$key]=1
     case "$file" in
-      */lib/mariadb/plugin/*) cp -f "$file" "$app/mariadb/plugin/" ;;
-      *) cp -f "$file" "$app/" ;;
+      */lib/mariadb/plugin/*) cp -f "$file" "$clients/mariadb/plugin/" ;;
+      *) cp -f "$file" "$clients/" ;;
     esac
     local package; package=$(pacman -Qqo "$file" 2>/dev/null | head -n 1 || true)
     if [ -n "$package" ] && [ -z "${packages[$package]:-}" ]; then
@@ -259,7 +263,7 @@ windows() {
     base=$(printf '%s\n' "$info" | sed -n 's/^Base *: //p')
     echo "$short|$version|$licence|MSYS2's ${base:-$short} $version: https://packages.msys2.org/base/${base:-$short} (its PKGBUILD names the upstream source)|${packages[$package]}"
   done | readme "$licenses"
-  echo "sql-clients: $(cd "$app" && ls *.dll mariadb/plugin 2>/dev/null | tr '\n' ' ')"
+  echo "sql-clients: $(cd "$clients" && ls *.dll mariadb/plugin 2>/dev/null | tr '\n' ' ')"
 }
 
 case "$mode" in

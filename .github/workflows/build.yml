@@ -56,7 +56,7 @@ jobs:
       library: true
       # lldb-dap and gdb, which speak DAP: the tests run and debug programs with them, as on Linux;
       # SQLite, libpq (postgresql) and MariaDB Connector/C, for the SQL extension
-      # (the last two carried beside UDCode.exe: windows.conf's PREPARE)
+      # (the last two carried in UDCode.app\SQLClients: windows.conf's PREPARE)
       extra-packages: lldb gdb sqlite3 postgresql libmariadbclient
     # the Sparkle key: the installed app's updates, and the Windows appcast signed
     secrets: inherit

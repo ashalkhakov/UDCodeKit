@@ -54,7 +54,7 @@ not have:
 |---|---|---|
 | macOS | `UDCode.app/Contents/Frameworks` | Homebrew's libpq, libmariadb and its authentication plug-ins (`mariadb/plugin`), OpenSSL, and Kerberos' GSSAPI, which Homebrew's libpq links (arm64: Homebrew has no Intel builds; an Intel Mac uses a libpq and libmariadb of its own, below) |
 | Linux (AppImage) | `usr/lib` in the image | Ubuntu 22.04's libpq5 and libmariadb3 (and its plug-ins), with the libraries they link (OpenSSL, GSSAPI, LDAP and theirs) |
-| Windows | beside `UDCode.exe` | MSYS2's libpq and libmariadb, with the DLLs they link (OpenSSL and theirs) |
+| Windows | `UDCode.app\SQLClients`, apart from `UDCode.exe` (so they stand in for none of the runtime's DLLs) | MSYS2's libpq and libmariadb, with the DLLs they link (OpenSSL and theirs) |
 
 UDCode loads them when a connection first needs them, looking in its own
 copies first and then for the system's. Each is a shared library of its own,

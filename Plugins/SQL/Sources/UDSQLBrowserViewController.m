@@ -106,8 +106,8 @@ static const CGFloat UDMenuArrowWidth = 14;
         for (NSUInteger i = 0; i < entities.count; i++) [entities addObjectsFromArray:[schema coreDataSubentitiesOf:entities[i]]];
         // only when the table holds others' rows too
         if (entities.count < table.entities.count) {
-            _query.restriction = [NSString stringWithFormat:@"%@ IN (%@)", [UDSQLQbE quotedIdentifier:@"Z_ENT" dialect:_database.dialect],
-                                  [entities componentsJoinedByString:@", "]];
+            _query.restrictionColumn = @"Z_ENT";
+            _query.restrictionValues = entities;
         }
     }
 }

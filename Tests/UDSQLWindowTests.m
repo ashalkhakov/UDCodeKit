@@ -291,7 +291,8 @@ static Class UDPluginClass(NSString *name) {
     [databases.navigator browseRows:nil];
     UDSQLBrowserViewController *employees = (UDSQLBrowserViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
     XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Employee (Model.sqlite)");
-    XCTAssertEqualObjects(employees.query.restriction, @"\"Z_ENT\" IN (2)");
+    XCTAssertEqualObjects(employees.query.restrictionColumn, @"Z_ENT");
+    XCTAssertEqualObjects(employees.query.restrictionValues, @[ @2 ]);
     UDRunUntil(!employees.running && employees.count != NSNotFound, 10.0);
     XCTAssertEqual(employees.count, 1u);
     XCTAssertEqualObjects(employees.rows.firstObject[3], @"Bob");

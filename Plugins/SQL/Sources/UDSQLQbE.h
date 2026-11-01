@@ -17,7 +17,8 @@
  *
  *  A Core Data store's dates (TIMESTAMP) are typed as dates (2024-05-01,
  *  2024-05-01 14:30): a day alone is the whole day; its entities (Z_ENT)
- *  by name.
+ *  by name. It is query by example's (UDSQLExampleQuery) with one
+ *  skeleton, its rows these conditions' rows.
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -61,9 +62,10 @@ FOUNDATION_EXPORT NSString *const UDSQLQbERowErrorKey;
 /// The order: by column name, each ascending or not. None: the primary
 /// key's, so pages don't overlap.
 @property (nonatomic, copy) NSArray<NSSortDescriptor *> *order;
-/// What always holds, as SQL (an entity's rows: Z_ENT IN (2, 3)); nil:
-/// nothing.
-@property (nonatomic, copy, nullable) NSString *restriction;
+/// What always holds: @a restrictionColumn one of @a restrictionValues (an
+/// entity's rows: Z_ENT IN (2, 3)); nil: nothing.
+@property (nonatomic, copy, nullable) NSString *restrictionColumn;
+@property (nonatomic, copy, nullable) NSArray *restrictionValues;
 
 /// Its page of @a limit rows from @a offset; its rows' count; nil and why
 /// in @a error when a condition can't be read.

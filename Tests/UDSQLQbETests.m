@@ -188,11 +188,12 @@ static NSArray *UDFirsts(UDSQLResult *result) {
     }
     [NSTimeZone setDefaultTimeZone:zone];
     qbe.conditions = @[ @{ @"Z_ENT": @"employee" } ];
-    qbe.restriction = @"\"Z_ENT\" IN (1, 2)";
+    qbe.restrictionColumn = @"Z_ENT";
+    qbe.restrictionValues = @[ @1, @2 ];
     NSError *error = nil;
     UDSQLStatement *select = [qbe selectStatementWithLimit:10 offset:0 error:&error];
-    XCTAssertEqualObjects(select.SQL, @"SELECT * FROM \"ZPERSON\" WHERE \"Z_ENT\" IN (1, 2) AND \"Z_ENT\" = ? ORDER BY \"Z_PK\" LIMIT 10");
-    XCTAssertEqualObjects(select.parameters, @[ @2 ], @"an entity by its name");
+    XCTAssertEqualObjects(select.SQL, @"SELECT * FROM \"ZPERSON\" WHERE \"Z_ENT\" IN (?, ?) AND \"Z_ENT\" = ? ORDER BY \"Z_PK\" LIMIT 10");
+    XCTAssertEqualObjects(select.parameters, (@[ @1, @2, @2 ]), @"an entity by its name");
 }
 
 

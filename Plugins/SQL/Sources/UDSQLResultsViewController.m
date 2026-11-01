@@ -266,14 +266,15 @@ static NSString *UDFirstLine(NSString *statement) {
 - (NSString *)_textOfRows:(NSIndexSet *)rows headers:(BOOL)headers {
     UDSQLResult *result = self.shownResult;
     NSMutableArray<NSString *> *lines = [NSMutableArray array];
-    if (headers) [lines addObject:[[result.columns valueForKey:@"name"] componentsJoinedByString:@"\t"]];
+    if (headers) {
+        NSMutableArray *names = [NSMutableArray array];
+        for (UDSQLColumn *column in result.columns) [names addObject:UDSQLTabSeparatedField(column.name)];
+        [lines addObject:[names componentsJoinedByString:@"\t"]];
+    }
     for (NSUInteger row = rows.firstIndex; row != NSNotFound; row = [rows indexGreaterThanIndex:row]) {
+        // the values as they are, not as shown (no ↵, a blob in hex, Z_ENT its number)
         NSMutableArray *cells = [NSMutableArray array];
-        NSArray *values = result.rows[row];
-        for (NSUInteger column = 0; column < values.count; column++) {
-            id value = values[column];
-            [cells addObject:value == [NSNull null] ? @"" : [self textOfValue:value column:column]];
-        }
+        for (id value in result.rows[row]) [cells addObject:UDSQLTabSeparatedField(UDSQLRawTextOfValue(value) ?: @"")];
         [lines addObject:[cells componentsJoinedByString:@"\t"]];
     }
     return [lines componentsJoinedByString:@"\n"];

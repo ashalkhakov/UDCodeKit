@@ -47,21 +47,27 @@ static NSString *UDCSVField(NSString *text) {
     return [NSString stringWithFormat:@"\"%@\"", [text stringByReplacingOccurrencesOfString:@"\"" withString:@"\"\""]];
 }
 
-/// Whether @a value is a Core Data store's date (seconds since 2001):
-/// exported as a date, not a number.
-static BOOL UDIsCoreDataDate(id value, UDSQLColumn *column, UDSQLSchema *schema) {
-    return schema.coreDataStore && [value isKindOfClass:[NSNumber class]] && column.type &&
-           [column.type caseInsensitiveCompare:@"TIMESTAMP"] == NSOrderedSame;
-}
-
-/// A value as the export writes it: as it is (no ↵, Z_ENT its number), a
-/// Core Data date as a date, a blob by its size; NULL none (nil).
-static NSString *UDExportedText(id value, UDSQLColumn *column, UDSQLSchema *schema) {
-    if (value == [NSNull null]) return nil;
-    if (UDIsCoreDataDate(value, column, schema) || [value isKindOfClass:[NSData class]]) {
-        return UDSQLTextOfValue(value, column.name, column.type, schema);
+NSString *UDSQLRawTextOfValue(id value) {
+    if (!value || value == [NSNull null]) return nil;
+    if ([value isKindOfClass:[NSString class]]) return value;
+    if ([value isKindOfClass:[NSData class]]) {
+        NSData *data = value;
+        const unsigned char *bytes = data.bytes;
+        NSMutableString *hex = [NSMutableString stringWithCapacity:2 + data.length * 2];
+        [hex appendString:@"\\x"];
+        for (NSUInteger i = 0; i < data.length; i++) [hex appendFormat:@"%02x", bytes[i]];
+        return hex;
     }
     return [value description];
+}
+
+NSString *UDSQLTabSeparatedField(NSString *text) {
+    if ([text rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"\t\r\n\""]].location == NSNotFound) return text;
+    return [NSString stringWithFormat:@"\"%@\"", [text stringByReplacingOccurrencesOfString:@"\"" withString:@"\"\""]];
+}
+
+static NSString *UDExportedText(id value, UDSQLColumn *column, UDSQLSchema *schema) {
+    return UDSQLRawTextOfValue(value);
 }
 
 NSString *UDSQLCSVOfResult(UDSQLResult *result, UDSQLSchema *schema) {
@@ -106,7 +112,7 @@ NSString *UDSQLJSONOfResult(UDSQLResult *result, UDSQLSchema *schema) {
             id value = row[i];
             NSString *written;
             if (value == [NSNull null]) written = @"null";
-            else if ([value isKindOfClass:[NSNumber class]] && !UDIsCoreDataDate(value, column, schema)) {
+            else if ([value isKindOfClass:[NSNumber class]]) {
                 written = isfinite([value doubleValue]) ? [value stringValue] : @"null";
             } else {
                 written = UDJSONString(UDExportedText(value, column, schema));

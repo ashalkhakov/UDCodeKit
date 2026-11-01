@@ -15,6 +15,8 @@
                 <outlet property="nextButton" destination="QE-next" id="QE-o-next"/>
                 <outlet property="headerMenu" destination="QE-hmenu" id="QE-o-hmenu"/>
                 <outlet property="conditionsView" destination="QE-conditions" id="QE-o-conditions"/>
+                <outlet property="valueContent" destination="QE-value" id="QE-o-valuecontent"/>
+                <outlet property="valueView" destination="QE-value-text" id="QE-o-valuetext"/>
                 <outlet property="exportAccessory" destination="QE-export" id="QE-o-export"/>
                 <outlet property="exportFormatButton" destination="QE-export-format" id="QE-o-exportformat"/>
                 <outlet property="statusLabel" destination="QE-status" id="QE-o-status"/>
@@ -27,6 +29,11 @@
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <menu title="Rows" autoenablesItems="YES" id="QE-rmenu" userLabel="Its Answer's Rows">
             <items>
+                <menuItem title="Copy Value" id="QE-m-value">
+                    <connections>
+                        <action selector="copyValue:" target="-2" id="QE-m-value-a"/>
+                    </connections>
+                </menuItem>
                 <menuItem title="Copy" id="QE-m-copy">
                     <connections>
                         <action selector="copy:" target="-2" id="QE-m-copy-a"/>
@@ -81,6 +88,38 @@
                 <outlet property="delegate" destination="-2" id="QE-hmenu-o-delegate"/>
             </connections>
         </menu>
+        <customView id="QE-value" userLabel="A Cell's Whole Value (a double-click's popover)">
+            <rect key="frame" x="0.0" y="0.0" width="420" height="200"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <scrollView borderType="none" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="QE-value-scroll">
+                    <rect key="frame" x="0.0" y="0.0" width="420" height="200"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" drawsBackground="NO" id="QE-value-clip">
+                        <rect key="frame" x="0.0" y="0.0" width="405" height="200"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <textView editable="NO" importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" id="QE-value-text" userLabel="Its Value (selectable)">
+                                <rect key="frame" x="0.0" y="0.0" width="405" height="200"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
+                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <size key="minSize" width="0.0" height="0.0"/>
+                                <size key="maxSize" width="10000000" height="10000000"/>
+                            </textView>
+                        </subviews>
+                    </clipView>
+                    <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="QE-value-h">
+                        <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-value-v">
+                        <rect key="frame" x="405" y="0.0" width="15" height="200"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                </scrollView>
+            </subviews>
+        </customView>
         <customView id="QE-export" userLabel="Export…'s Format (the save panel's accessory)">
             <rect key="frame" x="0.0" y="0.0" width="260" height="40"/>
             <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxX="YES"/>
@@ -266,7 +305,7 @@
                                         <rect key="frame" x="1.0" y="1.0" width="789.0" height="60.0"/>
                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                         <subviews>
-                                            <textView importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" id="QE-conditions" userLabel="Its Conditions, a Line Each">
+                                            <textView importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" id="QE-conditions" customClass="UDSQLConditionBoxView" userLabel="Its Conditions, a Line Each">
                                                 <rect key="frame" x="0.0" y="0.0" width="789.0" height="60.0"/>
                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                 <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
@@ -351,6 +390,7 @@
                                             <outlet property="dataSource" destination="-2" id="QE-results-o-source"/>
                                             <outlet property="delegate" destination="-2" id="QE-results-o-delegate"/>
                                             <outlet property="menu" destination="QE-rmenu" id="QE-results-o-menu"/>
+                                            <action trigger="doubleAction" selector="showValue:" target="-2" id="QE-results-a-double"/>
                                         </connections>
                                     </tableView>
                                 </subviews>

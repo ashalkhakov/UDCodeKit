@@ -25,6 +25,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class UDSQLDatabases, UDSQLDatabase;
 
+/// Its condition box: empty, it shows what may be typed, dimmed (as an
+/// empty cell does).
+@interface UDSQLConditionBoxView : NSTextView
+@property (nonatomic, copy, nullable) NSString *placeholderString;
+@end
+
 /// Its skeletons' stack: flipped, the first at its top.
 @interface UDSQLExampleStackView : NSView
 @end
@@ -64,6 +70,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// panel's format (CSV, JSON).
 @property (nonatomic, strong, readonly) IBOutlet NSMenu *headerMenu;
 @property (nonatomic, weak, readonly) IBOutlet NSPopUpButton *exportFormatButton;
+/// A cell's whole value (a double-click), selectable: the XIB's view, in a
+/// popover.
+@property (nonatomic, weak, readonly) IBOutlet NSTextView *valueView;
+@property (nonatomic, strong, readonly, nullable) NSPopover *valuePopover;
 /// Its condition box (Zloof's): a condition a line, of example elements,
 /// coloured as typed and kept in its file; its tip says what it takes.
 @property (nonatomic, strong, readonly) IBOutlet NSTextView *conditionsView;
@@ -90,6 +100,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// all), one a line; its name first, @a name.
 - (void)copyColumnAtIndex:(NSUInteger)index withName:(BOOL)name;
 - (IBAction)copyColumn:(nullable id)sender;
+/// A cell's value as it is (text with its line breaks, a blob in hex,
+/// Z_ENT its number); nil: NULL. Copy Value (its right-click) copies it,
+/// a double-click shows it all, selectable.
+- (nullable NSString *)valueTextAtRow:(NSInteger)row column:(NSInteger)column;
+- (IBAction)copyValue:(nullable id)sender;
+- (IBAction)showValue:(nullable id)sender;
 - (IBAction)copyColumnWithName:(nullable id)sender;
 - (IBAction)sortAscending:(nullable id)sender;
 - (IBAction)sortDescending:(nullable id)sender;

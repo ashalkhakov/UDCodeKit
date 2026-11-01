@@ -166,7 +166,8 @@ Example language mode: JSON).
   (AND, OR, NOT, parentheses), `_d IS NOT NULL`, and of an aggregate,
   `CNT.ALL._e > 5`: the groups it keeps (HAVING). Its elements are those
   the rows give a value (put alone under a column); one that can't be
-  read, or names an element no row has, says so. It is kept in the file.
+  read, or names an element no row has, says so. Empty, it shows an
+  example. It is kept in the file.
 - **A row's ¬ or !**: `¬` is a row that is not there (customers no order
   refers to); `!` keeps the rows it is linked to where it has no match (a
   left join: its columns NULL; its own conditions don't drop them).
@@ -187,15 +188,26 @@ page: ◀ and ▶ turn them, and how many there are is told (Rows 101–200 of
 2,345). A column's name clicked sorts by it (again: the other way); its
 menu (a right-click) copies the column — its values one a line, the
 selected rows' or all, Copy Column with Name its name first — or sorts.
-The rows selected copy as tab-separated text (Copy with Column Names,
-their names first). **Export…** saves all of it, not a page's, as CSV
-(RFC 4180: its names a first line, NULL empty) or JSON (an array of
-objects, its columns in order; numbers as numbers, NULL as null); a Core
-Data date as a date. **Show SQL**
-opens its SQL as a document, **Copy SQL** puts it on the clipboard — plain
-SQL as written by hand (a clause a line, a WHERE's conditions a line
-each), the chosen database's dialect, its values written in — for an app
-to run.
+A table's ▾ sorts by its column too, printed or not (`TABLE.COLUMN`
+where two tables have one of its name). A cell right-clicked: **Copy
+Value** copies it alone; double-clicked, its whole value shows in a
+popover, to read and select from. The rows selected copy as
+tab-separated text (Copy with Column Names, their names first), a field
+with a tab, a line break or a quote in quotes, as spreadsheets take it.
+**Export…** saves all of it, not a page's, as CSV (RFC 4180: its names a
+first line, NULL empty) or JSON (an array of objects, its columns in
+order; numbers as numbers, NULL as null).
+
+What is copied or exported is each value as it is, not as the grid shows
+it: text with its line breaks (the grid shows them as ↵), a blob in hex
+(`\x0a1b…`, PostgreSQL's text of a bytea; the grid shows its size), and a
+Core Data store's `Z_ENT` and dates as stored (the grid shows `2 ·
+Employee`, a date).
+
+**Show SQL** opens its SQL as a document, **Copy SQL** puts it on the
+clipboard — plain SQL as written by hand (a clause a line, a WHERE's
+conditions a line each), the chosen database's dialect, its values
+written in — for an app to run.
 
 ## Running a query
 

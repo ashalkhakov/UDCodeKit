@@ -59,6 +59,8 @@ static Class UDPluginClass(NSString *name) {
                          @"CREATE TABLE orders (id INTEGER PRIMARY KEY, customer INTEGER REFERENCES customers(id), total REAL)" ];
     [self makeDatabase:@"shop.sqlite" statements:[tables arrayByAddingObjectsFromArray:@[
         @"INSERT INTO customers VALUES (1, 'Ann', 'Oslo'), (2, 'Bob', 'Rome'), (3, 'Cy', 'Oslo')",
+        @"CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT, data BLOB, kind TEXT)",
+        @"INSERT INTO notes VALUES (1, 'a' || char(10) || 'b\tc', x'0a1b', NULL)",
         @"INSERT INTO orders VALUES (10, 1, 5.5), (11, 1, 20), (12, 2, 7)" ]]];
     [self makeDatabase:@"staging.sqlite" statements:[tables arrayByAddingObjectsFromArray:@[
         @"INSERT INTO customers VALUES (1, 'Test', 'Oslo')", @"INSERT INTO orders VALUES (1, 1, 99)" ]]];
@@ -129,6 +131,52 @@ static Class UDPluginClass(NSString *name) {
 // ---------------------------------------------------------------------------
 // MARK: - Its editor
 // ---------------------------------------------------------------------------
+
+/// Copied and exported, values as they are, not as the grid shows them: a
+/// line break, a blob, NULL.
+- (void)testValuesAsTheyAre {
+    AppDelegate *delegate = [[AppDelegate alloc] init];
+    UDWorkspace *workspace = [delegate openFolderAtURL:[NSURL fileURLWithPath:_folder]];
+    UDDocumentWindowController *controller = workspace.windowControllers.firstObject;
+    [controller showWindow:nil];
+    UDSQLDatabases *databases = [self databasesOf:controller];
+    UDSQLDatabase *shop = [[UDPluginClass(@"UDSQLDatabase") alloc] init];
+    shop.name = @"shop.sqlite";
+    shop.URL = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"shop.sqlite"]];
+    [databases addDatabase:shop];
+    [databases connect:shop];
+    UDRunUntil(shop.connected, 10.0);
+    [databases browseTable:[shop.schema tableNamed:@"notes"] entity:nil database:shop];
+    UDSQLExampleViewController *editor = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    UDRunUntil(!editor.running && editor.result.rows.count == 1, 10.0);
+    XCTAssertEqualObjects([editor tableView:editor.resultsView objectValueForTableColumn:editor.resultsView.tableColumns[1] row:0], @"a ↵ b\tc",
+                          @"the grid shows a line break so");
+    XCTAssertEqualObjects([editor valueTextAtRow:0 column:1], @"a\nb\tc", @"its value as it is");
+    XCTAssertEqualObjects([editor valueTextAtRow:0 column:2], @"\\x0a1b", @"a blob in hex");
+    XCTAssertNil([editor valueTextAtRow:0 column:3], @"NULL");
+    // Copy: its rows tab-separated, a field with a tab or line break quoted
+    [editor copyWithColumnNames:nil];
+    XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString],
+                          @"id\tbody\tdata\tkind\n1\t\"a\nb\tc\"\t\\x0a1b\t");
+    [editor copyColumnAtIndex:2 withName:NO];
+    XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString], @"\\x0a1b");
+    // exported so too
+    NSURL *csv = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"notes.csv"]];
+    [editor exportToURL:csv format:@"csv"];
+    UDRunUntil(!editor.running && [editor.statusLabel.stringValue hasSuffix:@"notes.csv"], 10.0);
+    XCTAssertEqualObjects([NSString stringWithContentsOfURL:csv encoding:NSUTF8StringEncoding error:NULL],
+                          @"id,body,data,kind\r\n1,\"a\nb\tc\",\\x0a1b,\r\n");
+    NSURL *json = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"notes.json"]];
+    [editor exportToURL:json format:@"json"];
+    UDRunUntil(!editor.running && [editor.statusLabel.stringValue hasSuffix:@"notes.json"], 10.0);
+    XCTAssertEqualObjects([NSString stringWithContentsOfURL:json encoding:NSUTF8StringEncoding error:NULL],
+                          @"[\n  {\"id\": 1, \"body\": \"a\\nb\\tc\", \"data\": \"\\\\x0a1b\", \"kind\": null}\n]\n");
+    // a double-click: its whole value, selectable
+    XCTAssertNotNil(editor.valueView, @"the XIB's value view");
+    XCTAssertEqual(editor.resultsView.doubleAction, @selector(showValue:));
+    [controller close];
+    [workspace close];
+}
 
 - (void)testItsEditor {
     AppDelegate *delegate = [[AppDelegate alloc] init];

@@ -244,6 +244,7 @@ static UDSQLColumnInfo *UDAggregatedColumn(NSString *function, UDSQLColumnInfo *
 
 @implementation UDSQLExampleQuery {
     NSArray<NSString *> *_groupNames;   // the last relation's groups' keys, by name (none: not grouped)
+    NSSet<NSString *> *_variables;      // the last relation's tuple variables (one alternative's)
 }
 
 + (UDSQLPredicate *)predicateOf:(NSString *)typed column:(UDSQLColumnInfo *)column variable:(NSString *)variable
@@ -737,6 +738,7 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
         return nil;
     }
     _groupNames = @[];
+    _variables = [NSSet setWithObject:base.name];
     NSArray *tuples = [self _tuples:error];
     if (!tuples) return nil;
     BOOL anyPrinted = NO;
@@ -818,6 +820,7 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
         UDSQLRelation *relation = [self _relationOf:alternative conditions:conditionsOf[a] anyPrinted:anyPrinted all:all raw:NO
                                             columns:columns names:names error:error];
         if (!relation) return nil;
+        if (alternatives.count == 1) _variables = [NSSet setWithArray:[alternative valueForKey:@"variable"]];
         if (width != NSNotFound && names.count != width) {
             UDExampleTuple *tuple = alternative.firstObject;
             if (error) *error = UDError(@"Its alternatives print different columns: give each the same P. columns", tuple.skeleton, tuple.row, nil);
@@ -962,9 +965,25 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
     }
     NSMutableArray *keys = [NSMutableArray array];
     for (NSUInteger i = 0; i < names.count; i++) {
-        NSUInteger index = [printed indexOfObject:names[i]];
-        UDSQLExpression *expression = index != NSNotFound && index < expressions.count ? expressions[index] : [UDSQLExpression outputColumn:names[i]];
-        [keys addObject:[UDSQLOrderKey key:expression ascending:[ascending[i] boolValue]]];
+        NSString *name = names[i];
+        NSUInteger index = [printed indexOfObject:name];
+        // a name two tables print: told apart (TABLE.NAME), the first table's
+        for (NSUInteger j = 0; index == NSNotFound && j < printed.count; j++) {
+            if ([printed[j] hasSuffix:[@"." stringByAppendingString:name]]) index = j;
+        }
+        UDSQLExpression *expression = nil;
+        if (index != NSNotFound) {
+            expression = index < expressions.count ? expressions[index] : [UDSQLExpression outputColumn:printed[index]];
+        } else if (expressions.count && !_groupNames.count) {
+            // a column not printed, TABLE.NAME: one SELECT's rows sort by it as they are
+            NSRange dot = [name rangeOfString:@"." options:NSBackwardsSearch];
+            NSString *variable = dot.location != NSNotFound ? [name substringToIndex:dot.location] : nil;
+            if (variable && [_variables containsObject:variable]) {
+                expression = [UDSQLExpression column:[name substringFromIndex:NSMaxRange(dot)] of:variable];
+            }
+        }
+        // else what it was (a column no more printed): no key, not a wrong one
+        if (expression) [keys addObject:[UDSQLOrderKey key:expression ascending:[ascending[i] boolValue]]];
     }
     return keys;
 }

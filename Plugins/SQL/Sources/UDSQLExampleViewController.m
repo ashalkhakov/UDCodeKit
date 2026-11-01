@@ -13,6 +13,26 @@
 static const NSUInteger UDPageSize = 100;
 static const NSUInteger UDMaxExported = 10000000;
 
+@implementation UDSQLConditionBoxView
+
+- (void)drawRect:(NSRect)rect {
+    [super drawRect:rect];
+    if (self.string.length || !_placeholderString.length) return;
+    NSDictionary *attributes = @{ NSFontAttributeName: self.font ?: [NSFont systemFontOfSize:[NSFont smallSystemFontSize]],
+                                  NSForegroundColorAttributeName: [NSColor disabledControlTextColor] };
+    NSPoint origin = self.textContainerOrigin;
+    CGFloat padding = self.textContainer.lineFragmentPadding;
+    [_placeholderString drawInRect:NSInsetRect(NSMakeRect(origin.x + padding, origin.y, NSWidth(self.bounds) - origin.x - padding, NSHeight(self.bounds)), 0, 0)
+                    withAttributes:attributes];
+}
+
+- (void)didChangeText {
+    [super didChangeText];
+    [self setNeedsDisplay:YES];
+}
+
+@end
+
 @implementation UDSQLExampleStackView
 
 - (BOOL)isFlipped {
@@ -29,6 +49,9 @@ static const NSUInteger UDMaxExported = 10000000;
 @property (nonatomic, weak) IBOutlet NSButton *nextButton;
 @property (nonatomic, strong) IBOutlet NSMenu *headerMenu;
 @property (nonatomic, strong) IBOutlet NSTextView *conditionsView;
+@property (nonatomic, strong) IBOutlet NSView *valueContent;
+@property (nonatomic, weak) IBOutlet NSTextView *valueView;
+@property (nonatomic, strong) NSPopover *valuePopover;
 @property (nonatomic, strong) IBOutlet NSView *exportAccessory;
 @property (nonatomic, weak) IBOutlet NSPopUpButton *exportFormatButton;
 @property (nonatomic, weak) IBOutlet NSTextField *statusLabel;
@@ -86,6 +109,11 @@ static const NSUInteger UDMaxExported = 10000000;
     storage.baseAttributes = @{ NSFontAttributeName: [NSFont userFixedPitchFontOfSize:[NSFont smallSystemFontSize]] ?: [NSFont systemFontOfSize:0],
                                 NSForegroundColorAttributeName: [NSColor textColor] };
     _conditionsView.toolTip = UDSQLExampleConditionHelp();
+    if ([_conditionsView isKindOfClass:[UDSQLConditionBoxView class]]) {
+        [(UDSQLConditionBoxView *)_conditionsView setPlaceholderString:
+            @"What no column can say, of example elements put in its cells (_t under one column, _n under another):\n"
+             "e.g. _t > _n * 2    _city = 'Oslo' OR _city = 'Rome'    _d IS NOT NULL    CNT.ALL._note > 5 (groups)"];
+    }
     [self _showConditions];
     // a column's name right-clicked: its menu (copied, sorted)
     _resultsView.headerView.menu = _headerMenu;
@@ -329,11 +357,8 @@ static const NSUInteger UDMaxExported = 10000000;
     for (NSString *name in found ? @[] : printed) {
         if ([name hasSuffix:[NSString stringWithFormat:@"(%@)", column]] || [name hasSuffix:[NSString stringWithFormat:@"(DISTINCT %@)", column]]) found = name;
     }
-    if (!found) {
-        [self _showStatus:[NSString stringWithFormat:@"%@ isn't printed: it can't be sorted by", column] error:YES];
-        return;
-    }
-    [self sortByColumn:found ascending:ascending];
+    // not printed: by its table's column, as it is (TABLE.NAME)
+    [self sortByColumn:found ?: [NSString stringWithFormat:@"%@.%@", table, column] ascending:ascending];
 }
 
 - (IBAction)removeTable:(id)sender {
@@ -609,10 +634,8 @@ static const NSUInteger UDMaxExported = 10000000;
     for (NSUInteger row = rows.firstIndex; row != NSNotFound; row = [rows indexGreaterThanIndex:row]) {
         NSMutableArray *cells = [NSMutableArray array];
         NSArray *values = _result.rows[row];
-        for (NSUInteger i = 0; i < values.count; i++) {
-            UDSQLColumn *described = i < _result.columns.count ? _result.columns[i] : nil;
-            [cells addObject:values[i] == [NSNull null] ? @"" : UDSQLTextOfValue(values[i], described.name, described.type, self.database.schema)];
-        }
+        // the values as they are, not as shown (no ↵, a blob in hex, Z_ENT its number)
+        for (NSUInteger i = 0; i < values.count; i++) [cells addObject:UDSQLTabSeparatedField(UDSQLRawTextOfValue(values[i]) ?: @"")];
         [lines addObject:[cells componentsJoinedByString:@"\t"]];
     }
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
@@ -648,11 +671,10 @@ static const NSUInteger UDMaxExported = 10000000;
                                                              : [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _result.rows.count)];
     UDSQLColumn *described = _result.columns[index];
     NSMutableArray *lines = [NSMutableArray array];
-    if (name) [lines addObject:described.name];
+    if (name) [lines addObject:UDSQLTabSeparatedField(described.name)];
     for (NSUInteger row = rows.firstIndex; row != NSNotFound; row = [rows indexGreaterThanIndex:row]) {
         NSArray *values = _result.rows[row];
-        id value = index < values.count ? values[index] : [NSNull null];
-        [lines addObject:value == [NSNull null] ? @"" : UDSQLTextOfValue(value, described.name, described.type, self.database.schema)];
+        [lines addObject:UDSQLTabSeparatedField(UDSQLRawTextOfValue(index < values.count ? values[index] : [NSNull null]) ?: @"")];
     }
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
     [pasteboard declareTypes:@[ NSPasteboardTypeString ] owner:nil];
@@ -663,6 +685,44 @@ static const NSUInteger UDMaxExported = 10000000;
 - (NSInteger)_resultColumnOfMenu {
     if (_menuColumn < 0 || _menuColumn >= (NSInteger)_resultsView.tableColumns.count) return -1;
     return [[_resultsView.tableColumns[(NSUInteger)_menuColumn] identifier] integerValue];
+}
+
+/// A cell's value, as it is (its text, line breaks and all; a blob in hex);
+/// nil: NULL, or no such cell.
+- (nullable NSString *)valueTextAtRow:(NSInteger)row column:(NSInteger)column {
+    if (row < 0 || row >= (NSInteger)_result.rows.count || column < 0 || column >= (NSInteger)_resultsView.tableColumns.count) return nil;
+    NSUInteger index = (NSUInteger)[[_resultsView.tableColumns[(NSUInteger)column] identifier] integerValue];
+    NSArray *values = _result.rows[(NSUInteger)row];
+    return index < values.count ? UDSQLRawTextOfValue(values[index]) : nil;
+}
+
+/// The cell right-clicked: its value copied, alone.
+- (IBAction)copyValue:(id)sender {
+    NSInteger row = _resultsView.clickedRow >= 0 ? _resultsView.clickedRow : _resultsView.selectedRow;
+    NSInteger column = _menuColumn >= 0 ? _menuColumn : _resultsView.clickedColumn;
+    if (row < 0 || column < 0) return;
+    NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+    [pasteboard declareTypes:@[ NSPasteboardTypeString ] owner:nil];
+    [pasteboard setString:[self valueTextAtRow:row column:column] ?: @"" forType:NSPasteboardTypeString];
+}
+
+/// A cell double-clicked: its whole value, in a popover, to read and
+/// select from (line breaks as they are, NULL said).
+- (IBAction)showValue:(id)sender {
+    NSInteger row = _resultsView.clickedRow, column = _resultsView.clickedColumn;
+    if (row < 0 || column < 0 || !_valueContent) return;
+    NSString *value = [self valueTextAtRow:row column:column];
+    if (!_valuePopover) {
+        // the XIB's view, in a popover (which closes as another is clicked)
+        NSViewController *content = [[NSViewController alloc] init];
+        content.view = _valueContent;
+        _valuePopover = [[NSPopover alloc] init];
+        _valuePopover.contentViewController = content;
+        _valuePopover.behavior = NSPopoverBehaviorTransient;
+    }
+    _valueView.string = value ?: @"NULL";
+    _valueView.textColor = value ? [NSColor textColor] : [NSColor disabledControlTextColor];
+    [_valuePopover showRelativeToRect:[_resultsView frameOfCellAtColumn:column row:row] ofView:_resultsView preferredEdge:NSMaxYEdge];
 }
 
 - (IBAction)copyColumn:(id)sender {
@@ -760,6 +820,7 @@ static const NSUInteger UDMaxExported = 10000000;
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     SEL action = item.action;
+    if (sel_isEqual(action, @selector(copyValue:))) return _resultsView.clickedRow >= 0 && [self _resultColumnOfMenu] >= 0;
     if (sel_isEqual(action, @selector(copyColumn:)) || sel_isEqual(action, @selector(copyColumnWithName:)) ||
         sel_isEqual(action, @selector(sortAscending:)) || sel_isEqual(action, @selector(sortDescending:))) {
         return [self _resultColumnOfMenu] >= 0;

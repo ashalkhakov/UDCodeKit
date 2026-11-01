@@ -258,8 +258,7 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
         break;
     }
     if (tag == UDAscendingTag || tag == UDDescendingTag) {
-        // sorted by it: printed, then ordered by
-        if (!printed) [self setEntry:[@"P." stringByAppendingString:typed] column:column row:row];
+        // sorted by it, what is printed left as it is
         [_delegate skeleton:self sortsByColumn:column ascending:tag == UDAscendingTag];
         return;
     }

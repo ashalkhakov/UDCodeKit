@@ -232,6 +232,31 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(error.localizedDescription, @"Its alternatives aggregate differently: give each the same P., G. and aggregates");
 }
 
+- (void)testSortingByAColumnTwoTablesHave {
+    // nothing printed: both tables' columns, id told apart; sorted by "id"
+    // (the bare name): the first table's, not an ambiguous one
+    UDSQLExampleQuery *query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"id": @"_c" }] ]],
+                                                [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"_c" }] ]] ]];
+    query.order = @[ [NSSortDescriptor sortDescriptorWithKey:@"id" ascending:NO] ];
+    NSString *sql = nil;
+    NSArray *rows = [self rowsOf:query SQL:&sql];
+    XCTAssertTrue([sql containsString:@"ORDER BY \"customers\".\"id\" DESC"], @"%@", sql);
+    XCTAssertEqualObjects([rows.firstObject firstObject], @2);
+    // by the other's, told apart
+    query.order = @[ [NSSortDescriptor sortDescriptorWithKey:@"orders.id" ascending:NO] ];
+    XCTAssertTrue([[query SQLWithLimit:10 offset:0 error:NULL] containsString:@"ORDER BY \"orders\".\"id\" DESC"]);
+    // a column not printed: by its table's column, as it is
+    query.skeletons = @[ [self skeleton:@"customers" rows:@[ [self row:@{ @"id": @"_c", @"name": @"P." }] ]],
+                         [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"_c" }] ]] ];
+    query.order = @[ [NSSortDescriptor sortDescriptorWithKey:@"orders.total" ascending:NO] ];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql].firstObject, @[ @"Ann" ], @"%@", sql);
+    XCTAssertTrue([sql containsString:@"ORDER BY \"orders\".\"total\" DESC"], @"%@", sql);
+    // one printed no more: no key, not a wrong one
+    query.order = @[ [NSSortDescriptor sortDescriptorWithKey:@"ZMODIFIED" ascending:NO] ];
+    XCTAssertNotNil([self rowsOf:query SQL:&sql]);
+    XCTAssertFalse([sql containsString:@"ZMODIFIED"], @"%@", sql);
+}
+
 - (void)testAnInclusionKeepsRowsWithoutAMatch {
     // every customer, an order's id where they have one (Paradox's !)
     UDSQLExampleRow *orders = [self row:@{ @"customer": @"_c", @"id": @"P." }];

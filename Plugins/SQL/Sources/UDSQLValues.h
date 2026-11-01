@@ -28,12 +28,22 @@ FOUNDATION_EXPORT NSDateFormatter *UDSQLDateFormatter(void);
 
 @class UDSQLResult;
 
+/// @a value as it is, for a copy or an export (not as a grid shows it):
+/// text as stored (line breaks and all), a number, a blob in hex (\x0a1b…,
+/// PostgreSQL's text of a bytea), a Core Data store's dates and entities as
+/// stored (numbers); nil for NULL.
+FOUNDATION_EXPORT NSString *_Nullable UDSQLRawTextOfValue(id value);
+/// @a text as a field of tab-separated lines (a spreadsheet's paste): as it
+/// is, or in quotes where it holds a tab, a line break or a quote.
+FOUNDATION_EXPORT NSString *UDSQLTabSeparatedField(NSString *text);
+
 /// @a result as CSV (RFC 4180: its names a first line; a field quoted
 /// where it holds a comma, quote or line break; NULL empty; CRLF lines),
-/// its values as text (a Core Data date as a date).
+/// its values as they are (UDSQLRawTextOfValue).
 FOUNDATION_EXPORT NSString *UDSQLCSVOfResult(UDSQLResult *result, UDSQLSchema *_Nullable schema);
 /// @a result as JSON: an array of objects, a column's name to its value
-/// (numbers as numbers, NULL as null, the rest as text), in their order.
+/// (numbers as numbers, NULL as null, the rest as text, a blob in hex), in
+/// their order.
 FOUNDATION_EXPORT NSString *UDSQLJSONOfResult(UDSQLResult *result, UDSQLSchema *_Nullable schema);
 
 NS_ASSUME_NONNULL_END

@@ -240,6 +240,20 @@ windows() {
   # Each DLL and what it imports from MSYS2 (what is not in its bin is
   # Windows'): the clients copied, all of them named in the licences
   local -A roots=([libpq.dll]=1 [libmariadb.dll]=1)
+  # The plug-ins' own libraries too (SQL.bundle's libsqlite3-0): the packager
+  # follows the app and the runtime, not the app's PlugIns, and a bundle
+  # whose DLL can't be found is not loaded (SQL mode, its navigator, gone).
+  # Beside gnustep-base like the clients, the packager brings what they link.
+  local plugin dll
+  while IFS= read -r plugin; do
+    for dll in $("$objdump" -p "$plugin" | sed -n 's/^[[:space:]]*DLL Name: //p' | tr -d '\r'); do
+      local own; own=$(find "$prefix/bin" -maxdepth 1 -iname "$dll" | head -n 1)
+      [ -n "$own" ] || continue
+      [ -z "$(find "$stage" -iname "$dll" | head -n 1)" ] || continue
+      roots[$(printf '%s' "$dll" | tr 'A-Z' 'a-z')]=1
+      queue+=("$own")
+    done
+  done < <(find "$app/PlugIns" -iname '*.dll')
   while [ ${#queue[@]} -gt 0 ]; do
     local file=${queue[0]}; queue=("${queue[@]:1}")
     local base; base=$(basename "$file")
@@ -280,6 +294,16 @@ windows() {
     echo "$short|$version|$licence|MSYS2's ${base:-$short} $version: https://packages.msys2.org/base/${base:-$short} (its PKGBUILD names the upstream source)|${packages[$package]}"
   done | readme "$licenses"
   echo "sql-clients: $(cd "$clients" && ls libpq.dll libmariadb.dll mariadb/plugin 2>/dev/null | tr '\n' ' ')"
+  # Every plug-in's DLLs found: in the package, or Windows' own (not MSYS2's)
+  local unresolved=""
+  while IFS= read -r plugin; do
+    for dll in $("$objdump" -p "$plugin" | sed -n 's/^[[:space:]]*DLL Name: //p' | tr -d '\r'); do
+      [ -n "$(find "$stage" -iname "$dll" | head -n 1)" ] && continue
+      [ -n "$(find "$prefix/bin" -maxdepth 1 -iname "$dll" | head -n 1)" ] || continue
+      unresolved="$unresolved ${plugin#"$stage/"}:$dll"
+    done
+  done < <(find "$app/PlugIns" -iname '*.dll')
+  [ -z "$unresolved" ] || { echo "::error::plug-ins link DLLs the package lacks:$unresolved" >&2; exit 1; }
 }
 
 case "$mode" in

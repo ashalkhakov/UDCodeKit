@@ -209,10 +209,16 @@ windows() {
   [ -f "$app/UDCode.exe" ] || { echo "sql-clients: no $app/UDCode.exe" >&2; exit 1; }
   local prefix=${MINGW_PREFIX:-/clang64}
   local licenses=$app/Resources/Licenses
-  # A folder of their own, not UDCode.exe's: Windows looks in an exe's folder
-  # first, and these (zlib1, libiconv-2, OpenSSL...) would stand in for the
-  # GNUstep runtime's own. UDSQLConnection loads them by their path there.
-  local clients=$app/SQLClients
+  # Beside gnustep-base's DLL in the runtime (on the launcher's PATH;
+  # UDSQLConnection looks there first): libpq, libmariadb and its plug-ins
+  # only. What they link (zlib1, libiconv-2, OpenSSL...) the packager brings
+  # into the runtime's bin, as for any DLL in the runtime: the same files
+  # the runtime uses. A copy anywhere else in the package would stop it: it
+  # counts a DLL anywhere in the package as there, and gnustep-base and the
+  # defaults tool would go without.
+  local base; base=$(find "$stage/runtime" -iname 'gnustep-base*.dll' | head -n 1)
+  [ -n "$base" ] || { echo "sql-clients: no gnustep-base DLL in $stage/runtime" >&2; exit 1; }
+  local clients; clients=$(dirname "$base")
   [ -f "$prefix/bin/libpq.dll" ] || missing "no libpq.dll (pacman -S ${MINGW_PACKAGE_PREFIX:-mingw-w64-clang-x86_64}-postgresql)"
   [ -f "$prefix/bin/libmariadb.dll" ] || missing "no libmariadb.dll (pacman -S ${MINGW_PACKAGE_PREFIX:-mingw-w64-clang-x86_64}-libmariadbclient)"
   local objdump; objdump=$(command -v llvm-objdump || command -v objdump)
@@ -222,8 +228,8 @@ windows() {
   local -A seen=() packages=()
   local order=()
   # Each DLL and what it imports from MSYS2 (what is not in its bin is
-  # Windows'), beside UDCode.exe, where Windows looks first for what a DLL
-  # loaded by its path imports (LOAD_WITH_ALTERED_SEARCH_PATH)
+  # Windows'): the clients copied, all of them named in the licences
+  local -A roots=([libpq.dll]=1 [libmariadb.dll]=1)
   while [ ${#queue[@]} -gt 0 ]; do
     local file=${queue[0]}; queue=("${queue[@]:1}")
     local base; base=$(basename "$file")
@@ -232,7 +238,7 @@ windows() {
     seen[$key]=1
     case "$file" in
       */lib/mariadb/plugin/*) cp -f "$file" "$clients/mariadb/plugin/" ;;
-      *) cp -f "$file" "$clients/" ;;
+      *) [ -z "${roots[$key]:-}" ] || cp -f "$file" "$clients/" ;;
     esac
     local package; package=$(pacman -Qqo "$file" 2>/dev/null | head -n 1 || true)
     if [ -n "$package" ] && [ -z "${packages[$package]:-}" ]; then
@@ -263,7 +269,7 @@ windows() {
     base=$(printf '%s\n' "$info" | sed -n 's/^Base *: //p')
     echo "$short|$version|$licence|MSYS2's ${base:-$short} $version: https://packages.msys2.org/base/${base:-$short} (its PKGBUILD names the upstream source)|${packages[$package]}"
   done | readme "$licenses"
-  echo "sql-clients: $(cd "$clients" && ls *.dll mariadb/plugin 2>/dev/null | tr '\n' ' ')"
+  echo "sql-clients: $(cd "$clients" && ls libpq.dll libmariadb.dll mariadb/plugin 2>/dev/null | tr '\n' ' ')"
 }
 
 case "$mode" in

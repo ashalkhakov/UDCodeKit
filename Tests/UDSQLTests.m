@@ -206,10 +206,16 @@ static Class UDPluginClass(NSString *name) {
     Class library = UDPluginClass(@"UDSQLLibrary");
     NSString *own = [library ownDirectory];
 #if defined(__APPLE__) || defined(_WIN32)
-    XCTAssertNotNil(own, @"the app's Frameworks, or a folder beside the executable");
+    XCTAssertNotNil(own, @"the app's Frameworks, or gnustep-base's folder");
 #endif
 #ifdef _WIN32
-    XCTAssertEqualObjects(own.lastPathComponent, @"SQLClients", @"not the executable's own folder: they'd stand in for the runtime's DLLs");
+    // gnustep-base's folder (the installed runtime's bin), not the
+    // executable's: there they'd stand in for the runtime's DLLs
+    BOOL beside = NO;
+    for (NSString *name in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:own error:NULL]) {
+        if ([name.lowercaseString hasPrefix:@"gnustep-base"] && [name.lowercaseString hasSuffix:@".dll"]) beside = YES;
+    }
+    XCTAssertTrue(beside, @"%@", own);
 #endif
     if (!own) return;   // Linux, not in an AppImage
     NSArray *candidates = [library candidatesForNames:@[ @"libpq.5.dylib", @"/opt/homebrew/opt/libpq/lib/libpq.5.dylib" ]];

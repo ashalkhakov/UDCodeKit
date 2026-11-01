@@ -110,11 +110,17 @@ NSError *UDSQLError(NSInteger code, NSString *message, NSString *state) {
 #if defined(__APPLE__)
     return [NSBundle mainBundle].privateFrameworksPath;
 #elif defined(_WIN32)
-    // a folder of their own, not UDCode.exe's: Windows looks in an exe's
-    // folder first, and their copies (zlib1, libiconv-2, OpenSSL...) would
-    // stand in for the GNUstep runtime's; loaded by their path, a
-    // library's own libraries are looked for beside it
-    return [[[NSBundle mainBundle].executablePath stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"SQLClients"];
+    // beside gnustep-base's DLL (where the installer puts them, the packager
+    // the DLLs they link in the runtime's bin): not UDCode.exe's folder,
+    // where they would stand in for the runtime's own
+    HMODULE base = NULL;
+    wchar_t file[MAX_PATH];
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            (LPCWSTR)(void *)&NSLog, &base)) return nil;
+    DWORD length = GetModuleFileNameW(base, file, MAX_PATH);
+    if (!length || length >= MAX_PATH) return nil;
+    NSString *path = [[NSString alloc] initWithBytes:file length:length * sizeof(wchar_t) encoding:NSUTF16LittleEndianStringEncoding];
+    return [path stringByDeletingLastPathComponent];
 #else
     // the AppImage's, when UDCode is the app it runs (APPDIR is inherited
     // by whatever an app in another image starts)

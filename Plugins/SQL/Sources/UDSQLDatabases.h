@@ -63,9 +63,6 @@ FOUNDATION_EXPORT NSNotificationName const UDSQLDatabasesDidChangeNotification;
 /// @a table's rows browsed, in a tab of its own (the one open for it, else
 /// a new one): an entity's only, @a entity given (a Core Data store's).
 - (void)browseTable:(UDSQLTable *)table entity:(nullable NSNumber *)entity database:(UDSQLDatabase *)database;
-/// A query of @a database's designed, in a tab of its own (a new one each
-/// time), with @a tables in it to begin with.
-- (void)designQueryOfDatabase:(UDSQLDatabase *)database tables:(NSArray<UDSQLTable *> *)tables;
 
 /// The selected SQL document's statement at the caret (its selection,
 /// when it has one) run; all of its statements; the run stopped.

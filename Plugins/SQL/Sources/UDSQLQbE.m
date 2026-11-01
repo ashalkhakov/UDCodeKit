@@ -198,10 +198,9 @@ static NSArray<NSString *> *UDSplit(NSString *text, NSString *separator) {
 
 /// The SQL of @a text typed under @a column; nil and @a message when it
 /// can't be read.
-- (nullable NSString *)_conditionOf:(NSString *)typed column:(UDSQLColumnInfo *)column expression:(NSString *)expression
-                            message:(NSString **)message {
+- (nullable NSString *)_conditionOf:(NSString *)typed column:(UDSQLColumnInfo *)column message:(NSString **)message {
     NSString *text = [typed stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    NSString *name = expression ?: [self _quoted:column.name];
+    NSString *name = [self _quoted:column.name];
     NSString *lower = text.lowercaseString;
     if ([@[ @"null", @"is null", @"= null" ] containsObject:lower]) return [name stringByAppendingString:@" IS NULL"];
     if ([@[ @"not null", @"!null", @"! null", @"is not null", @"<> null", @"!= null" ] containsObject:lower]) {
@@ -266,18 +265,6 @@ static NSArray<NSString *> *UDSplit(NSString *text, NSString *separator) {
         }
     }
     return negated ? [NSString stringWithFormat:@"NOT (%@)", condition] : condition;
-}
-
-+ (NSString *)conditionOf:(NSString *)typed column:(UDSQLColumnInfo *)column expression:(NSString *)expression
-                   schema:(UDSQLSchema *)schema dialect:(UDSQLDialect)dialect parameters:(NSMutableArray *)parameters
-                  message:(NSString **)message {
-    UDSQLQbE *writer = [[UDSQLQbE alloc] initWithTable:[[UDSQLTable alloc] init] schema:schema dialect:dialect];
-    writer->_parameters = parameters;
-    writer->_literals = parameters == nil;
-    NSString *unread = nil;
-    NSString *condition = [writer _conditionOf:typed column:column expression:expression message:&unread];
-    if (message) *message = unread;
-    return condition;
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +383,7 @@ static UDColumnKind UDKindOf(UDSQLColumnInfo *column, UDSQLSchema *schema) {
             NSString *typed = _conditions[row][column.name];
             if (![typed stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length) continue;
             NSString *message = nil;
-            NSString *condition = [self _conditionOf:typed column:column expression:nil message:&message];
+            NSString *condition = [self _conditionOf:typed column:column message:&message];
             if (!condition) {
                 if (error) *error = UDConditionError(message, column.name, row);
                 return nil;

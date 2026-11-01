@@ -438,14 +438,6 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     [_databases openQuery:text database:database run:NO];
 }
 
-- (IBAction)designQuery:(id)sender {
-    UDSQLNode *node = [self _actedOn:sender];
-    UDSQLDatabase *database = [self _databaseOf:node];
-    UDSQLTable *table = [self _tableOf:node];
-    // a table's: the query begun with it
-    if (database) [_databases designQueryOfDatabase:database tables:table ? @[ table ] : @[]];
-}
-
 - (IBAction)showDiagram:(id)sender {
     UDSQLDatabase *database = [self _databaseOf:[self _actedOn:sender]];
     if (!database) return;

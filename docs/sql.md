@@ -109,30 +109,6 @@ SQL** opens the query as a document of its own, its values written in, to
 change and run; the rows selected copy as tab-separated text (Copy with
 Column Names, their names first).
 
-## Designing a query
-
-**Design Query**, in a database's menu in the navigator (or a table's: the
-query begun with it), opens the query builder in a tab of its own: a query
-made of tables and their columns, query by example's way, not written.
-
-- **Tables**: **Add Table** puts one on the canvas; it is joined to those
-  there along their foreign keys (one in twice gets an alias of its own,
-  `people2`). Drag from one table's column to another's to join them; a
-  join's menu makes it a **left join** (every row of the first, the other's
-  where they match: dashed, its arrow at the table that may have none) or
-  takes it away. A table's menu, or Delete, takes it away.
-- **Fields**: double-click a column (✓) to make it a field, again to take
-  it away. Under the tables, the design has a column for each field: its
-  **Sort** (ascending, descending; the fields sort in their order),
-  **Show** (a field may only sort or filter), and its conditions, typed as
-  in the browser (`> 6`, `Ann*`, `NULL`, `1..10`, with its ▾): a row of
-  them all hold (**Where**), **Or** adds a row, rows meeting any are
-  shown. A field's menu moves it left or right, or takes it away.
-- **Run** shows its rows (Results, the first thousand); **Show SQL** opens
-  it as a document of its own, its values written in. With no fields, all
-  columns are shown; a table joined to no other is crossed with them, every
-  pair of rows, and the builder says so.
-
 ## Running a query
 
 A `.sql` document is run against a database: the one chosen at the top of
@@ -215,8 +191,6 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLDatabases` | a window's connections, which database each document uses, running |
 | `UDSQLQbE` | query by example: what is typed under each column as a WHERE of parameters, an order, pages, a count |
 | `UDSQLBrowserViewController` | a table's rows browsed: the conditions over them, sorting, paging, Show SQL |
-| `UDSQLQueryDesign` | a designed query: tables (aliased), joins (inner, left), fields, their sort and conditions, its SQL |
-| `UDSQLQueryBuilderViewController` | the query builder: the tables on DiagramKit's canvas (`UDSQLQueryDiagram`), the design's grid, its results |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |
 | `UDSQLDiagramViewController` | the diagram's tab: DiagramKit's canvas, Arrange, zoom, export, a table's menu |
 

@@ -73,14 +73,6 @@ FOUNDATION_EXPORT NSString *const UDSQLQbERowErrorKey;
 /// The select as it would be written by hand: its values in it.
 - (nullable NSString *)SQLWithLimit:(NSUInteger)limit offset:(NSUInteger)offset error:(NSError *_Nullable *_Nullable)error;
 
-/// The SQL of @a typed under @a column, the column written as @a expression
-/// ("o"."total"), as the browser's conditions are; its values added to
-/// @a parameters (placeholders numbered on from those there), or written
-/// in when nil; nil and why in @a message when it can't be read.
-+ (nullable NSString *)conditionOf:(NSString *)typed column:(UDSQLColumnInfo *)column expression:(NSString *)expression
-                            schema:(nullable UDSQLSchema *)schema dialect:(UDSQLDialect)dialect
-                        parameters:(nullable NSMutableArray *)parameters message:(NSString *_Nullable *_Nullable)message;
-
 /// @a text with @a op made of it, its value kept (5, Greater Than: > 5);
 /// @a complete whether it asks for something as it is, or still wants a
 /// value typed (> with none, 1.., a, ).

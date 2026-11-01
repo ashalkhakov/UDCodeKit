@@ -5,8 +5,45 @@
 #import "UDSQLBrowserViewController.h"
 #import "UDSQLDatabases.h"
 #import "UDSQLValues.h"
-#import "UDSQLConditionCell.h"
 #import <objc/runtime.h>
+
+static const CGFloat UDMenuArrowWidth = 14;
+
+/// A condition's cell: its text, and at its right a ▾ for what can be asked
+/// (its menu, the browser's); an empty one shows what may be typed, dimmed.
+@interface UDSQLConditionCell : NSTextFieldCell
+@end
+
+@implementation UDSQLConditionCell
+
+- (NSRect)_textFrameOf:(NSRect)frame {
+    frame.size.width = MAX(0, frame.size.width - UDMenuArrowWidth);
+    return frame;
+}
+
+- (void)drawInteriorWithFrame:(NSRect)frame inView:(NSView *)view {
+    [super drawInteriorWithFrame:[self _textFrameOf:frame] inView:view];
+    // the ▾: a small triangle, in the middle of its strip
+    CGFloat x = NSMaxX(frame) - UDMenuArrowWidth / 2, y = NSMidY(frame), flip = view.isFlipped ? 1 : -1;
+    NSBezierPath *arrow = [NSBezierPath bezierPath];
+    [arrow moveToPoint:NSMakePoint(x - 3.5, y - 1.5 * flip)];
+    [arrow lineToPoint:NSMakePoint(x + 3.5, y - 1.5 * flip)];
+    [arrow lineToPoint:NSMakePoint(x, y + 2.5 * flip)];
+    [arrow closePath];
+    [[NSColor disabledControlTextColor] setFill];
+    [arrow fill];
+}
+
+- (void)editWithFrame:(NSRect)frame inView:(NSView *)view editor:(NSText *)editor delegate:(id)delegate event:(NSEvent *)event {
+    [super editWithFrame:[self _textFrameOf:frame] inView:view editor:editor delegate:delegate event:event];
+}
+
+- (void)selectWithFrame:(NSRect)frame inView:(NSView *)view editor:(NSText *)editor delegate:(id)delegate
+                  start:(NSInteger)start length:(NSInteger)length {
+    [super selectWithFrame:[self _textFrameOf:frame] inView:view editor:editor delegate:delegate start:start length:length];
+}
+
+@end
 
 @interface UDSQLBrowserViewController ()
 @property (nonatomic, weak) IBOutlet NSTableView *conditionsView;
@@ -302,7 +339,7 @@
     if (row < 0 || column < 0 || !event) return;
     NSRect cell = [_conditionsView frameOfCellAtColumn:column row:row];
     NSPoint point = [_conditionsView convertPoint:event.locationInWindow fromView:nil];
-    if (point.x < NSMaxX(cell) - [UDSQLConditionCell menuWidth]) return;
+    if (point.x < NSMaxX(cell) - UDMenuArrowWidth) return;
     _menuRow = row;
     _menuColumn = column;
     [NSMenu popUpContextMenu:_operatorMenu withEvent:event forView:_conditionsView];

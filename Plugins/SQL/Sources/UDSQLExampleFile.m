@@ -94,6 +94,7 @@ static void UDWriteJSON(id value, NSMutableString *out, NSUInteger depth) {
     if (self) {
         _skeletons = @[];
         _order = @[];
+        _conditions = @[];
     }
     return self;
 }
@@ -140,6 +141,11 @@ static NSError *UDFileError(NSString *message) {
         [order addObject:[NSSortDescriptor sortDescriptorWithKey:key[@"column"] ascending:key[@"ascending"] ? [key[@"ascending"] boolValue] : YES]];
     }
     file.order = order;
+    NSMutableArray *conditions = [NSMutableArray array];
+    for (NSString *line in [root[@"conditions"] isKindOfClass:[NSArray class]] ? root[@"conditions"] : @[]) {
+        if ([line isKindOfClass:[NSString class]]) [conditions addObject:line];
+    }
+    file.conditions = conditions;
     return file;
 }
 
@@ -165,7 +171,14 @@ static NSError *UDFileError(NSString *message) {
     }
     NSMutableArray *order = [NSMutableArray array];
     for (NSSortDescriptor *key in _order) [order addObject:@{ @"column": key.key, @"ascending": [UDJSONBoolean of:key.ascending] }];
-    NSDictionary *root = @{ @"kind": UDKind, @"version": @1, @"skeletons": skeletons, @"order": order };
+    NSMutableDictionary *root = [@{ @"kind": UDKind, @"version": @1, @"skeletons": skeletons, @"order": order } mutableCopy];
+    // the condition box's lines, typed ones (none: not written)
+    NSMutableArray *conditions = [NSMutableArray array];
+    for (NSString *line in _conditions) {
+        NSString *typed = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (typed.length) [conditions addObject:typed];
+    }
+    if (conditions.count) root[@"conditions"] = conditions;
     NSMutableString *json = [NSMutableString string];
     UDWriteJSON(root, json, 0);
     [json appendString:@"\n"];
@@ -191,6 +204,7 @@ static NSError *UDFileError(NSString *message) {
     UDSQLExampleQuery *query = [[UDSQLExampleQuery alloc] initWithSchema:schema dialect:dialect];
     query.skeletons = skeletons;
     query.order = _order;
+    query.conditions = _conditions;
     return query;
 }
 

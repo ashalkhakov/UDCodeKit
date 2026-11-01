@@ -17,6 +17,16 @@
  *  Paradox's inclusion: the rows it is linked to kept where it has no
  *  match (a left join: its columns NULL).
  *
+ *    G.         a group's key (P.G._d: printed too); aggregates, Zloof's:
+ *    P.SUM.     SUM. AVG. MIN. MAX. CNT., then ALL. (the default) or UNQ.
+ *               (distinct values), over each group (the G. columns and the
+ *               others printed); a condition after it keeps groups (HAVING:
+ *               P.SUM. > 5; unprinted, SUM. > 5)
+ *
+ *  Its condition box (UDSQLExampleCondition) says what no column can, of
+ *  example elements: _s > _b * 2, _c = 'Oslo' OR _c = 'Rome', CNT.ALL._e
+ *  > 5 (a group's).
+ *
  *  Rows linked by their example elements are one alternative, which must
  *  hold a row of the first skeleton; alternatives are any of them (OR,
  *  when each is a row of the first skeleton alone; else a union). What is
@@ -39,6 +49,8 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString *const UDSQLExampleSkeletonErrorKey;
 FOUNDATION_EXPORT NSString *const UDSQLExampleRowErrorKey;
 FOUNDATION_EXPORT NSString *const UDSQLExampleColumnErrorKey;
+/// An error's line of the condition box (NSNumber).
+FOUNDATION_EXPORT NSString *const UDSQLExampleConditionErrorKey;
 
 /// A skeleton's row: what is typed under its columns, and whether it is ¬
 /// or !.
@@ -72,6 +84,9 @@ FOUNDATION_EXPORT NSString *const UDSQLExampleColumnErrorKey;
 /// (an entity's rows: Z_ENT IN (2, 3)); nil: nothing.
 @property (nonatomic, copy, nullable) NSString *restrictionColumn;
 @property (nonatomic, copy, nullable) NSArray *restrictionValues;
+/// Its condition box's lines, Zloof's (UDSQLExampleCondition): each holds
+/// (WHERE), or of an aggregate, each group kept (HAVING).
+@property (nonatomic, copy) NSArray<NSString *> *conditions;
 /// Its order, by printed columns' names; none: the first skeleton's
 /// primary key where it is printed (so pages don't overlap).
 @property (nonatomic, copy) NSArray<NSSortDescriptor *> *order;

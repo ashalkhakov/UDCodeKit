@@ -3,14 +3,15 @@
  *
  *  A query by example as it is kept (a .qbe file: JSON, as git diffs it):
  *  its skeletons by their tables' names (and schemas), their rows (what is
- *  typed under each column; ¬, !), its order. Not a connection: the same
- *  file is asked of any (staging, production), its tables found by name in
- *  the one asked (-queryForSchema:…).
+ *  typed under each column; ¬, !), its condition box, its order. Not a
+ *  connection: the same file is asked of any (staging, production), its
+ *  tables found by name in the one asked (-queryForSchema:…).
  *
  *    { "kind": "UDCode query by example", "version": 1,
  *      "skeletons": [ { "table": "customers", "rows": [ { "entries": { "id": "_c", "name": "P." } } ] },
  *                     { "table": "orders", "rows": [ { "entries": { "customer": "_c" }, "inclusive": true } ] } ],
- *      "order": [ { "column": "name", "ascending": true } ] }
+ *      "order": [ { "column": "name", "ascending": true } ],
+ *      "conditions": [ "_c = 'Oslo' OR _c = 'Rome'" ] }
  *--------------------------------------------------------------------------------------------*/
 
 #import <Foundation/Foundation.h>
@@ -36,6 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, copy) NSArray<UDSQLExampleFileSkeleton *> *skeletons;
 @property (nonatomic, copy) NSArray<NSSortDescriptor *> *order;
+/// Its condition box's lines (UDSQLExampleCondition); written when typed.
+@property (nonatomic, copy) NSArray<NSString *> *conditions;
 
 /// It asked of @a schema's database (@a dialect's): its tables found by
 /// name; nil and why in @a error ("production has no table orders").

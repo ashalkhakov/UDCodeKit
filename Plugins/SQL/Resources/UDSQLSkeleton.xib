@@ -24,35 +24,40 @@
                         <action selector="applyOperator:" target="-2" id="SK-c-print-a"/>
                     </connections>
                 </menuItem>
+                <menuItem title="Group By (G.)" tag="103" id="SK-c-group">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-group-a"/>
+                    </connections>
+                </menuItem>
                 <menuItem title="Aggregate" id="SK-c-aggregate">
                     <menu key="submenu" title="Aggregate" id="SK-c-aggregate-menu">
                         <items>
-                    <menuItem title="Sum (P.SUM.)" tag="110" id="SK-c-sum">
+                    <menuItem title="Sum (SUM.)" tag="110" id="SK-c-sum">
                         <connections>
                             <action selector="applyOperator:" target="-2" id="SK-c-sum-a"/>
                         </connections>
                     </menuItem>
-                    <menuItem title="Average (P.AVG.)" tag="111" id="SK-c-avg">
+                    <menuItem title="Average (AVG.)" tag="111" id="SK-c-avg">
                         <connections>
                             <action selector="applyOperator:" target="-2" id="SK-c-avg-a"/>
                         </connections>
                     </menuItem>
-                    <menuItem title="Minimum (P.MIN.)" tag="112" id="SK-c-min">
+                    <menuItem title="Minimum (MIN.)" tag="112" id="SK-c-min">
                         <connections>
                             <action selector="applyOperator:" target="-2" id="SK-c-min-a"/>
                         </connections>
                     </menuItem>
-                    <menuItem title="Maximum (P.MAX.)" tag="113" id="SK-c-max">
+                    <menuItem title="Maximum (MAX.)" tag="113" id="SK-c-max">
                         <connections>
                             <action selector="applyOperator:" target="-2" id="SK-c-max-a"/>
                         </connections>
                     </menuItem>
-                    <menuItem title="Count (P.CNT.)" tag="114" id="SK-c-cnt">
+                    <menuItem title="Count (CNT.)" tag="114" id="SK-c-cnt">
                         <connections>
                             <action selector="applyOperator:" target="-2" id="SK-c-cnt-a"/>
                         </connections>
                     </menuItem>
-                    <menuItem title="Count Distinct (P.CNT.UNQ.)" tag="115" id="SK-c-unq">
+                    <menuItem title="Count Distinct (CNT.UNQ.)" tag="115" id="SK-c-unq">
                         <connections>
                             <action selector="applyOperator:" target="-2" id="SK-c-unq-a"/>
                         </connections>

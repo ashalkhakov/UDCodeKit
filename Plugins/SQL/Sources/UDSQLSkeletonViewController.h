@@ -56,7 +56,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// What is typed under @a column in @a row (as its cell's edit does).
 - (void)setEntry:(NSString *)text column:(NSString *)column row:(NSUInteger)row;
 /// The menu's operator (100: P., 101: a new example element, 102: the row
-/// removed, 110-115: SUM. AVG. MIN. MAX. CNT. CNT.UNQ., 120-121: sorted
+/// removed, 103: G. (grouped by it), 110-115: SUM. AVG. MIN. MAX. CNT.
+/// CNT.UNQ. (again: none), 120-121: sorted
 /// ascending, descending; an element's: it; else UDSQLQbEOperator) made
 /// of what is typed.
 - (void)applyOperator:(NSInteger)tag element:(nullable NSString *)element column:(NSString *)column row:(NSUInteger)row;

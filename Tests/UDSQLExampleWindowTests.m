@@ -231,11 +231,41 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.SUM. > 6");
     [editor.skeletons[1] applyOperator:110 element:nil column:@"total" row:0];
     XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.> 6");
+    // Group By: G. (again: none)
+    [editor.skeletons[0] applyOperator:103 element:nil column:@"name" row:0];
+    XCTAssertEqualObjects(editor.file.skeletons[0].rows[0].entries[@"name"], @"P.G.");
+    [editor.skeletons[0] applyOperator:103 element:nil column:@"name" row:0];
+    XCTAssertEqualObjects(editor.file.skeletons[0].rows[0].entries[@"name"], @"P.");
     [editor skeleton:editor.skeletons[1] sortsByColumn:@"total" ascending:NO];
     XCTAssertEqualObjects(editor.file.order.firstObject.key, @"total");
     XCTAssertFalse(editor.file.order.firstObject.ascending);
     UDRunUntil(!editor.running && editor.result.rows.count == 2, 10.0);
     XCTAssertEqualObjects(editor.result.rows.firstObject, (@[ @"Ann", @20 ]));
+
+    // its condition box: kept in its file, coloured, run with it
+    XCTAssertNotNil(editor.conditionsView, @"the XIB's condition box");
+    XCTAssertTrue([editor.conditionsView.toolTip hasPrefix:@"The condition box"]);
+    [editor setConditionsText:@"_customers <> 2"];
+    XCTAssertEqualObjects(editor.file.conditions, @[ @"_customers <> 2" ]);
+    XCTAssertTrue([[editor.document.textModel getValue] containsString:@"\"conditions\": [\n    \"_customers <> 2\"\n  ]"],
+                  @"%@", [editor.document.textModel getValue]);
+    XCTAssertEqualObjects([editor.conditionsView.textStorage attribute:NSForegroundColorAttributeName atIndex:1 effectiveRange:NULL],
+                          [NSColor systemOrangeColor], @"an element, coloured");
+    [editor run:nil];
+    UDRunUntil(!editor.running && editor.result.rows.count == 1, 10.0);
+    XCTAssertEqualObjects(editor.result.rows, (@[ @[ @"Ann", @20 ] ]), @"%@", editor.statusLabel.stringValue);
+    [editor setConditionsText:@""];
+    XCTAssertEqualObjects(editor.file.conditions, @[]);
+    XCTAssertFalse([[editor.document.textModel getValue] containsString:@"conditions"], @"none typed: none kept");
+
+    // what is typed: coloured, and said in words in its tooltip
+    NSTableView *grid = editor.skeletons[1].rowsView;
+    NSTableColumn *totals = [grid tableColumnWithIdentifier:@"total"];
+    id shown = [editor.skeletons[1] tableView:grid objectValueForTableColumn:totals row:0];
+    XCTAssertTrue([shown isKindOfClass:[NSAttributedString class]], @"%@", shown);
+    XCTAssertEqualObjects([shown attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL], [NSColor systemBlueColor], @"P.");
+    NSString *tip = [editor.skeletons[1] tableView:grid toolTipForCell:totals.dataCell rect:NULL tableColumn:totals row:0 mouseLocation:NSZeroPoint];
+    XCTAssertTrue([tip hasPrefix:@"P. — printed: a column of the answer\n> 6 — the rows whose value is so"], @"%@", tip);
 
     // its first save: where asked (the window's Save's panel), its tab named
     // for its file, its database remembered for it

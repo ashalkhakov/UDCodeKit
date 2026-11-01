@@ -30,9 +30,8 @@ NSString *UDSQLQuoted(NSString *name, UDSQLDialect dialect) {
 // ---------------------------------------------------------------------------
 
 @implementation UDSQLExpression {
-    NSString *_function;            // an aggregate's
-    UDSQLExpression *_argument;
-    BOOL _distinct;
+    NSString *_operator;            // an arithmetic's (its left the argument): + - * /, or "-" alone
+    UDSQLExpression *_right;
 }
 
 + (instancetype)column:(NSString *)name of:(NSString *)variable {
@@ -54,6 +53,21 @@ NSString *UDSQLQuoted(NSString *name, UDSQLDialect dialect) {
     return expression;
 }
 
++ (instancetype)arithmetic:(NSString *)op left:(UDSQLExpression *)left right:(UDSQLExpression *)right {
+    UDSQLExpression *expression = [[self alloc] init];
+    expression->_operator = [op copy];
+    expression->_argument = left;
+    expression->_right = right;
+    return expression;
+}
+
++ (instancetype)negative:(UDSQLExpression *)operand {
+    UDSQLExpression *expression = [[self alloc] init];
+    expression->_operator = @"-";
+    expression->_argument = operand;
+    return expression;
+}
+
 + (instancetype)aggregate:(NSString *)function of:(UDSQLExpression *)argument distinct:(BOOL)distinct {
     UDSQLExpression *expression = [[self alloc] init];
     expression->_function = [function copy];
@@ -71,6 +85,11 @@ static NSString *UDLiteral(id value, UDSQLDialect dialect) {
 }
 
 - (NSString *)_SQLWith:(UDSQLWriter *)writer {
+    if (_operator) {
+        NSString *left = [_argument _SQLWith:writer];
+        return _right ? [NSString stringWithFormat:@"(%@ %@ %@)", left, _operator, [_right _SQLWith:writer]]
+                      : [NSString stringWithFormat:@"-%@", left];
+    }
     if (_function) {
         if (!_argument) return [NSString stringWithFormat:@"%@(*)", _function];
         return [NSString stringWithFormat:@"%@(%@%@)", _function, _distinct ? @"DISTINCT " : @"", [_argument _SQLWith:writer]];
@@ -315,8 +334,13 @@ static UDSQLRelation *UDRelation(UDRelationKind kind, UDSQLRelation *input) {
 }
 
 - (UDSQLRelation *)group:(NSArray<UDSQLExpression *> *)keys {
+    return [self group:keys having:nil];
+}
+
+- (UDSQLRelation *)group:(NSArray<UDSQLExpression *> *)keys having:(UDSQLPredicate *)having {
     UDSQLRelation *relation = UDRelation(UDGroup, self);
     relation->_groupKeys = [keys copy];
+    relation->_predicate = having;
     return relation;
 }
 
@@ -440,7 +464,12 @@ static UDSQLRelation *UDRelation(UDRelationKind kind, UDSQLRelation *input) {
         NSString *sql = [self _selectColumns:columns of:group->_input with:writer];
         NSMutableArray *keys = [NSMutableArray array];
         for (UDSQLExpression *key in group->_groupKeys) [keys addObject:[key _SQLWith:writer]];
-        return keys.count ? [NSString stringWithFormat:@"%@ GROUP BY %@", sql, [keys componentsJoinedByString:@", "]] : sql;
+        // HAVING without keys: all its rows one group (SQLite before 3.39
+        // wants a GROUP BY: of a constant, but for no rows at all, the same)
+        if (!keys.count && group->_predicate && writer.dialect == UDSQLDialectSQLite) [keys addObject:@"NULL"];
+        if (keys.count) sql = [NSString stringWithFormat:@"%@ GROUP BY %@", sql, [keys componentsJoinedByString:@", "]];
+        if (group->_predicate) sql = [NSString stringWithFormat:@"%@ HAVING %@", sql, [group->_predicate _SQLWith:writer]];
+        return sql;
     }
     if (_kind == UDProject) return [self _selectColumns:[self _columnsWith:writer] of:_input with:writer];
     return [self _selectColumns:@"*" of:self with:writer];

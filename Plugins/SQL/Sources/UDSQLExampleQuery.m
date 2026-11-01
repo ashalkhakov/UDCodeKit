@@ -3,10 +3,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDSQLExampleQuery.h"
+#import "UDSQLExampleCondition.h"
 
 NSString *const UDSQLExampleSkeletonErrorKey = @"UDSQLExampleSkeleton";
 NSString *const UDSQLExampleRowErrorKey = @"UDSQLExampleRow";
 NSString *const UDSQLExampleColumnErrorKey = @"UDSQLExampleColumn";
+NSString *const UDSQLExampleConditionErrorKey = @"UDSQLExampleCondition";
 
 static const NSTimeInterval UDDay = 86400;
 
@@ -192,8 +194,10 @@ static UDSQLPredicate *UDCompare(UDSQLExpression *column, UDSQLComparison op, UD
 @property (nonatomic, copy, nullable) NSString *compared;   // compared with it…
 @property (nonatomic) UDSQLComparison comparison;           // …so
 @property (nonatomic, copy, nullable) NSString *condition;  // its value's, as typed
-@property (nonatomic, copy, nullable) NSString *aggregate;  // SUM, AVG, MIN, MAX, COUNT: printed so
+@property (nonatomic, copy, nullable) NSString *aggregate;  // SUM, AVG, MIN, MAX, COUNT
 @property (nonatomic) BOOL distinct;                        // of its distinct values (UNQ.)
+@property (nonatomic) BOOL grouped;                         // G.: a group's key
+@property (nonatomic, copy, nullable) NSString *having;     // its aggregate's condition (HAVING), as typed
 @end
 
 @implementation UDExampleEntry
@@ -228,14 +232,31 @@ static BOOL UDIsElement(NSString *text) {
     return [element firstMatchInString:text options:0 range:NSMakeRange(0, text.length)] != nil;
 }
 
+/// What an aggregate's values are typed as: a count's and a sum's, numbers;
+/// a minimum's, its column's.
+static UDSQLColumnInfo *UDAggregatedColumn(NSString *function, UDSQLColumnInfo *column) {
+    if ([function isEqualToString:@"MIN"] || [function isEqualToString:@"MAX"]) return column;
+    UDSQLColumnInfo *number = [[UDSQLColumnInfo alloc] init];
+    number.name = column.name;
+    number.type = [function isEqualToString:@"COUNT"] ? @"INTEGER" : @"REAL";
+    return number;
+}
+
 @implementation UDSQLExampleQuery {
     NSArray<NSString *> *_groupNames;   // the last relation's groups' keys, by name (none: not grouped)
 }
 
 + (UDSQLPredicate *)predicateOf:(NSString *)typed column:(UDSQLColumnInfo *)column variable:(NSString *)variable
                          schema:(UDSQLSchema *)schema message:(NSString **)message {
+    return [self _predicateOf:typed column:column subject:[UDSQLExpression column:column.name of:variable] schema:schema message:message];
+}
+
+/// The same, of @a subject (an aggregate of the column: its values typed
+/// as @a column's).
++ (UDSQLPredicate *)_predicateOf:(NSString *)typed column:(UDSQLColumnInfo *)column subject:(UDSQLExpression *)subject
+                          schema:(UDSQLSchema *)schema message:(NSString **)message {
     NSString *text = [typed stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-    UDSQLExpression *name = [UDSQLExpression column:column.name of:variable];
+    UDSQLExpression *name = subject;
     NSString *lower = text.lowercaseString;
     if ([@[ @"null", @"is null", @"= null" ] containsObject:lower]) return [UDSQLPredicate isNull:name];
     if ([@[ @"not null", @"!null", @"! null", @"is not null", @"<> null", @"!= null" ] containsObject:lower]) {
@@ -307,8 +328,25 @@ static BOOL UDIsElement(NSString *text) {
         _dialect = dialect;
         _skeletons = @[];
         _order = @[];
+        _conditions = @[];
     }
     return self;
+}
+
+/// An aggregated entry's condition (HAVING) of its column of @a variable.
+- (nullable UDSQLPredicate *)_havingOf:(UDExampleEntry *)entry text:(NSString *)text variable:(NSString *)variable
+                               message:(NSString **)message {
+    UDSQLExpression *aggregate = [UDSQLExpression aggregate:entry.aggregate of:[UDSQLExpression column:entry.column.name of:variable]
+                                                   distinct:entry.distinct];
+    return [[self class] _predicateOf:text column:UDAggregatedColumn(entry.aggregate, entry.column) subject:aggregate
+                               schema:_schema message:message];
+}
+
+- (NSError *)_conditionError:(UDSQLExampleCondition *)condition message:(NSString *)message {
+    NSUInteger line = [_conditions indexOfObject:condition.text];
+    NSMutableDictionary *info = [@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Condition %@: %@", condition.text, message] } mutableCopy];
+    if (line != NSNotFound) info[UDSQLExampleConditionErrorKey] = @(line);
+    return [NSError errorWithDomain:UDSQLErrorDomain code:-1 userInfo:info];
 }
 
 static NSError *UDError(NSString *message, NSUInteger skeleton, NSUInteger row, NSString *column) {
@@ -337,25 +375,47 @@ static NSError *UDError(NSString *message, NSUInteger skeleton, NSUInteger row, 
                 if (!text.length) continue;
                 UDExampleEntry *entry = [[UDExampleEntry alloc] init];
                 entry.column = column;
-                if ([text.uppercaseString hasPrefix:@"P."]) {
-                    entry.printed = YES;
-                    text = [[text substringFromIndex:2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                // P. and G., in either order (Zloof's P.G._d)
+                for (BOOL more = YES; more;) {
+                    more = NO;
+                    if ([text.uppercaseString hasPrefix:@"P."]) entry.printed = more = YES;
+                    else if ([text.uppercaseString hasPrefix:@"G."]) entry.grouped = more = YES;
+                    if (more) text = [[text substringFromIndex:2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
                 }
-                // an aggregate, Zloof's: P.SUM. P.AVG. P.MIN. P.MAX. P.CNT., UNQ. its distinct values
-                NSDictionary *aggregates = @{ @"SUM.": @"SUM", @"AVG.": @"AVG", @"MIN.": @"MIN", @"MAX.": @"MAX", @"CNT.": @"COUNT" };
-                for (NSString *prefix in aggregates) {
-                    if (![text.uppercaseString hasPrefix:prefix]) continue;
-                    if (!entry.printed) {
-                        if (error) *error = UDError([NSString stringWithFormat:@"%@: an aggregate is printed: P.%@", column.name, prefix], k, j, column.name);
+                // an aggregate, Zloof's: SUM. AVG. MIN. MAX. CNT., then ALL.
+                // (the default) or UNQ. (its distinct values)
+                BOOL distinct = NO;
+                NSString *function = UDSQLAggregateOf(text, &text, &distinct);
+                if (function) {
+                    entry.aggregate = function;
+                    entry.distinct = distinct;
+                    if (entry.grouped) {
+                        if (error) *error = UDError([NSString stringWithFormat:@"%@: a group's key (G.) isn't aggregated too", column.name], k, j, column.name);
                         return nil;
                     }
-                    entry.aggregate = aggregates[prefix];
-                    text = [[text substringFromIndex:prefix.length] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-                    if ([text.uppercaseString hasPrefix:@"UNQ."]) {
-                        entry.distinct = YES;
-                        text = [[text substringFromIndex:4] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                    if (UDIsElement(text)) {
+                        // its rows' values bound: the element links them
+                        entry.element = text;
+                    } else if (text.length) {
+                        // a condition on the aggregate: the groups it keeps (HAVING)
+                        NSString *message = nil;
+                        if (![self _havingOf:entry text:text variable:skeleton.table.name message:&message]) {
+                            if (error) *error = UDError([NSString stringWithFormat:@"%@: %@", column.name, message], k, j, column.name);
+                            return nil;
+                        }
+                        entry.having = text;
                     }
-                    break;
+                    if (!entry.printed && !entry.having) {
+                        if (error) *error = UDError([NSString stringWithFormat:@"%@: an aggregate is printed (P.%@.) or kept to a condition (%@. > 5)",
+                                                     column.name, UDSQLZloofName(function), UDSQLZloofName(function)], k, j, column.name);
+                        return nil;
+                    }
+                    if (row.negated) {
+                        if (error) *error = UDError([NSString stringWithFormat:@"%@: a row that is not there (¬) aggregates nothing", column.name], k, j, column.name);
+                        return nil;
+                    }
+                    [entries addObject:entry];
+                    continue;
                 }
                 if (UDIsElement(text)) entry.element = text;
                 else if (text.length) {
@@ -479,8 +539,9 @@ static BOOL UDAggregates(NSArray<UDExampleTuple *> *alternative) {
 
 /// An alternative as a relation: its first row's table joined to its
 /// others as they are linked, selected, projected; nil and why.
-- (nullable UDSQLRelation *)_relationOf:(NSArray<UDExampleTuple *> *)alternative anyPrinted:(BOOL)anyPrinted all:(BOOL)all
-                                  error:(NSError **)error {
+- (nullable UDSQLRelation *)_relationOf:(NSArray<UDExampleTuple *> *)alternative conditions:(NSArray<UDSQLExampleCondition *> *)conditions
+                             anyPrinted:(BOOL)anyPrinted all:(BOOL)all raw:(BOOL)raw columns:(NSMutableArray *)columns
+                                  names:(NSMutableArray *)names error:(NSError **)error {
     UDExampleTuple *first = alternative.firstObject;
     if (first.skeleton != 0) {
         if (error) *error = UDError([NSString stringWithFormat:@"This row of %@ is linked to no row of %@: give one of its columns an example element (_x) one of them has",
@@ -571,16 +632,62 @@ static BOOL UDAggregates(NSArray<UDExampleTuple *> *alternative) {
         if (inner.count) absent = [absent select:[UDSQLPredicate and:inner]];
         [where addObject:[UDSQLPredicate not:[UDSQLPredicate exists:absent]]];
     }
+    // the condition box's: rows kept (WHERE), groups kept (HAVING)
+    NSMutableArray<UDSQLPredicate *> *having = [NSMutableArray array];
+    for (UDSQLExampleCondition *condition in conditions) {
+        NSString *message = nil;
+        UDSQLPredicate *predicate = [condition predicateWithBound:bound message:&message];
+        if (!predicate) {
+            if (error) *error = [self _conditionError:condition message:message];
+            return nil;
+        }
+        [condition.aggregates ? having : where addObject:predicate];
+    }
+    // raw: its rows as they are, aggregated elsewhere (alternatives united)
+    if (raw) return where.count ? [relation select:[UDSQLPredicate and:where]] : relation;
+    // the groups an aggregate's condition keeps (P.SUM. > 5)
+    for (UDExampleTuple *tuple in alternative) {
+        for (UDExampleEntry *entry in tuple.entries) {
+            if (entry.having) [having addObject:[self _havingOf:entry text:entry.having variable:tuple.variable message:NULL]];
+        }
+    }
     if (where.count) relation = [relation select:[UDSQLPredicate and:where]];
-    if (!anyPrinted && !all) return [relation projectAllOf:first.variable];
-    NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
-    [self _printsOf:alternative all:!anyPrinted columns:columns names:names];
-    if (UDAggregates(alternative)) {
-        // γ: grouped by what is printed and not aggregated (Paradox's checked
-        // columns), an aggregate a row of each group
+    BOOL aggregated = UDAggregates(alternative) || having.count;
+    if (!anyPrinted && !all && !aggregated) {
+        // a union's: the first table's columns
+        for (UDSQLColumnInfo *column in first.table.columns) {
+            [names addObject:column.name];
+            [columns addObject:[UDSQLExpression column:column.name of:first.variable]];
+        }
+        return [relation projectAllOf:first.variable];
+    }
+    [self _printsOf:alternative all:!anyPrinted && !aggregated columns:columns names:names];
+    if (aggregated) {
+        // γ: grouped by its G. columns and what else is printed and not
+        // aggregated (Paradox's checked columns), a row of each group
         NSMutableArray *keys = [NSMutableArray array];
         for (UDSQLExpression *column in columns) if (column.name) [keys addObject:column];
-        relation = [relation group:keys];
+        NSMutableSet *keyed = [NSMutableSet set];
+        for (UDSQLExpression *key in keys) [keyed addObject:[NSString stringWithFormat:@"%@.%@", key.variable, key.name]];
+        for (UDExampleTuple *tuple in alternative) {
+            for (UDExampleEntry *entry in tuple.entries) {
+                NSString *key = [NSString stringWithFormat:@"%@.%@", tuple.variable, entry.column.name];
+                if (!entry.grouped || [keyed containsObject:key]) continue;
+                [keyed addObject:key];
+                UDSQLExpression *column = [UDSQLExpression column:entry.column.name of:tuple.variable];
+                [keys addObject:column];
+                // nothing printed: its keys are
+                if (!anyPrinted) {
+                    [columns addObject:column];
+                    [names addObject:entry.column.name];
+                }
+            }
+        }
+        if (!columns.count) {
+            if (error) *error = UDError(@"It prints nothing: P. a column (a group's key, an aggregate)", first.skeleton, first.row, nil);
+            return nil;
+        }
+        relation = [relation group:keys having:having.count ? [UDSQLPredicate and:having] : nil];
     }
     return [relation project:columns names:names];
 }
@@ -635,8 +742,46 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
     BOOL anyPrinted = NO;
     for (UDExampleTuple *tuple in tuples) for (UDExampleEntry *entry in tuple.entries) if (entry.printed) anyPrinted = YES;
     NSArray *alternatives = UDAlternatives(tuples);
+    // the condition box's lines, read; each of the alternative binding its elements
+    NSMutableArray<NSMutableArray<UDSQLExampleCondition *> *> *conditionsOf = [NSMutableArray array];
+    for (NSUInteger i = 0; i < alternatives.count; i++) [conditionsOf addObject:[NSMutableArray array]];
+    BOOL aggregates = NO;
+    for (NSArray *alternative in alternatives) if (UDAggregates(alternative)) aggregates = YES;
+    for (NSUInteger line = 0; line < _conditions.count; line++) {
+        NSString *text = [_conditions[line] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (!text.length) continue;
+        NSString *message = nil;
+        UDSQLExampleCondition *condition = [UDSQLExampleCondition conditionOf:_conditions[line] message:&message];
+        if (!condition) {
+            if (error) *error = [NSError errorWithDomain:UDSQLErrorDomain code:-1 userInfo:@{
+                NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Condition %@: %@", text, message], UDSQLExampleConditionErrorKey: @(line) }];
+            return nil;
+        }
+        NSUInteger placed = NSNotFound;
+        for (NSUInteger i = 0; i < alternatives.count && placed == NSNotFound; i++) {
+            NSMutableSet *bound = [NSMutableSet set];
+            for (UDExampleTuple *tuple in alternatives[i]) if (!tuple.source.negated) [bound unionSet:tuple.elements];
+            if ([condition.elements isSubsetOfSet:bound]) placed = i;
+        }
+        if (placed == NSNotFound) {
+            if (error) *error = [self _conditionError:condition message:@"its elements aren't all of linked rows (each put alone under a column of a row that is there)"];
+            return nil;
+        }
+        if (condition.aggregates && alternatives.count > 1) {
+            if (error) *error = [self _conditionError:condition message:@"an aggregate's condition is of one alternative: link the rows by example elements"];
+            return nil;
+        }
+        [conditionsOf[placed] addObject:condition];
+        if (condition.aggregates) aggregates = YES;
+    }
+    // aggregates over alternatives: over their rows, united
+    if (aggregates && alternatives.count > 1) {
+        *plain = NO;
+        return [self _unitedAggregatesOf:alternatives conditions:conditionsOf printed:printed expressions:expressions error:error];
+    }
     // none, or each a row of the first table alone printing alike: one OR
     BOOL allPlain = YES;
+    for (NSArray *list in conditionsOf) if (list.count) allPlain = NO;
     for (NSArray *alternative in alternatives) {
         if (!UDIsPlain(alternative) || ![UDPrintedNames(alternative) isEqual:UDPrintedNames(alternatives.firstObject)]) allPlain = NO;
     }
@@ -667,22 +812,12 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
     NSUInteger width = NSNotFound;
     // nothing printed: a join's columns, all of them (a union's: the first table's)
     BOOL all = !anyPrinted && alternatives.count == 1;
-    for (NSArray<UDExampleTuple *> *alternative in alternatives) {
-        if (alternatives.count > 1 && UDAggregates(alternative)) {
-            UDExampleTuple *tuple = alternative.firstObject;
-            if (error) *error = UDError(@"An aggregate (P.SUM., P.CNT.…) is of one alternative: link its rows by example elements", tuple.skeleton, tuple.row, nil);
-            return nil;
-        }
-        UDSQLRelation *relation = [self _relationOf:alternative anyPrinted:anyPrinted all:all error:error];
-        if (!relation) return nil;
+    for (NSUInteger a = 0; a < alternatives.count; a++) {
+        NSArray<UDExampleTuple *> *alternative = alternatives[a];
         NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
-        if (anyPrinted || all) [self _printsOf:alternative all:all columns:columns names:names];
-        else {
-            for (UDSQLColumnInfo *column in base.columns) {
-                [names addObject:column.name];
-                [columns addObject:[UDSQLExpression column:column.name of:alternative.firstObject.variable]];
-            }
-        }
+        UDSQLRelation *relation = [self _relationOf:alternative conditions:conditionsOf[a] anyPrinted:anyPrinted all:all raw:NO
+                                            columns:columns names:names error:error];
+        if (!relation) return nil;
         if (width != NSNotFound && names.count != width) {
             UDExampleTuple *tuple = alternative.firstObject;
             if (error) *error = UDError(@"Its alternatives print different columns: give each the same P. columns", tuple.skeleton, tuple.row, nil);
@@ -692,7 +827,7 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
             [printed addObjectsFromArray:names];
             if (alternatives.count == 1) [expressions addObjectsFromArray:columns];
         }
-        if (UDAggregates(alternative)) {
+        if (aggregates) {
             // its groups' keys, by name: its order, none asked
             NSMutableArray *keys = [NSMutableArray array];
             for (NSUInteger i = 0; i < columns.count; i++) if ([columns[i] name]) [keys addObject:names[i]];
@@ -702,6 +837,89 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
         [relations addObject:relation];
     }
     return [UDSQLRelation union:relations];
+}
+
+/// Aggregates over alternatives, Zloof's way: over the rows meeting any of
+/// them. Each alternative's rows give what is grouped and aggregated, and
+/// the keys of the rows it came from (a row meeting two is one); they are
+/// united; then grouped and aggregated once.
+- (nullable UDSQLRelation *)_unitedAggregatesOf:(NSArray<NSArray<UDExampleTuple *> *> *)alternatives
+                                     conditions:(NSArray<NSArray<UDSQLExampleCondition *> *> *)conditionsOf
+                                        printed:(NSMutableArray *)printed expressions:(NSMutableArray *)expressions
+                                          error:(NSError **)error {
+    NSMutableArray<UDSQLRelation *> *raws = [NSMutableArray array];
+    NSArray *shape = nil;                       // the first's slots: what each is
+    NSArray<UDExampleEntry *> *entries = nil;   // the first's, of each slot
+    for (NSUInteger a = 0; a < alternatives.count; a++) {
+        NSArray<UDExampleTuple *> *alternative = alternatives[a];
+        UDSQLRelation *rows = [self _relationOf:alternative conditions:conditionsOf[a] anyPrinted:YES all:NO raw:YES
+                                        columns:[NSMutableArray array] names:[NSMutableArray array] error:error];
+        if (!rows) return nil;
+        // its slots: each printed column, each G., each aggregate's condition
+        NSMutableArray *slots = [NSMutableArray array], *slotEntries = [NSMutableArray array];
+        NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
+        for (UDExampleTuple *tuple in alternative) {
+            for (UDExampleEntry *entry in tuple.entries) {
+                if (!entry.printed && !entry.grouped && !entry.having) continue;
+                NSUInteger slot = slots.count;
+                [slots addObject:[NSString stringWithFormat:@"%@%@ %@ %@ %@", entry.printed ? @"P." : @"", entry.grouped ? @"G." : @"",
+                                  entry.aggregate ?: @"", entry.distinct ? @"UNQ" : @"", entry.column.name]];
+                [slotEntries addObject:entry];
+                [columns addObject:[UDSQLExpression column:entry.column.name of:tuple.variable]];
+                [names addObject:[NSString stringWithFormat:@"c%lu", (unsigned long)slot]];
+                // the row it came from, by its key
+                NSUInteger k = 0;
+                for (UDSQLColumnInfo *column in tuple.table.columns) {
+                    if (!column.primaryKey) continue;
+                    [columns addObject:[UDSQLExpression column:column.name of:tuple.variable]];
+                    [names addObject:[NSString stringWithFormat:@"r%lu_%lu", (unsigned long)slot, (unsigned long)k++]];
+                }
+            }
+        }
+        if (shape && ![shape isEqual:slots]) {
+            UDExampleTuple *tuple = alternative.firstObject;
+            if (error) *error = UDError(@"Its alternatives aggregate differently: give each the same P., G. and aggregates", tuple.skeleton, tuple.row, nil);
+            return nil;
+        }
+        if (!shape) {
+            shape = slots;
+            entries = slotEntries;
+        }
+        [raws addObject:[rows project:columns names:names]];
+    }
+    // grouped, aggregated, kept, once
+    UDSQLRelation *united = [UDSQLRelation union:raws];
+    NSMutableArray *keys = [NSMutableArray array], *having = [NSMutableArray array];
+    NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
+    NSMutableArray *keyNames = [NSMutableArray array];
+    NSCountedSet *seen = [NSCountedSet set];
+    for (UDExampleEntry *entry in entries) if (entry.printed) [seen addObject:entry.column.name];
+    for (NSUInteger slot = 0; slot < entries.count; slot++) {
+        UDExampleEntry *entry = entries[slot];
+        UDSQLExpression *value = [UDSQLExpression outputColumn:[NSString stringWithFormat:@"c%lu", (unsigned long)slot]];
+        UDSQLExpression *aggregate = entry.aggregate ? [UDSQLExpression aggregate:entry.aggregate of:value distinct:entry.distinct] : nil;
+        if (!entry.aggregate) [keys addObject:value];
+        if (entry.having) {
+            [having addObject:[[self class] _predicateOf:entry.having column:UDAggregatedColumn(entry.aggregate, entry.column) subject:aggregate
+                                                  schema:_schema message:NULL]];
+        }
+        if (!entry.printed) continue;
+        NSString *name = [seen countForObject:entry.column.name] > 1 ? [NSString stringWithFormat:@"%@%lu", entry.column.name, (unsigned long)slot]
+                                                                      : entry.column.name;
+        if (aggregate) name = [NSString stringWithFormat:@"%@(%@%@)", entry.aggregate, entry.distinct ? @"DISTINCT " : @"", name];
+        else [keyNames addObject:name];
+        [columns addObject:aggregate ?: value];
+        [names addObject:name];
+    }
+    if (!columns.count) {
+        UDExampleTuple *tuple = alternatives.firstObject.firstObject;
+        if (error) *error = UDError(@"It prints nothing: P. a column (a group's key, an aggregate)", tuple.skeleton, tuple.row, nil);
+        return nil;
+    }
+    _groupNames = keyNames;
+    [printed addObjectsFromArray:names];
+    [expressions addObjectsFromArray:columns];
+    return [[united group:keys having:having.count ? [UDSQLPredicate and:having] : nil] project:columns names:names];
 }
 
 - (UDSQLRelation *)relation:(NSError **)error {

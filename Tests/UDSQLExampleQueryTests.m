@@ -150,13 +150,86 @@ static Class UDPluginClass(NSString *name) {
     query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"city": @"P.CNT.UNQ.", @"id": @"P.CNT." }] ]] ]];
     XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @3, @2 ] ]), @"%@", sql);
     XCTAssertFalse([sql containsString:@"GROUP BY"], @"%@", sql);
-    // a condition after it: on the rows aggregated
+    // a condition after it: the groups it keeps (HAVING; the one group's
+    // greatest is 20)
     query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"total": @"P.MAX. < 10" }] ]] ]];
-    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @7 ] ]), @"%@", sql);
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], @[], @"%@", sql);
     // not printed: said
     query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"total": @"SUM." }] ]] ]];
     XCTAssertNil([query selectStatementWithLimit:10 offset:0 error:&error]);
-    XCTAssertEqualObjects(error.localizedDescription, @"total: an aggregate is printed: P.SUM.");
+    XCTAssertEqualObjects(error.localizedDescription, @"total: an aggregate is printed (P.SUM.) or kept to a condition (SUM. > 5)");
+}
+
+- (void)testZloofsGroupsAndHaving {
+    // G.: a group's key, printed or not; ALL. (the default)
+    UDSQLExampleQuery *query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"P.G.", @"total": @"P.SUM.ALL." }] ]] ]];
+    NSString *sql = nil;
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @1, @25.5 ], @[ @2, @7 ] ]), @"%@", sql);
+    query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"G.", @"total": @"P.MAX." }] ]] ]];
+    query.order = @[ [self by:@"MAX(total)"] ];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @7 ], @[ @20 ] ]), @"grouped, not printed: %@", sql);
+    XCTAssertTrue([sql containsString:@"GROUP BY \"customer\""], @"%@", sql);
+
+    // a condition after an aggregate keeps groups (HAVING), printed or not
+    query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"id": @"_c", @"name": @"P." }] ]],
+                             [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"_c", @"id": @"CNT. > 1" }] ]] ]];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @"Ann" ] ]), @"%@", sql);
+    XCTAssertTrue([sql containsString:@"GROUP BY \"customers\".\"name\" HAVING COUNT(\"orders\".\"id\") > ?"], @"%@", sql);
+    query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"id": @"_c", @"name": @"P." }] ]],
+                             [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"_c", @"total": @"P.SUM. > 10" }] ]] ]];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @"Ann", @25.5 ] ]), @"%@", sql);
+    // unprinted and kept to nothing: said
+    query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"total": @"SUM.", @"id": @"P." }] ]] ]];
+    NSError *error = nil;
+    XCTAssertNil([query selectStatementWithLimit:10 offset:0 error:&error]);
+    XCTAssertEqualObjects(error.localizedDescription, @"total: an aggregate is printed (P.SUM.) or kept to a condition (SUM. > 5)");
+}
+
+- (void)testTheConditionBox {
+    // OR across what one column can't say
+    UDSQLExampleQuery *query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"name": @"P.", @"city": @"_t" }] ]] ]];
+    query.conditions = @[ @"_t = 'Rome' OR _t = 'Nowhere'" ];
+    NSString *sql = nil;
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @"Bob" ] ]), @"%@", sql);
+    // elements compared, with arithmetic; lines all held
+    query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"id": @"P._i", @"total": @"_t" }] ]] ]];
+    query.conditions = @[ @"_t > _i * 1", @"NOT (_i = 12)" ];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @11 ] ]), @"%@", sql);
+    XCTAssertTrue([sql containsString:@"(\"total\" > (\"id\" * ?))"] || [sql containsString:@"\"total\" > (\"id\" * ?)"], @"%@", sql);
+    // an aggregate's: groups kept (HAVING), Zloof's CNT.ALL._o > 1
+    query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"id": @"_c", @"name": @"P." }] ]],
+                             [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"_c", @"id": @"_o" }] ]] ]];
+    query.conditions = @[ @"CNT.ALL._o > 1" ];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @"Ann" ] ]), @"%@", sql);
+    XCTAssertTrue([sql containsString:@"HAVING COUNT(\"orders\".\"id\") > ?"], @"%@", sql);
+    // what can't be: said, its line told
+    NSError *error = nil;
+    query.conditions = @[ @"", @"_zz > 1" ];
+    XCTAssertNil([query selectStatementWithLimit:10 offset:0 error:&error]);
+    XCTAssertEqualObjects(error.userInfo[@"UDSQLExampleCondition"], @1);
+    XCTAssertTrue([error.localizedDescription containsString:@"_zz > 1"], @"%@", error.localizedDescription);
+    query.conditions = @[ @"_o >" ];
+    XCTAssertNil([query selectStatementWithLimit:10 offset:0 error:&error]);
+    XCTAssertEqualObjects(error.localizedDescription, @"Condition _o >: a value wanted, at its end");
+}
+
+- (void)testAggregatesOverAlternatives {
+    // customers named Ann or Cy, counted by city: over the rows meeting either
+    UDSQLExampleQuery *query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"city": @"P.G.", @"id": @"P.CNT.", @"name": @"Ann" }],
+                                                                                     [self row:@{ @"city": @"P.G.", @"id": @"P.CNT.", @"name": @"Cy" }] ]] ]];
+    NSString *sql = nil;
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @2, @"Oslo" ] ]), @"%@", sql);
+    XCTAssertTrue([sql containsString:@" UNION "], @"%@", sql);
+    // a row meeting both: once
+    query.skeletons = @[ [self skeleton:@"customers" rows:@[ [self row:@{ @"city": @"P.G.", @"id": @"P.CNT.", @"name": @"Ann" }],
+                                                            [self row:@{ @"city": @"P.G.", @"id": @"P.CNT.", @"name": @"A*" }] ]] ];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @1, @"Oslo" ] ]), @"%@", sql);
+    // aggregating differently: said
+    query.skeletons = @[ [self skeleton:@"customers" rows:@[ [self row:@{ @"city": @"P.G.", @"id": @"P.CNT." }],
+                                                            [self row:@{ @"city": @"P.G.", @"id": @"P.MAX." }] ]] ];
+    NSError *error = nil;
+    XCTAssertNil([query selectStatementWithLimit:10 offset:0 error:&error]);
+    XCTAssertEqualObjects(error.localizedDescription, @"Its alternatives aggregate differently: give each the same P., G. and aggregates");
 }
 
 - (void)testAnInclusionKeepsRowsWithoutAMatch {

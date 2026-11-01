@@ -14,6 +14,7 @@
                 <outlet property="previousButton" destination="QE-previous" id="QE-o-previous"/>
                 <outlet property="nextButton" destination="QE-next" id="QE-o-next"/>
                 <outlet property="headerMenu" destination="QE-hmenu" id="QE-o-hmenu"/>
+                <outlet property="conditionsView" destination="QE-conditions" id="QE-o-conditions"/>
                 <outlet property="exportAccessory" destination="QE-export" id="QE-o-export"/>
                 <outlet property="exportFormatButton" destination="QE-export-format" id="QE-o-exportformat"/>
                 <outlet property="statusLabel" destination="QE-status" id="QE-o-status"/>
@@ -224,7 +225,7 @@
                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                             <subviews>
                                 <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="QE-stack-scroll" userLabel="Its Skeletons">
-                                    <rect key="frame" x="0.0" y="27.0" width="900.0" height="293.0"/>
+                                    <rect key="frame" x="0.0" y="96.0" width="900.0" height="224.0"/>
                                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                     <clipView key="contentView" drawsBackground="NO" id="QE-stack-clip">
                                         <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
@@ -241,7 +242,50 @@
                                         <autoresizingMask key="autoresizingMask"/>
                                     </scroller>
                                     <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-stack-v">
-                                        <rect key="frame" x="884.0" y="0.0" width="16.0" height="293.0"/>
+                                        <rect key="frame" x="884.0" y="0.0" width="16.0" height="224.0"/>
+                                        <autoresizingMask key="autoresizingMask"/>
+                                    </scroller>
+                                </scrollView>
+                                <box verticalHuggingPriority="750" boxType="separator" id="QE-conditions-separator" userLabel="Separator">
+                                    <rect key="frame" x="0.0" y="93.0" width="900.0" height="5.0"/>
+                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
+                                </box>
+                                <textField toolTip="What no column can say, of example elements: a condition a line (_s &gt; _b * 2; _c = 'Oslo' OR _c = 'Rome'; CNT.ALL._e &gt; 5, a group's)" verticalHuggingPriority="750" id="QE-conditions-label" userLabel="Conditions">
+                                    <rect key="frame" x="6.0" y="72.0" width="76.0" height="16.0"/>
+                                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                    <textFieldCell key="cell" lineBreakMode="clipping" title="Conditions" id="QE-conditions-label-cell">
+                                        <font key="font" metaFont="smallSystemBold"/>
+                                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                    </textFieldCell>
+                                </textField>
+                                <scrollView borderType="bezel" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="QE-conditions-scroll" userLabel="Its Condition Box">
+                                    <rect key="frame" x="88.0" y="29.0" width="806.0" height="62.0"/>
+                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
+                                    <clipView key="contentView" id="QE-conditions-clip">
+                                        <rect key="frame" x="1.0" y="1.0" width="789.0" height="60.0"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                        <subviews>
+                                            <textView importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" id="QE-conditions" userLabel="Its Conditions, a Line Each">
+                                                <rect key="frame" x="0.0" y="0.0" width="789.0" height="60.0"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
+                                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                <size key="minSize" width="0.0" height="0.0"/>
+                                                <size key="maxSize" width="10000000" height="10000000"/>
+                                                <connections>
+                                                    <outlet property="delegate" destination="-2" id="QE-conditions-o-delegate"/>
+                                                </connections>
+                                            </textView>
+                                        </subviews>
+                                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                    </clipView>
+                                    <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="QE-conditions-h">
+                                        <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                                        <autoresizingMask key="autoresizingMask"/>
+                                    </scroller>
+                                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-conditions-v">
+                                        <rect key="frame" x="790.0" y="1.0" width="15.0" height="60.0"/>
                                         <autoresizingMask key="autoresizingMask"/>
                                     </scroller>
                                 </scrollView>

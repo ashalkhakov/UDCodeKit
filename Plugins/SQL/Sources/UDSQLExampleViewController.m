@@ -5,6 +5,7 @@
 #import "UDSQLExampleViewController.h"
 #import "UDSQLDatabases.h"
 #import "UDSQLValues.h"
+#import "UDSQLExampleSyntax.h"
 #import <objc/runtime.h>
 
 /// The rows a page has (◀ ▶ turn them), and the most an export keeps.
@@ -26,6 +27,7 @@ static const NSUInteger UDMaxExported = 10000000;
 @property (nonatomic, weak) IBOutlet NSButton *previousButton;
 @property (nonatomic, weak) IBOutlet NSButton *nextButton;
 @property (nonatomic, strong) IBOutlet NSMenu *headerMenu;
+@property (nonatomic, strong) IBOutlet NSTextView *conditionsView;
 @property (nonatomic, strong) IBOutlet NSView *exportAccessory;
 @property (nonatomic, weak) IBOutlet NSPopUpButton *exportFormatButton;
 @property (nonatomic, weak) IBOutlet NSTextField *statusLabel;
@@ -77,6 +79,10 @@ static const NSUInteger UDMaxExported = 10000000;
 - (void)viewDidLoad {
     [super viewDidLoad];
     [_resultTemplate.tableView removeTableColumn:_resultTemplate];
+    // the condition box: its lines, coloured; what it takes, its tip
+    _conditionsView.font = [NSFont userFixedPitchFontOfSize:[NSFont smallSystemFontSize]];
+    _conditionsView.toolTip = UDSQLExampleConditionHelp();
+    [self _showConditions];
     // a column's name right-clicked: its menu (copied, sorted)
     _resultsView.headerView.menu = _headerMenu;
     // Export…'s formats, by their files' extensions
@@ -126,7 +132,47 @@ static const NSUInteger UDMaxExported = 10000000;
 - (void)_textDidChange:(NSNotification *)note {
     if (_writing) return;
     [self _readDocument];
-    if (self.isViewLoaded) [self _makeSkeletons];
+    if (!self.isViewLoaded) return;
+    [self _makeSkeletons];
+    [self _showConditions];
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Its condition box
+// ---------------------------------------------------------------------------
+
+/// Its file's conditions, a line each, coloured (as typed, left be).
+- (void)_showConditions {
+    NSString *text = [_file.conditions componentsJoinedByString:@"\n"] ?: @"";
+    NSString *shown = _conditionsView.string;
+    if ([[self _linesOf:shown] isEqual:_file.conditions ?: @[]]) return;
+    _conditionsView.string = text;
+    UDSQLExampleHighlight(_conditionsView.textStorage);
+}
+
+/// Its lines, as kept: those typed (an empty line kept nothing).
+- (NSArray<NSString *> *)_linesOf:(NSString *)text {
+    NSMutableArray *lines = [NSMutableArray array];
+    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        NSString *typed = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (typed.length) [lines addObject:typed];
+    }
+    return lines;
+}
+
+/// A line typed: coloured, kept in the file (its document's text).
+- (void)textDidChange:(NSNotification *)note {
+    if (note.object != _conditionsView || !_file) return;
+    UDSQLExampleHighlight(_conditionsView.textStorage);
+    NSArray *lines = [self _linesOf:_conditionsView.string];
+    if ([lines isEqual:_file.conditions]) return;
+    _file.conditions = lines;
+    [self _writeDocument];
+}
+
+- (void)setConditionsText:(NSString *)text {
+    _conditionsView.string = text;
+    [self textDidChange:[NSNotification notificationWithName:NSTextDidChangeNotification object:_conditionsView]];
 }
 
 - (IBAction)undo:(id)sender {

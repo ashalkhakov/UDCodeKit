@@ -9,6 +9,7 @@
  *  back. Its skeletons one under another (UDSQLSkeletonViewController), a
  *  list's + and − under them (+ joins a table to those there along their
  *  foreign keys, example elements filled in; − removes the selected one),
+ *  its condition box between (Zloof's: a condition a line),
  *  asked of the connection chosen (the document's, as a SQL document's: the
  *  same file of staging or production): Run shows its answer a page at a
  *  time (◀ ▶), Export… all of it (CSV, JSON), a column's menu copies or
@@ -28,7 +29,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UDSQLExampleStackView : NSView
 @end
 
-@interface UDSQLExampleViewController : NSViewController <UDSQLSkeletonDelegate, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate>
+@interface UDSQLExampleViewController : NSViewController <UDSQLSkeletonDelegate, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate,
+                                                          NSTextViewDelegate>
 
 - (instancetype)initWithDatabases:(UDSQLDatabases *)databases document:(UDCodeDocument *)document;
 
@@ -62,6 +64,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// panel's format (CSV, JSON).
 @property (nonatomic, strong, readonly) IBOutlet NSMenu *headerMenu;
 @property (nonatomic, weak, readonly) IBOutlet NSPopUpButton *exportFormatButton;
+/// Its condition box (Zloof's): a condition a line, of example elements,
+/// coloured as typed and kept in its file; its tip says what it takes.
+@property (nonatomic, strong, readonly) IBOutlet NSTextView *conditionsView;
+/// Its condition box's text, as typed there.
+- (void)setConditionsText:(NSString *)text;
 /// How many rows a page has (100).
 @property (nonatomic) NSUInteger pageSize;
 

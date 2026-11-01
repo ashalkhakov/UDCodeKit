@@ -130,7 +130,9 @@ Example language mode: JSON).
   | `P.` | printed: a column of the answer (before anything else too: `P.> 6`) |
   | `_c` | an example element: the same one in two rows' columns joins them |
   | `> _c` | compared with what `_c` is (`=`, `<`, `<=`, `>=`, `<>` too) |
-  | `P.SUM.`, `P.AVG.`, `P.MIN.`, `P.MAX.`, `P.CNT.` | an aggregate of the column's rows, printed (`P.CNT.UNQ.`: of its distinct values); the other columns printed are grouped (GROUP BY), as Paradox's checked ones; a condition may follow (`P.SUM. > 5`: of those rows) |
+  | `G.` | grouped by it (GROUP BY): rows alike in it are one row of the answer; `P.G.` prints it too |
+  | `P.SUM.`, `P.AVG.`, `P.MIN.`, `P.MAX.`, `P.CNT.` | an aggregate of the column's values in each group, printed; `ALL.` (the default) or `UNQ.` after it (`P.CNT.UNQ.`: its distinct values). The groups are the `G.` columns and the others printed, as Paradox's checked ones (none: all the rows one group) |
+  | `P.SUM. > 5`, `CNT. > 2` | an aggregate's condition: the groups it keeps (HAVING), printed or not |
   | `Ann`, `5` | rows whose value is that (a number where the column holds numbers) |
   | `> 5`, `<= 3`, `<> x` | compared (`>=`, `<`, `=` and `!=` too) |
   | `NULL`, `NOT NULL` | NULL, or not |
@@ -143,21 +145,36 @@ Example language mode: JSON).
   An empty cell shows an example of what its column takes (`e.g. > 5`,
   `e.g. Ann*`), and its tooltip all of the above. The ▾ at a cell's right
   (or a right-click) offers them as a menu: Print, an example element (new,
-  or one in the query), an Aggregate, Sort Ascending or Descending (by
-  it, printed), Remove This Row, and the conditions — Equal To,
+  or one in the query), Group By, an Aggregate, Sort Ascending or
+  Descending (by it, printed), Remove This Row, and the conditions — Equal To,
   Greater Than, Like, Between, One Of, Is NULL… — made of what is typed:
   `5` and Greater Than make `> 5`. A condition that can't be read says why.
   In a Core Data store, dates are typed as dates (`2024-05-01`, `> 2024-05-01
   14:30`: a day alone is the whole day) and `Z_ENT` by entity name
   (`Employee`).
+- **Coloured, and said in words.** What is typed is coloured: `P.` and
+  `G.` blue, aggregates purple, example elements orange, quoted text
+  brown, comparisons and AND/OR/NOT dimmed. A cell's tooltip says first
+  what its entry means, a line a part (`P. — printed: a column of the
+  answer`, `SUM. — the sum of its values in each group`…).
+- **The condition box**, Zloof's, under the tables: what no column can
+  say, of example elements, a condition a line, all of them held —
+  `_s > _b * 2` (compared, with `+ - * /`), `_c = 'Oslo' OR _c = 'Rome'`
+  (AND, OR, NOT, parentheses), `_d IS NOT NULL`, and of an aggregate,
+  `CNT.ALL._e > 5`: the groups it keeps (HAVING). Its elements are those
+  the rows give a value (put alone under a column); one that can't be
+  read, or names an element no row has, says so. It is kept in the file.
 - **A row's ¬ or !**: `¬` is a row that is not there (customers no order
   refers to); `!` keeps the rows it is linked to where it has no match (a
   left join: its columns NULL; its own conditions don't drop them).
 - **Alternatives.** Rows linked by their example elements are one
   alternative, holding a row of the first table; the answer is any of them
-  (alternatives that print the same columns). Printed is what `P.` marks;
-  with none, every column of the tables joined (`SELECT *` of the join;
-  of alternatives, the first table's).
+  (alternatives that print the same columns). Aggregated, they are over
+  the rows meeting any of them, once each (united, then grouped: each
+  alternative with the same `P.`, `G.` and aggregates; an aggregate's
+  condition in the condition box is of one alternative). Printed is what
+  `P.` marks; with none, every column of the tables joined (`SELECT *` of
+  the join; of alternatives, the first table's).
 
 The query isn't tied to a connection: the database it is asked of is
 chosen at its top (and remembered for the file, as a SQL document's), so
@@ -259,7 +276,9 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLDatabases` | a window's connections, which database each document uses, running |
 | `UDSQLQbE` | what is typed under a column: its example, its help, the ▾'s operators; one table's conditions as a query |
 | `UDSQLAlgebra` | relational algebra (tables as tuple variables, joins, σ, γ with aggregates, π, ∪, order, page, count; predicates; expressions) and the SQL written from it, pretty-printed as by hand |
-| `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, aggregates and their groups, ¬ and ! rows, alternatives; as algebra |
+| `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, G. and aggregates (HAVING), ¬ and ! rows, alternatives (aggregated: united); as algebra |
+| `UDSQLExampleCondition` | a line of the condition box: comparisons, arithmetic, AND/OR/NOT, aggregates of elements; a predicate once its elements' columns are known |
+| `UDSQLExampleSyntax` | what is typed coloured, and said in words (the cells' tooltips, the condition box's) |
 | `UDSQLExampleFile` | a `.qbe` file: its skeletons by table name, its rows, its order; asked of a database |
 | `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`), its connection, its answer |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |

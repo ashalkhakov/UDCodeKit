@@ -5,11 +5,12 @@
 #import "UDSQLSkeletonViewController.h"
 #import "UDSQLQbE.h"
 #import "UDSQLConditionCell.h"
+#import "UDSQLExampleSyntax.h"
 #import <objc/runtime.h>
 
 /// The menu's own items (the XIB's tags): P., a new element, the row removed;
 /// the elements in the query from UDElementTag on.
-enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDAggregateTag = 110, UDAscendingTag = 120,
+enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDGroupTag = 103, UDAggregateTag = 110, UDAscendingTag = 120,
        UDDescendingTag = 121, UDElementTag = 200 };
 
 /// The Aggregate submenu's (tags 110-115), as typed after P.
@@ -136,7 +137,11 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
 - (id)tableView:(NSTableView *)tableView objectValueForTableColumn:(NSTableColumn *)column row:(NSInteger)row {
     UDSQLExampleRow *kept = _skeleton.rows[(NSUInteger)row];
     if (column == _flagTemplate) return @(kept.negated ? 1 : kept.inclusive ? 2 : 0);
-    return kept.entries[column.identifier] ?: @"";
+    NSString *entry = kept.entries[column.identifier] ?: @"";
+    // coloured (P., aggregates, elements…); being edited, as typed
+    if (!entry.length || (tableView.editedRow == row && tableView.editedColumn == [tableView.tableColumns indexOfObject:column])) return entry;
+    NSFont *font = [(NSCell *)column.dataCell font] ?: [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
+    return UDSQLExampleHighlighted(entry, font, [NSColor controlTextColor]);
 }
 
 - (void)setEntry:(NSString *)text column:(NSString *)column row:(NSUInteger)row {
@@ -159,7 +164,8 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
         [self _changed];
         return;
     }
-    [self setEntry:[value description] ?: @"" column:column.identifier row:(NSUInteger)row];
+    NSString *typed = [value isKindOfClass:[NSAttributedString class]] ? [value string] : [value description];
+    [self setEntry:typed ?: @"" column:column.identifier row:(NSUInteger)row];
 }
 
 - (NSString *)tableView:(NSTableView *)tableView toolTipForCell:(NSCell *)cell rect:(NSRectPointer)rect tableColumn:(NSTableColumn *)column
@@ -167,7 +173,12 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
     if (column == _flagTemplate) return @"¬: no such row; !: kept without a match";
     UDSQLColumnInfo *info = [self _infoOf:column.identifier];
     NSString *help = info ? [UDSQLQbE helpForColumn:info schema:_schema] : @"";
-    return [help stringByAppendingString:@"\nP. prints it; _c, an example element, links it to the same in another row (a join); > _c compares with it."];
+    help = [help stringByAppendingString:@"\nP. prints it; G. groups by it; SUM. AVG. MIN. MAX. CNT. aggregate it; _c, an example element, links it "
+                                          "to the same in another row (a join); > _c compares with it."];
+    // what is typed here, said in words first
+    NSString *entry = row >= 0 && row < (NSInteger)_skeleton.rows.count ? _skeleton.rows[(NSUInteger)row].entries[column.identifier] : nil;
+    NSString *explained = entry ? UDSQLExampleExplanation(entry) : nil;
+    return explained ? [NSString stringWithFormat:@"%@\n\n%@", explained, help] : help;
 }
 
 - (IBAction)addRow:(id)sender {
@@ -236,24 +247,31 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
     // P. kept apart: what follows it made, then it put back
     BOOL printed = [typed.uppercaseString hasPrefix:@"P."];
     NSString *rest = printed ? [[typed substringFromIndex:2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] : typed;
-    // what it aggregates kept apart too: SUM. and the like
+    // G. kept apart, and what it aggregates: SUM. and the like
+    BOOL grouped = [rest.uppercaseString hasPrefix:@"G."];
+    if (grouped) rest = [[rest substringFromIndex:2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
     NSString *aggregate = @"";
     for (NSString *prefix in [UDAggregatePrefixes() reverseObjectEnumerator]) {
-        if (!printed || ![rest.uppercaseString hasPrefix:prefix]) continue;
+        if (![rest.uppercaseString hasPrefix:prefix]) continue;
         aggregate = prefix;
         rest = [[rest substringFromIndex:prefix.length] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
         break;
     }
     if (tag == UDAscendingTag || tag == UDDescendingTag) {
         // sorted by it: printed, then ordered by
-        if (!printed) [self setEntry:rest.length ? [@"P." stringByAppendingString:rest] : @"P." column:column row:row];
+        if (!printed) [self setEntry:[@"P." stringByAppendingString:typed] column:column row:row];
         [_delegate skeleton:self sortsByColumn:column ascending:tag == UDAscendingTag];
         return;
     }
     if (tag >= UDAggregateTag && tag < UDAggregateTag + (NSInteger)UDAggregatePrefixes().count) {
         NSString *chosen = UDAggregatePrefixes()[(NSUInteger)(tag - UDAggregateTag)];
         printed = YES;
+        grouped = NO;
         aggregate = [aggregate isEqualToString:chosen] ? @"" : chosen;    // again: none
+    }
+    else if (tag == UDGroupTag) {
+        grouped = !grouped;
+        if (grouped) aggregate = @"";
     }
     else if (tag == UDPrintTag) {
         printed = !printed;
@@ -265,8 +283,9 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
         BOOL complete = NO;
         rest = [UDSQLQbE condition:rest withOperator:(UDSQLQbEOperator)tag complete:&complete];
     }
-    NSString *head = [@"P." stringByAppendingString:aggregate];
-    NSString *made = printed ? (rest.length ? [head stringByAppendingFormat:@"%@%@", aggregate.length ? @" " : @"", rest] : head) : rest;
+    NSString *head = [NSString stringWithFormat:@"%@%@%@", printed ? @"P." : @"", grouped ? @"G." : @"", aggregate];
+    NSString *made = head.length && rest.length ? [head stringByAppendingFormat:@"%@%@", aggregate.length ? @" " : @"", rest]
+                                                : [head stringByAppendingString:rest];
     [self setEntry:made column:column row:row];
 }
 

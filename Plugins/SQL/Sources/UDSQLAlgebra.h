@@ -3,7 +3,8 @@
  *
  *  Relational algebra, as SQL is written from it: relations (a table under
  *  an alias — a tuple variable — joined, inner or left, on a predicate;
- *  selected, σ; grouped, γ, its projection's aggregates over each group;
+ *  selected, σ; grouped, γ, its projection's aggregates over each group,
+ *  the groups selected by them;
  *  projected, π; united, ∪; ordered; a page of them; their count),
  *  predicates over them (comparisons, NULL, LIKE, IN, BETWEEN, and,
  *  or, not, a relation's rows existing) and expressions (a tuple
@@ -39,6 +40,14 @@ typedef NS_ENUM(NSInteger, UDSQLComparison) {
 /// @a function (SUM, AVG, MIN, MAX, COUNT) of @a argument over a group's
 /// rows (of its distinct values, @a distinct); COUNT of none: count(*).
 + (instancetype)aggregate:(NSString *)function of:(nullable UDSQLExpression *)argument distinct:(BOOL)distinct;
+/// @a left @a op (+ - * /) @a right; minus @a operand.
++ (instancetype)arithmetic:(NSString *)op left:(UDSQLExpression *)left right:(UDSQLExpression *)right;
++ (instancetype)negative:(UDSQLExpression *)operand;
+/// An aggregate's function (nil: not one), its argument, whether of
+/// distinct values.
+@property (nonatomic, readonly, copy, nullable) NSString *function;
+@property (nonatomic, readonly, strong, nullable) UDSQLExpression *argument;
+@property (nonatomic, readonly) BOOL distinct;
 /// The variable (nil: an output column's, or a value), the column's name,
 /// the value.
 @property (nonatomic, readonly, copy, nullable) NSString *variable;
@@ -85,8 +94,10 @@ typedef NS_ENUM(NSInteger, UDSQLJoinKind) {
 /// σ: those meeting @a predicate.
 - (UDSQLRelation *)select:(UDSQLPredicate *)predicate;
 /// γ: its rows in groups, one each of @a keys' values; projected, a row
-/// of each group (its keys, aggregates of its rows: GROUP BY).
+/// of each group (its keys, aggregates of its rows: GROUP BY), those
+/// meeting @a having (its aggregates': HAVING; nil: all).
 - (UDSQLRelation *)group:(NSArray<UDSQLExpression *> *)keys;
+- (UDSQLRelation *)group:(NSArray<UDSQLExpression *> *)keys having:(nullable UDSQLPredicate *)having;
 /// π: @a columns (named @a names, else by their own), or all of a
 /// variable's (@a variable), or all (nil, nil).
 - (UDSQLRelation *)project:(nullable NSArray<UDSQLExpression *> *)columns names:(nullable NSArray<NSString *> *)names;

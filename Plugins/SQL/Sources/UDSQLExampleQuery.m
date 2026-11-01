@@ -700,6 +700,15 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
     return [[UDSQLStatement alloc] initWithText:sql SQL:sql parameters:parameters];
 }
 
+- (NSString *)SQL:(NSError **)error {
+    BOOL plain = NO;
+    NSMutableArray *printed = [NSMutableArray array], *expressions = [NSMutableArray array];
+    UDSQLRelation *relation = [self _relation:error plain:&plain printed:printed expressions:expressions];
+    if (!relation) return nil;
+    NSArray *keys = [self _keysOf:printed expressions:expressions];
+    return [(keys.count ? [relation order:keys] : relation) SQLForDialect:_dialect parameters:nil];
+}
+
 - (NSString *)SQLWithLimit:(NSUInteger)limit offset:(NSUInteger)offset error:(NSError **)error {
     return [[self _pageWithLimit:limit offset:offset error:error] SQLForDialect:_dialect parameters:nil];
 }

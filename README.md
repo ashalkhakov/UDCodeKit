@@ -60,7 +60,10 @@ pinned commits the first time):
   remotes, push and pull.
 - **Databases**: SQLite, PostgreSQL, MySQL and MariaDB — connections, their
   tables and keys, their rows browsed with query by example (conditions
-  typed under the columns, sorted, a page at a time), queries run with
+  typed under the columns, sorted, a page at a time), queries by example
+  across tables (Zloof's and Paradox's: skeletons joined by example
+  elements; saved as .qbe files, asked of any connection, their plain SQL
+  copied for an app), queries run with
   their parameters, results under the query; a Core Data store's tables named by their entities, its dates and
   entities shown as such; ER diagrams (crow's feet, a Core Data store's
   links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's

@@ -87,6 +87,8 @@ FOUNDATION_EXPORT NSString *const UDSQLExampleColumnErrorKey;
                                                 error:(NSError *_Nullable *_Nullable)error;
 - (nullable UDSQLStatement *)countStatement:(NSError *_Nullable *_Nullable)error;
 - (nullable NSString *)SQLWithLimit:(NSUInteger)limit offset:(NSUInteger)offset error:(NSError *_Nullable *_Nullable)error;
+/// All of it, ordered, as written by hand: plain SQL, for an app to run.
+- (nullable NSString *)SQL:(NSError *_Nullable *_Nullable)error;
 
 /// A value condition (the browser's: Ann, > 5, Ann*, 1..10, a, b, NULL,
 /// !x, 'x') typed under @a column of the tuple variable @a variable, as a

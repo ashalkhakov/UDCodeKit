@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDSQLSkeletonViewController">
+            <connections>
+                <outlet property="view" destination="SK-root" id="SK-o-view"/>
+                <outlet property="titleLabel" destination="SK-title" id="SK-o-title"/>
+                <outlet property="rowsView" destination="SK-rows" id="SK-o-rows"/>
+                <outlet property="flagTemplate" destination="flag-col" id="SK-o-flag"/>
+                <outlet property="entryTemplate" destination="entry-col" id="SK-o-entry"/>
+                <outlet property="operatorMenu" destination="SK-cmenu" id="SK-o-cmenu"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Entry" autoenablesItems="YES" id="SK-cmenu" userLabel="An Entry's (its ▾, its right-click): printed, an example element, a condition">
+            <items>
+                <menuItem title="Print (P.)" tag="100" id="SK-c-print">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-print-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Example Element" tag="101" id="SK-c-element">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-element-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Remove This Row" tag="102" id="SK-c-removerow">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-removerow-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="SK-c-sep0"/>
+                <menuItem title="Equal To" tag="1" id="SK-c-eq">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-eq-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Not Equal To" tag="2" id="SK-c-ne">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-ne-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Greater Than" tag="3" id="SK-c-gt">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-gt-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="At Least" tag="4" id="SK-c-ge">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-ge-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Less Than" tag="5" id="SK-c-lt">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-lt-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="At Most" tag="6" id="SK-c-le">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-le-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="SK-c-sep1"/>
+                <menuItem title="Like (Ann*)" tag="7" id="SK-c-like">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-like-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Between (1..10)" tag="8" id="SK-c-between">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-between-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="One Of (a, b, c)" tag="9" id="SK-c-in">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-in-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="SK-c-sep2"/>
+                <menuItem title="Is NULL" tag="10" id="SK-c-null">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-null-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Is Not NULL" tag="11" id="SK-c-notnull">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-notnull-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Not" tag="12" id="SK-c-not">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-not-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="SK-c-sep3"/>
+                <menuItem title="Clear" tag="13" id="SK-c-clear">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-clear-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <customView id="SK-root" userLabel="A Skeleton">
+            <rect key="frame" x="0.0" y="0.0" width="880" height="136"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
+            <subviews>
+                <textField verticalHuggingPriority="750" id="SK-title" userLabel="Its Table">
+                    <rect key="frame" x="6.0" y="116.0" width="500.0" height="16.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                    <textFieldCell key="cell" lineBreakMode="truncatingTail" title="table" id="SK-title-cell">
+                        <font key="font" metaFont="smallSystemBold"/>
+                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <button toolTip="Another row of this table: another tuple (its example elements link it; alone, an alternative)" verticalHuggingPriority="750" id="SK-addrow">
+                    <rect key="frame" x="722.0" y="114.0" width="72.0" height="20.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Add Row" bezelStyle="texturedRounded" alignment="center" controlSize="small" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="SK-addrow-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="addRow:" target="-2" id="SK-addrow-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Take this table out of the query" verticalHuggingPriority="750" id="SK-remove">
+                    <rect key="frame" x="798.0" y="114.0" width="76.0" height="20.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Remove" bezelStyle="texturedRounded" alignment="center" controlSize="small" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="SK-remove-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="removeSkeleton:" target="-2" id="SK-remove-a"/>
+                    </connections>
+                </button>
+                <scrollView toolTip="Under each column: P. (printed), an example element (_c: the same one in two rows joins them), > _c, or a condition (Ann, > 5, NULL, Ann*). A row's ¬: no such row; !: kept without a match" borderType="bezel" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" hasVerticalScroller="NO" usesPredominantAxisScrolling="NO" id="SK-scroll">
+                    <rect key="frame" x="0.0" y="0.0" width="880.0" height="110.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" id="SK-clip">
+                        <rect key="frame" x="1.0" y="1.0" width="878.0" height="108.0"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <tableView verticalHuggingPriority="750" columnAutoresizingStyle="none" autosaveColumns="NO" rowHeight="18" rowSizeStyle="small" headerView="SK-header" id="SK-rows" userLabel="Its Rows">
+                                <rect key="frame" x="0.0" y="0.0" width="878.0" height="85.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <size key="intercellSpacing" width="3" height="0.0"/>
+                                <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
+                                <tableViewGridLines key="gridStyleMask" vertical="YES" horizontal="YES"/>
+                                <tableColumns>
+                                    <tableColumn identifier="flag" editable="YES" width="44" minWidth="40" maxWidth="60" id="flag-col" userLabel="A Row's ¬ or !">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <popUpButtonCell key="dataCell" type="bevel" title="" bezelStyle="regularSquare" alignment="center" controlSize="small" lineBreakMode="truncatingTail" borderStyle="bezel" imageScaling="proportionallyDown" inset="2" selectedItem="SK-flag-none" id="SK-flag-cell">
+                                            <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <menu key="menu" id="SK-flag-menu">
+                                                <items>
+                                                    <menuItem title="" state="on" toolTip="A row there is" id="SK-flag-none"/>
+                                                    <menuItem title="¬" toolTip="No such row (none of the rows it is linked to has one)" id="SK-flag-not"/>
+                                                    <menuItem title="!" toolTip="Kept: the rows it is linked to are kept where it has no match (a left join)" id="SK-flag-keep"/>
+                                                </items>
+                                            </menu>
+                                        </popUpButtonCell>
+                                        <tableColumnResizingMask key="resizingMask"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="entryTemplate" editable="YES" width="120" minWidth="40" maxWidth="2000" id="entry-col" userLabel="Each Column's Is Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Column">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" editable="YES" customClass="UDSQLConditionCell" title="Text Cell" id="SK-entry-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                </tableColumns>
+                                <connections>
+                                    <outlet property="dataSource" destination="-2" id="SK-o-source"/>
+                                    <outlet property="delegate" destination="-2" id="SK-o-delegate"/>
+                                    <outlet property="menu" destination="SK-cmenu" id="SK-o-menu"/>
+                                    <action selector="entryClicked:" target="-2" id="SK-a-click"/>
+                                </connections>
+                            </tableView>
+                        </subviews>
+                    </clipView>
+                    <scroller key="horizontalScroller" verticalHuggingPriority="750" horizontal="YES" id="SK-h">
+                        <rect key="frame" x="1.0" y="93.0" width="878.0" height="16.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="NO" id="SK-v">
+                        <rect key="frame" x="-100" y="-100" width="15" height="102"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <tableHeaderView key="headerView" id="SK-header">
+                        <rect key="frame" x="0.0" y="0.0" width="878.0" height="23.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </tableHeaderView>
+                </scrollView>
+            </subviews>
+        </customView>
+    </objects>
+</document>

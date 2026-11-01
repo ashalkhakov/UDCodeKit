@@ -135,6 +135,48 @@ SQL** opens the query as a document of its own, its values written in, to
 change and run; the rows selected copy as tab-separated text (Copy with
 Column Names, their names first).
 
+## Queries by example, across tables
+
+**New Query by Example…**, in a database's menu in the navigator (or a
+table's: the query begun with it), makes a query by example of tables,
+joined, as Zloof's QBE and Paradox made them, saved as a file of its own
+(`.qbe`: JSON, as git diffs it). Opening a `.qbe` file brings up its
+editor — the file's text is its model, as VS Code's custom text editors
+are of theirs: Save, Undo and its tab's dot are the document's, and
+**Show as Text** shows the file as it is (the Query by Example language
+mode: JSON).
+
+- **Skeletons.** Each table asked of has a skeleton, one under another:
+  its columns, and rows under them. **Add Table** adds one, joined to those
+  there along their foreign keys. Each row is a row of its table (a tuple
+  variable); **Add Row** adds another.
+- **What is typed** under a column:
+
+  | Typed | Means |
+  |---|---|
+  | `P.` | printed: a column of the answer (before anything else too: `P.> 6`) |
+  | `_c` | an example element: the same one in two rows' columns joins them |
+  | `> _c` | compared with what `_c` is (`=`, `<`, `<=`, `>=`, `<>` too) |
+  | `Ann`, `> 5`, `Ann*`, `1..10`, `a, b`, `NULL`, `!x` | a condition, as in the browser |
+
+  The ▾ (or a right-click) offers them: Print, an example element (new, or
+  one in the query), the comparisons, Remove This Row.
+- **A row's ¬ or !**: `¬` is a row that is not there (customers no order
+  refers to); `!` keeps the rows it is linked to where it has no match (a
+  left join: its columns NULL; its own conditions don't drop them).
+- **Alternatives.** Rows linked by their example elements are one
+  alternative, holding a row of the first table; the answer is any of them
+  (alternatives that print the same columns). Printed is what `P.` marks;
+  with none, the first table's columns.
+
+The query isn't tied to a connection: the database it is asked of is
+chosen at its top (and remembered for the file, as a SQL document's), so
+the same file is asked of staging and production; its tables are found by
+name there (one missing is said). **Run** shows its answer (a column's
+name sorts by it); **Show SQL** opens its SQL as a document, **Copy SQL**
+puts it on the clipboard — plain SQL, the chosen database's dialect, its
+values written in — for an app to run.
+
 ## Running a query
 
 A `.sql` document is run against a database: the one chosen at the top of
@@ -217,6 +259,10 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLDatabases` | a window's connections, which database each document uses, running |
 | `UDSQLQbE` | query by example: what is typed under each column as a WHERE of parameters, an order, pages, a count |
 | `UDSQLBrowserViewController` | a table's rows browsed: the conditions over them, sorting, paging, Show SQL |
+| `UDSQLAlgebra` | relational algebra (tables as tuple variables, joins, σ, π, ∪, order, page, count; predicates; expressions) and the SQL written from it |
+| `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, ¬ and ! rows, alternatives; as algebra |
+| `UDSQLExampleFile` | a `.qbe` file: its skeletons by table name, its rows, its order; asked of a database |
+| `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`), its connection, its answer |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |
 | `UDSQLDiagramViewController` | the diagram's tab: DiagramKit's canvas, Arrange, zoom, export, a table's menu |
 

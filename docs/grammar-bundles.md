@@ -180,6 +180,7 @@ bundle code, so metadata is available without triggering any grammar initialisat
 | `lspLanguageID`       | String | LSP `languageId` (e.g. `"shellscript"`)                  |
 | `highlightsQueryFile` | String | Resource filename, e.g. `"highlights.scm"`               |
 | `indentsQueryFile`    | String | Resource filename, e.g. `"indents.scm"`                  |
+| `grammarOf`           | String | Another mode's identifier (`"json"`): its grammar, and its queries where this one has none, borrowed — for a file type that is another's text (a `.qbe` file is JSON). Resolved once every bundle is loaded |
 
 ---
 

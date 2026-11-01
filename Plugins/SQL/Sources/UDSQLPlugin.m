@@ -5,6 +5,7 @@
 #import "UDSQLPlugin.h"
 #import "UDSQLDatabases.h"
 #import "UDSQLNavigatorViewController.h"
+#import "UDSQLExampleViewController.h"
 
 @implementation UDSQLPlugin {
     /// Each window's databases.
@@ -76,6 +77,13 @@
     if (head.length < 16 || memcmp(head.bytes, "SQLite format 3\0", 16) != 0) return NO;
     [[self _databasesOf:workbench] openDatabaseFile:url];
     return YES;
+}
+
+/// A query by example's document (its mode's): edited in the QbE editor, as
+/// VS Code's custom text editors are; its text still shown as text.
+- (NSViewController *)workbench:(id<UDWorkbench>)workbench editorForDocument:(UDCodeDocument *)document {
+    if (![document.languageMode.identifier isEqualToString:@"qbe"]) return nil;
+    return [[UDSQLExampleViewController alloc] initWithDatabases:[self _databasesOf:workbench] document:document];
 }
 
 @end

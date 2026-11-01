@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDSQLExampleViewController">
+            <connections>
+                <outlet property="view" destination="QE-root" id="QE-o-view"/>
+                <outlet property="databaseButton" destination="QE-database" id="QE-o-database"/>
+                <outlet property="addTableButton" destination="QE-add" id="QE-o-add"/>
+                <outlet property="statusLabel" destination="QE-status" id="QE-o-status"/>
+                <outlet property="stackView" destination="QE-stack" id="QE-o-stack"/>
+                <outlet property="resultsView" destination="QE-results" id="QE-o-results"/>
+                <outlet property="resultTemplate" destination="QE-result-col" id="QE-o-rtemplate"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <menu title="Rows" autoenablesItems="YES" id="QE-rmenu" userLabel="Its Answer's Rows">
+            <items>
+                <menuItem title="Copy" id="QE-m-copy">
+                    <connections>
+                        <action selector="copy:" target="-2" id="QE-m-copy-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy with Column Names" id="QE-m-headers">
+                    <connections>
+                        <action selector="copyWithColumnNames:" target="-2" id="QE-m-headers-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+        </menu>
+        <customView id="QE-root" userLabel="Query by Example">
+            <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <popUpButton toolTip="The connection it is asked of (the same query: staging, production)" verticalHuggingPriority="750" id="QE-database">
+                    <rect key="frame" x="6.0" y="573.0" width="150.0" height="24.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="No Database" bezelStyle="texturedRounded" alignment="left" controlSize="small" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="QE-database-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                        <menu key="menu" id="QE-database-menu">
+                            <items>
+                                <menuItem title="No Database" id="QE-database-title"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                    <connections>
+                        <action selector="chooseDatabase:" target="-2" id="QE-database-a"/>
+                    </connections>
+                </popUpButton>
+                <popUpButton toolTip="A table into the query: joined to those in it along their foreign keys (example elements filled in)" verticalHuggingPriority="750" id="QE-add">
+                    <rect key="frame" x="162.0" y="573.0" width="100.0" height="24.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="Add Table" bezelStyle="texturedRounded" alignment="left" controlSize="small" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" pullsDown="YES" id="QE-add-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                        <menu key="menu" id="QE-add-menu">
+                            <items>
+                                <menuItem title="Add Table" hidden="YES" id="QE-add-title"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                </popUpButton>
+                <button toolTip="Ask it (⌘↩)" verticalHuggingPriority="750" id="QE-run">
+                    <rect key="frame" x="268.0" y="574.0" width="46.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Run" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-run-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="run:" target="-2" id="QE-run-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Open its SQL as a document of its own, its values written in" verticalHuggingPriority="750" id="QE-sql">
+                    <rect key="frame" x="318.0" y="574.0" width="72.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Show SQL" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-sql-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="showSQL:" target="-2" id="QE-sql-a"/>
+                    </connections>
+                </button>
+                <button toolTip="Its SQL, its values written in, for an app to run" verticalHuggingPriority="750" id="QE-copy">
+                    <rect key="frame" x="394.0" y="574.0" width="72.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Copy SQL" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-copy-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="copySQL:" target="-2" id="QE-copy-a"/>
+                    </connections>
+                </button>
+                <button toolTip="This file as it is kept: JSON" verticalHuggingPriority="750" id="QE-text">
+                    <rect key="frame" x="470.0" y="574.0" width="86.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Show as Text" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-text-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="showAsText:" target="-2" id="QE-text-a"/>
+                    </connections>
+                </button>
+                <textField verticalHuggingPriority="750" id="QE-status" userLabel="Status">
+                    <rect key="frame" x="562.0" y="577.0" width="332.0" height="16.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                    <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" id="QE-status-cell">
+                        <font key="font" metaFont="smallSystem"/>
+                        <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <splitView dividerStyle="thin" id="QE-split" userLabel="Skeletons over the Answer">
+                    <rect key="frame" x="0.0" y="0.0" width="900.0" height="568.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <subviews>
+                        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="QE-stack-scroll" userLabel="Its Skeletons">
+                            <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
+                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                            <clipView key="contentView" drawsBackground="NO" id="QE-stack-clip">
+                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <subviews>
+                                    <customView id="QE-stack" customClass="UDSQLExampleStackView" userLabel="Skeletons, One under Another">
+                                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES"/>
+                                    </customView>
+                                </subviews>
+                            </clipView>
+                            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="QE-stack-h">
+                                <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </scroller>
+                            <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-stack-v">
+                                <rect key="frame" x="884.0" y="0.0" width="16.0" height="320.0"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </scroller>
+                        </scrollView>
+                        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" usesPredominantAxisScrolling="NO" id="QE-results-scroll" userLabel="Its Answer">
+                            <rect key="frame" x="0.0" y="321.0" width="900.0" height="247.0"/>
+                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                            <clipView key="contentView" id="QE-results-clip">
+                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="247.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <subviews>
+                                    <tableView verticalHuggingPriority="750" allowsExpansionToolTips="YES" columnAutoresizingStyle="none" multipleSelection="YES" autosaveColumns="NO" rowHeight="18" rowSizeStyle="small" headerView="QE-results-header" id="QE-results" userLabel="Its Answer's Rows">
+                                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="224.0"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                        <size key="intercellSpacing" width="3" height="0.0"/>
+                                        <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
+                                        <tableViewGridLines key="gridStyleMask" vertical="YES"/>
+                                        <tableColumns>
+                                            <tableColumn identifier="resultTemplate" editable="NO" width="120" minWidth="30" maxWidth="2000" id="QE-result-col" userLabel="Each Column Is Made Like It">
+                                                <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Column">
+                                                    <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                                </tableHeaderCell>
+                                                <textFieldCell key="dataCell" lineBreakMode="truncatingTail" selectable="YES" title="Text Cell" id="QE-result-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                                <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                            </tableColumn>
+                                        </tableColumns>
+                                        <connections>
+                                            <outlet property="dataSource" destination="-2" id="QE-results-o-source"/>
+                                            <outlet property="delegate" destination="-2" id="QE-results-o-delegate"/>
+                                            <outlet property="menu" destination="QE-rmenu" id="QE-results-o-menu"/>
+                                        </connections>
+                                    </tableView>
+                                </subviews>
+                            </clipView>
+                            <scroller key="horizontalScroller" verticalHuggingPriority="750" horizontal="YES" id="QE-results-h">
+                                <rect key="frame" x="0.0" y="231.0" width="900.0" height="16.0"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </scroller>
+                            <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-results-v">
+                                <rect key="frame" x="884.0" y="0.0" width="16.0" height="247.0"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </scroller>
+                            <tableHeaderView key="headerView" id="QE-results-header">
+                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="23.0"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </tableHeaderView>
+                        </scrollView>
+                    </subviews>
+                    <holdingPriorities>
+                        <real value="250"/>
+                        <real value="260"/>
+                    </holdingPriorities>
+                </splitView>
+            </subviews>
+            <point key="canvasLocation" x="200" y="200"/>
+        </customView>
+    </objects>
+</document>

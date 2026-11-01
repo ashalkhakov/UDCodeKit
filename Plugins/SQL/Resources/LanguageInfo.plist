@@ -2,8 +2,33 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- No language modes: the SQL mode is tree-sitter-sql's; what this brings is databases (UDSQLPlugin.h). -->
+	<!-- The SQL mode is tree-sitter-sql's; what this brings is databases (UDSQLPlugin.h), and a query by
+	     example's files: JSON (its grammar borrowed from tree-sitter-json's mode), opened in the QbE editor. -->
 	<key>languageModes</key>
-	<array/>
+	<array>
+		<dict>
+			<key>identifier</key>
+			<string>qbe</string>
+			<key>displayName</key>
+			<string>Query by Example</string>
+			<key>fileExtensions</key>
+			<array>
+				<string>qbe</string>
+			</array>
+			<key>grammarOf</key>
+			<string>json</string>
+			<key>brackets</key>
+			<array>
+				<array>
+					<string>{</string>
+					<string>}</string>
+				</array>
+				<array>
+					<string>[</string>
+					<string>]</string>
+				</array>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

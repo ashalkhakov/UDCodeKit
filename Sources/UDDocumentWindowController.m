@@ -363,6 +363,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     BOOL saved = [document saveToURL:document.fileURL error:&error];
     [session.lspCoordinator documentDidSave];
     if (saved) [self _refreshSavedCopiesOfURL:document.fileURL];
+    // saved: its tabs' dots go
+    for (UDTabBarItem *item in [self _itemsForDocument:document]) item.dirty = document.isModified;
     if (!saved && error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
     [self _documentsChanged];
 }
@@ -1406,6 +1408,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return _project != nil && !_projectSettings;
     } else if (sel_isEqual(action, @selector(saveAllDocuments:))) {
         return _project != nil;
+
     } else if (sel_isEqual(action, @selector(startDebugging:)) && _project) {
         return !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
     } else if (sel_isEqual(action, @selector(startDebugging:))) {
@@ -1549,6 +1552,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
                                                  name:UDDiagnosticsDidChangeNotification
                                                object:document.diagnosticStore];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UDTextModelDidChangeNotification object:document.textModel];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
                                                  name:UDTextModelDidChangeNotification
                                                object:document.textModel];
@@ -1567,6 +1571,27 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// A tab for @a document: its session (made with its first tab), and an
 /// editor of its own.
 - (void)_openTabForDocument:(UDCodeDocument *)document {
+    [self _openTabForDocument:document asText:NO];
+}
+
+/// A tab for @a document: an extension's editor of it (VS Code's custom
+/// text editors), else, or @a asText, its text's.
+- (void)_openTabForDocument:(UDCodeDocument *)document asText:(BOOL)asText {
+    for (id<UDExtension> extension in asText ? @[] : [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if (![extension respondsToSelector:@selector(workbench:editorForDocument:)]) continue;
+        NSViewController *custom = [extension workbench:self editorForDocument:document];
+        if (!custom) continue;
+        [self _documentsChanged];
+        UDTabBarItem *item = [_editorTabs addItemWithTitle:document.displayName representedObject:document viewController:custom];
+        item.toolTip = document.fileURL.path;
+        item.dirty = document.isModified;
+        // its changes: its tab's dot (a text tab's session would, else)
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:UDTextModelDidChangeNotification object:document.textModel];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
+                                                     name:UDTextModelDidChangeNotification
+                                                   object:document.textModel];
+        return;
+    }
     BOOL first = NO;
     UDEditorSession *session = [self _sessionOpeningDocument:document first:&first];
 
@@ -2249,6 +2274,28 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
 - (void)showURL:(NSURL *)url {
     [self _showFile:url.path];
 }
+
+- (void)showURLAsText:(NSURL *)url {
+    if (url.isFileURL) url = [NSURL fileURLWithPath:UDRealPath(url.path)];
+    UDCodeDocument *document = [_workspaceModel documentForFileURL:url];
+    for (UDTabBarItem *item in document ? [self _itemsForDocument:document] : @[]) {
+        if ([[_editorTabs viewControllerForItem:item] isKindOfClass:[UDCodeEditorViewController class]]) {
+            [_editorTabs selectItem:item];
+            return;
+        }
+    }
+    if (!document) {
+        NSError *error = nil;
+        document = [_workspaceModel addDocumentFromURL:url error:&error];
+        if (!document) {
+            NSLog(@"[UDDocumentWindowController] Cannot open %@: %@", url.lastPathComponent, error);
+            return;
+        }
+    }
+    [self _openTabForDocument:document asText:YES];
+}
+
+
 
 - (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier {
     UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:identifier];

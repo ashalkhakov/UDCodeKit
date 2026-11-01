@@ -28,6 +28,11 @@
                         <action selector="newQuery:" target="-2" id="DB-m-new-a"/>
                     </connections>
                 </menuItem>
+                <menuItem title="New Query by Example…" id="DB-m-example">
+                    <connections>
+                        <action selector="newExampleQuery:" target="-2" id="DB-m-example-a"/>
+                    </connections>
+                </menuItem>
                 <menuItem title="Show ER Diagram" id="DB-m-diagram">
                     <connections>
                         <action selector="showDiagram:" target="-2" id="DB-m-diagram-a"/>
@@ -66,6 +71,11 @@
                 <menuItem title="New Query" id="DB-t-new">
                     <connections>
                         <action selector="newQuery:" target="-2" id="DB-t-new-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="New Query by Example…" id="DB-t-example">
+                    <connections>
+                        <action selector="newExampleQuery:" target="-2" id="DB-t-example-a"/>
                     </connections>
                 </menuItem>
                 <menuItem title="Copy Name" id="DB-t-copy">

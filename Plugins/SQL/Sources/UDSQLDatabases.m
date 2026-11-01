@@ -7,6 +7,7 @@
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLResultsViewController.h"
 #import "UDSQLBrowserViewController.h"
+#import "UDSQLExampleFile.h"
 #import "UDSQLSheets.h"
 
 NSNotificationName const UDSQLDatabasesDidChangeNotification = @"UDSQLDatabasesDidChange";
@@ -286,6 +287,21 @@ static BOOL UDWantsPassword(NSError *error) {
     }
     NSString *name = entity ? database.schema.coreDataEntities[entity] ?: table.name : table.name;
     [_workbench showViewController:browser title:[NSString stringWithFormat:@"%@ (%@)", name, database.name]];
+}
+
+- (void)newExampleQueryAtURL:(NSURL *)url database:(UDSQLDatabase *)database table:(UDSQLTable *)table {
+    UDSQLExampleFile *file = [[UDSQLExampleFile alloc] init];
+    if (table) file.skeletons = @[ [UDSQLExampleFileSkeleton skeletonOfTable:table.name schema:table.schema] ];
+    NSError *error = nil;
+    if (![[file data] writeToURL:url options:NSDataWritingAtomic error:&error]) {
+        [[NSAlert alertWithError:error] runModal];
+        return;
+    }
+    // asked of the database it was made from
+    NSMutableDictionary *chosen = [[[NSUserDefaults standardUserDefaults] dictionaryForKey:UDSQLDocumentsDefaultsKey] mutableCopy] ?: [NSMutableDictionary dictionary];
+    chosen[UDRealPath(url.path)] = database.name;
+    [[NSUserDefaults standardUserDefaults] setObject:chosen forKey:UDSQLDocumentsDefaultsKey];
+    [_workbench showURL:url];
 }
 
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run {

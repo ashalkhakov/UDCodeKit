@@ -438,6 +438,21 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     [_databases openQuery:text database:database run:NO];
 }
 
+- (IBAction)newExampleQuery:(id)sender {
+    UDSQLNode *node = [self _actedOn:sender];
+    UDSQLDatabase *database = [self _databaseOf:node];
+    if (!database) return;
+    UDSQLTable *table = [self _tableOf:node];
+    // a file of its own: where, asked
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    panel.allowedFileTypes = @[ @"qbe" ];
+    panel.nameFieldStringValue = [(table ? table.name : database.name.stringByDeletingPathExtension) stringByAppendingPathExtension:@"qbe"];
+    NSURL *folder = _databases.workbench.project.folderURL;
+    if (folder) panel.directoryURL = folder;
+    if ([panel runModal] != NSModalResponseOK || !panel.URL) return;
+    [_databases newExampleQueryAtURL:panel.URL database:database table:table];
+}
+
 - (IBAction)showDiagram:(id)sender {
     UDSQLDatabase *database = [self _databaseOf:[self _actedOn:sender]];
     if (!database) return;

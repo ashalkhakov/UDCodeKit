@@ -418,25 +418,33 @@ static NSArray<NSArray<UDExampleTuple *> *> *UDAlternatives(NSArray<UDExampleTup
 }
 
 /// What it prints, in the skeletons' and columns' order: the expressions
-/// and their names (two of a name told apart by their variables).
-- (void)_printsOf:(NSArray<UDExampleTuple *> *)alternative columns:(NSMutableArray *)columns names:(NSMutableArray *)names {
-    NSCountedSet *seen = [NSCountedSet set];
+/// and their names (two of a name told apart by their variables). With
+/// @a all (nothing marked P.), all columns of each row joined (a ¬ row's
+/// none), as SELECT * of a join.
+- (void)_printsOf:(NSArray<UDExampleTuple *> *)alternative all:(BOOL)all columns:(NSMutableArray *)columns names:(NSMutableArray *)names {
+    NSMutableArray *printed = [NSMutableArray array];     // [tuple, column name]
     for (UDExampleTuple *tuple in alternative) {
-        for (UDExampleEntry *entry in tuple.entries) if (entry.printed) [seen addObject:entry.column.name];
-    }
-    for (UDExampleTuple *tuple in alternative) {
-        for (UDExampleEntry *entry in tuple.entries) {
-            if (!entry.printed) continue;
-            [columns addObject:[UDSQLExpression column:entry.column.name of:tuple.variable]];
-            [names addObject:[seen countForObject:entry.column.name] > 1
-                ? [NSString stringWithFormat:@"%@.%@", tuple.variable, entry.column.name] : entry.column.name];
+        if (all) {
+            if (tuple.source.negated) continue;
+            for (UDSQLColumnInfo *column in tuple.table.columns) [printed addObject:@[ tuple, column.name ]];
+        } else {
+            for (UDExampleEntry *entry in tuple.entries) if (entry.printed) [printed addObject:@[ tuple, entry.column.name ]];
         }
+    }
+    NSCountedSet *seen = [NSCountedSet set];
+    for (NSArray *each in printed) [seen addObject:each[1]];
+    for (NSArray *each in printed) {
+        UDExampleTuple *tuple = each[0];
+        NSString *name = each[1];
+        [columns addObject:[UDSQLExpression column:name of:tuple.variable]];
+        [names addObject:[seen countForObject:name] > 1 ? [NSString stringWithFormat:@"%@.%@", tuple.variable, name] : name];
     }
 }
 
 /// An alternative as a relation: its first row's table joined to its
 /// others as they are linked, selected, projected; nil and why.
-- (nullable UDSQLRelation *)_relationOf:(NSArray<UDExampleTuple *> *)alternative anyPrinted:(BOOL)anyPrinted error:(NSError **)error {
+- (nullable UDSQLRelation *)_relationOf:(NSArray<UDExampleTuple *> *)alternative anyPrinted:(BOOL)anyPrinted all:(BOOL)all
+                                  error:(NSError **)error {
     UDExampleTuple *first = alternative.firstObject;
     if (first.skeleton != 0) {
         if (error) *error = UDError([NSString stringWithFormat:@"This row of %@ is linked to no row of %@: give one of its columns an example element (_x) one of them has",
@@ -528,9 +536,9 @@ static NSArray<NSArray<UDExampleTuple *> *> *UDAlternatives(NSArray<UDExampleTup
         [where addObject:[UDSQLPredicate not:[UDSQLPredicate exists:absent]]];
     }
     if (where.count) relation = [relation select:[UDSQLPredicate and:where]];
-    if (!anyPrinted) return [relation projectAllOf:first.variable];
+    if (!anyPrinted && !all) return [relation projectAllOf:first.variable];
     NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
-    [self _printsOf:alternative columns:columns names:names];
+    [self _printsOf:alternative all:!anyPrinted columns:columns names:names];
     return [relation project:columns names:names];
 }
 
@@ -613,11 +621,13 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
     *plain = NO;
     NSMutableArray *relations = [NSMutableArray array];
     NSUInteger width = NSNotFound;
+    // nothing printed: a join's columns, all of them (a union's: the first table's)
+    BOOL all = !anyPrinted && alternatives.count == 1;
     for (NSArray<UDExampleTuple *> *alternative in alternatives) {
-        UDSQLRelation *relation = [self _relationOf:alternative anyPrinted:anyPrinted error:error];
+        UDSQLRelation *relation = [self _relationOf:alternative anyPrinted:anyPrinted all:all error:error];
         if (!relation) return nil;
         NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
-        if (anyPrinted) [self _printsOf:alternative columns:columns names:names];
+        if (anyPrinted || all) [self _printsOf:alternative all:all columns:columns names:names];
         else {
             for (UDSQLColumnInfo *column in base.columns) {
                 [names addObject:column.name];
@@ -659,9 +669,14 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
         [ascending addObject:@(descriptor.ascending)];
     }
     if (!names.count) {
-        for (UDSQLColumnInfo *column in _skeletons.firstObject.table.columns) {
-            if (!column.primaryKey || ![printed containsObject:column.name]) continue;
-            [names addObject:column.name];
+        UDSQLTable *base = _skeletons.firstObject.table;
+        for (UDSQLColumnInfo *column in base.columns) {
+            if (!column.primaryKey) continue;
+            // printed as itself, or told apart from another's of its name
+            NSString *qualified = [NSString stringWithFormat:@"%@.%@", base.name, column.name];
+            NSString *name = [printed containsObject:column.name] ? column.name : [printed containsObject:qualified] ? qualified : nil;
+            if (!name) continue;
+            [names addObject:name];
             [ascending addObject:@YES];
         }
     }

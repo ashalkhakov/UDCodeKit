@@ -81,8 +81,9 @@ release does.
 
 A Core Data store opens as the entities it holds, not only as tables:
 
-- **Entities**: each under its superentity, with its table and how many of
-  its rows there are (its own: its subentities' are theirs). Double-click
+- **Entities**: each under its superentity, with how many of its rows
+  there are (its own: its subentities' are theirs); its table in its tool
+  tip. Double-click
   one (or Browse Rows) to browse its rows — its own and its subentities':
   a subentity's rows are in its root entity's table, told apart by `Z_ENT`.
 - **Tables**: each `Z` table named by the entities whose rows it holds
@@ -168,7 +169,8 @@ mode: JSON).
 - **Alternatives.** Rows linked by their example elements are one
   alternative, holding a row of the first table; the answer is any of them
   (alternatives that print the same columns). Printed is what `P.` marks;
-  with none, the first table's columns.
+  with none, every column of the tables joined (`SELECT *` of the join;
+  of alternatives, the first table's).
 
 The query isn't tied to a connection: the database it is asked of is
 chosen at its top (and remembered for the file, as a SQL document's), so

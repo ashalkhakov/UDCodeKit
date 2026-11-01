@@ -108,6 +108,24 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects([query printedColumns:NULL], (@[ @"name", @"total" ]));
 }
 
+- (void)testAJoinPrintingNothingPrintsAll {
+    // customers and their orders, nothing marked P.: both tables' columns
+    // (SELECT * of the join), the first's key first in its order
+    UDSQLExampleQuery *query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"id": @"_c" }] ]],
+                                                [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"_c" }] ]] ]];
+    NSString *sql = nil;
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @1, @"Ann", @"Oslo", @10, @1, @5.5 ], @[ @1, @"Ann", @"Oslo", @11, @1, @20 ],
+                                                            @[ @2, @"Bob", @"Rome", @12, @2, @7 ] ]), @"%@", sql);
+    XCTAssertEqualObjects([query printedColumns:NULL], (@[ @"customers.id", @"name", @"city", @"orders.id", @"customer", @"total" ]),
+                          @"two of a name: told apart");
+    XCTAssertTrue([sql containsString:@"ORDER BY \"customers\".\"id\""], @"%@", sql);
+    // a row not there: none of its columns
+    UDSQLExampleRow *none = [self row:@{ @"customer": @"_c" }];
+    none.negated = YES;
+    query.skeletons = @[ query.skeletons[0], [self skeleton:@"orders" rows:@[ none ]] ];
+    XCTAssertEqualObjects([query printedColumns:NULL], (@[ @"id", @"name", @"city" ]));
+}
+
 - (void)testAnInclusionKeepsRowsWithoutAMatch {
     // every customer, an order's id where they have one (Paradox's !)
     UDSQLExampleRow *orders = [self row:@{ @"customer": @"_c", @"id": @"P." }];

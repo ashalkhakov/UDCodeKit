@@ -20,7 +20,8 @@
  *  Rows linked by their example elements are one alternative, which must
  *  hold a row of the first skeleton; alternatives are any of them (OR,
  *  when each is a row of the first skeleton alone; else a union). What is
- *  printed is its P. columns, or, with none, the first skeleton's.
+ *  printed is its P. columns, or, with none, all its joined rows' (SELECT *
+ *  of the join; of a union, the first skeleton's).
  *
  *  As relational algebra (UDSQLAlgebra): an alternative's first row's table
  *  ⋈ its other rows' (in the order they are linked; ! rows left, their

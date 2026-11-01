@@ -146,12 +146,11 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
         UDSQLNode *node = [UDSQLNode nodeOfKind:UDSQLNodeEntity title:schema.coreDataEntities[entity] object:entity];
         NSNumber *rows = schema.coreDataRowCounts[entity];
         NSString *table = schema.coreDataTables[entity].name;
-        // its table named once, at its root (a subentity's rows are there too)
-        NSString *count = [NSString stringWithFormat:@"%@ row%@", rows ?: @0, [rows isEqual:@1] ? @"" : @"s"];
-        BOOL root = schema.coreDataSuperentities[entity] == nil;
-        node.badge = table && root ? [NSString stringWithFormat:@"%@ · %@", table, count] : count;
-        node.toolTip = [NSString stringWithFormat:@"In %@, Z_ENT %@: its own rows%@", table ?: @"no table", entity,
-                        [schema coreDataSubentitiesOf:entity].count ? @" (its subentities' are theirs)" : @""];
+        // its rows' count (the sidebar is narrow); its table, in its tool tip
+        node.badge = [NSString stringWithFormat:@"%@", rows ?: @0];
+        node.toolTip = [NSString stringWithFormat:@"%@ row%@ in %@, Z_ENT %@%@", rows ?: @0, [rows isEqual:@1] ? @"" : @"s",
+                        table ?: @"no table", entity,
+                        [schema coreDataSubentitiesOf:entity].count ? @" (its own: its subentities' are theirs)" : @""];
         node.children = [self _nodesOfEntities:[schema coreDataSubentitiesOf:entity] schema:schema];
         [nodes addObject:node];
     }
@@ -298,7 +297,9 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
 
 - (NSString *)outlineView:(NSOutlineView *)outlineView toolTipForCell:(NSCell *)cell rect:(NSRectPointer)rect
               tableColumn:(NSTableColumn *)column item:(id)item mouseLocation:(NSPoint)location {
-    return [item toolTip];
+    // a badge cut short: all of it
+    UDSQLNode *node = item;
+    return node.toolTip ?: (node.badge ? [NSString stringWithFormat:@"%@ — %@", node.title, node.badge] : nil);
 }
 
 - (void)outlineViewItemWillExpand:(NSNotification *)note {

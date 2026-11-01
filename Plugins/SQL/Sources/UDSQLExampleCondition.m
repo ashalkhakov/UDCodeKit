@@ -47,37 +47,44 @@ NSString *UDSQLZloofName(NSString *function) {
 // MARK: - Its tokens
 // ---------------------------------------------------------------------------
 
-/// A token: its kind (number, text, element, aggregate, word, symbol),
-/// its value, where it begins.
+/// A token: its kind as the reader takes it (number, text, element,
+/// aggregate, word, symbol), as it is coloured (name, function, variable,
+/// command, string, number, operator, punct), its value, its range.
 @interface UDToken : NSObject
 @property (nonatomic, copy) NSString *kind;
+@property (nonatomic, copy) NSString *highlight;
 @property (nonatomic, strong) id value;
 @property (nonatomic) BOOL distinct;        // an aggregate's UNQ.
-@property (nonatomic) NSUInteger location;
+@property (nonatomic) NSRange range;
 @end
 
 @implementation UDToken
 @end
 
-static NSArray<UDToken *> *UDTokens(NSString *text, NSString **message) {
+/// The one lexer: of a condition box's line, and of a skeleton's entry
+/// (P. G., Ann*, 1..10, a, b, !x, "x" too). Lexes only: what can't be read
+/// is a punct token, and why in @a message (the first).
+static NSArray<UDToken *> *UDLex(NSString *text, NSString **message) {
     NSMutableArray *tokens = [NSMutableArray array];
     NSCharacterSet *letters = [NSCharacterSet letterCharacterSet];
     NSCharacterSet *digits = [NSCharacterSet decimalDigitCharacterSet];
     NSUInteger i = 0, n = text.length;
+    __block NSString *failure = nil;
+    void (^fail)(NSString *) = ^(NSString *why) { if (!failure) failure = why; };
     while (i < n) {
         unichar c = [text characterAtIndex:i];
         if ([[NSCharacterSet whitespaceAndNewlineCharacterSet] characterIsMember:c]) { i++; continue; }
         UDToken *token = [[UDToken alloc] init];
-        token.location = i;
-        if (c == '\'') {
-            // text, '' a quote
+        NSUInteger start = i;
+        if (c == '\'' || c == '"') {
+            // text, its quote doubled a quote
             NSMutableString *value = [NSMutableString string];
             NSUInteger j = i + 1;
             BOOL closed = NO;
             while (j < n) {
                 unichar d = [text characterAtIndex:j];
-                if (d == '\'') {
-                    if (j + 1 < n && [text characterAtIndex:j + 1] == '\'') { [value appendString:@"'"]; j += 2; continue; }
+                if (d == c) {
+                    if (j + 1 < n && [text characterAtIndex:j + 1] == c) { [value appendFormat:@"%C", c]; j += 2; continue; }
                     closed = YES;
                     j++;
                     break;
@@ -85,42 +92,41 @@ static NSArray<UDToken *> *UDTokens(NSString *text, NSString **message) {
                 [value appendFormat:@"%C", d];
                 j++;
             }
-            if (!closed) {
-                if (message) *message = @"a text's closing ' is missing";
-                return nil;
-            }
+            if (!closed) fail(@"a text's closing quote is missing");
             token.kind = @"text";
+            token.highlight = @"string";
             token.value = value;
             i = j;
-        } else if ([digits characterIsMember:c] || (c == '.' && i + 1 < n && [digits characterIsMember:[text characterAtIndex:i + 1]])) {
+        } else if ([digits characterIsMember:c]) {
+            // digits, a fraction's after one point (1..10 is two numbers)
             NSUInteger j = i;
-            while (j < n && ([digits characterIsMember:[text characterAtIndex:j]] || [text characterAtIndex:j] == '.')) j++;
+            while (j < n && [digits characterIsMember:[text characterAtIndex:j]]) j++;
+            if (j + 1 < n && [text characterAtIndex:j] == '.' && [digits characterIsMember:[text characterAtIndex:j + 1]]) {
+                j++;
+                while (j < n && [digits characterIsMember:[text characterAtIndex:j]]) j++;
+            }
             NSString *number = [text substringWithRange:NSMakeRange(i, j - i)];
             token.kind = @"number";
+            token.highlight = @"number";
             token.value = [number containsString:@"."] ? @([number doubleValue]) : @([number longLongValue]);
             i = j;
         } else if (c == '_') {
             NSUInteger j = i + 1;
             while (j < n && ([letters characterIsMember:[text characterAtIndex:j]] || [digits characterIsMember:[text characterAtIndex:j]] ||
                              [text characterAtIndex:j] == '_')) j++;
-            if (j == i + 1) {
-                if (message) *message = @"an example element is named: _x";
-                return nil;
-            }
+            if (j == i + 1) fail(@"an example element is named: _x");
             token.kind = @"element";
+            token.highlight = @"variable";
             token.value = [text substringWithRange:NSMakeRange(i, j - i)];
             i = j;
         } else if ([letters characterIsMember:c]) {
             NSUInteger j = i;
-            while (j < n && [letters characterIsMember:[text characterAtIndex:j]]) j++;
+            while (j < n && ([letters characterIsMember:[text characterAtIndex:j]] || [digits characterIsMember:[text characterAtIndex:j]])) j++;
             NSString *word = [text substringWithRange:NSMakeRange(i, j - i)];
-            if (j < n && [text characterAtIndex:j] == '.') {
+            NSString *upper = word.uppercaseString;
+            NSString *function = UDAggregateNames()[upper];
+            if (j < n && [text characterAtIndex:j] == '.' && function) {
                 // an aggregate: SUM. CNT.ALL. AVG.UNQ.
-                NSString *function = UDAggregateNames()[word.uppercaseString];
-                if (!function) {
-                    if (message) *message = [NSString stringWithFormat:@"%@. isn't an aggregate (SUM. AVG. MIN. MAX. CNT.)", word];
-                    return nil;
-                }
                 j++;
                 NSString *after = [[text substringFromIndex:j] uppercaseString];
                 if ([after hasPrefix:@"ALL."] || [after hasPrefix:@"UNQ."]) {
@@ -128,25 +134,56 @@ static NSArray<UDToken *> *UDTokens(NSString *text, NSString **message) {
                     j += 4;
                 }
                 token.kind = @"aggregate";
+                token.highlight = @"function";
                 token.value = function;
-                i = j;
+            } else if (j < n && [text characterAtIndex:j] == '.' && ([upper isEqualToString:@"P"] || [upper isEqualToString:@"G"])) {
+                // P. printed, G. grouped
+                j++;
+                token.kind = @"command";
+                token.highlight = @"command";
+                token.value = upper;
             } else {
+                // a name, a pattern's * and % its own (Ann*)
+                while (j < n && [@"*%" containsString:[NSString stringWithFormat:@"%C", [text characterAtIndex:j]]]) j++;
+                word = [text substringWithRange:NSMakeRange(i, j - i)];
+                upper = word.uppercaseString;
+                BOOL keyword = [@[ @"AND", @"OR", @"NOT", @"IS", @"NULL" ] containsObject:upper];
                 token.kind = @"word";
-                token.value = word.uppercaseString;
-                i = j;
+                token.highlight = keyword ? @"operator" : @"name";
+                token.value = keyword ? upper : word;
+                if (j < n && [text characterAtIndex:j] == '.' && !(j + 1 < n && [text characterAtIndex:j + 1] == '.')) {
+                    fail([NSString stringWithFormat:@"%@. isn't an aggregate (SUM. AVG. MIN. MAX. CNT.)", word]);
+                }
             }
+            i = j;
         } else {
             NSString *two = i + 1 < n ? [text substringWithRange:NSMakeRange(i, 2)] : @"";
-            NSString *symbol = [@[ @"<>", @"!=", @"<=", @">=" ] containsObject:two] ? two : [NSString stringWithFormat:@"%C", c];
-            if (![@[ @"<>", @"!=", @"<=", @">=", @"=", @"<", @">", @"+", @"-", @"*", @"/", @"(", @")" ] containsObject:symbol]) {
-                if (message) *message = [NSString stringWithFormat:@"“%@” can't be read", symbol];
-                return nil;
+            NSString *symbol = [@[ @"<>", @"!=", @"<=", @">=", @".." ] containsObject:two] ? two : [NSString stringWithFormat:@"%C", c];
+            BOOL known = [@[ @"<>", @"!=", @"<=", @">=", @"..", @"=", @"<", @">", @"+", @"-", @"*", @"/", @"(", @")", @",", @"!", @"%" ] containsObject:symbol];
+            if (!known || [@[ @",", @"!", @"..", @"%" ] containsObject:symbol]) {
+                // a skeleton's entry's (a, b; !x; 1..10), not a condition's
+                if (!known) fail([NSString stringWithFormat:@"“%@” can't be read", symbol]);
+                else fail([NSString stringWithFormat:@"“%@” is a column's, not the condition box's", symbol]);
             }
             token.kind = @"symbol";
+            token.highlight = [@[ @"(", @")", @"," ] containsObject:symbol] || !known ? @"punct" : @"operator";
             token.value = symbol;
             i += symbol.length;
         }
+        token.range = NSMakeRange(start, i - start);
         [tokens addObject:token];
+    }
+    if (message) *message = failure;
+    return tokens;
+}
+
+/// Its tokens as the reader takes them; nil and why where it can't.
+static NSArray<UDToken *> *UDTokens(NSString *text, NSString **message) {
+    NSString *failure = nil;
+    NSArray *tokens = UDLex(text, &failure);
+    if (failure) {
+        if (message) *message = failure;
+        return nil;
     }
     return tokens;
 }
@@ -320,6 +357,14 @@ static NSArray<UDToken *> *UDTokens(NSString *text, NSString **message) {
 
 @implementation UDSQLExampleCondition {
     NSArray *_tree;
+}
+
++ (NSArray<NSDictionary *> *)highlightTokensForString:(NSString *)text {
+    NSMutableArray *tokens = [NSMutableArray array];
+    for (UDToken *token in UDLex(text ?: @"", NULL)) {
+        [tokens addObject:@{ @"kind": token.highlight, @"range": [NSValue valueWithRange:token.range] }];
+    }
+    return tokens;
 }
 
 + (instancetype)conditionOf:(NSString *)text message:(NSString **)message {

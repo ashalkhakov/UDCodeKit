@@ -249,8 +249,15 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(editor.file.conditions, @[ @"_customers <> 2" ]);
     XCTAssertTrue([[editor.document.textModel getValue] containsString:@"\"conditions\": [\n    \"_customers <> 2\"\n  ]"],
                   @"%@", [editor.document.textModel getValue]);
-    XCTAssertEqualObjects([editor.conditionsView.textStorage attribute:NSForegroundColorAttributeName atIndex:1 effectiveRange:NULL],
-                          [NSColor systemOrangeColor], @"an element, coloured");
+    XCTAssertTrue([editor.conditionsView.textStorage isKindOfClass:UDPluginClass(@"UDSQLExampleTextStorage")], @"it colours as typed");
+    // coloured by kind (the palette is UDSQLExampleTokenColor's): the
+    // element, the operator, the number, each its own
+    NSTextStorage *box = editor.conditionsView.textStorage;
+    NSColor *element = [box attribute:NSForegroundColorAttributeName atIndex:1 effectiveRange:NULL];
+    NSColor *op = [box attribute:NSForegroundColorAttributeName atIndex:[box.string rangeOfString:@"<>"].location effectiveRange:NULL];
+    NSColor *number = [box attribute:NSForegroundColorAttributeName atIndex:box.length - 1 effectiveRange:NULL];
+    NSUInteger kinds = [NSSet setWithArray:@[ element, op, number ]].count;
+    XCTAssertEqual(kinds, 3u, @"%@ %@ %@", element, op, number);
     [editor run:nil];
     UDRunUntil(!editor.running && editor.result.rows.count == 1, 10.0);
     XCTAssertEqualObjects(editor.result.rows, (@[ @[ @"Ann", @20 ] ]), @"%@", editor.statusLabel.stringValue);
@@ -263,7 +270,19 @@ static Class UDPluginClass(NSString *name) {
     NSTableColumn *totals = [grid tableColumnWithIdentifier:@"total"];
     id shown = [editor.skeletons[1] tableView:grid objectValueForTableColumn:totals row:0];
     XCTAssertTrue([shown isKindOfClass:[NSAttributedString class]], @"%@", shown);
-    XCTAssertEqualObjects([shown attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL], [NSColor systemBlueColor], @"P.");
+    NSColor *command = [shown attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL];
+    XCTAssertNotEqualObjects(command, [shown attribute:NSForegroundColorAttributeName atIndex:2 effectiveRange:NULL], @"P. not as >");
+    // being edited, coloured as typed: the field editor's storage colours
+    // (its own given back after)
+    [grid selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
+    [grid editColumn:[grid.tableColumns indexOfObject:totals] row:0 withEvent:nil select:YES];
+    NSTextView *fieldEditor = (NSTextView *)[grid currentEditor];
+    XCTAssertTrue([fieldEditor.textStorage isKindOfClass:UDPluginClass(@"UDSQLExampleTextStorage")], @"%@", fieldEditor.textStorage);
+    XCTAssertEqualObjects(fieldEditor.string, @"P.> 6");
+    XCTAssertEqualObjects([fieldEditor.textStorage attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL], command,
+                          @"P., as the cell shows it");
+    [grid abortEditing];
+    XCTAssertFalse([fieldEditor.textStorage isKindOfClass:UDPluginClass(@"UDSQLExampleTextStorage")], @"the window's field editor, as it was");
     NSString *tip = [editor.skeletons[1] tableView:grid toolTipForCell:totals.dataCell rect:NULL tableColumn:totals row:0 mouseLocation:NSZeroPoint];
     XCTAssertTrue([tip hasPrefix:@"P. — printed: a column of the answer\n> 6 — the rows whose value is so"], @"%@", tip);
 

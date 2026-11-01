@@ -5,54 +5,44 @@
 #import "UDSQLExampleSyntax.h"
 #import "UDSQLExampleCondition.h"
 
-/// Each kind's pattern and colour, in the order they are laid on (text in
-/// quotes last: what is in it is only text).
-static NSArray<NSArray *> *UDPatterns(void) {
-    static NSArray *patterns;
-    if (!patterns) {
-        NSRegularExpressionOptions options = NSRegularExpressionCaseInsensitive;
-        NSRegularExpression *(^re)(NSString *) = ^NSRegularExpression *(NSString *pattern) {
-            return [NSRegularExpression regularExpressionWithPattern:pattern options:options error:NULL];
-        };
-        patterns = @[
-            @[ re(@"(<=|>=|<>|!=|=|<|>|\\.\\.|\\b(AND|OR|NOT|IS|NULL)\\b)"), [NSColor secondaryLabelColor], @NO ],
-            @[ re(@"(?<![A-Za-z0-9_])[PG]\\."), [NSColor systemBlueColor], @YES ],
-            @[ re(@"(?<![A-Za-z0-9_])(SUM|AVG|MIN|MAX|CNT)\\.((ALL|UNQ)\\.)?"), [NSColor systemPurpleColor], @YES ],
-            @[ re(@"(?<![A-Za-z0-9])_[A-Za-z0-9_]+"), [NSColor systemOrangeColor], @NO ],
-            @[ re(@"'(?:[^']|'')*'?"), [NSColor systemBrownColor], @NO ],
-        ];
+/// A named system colour where the SDK has it, else a fixed one
+/// (XFormsKit's XFDSystemColor).
+static NSColor *UDSystemColor(NSString *selectorName, CGFloat r, CGFloat g, CGFloat b) {
+    SEL selector = NSSelectorFromString(selectorName);
+    if ([NSColor respondsToSelector:selector]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        NSColor *color = [NSColor performSelector:selector];
+#pragma clang diagnostic pop
+        if (color) return color;
     }
-    return patterns;
+    return [NSColor colorWithCalibratedRed:r green:g blue:b alpha:1];
 }
 
-static void UDColour(NSMutableAttributedString *text, NSFont *font) {
-    NSFont *bold = [[NSFontManager sharedFontManager] convertFont:font toHaveTrait:NSBoldFontMask];
-    NSString *string = text.string;
-    for (NSArray *pattern in UDPatterns()) {
-        NSRegularExpression *expression = pattern[0];
-        for (NSTextCheckingResult *match in [expression matchesInString:string options:0 range:NSMakeRange(0, string.length)]) {
-            [text addAttribute:NSForegroundColorAttributeName value:pattern[1] range:match.range];
-            [text addAttribute:NSFontAttributeName value:[pattern[2] boolValue] ? bold : font range:match.range];
+NSColor *UDSQLExampleTokenColor(NSString *kind) {
+    if ([kind isEqualToString:@"string"]) return UDSystemColor(@"systemRedColor", 0.77, 0.10, 0.09);
+    if ([kind isEqualToString:@"number"]) return UDSystemColor(@"systemBlueColor", 0.11, 0.00, 0.81);
+    if ([kind isEqualToString:@"function"]) return UDSystemColor(@"systemPurpleColor", 0.42, 0.13, 0.66);
+    if ([kind isEqualToString:@"command"]) return UDSystemColor(@"systemBrownColor", 0.42, 0.30, 0.16);
+    if ([kind isEqualToString:@"variable"]) return UDSystemColor(@"systemTealColor", 0.00, 0.46, 0.54);
+    if ([kind isEqualToString:@"operator"]) return UDSystemColor(@"systemOrangeColor", 0.64, 0.35, 0.00);
+    if ([kind isEqualToString:@"punct"]) return [NSColor disabledControlTextColor];
+    return [NSColor controlTextColor];   // name
+}
+
+NSAttributedString *UDSQLExampleAttributedString(NSString *expression, NSFont *font) {
+    NSString *text = expression ?: @"";
+    NSMutableDictionary *base = [NSMutableDictionary dictionary];
+    if (font) base[NSFontAttributeName] = font;
+    base[NSForegroundColorAttributeName] = [NSColor controlTextColor];
+    NSMutableAttributedString *out = [[NSMutableAttributedString alloc] initWithString:text attributes:base];
+    for (NSDictionary *token in [UDSQLExampleCondition highlightTokensForString:text]) {
+        NSRange range = [token[@"range"] rangeValue];
+        if (range.length && NSMaxRange(range) <= text.length) {
+            [out addAttribute:NSForegroundColorAttributeName value:UDSQLExampleTokenColor(token[@"kind"]) range:range];
         }
     }
-}
-
-NSAttributedString *UDSQLExampleHighlighted(NSString *text, NSFont *font, NSColor *color) {
-    NSMutableAttributedString *coloured = [[NSMutableAttributedString alloc] initWithString:text attributes:@{
-        NSFontAttributeName: font, NSForegroundColorAttributeName: color }];
-    UDColour(coloured, font);
-    return coloured;
-}
-
-void UDSQLExampleHighlight(NSTextStorage *storage) {
-    NSRange all = NSMakeRange(0, storage.length);
-    NSFont *font = storage.length ? [storage attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL] : nil;
-    font = font ? [[NSFontManager sharedFontManager] convertFont:font toNotHaveTrait:NSBoldFontMask] : [NSFont userFixedPitchFontOfSize:0];
-    [storage beginEditing];
-    [storage addAttribute:NSForegroundColorAttributeName value:[NSColor textColor] range:all];
-    [storage addAttribute:NSFontAttributeName value:font range:all];
-    UDColour(storage, font);
-    [storage endEditing];
+    return out;
 }
 
 // ---------------------------------------------------------------------------

@@ -152,9 +152,12 @@ Example language mode: JSON).
   In a Core Data store, dates are typed as dates (`2024-05-01`, `> 2024-05-01
   14:30`: a day alone is the whole day) and `Z_ENT` by entity name
   (`Employee`).
-- **Coloured, and said in words.** What is typed is coloured: `P.` and
-  `G.` blue, aggregates purple, example elements orange, quoted text
-  brown, comparisons and AND/OR/NOT dimmed. A cell's tooltip says first
+- **Coloured, and said in words.** What is typed is coloured as RDLKit's
+  and XFormsKit's expressions are, in XFormsKit's palette: aggregates
+  purple (as functions), example elements teal (as variables), `P.` and
+  `G.` brown, text in quotes red, numbers blue, comparisons and AND/OR/NOT
+  orange (operators), punctuation dimmed — in a cell, while it is typed in
+  too, and in the condition box. A cell's tooltip says first
   what its entry means, a line a part (`P. — printed: a column of the
   answer`, `SUM. — the sum of its values in each group`…).
 - **The condition box**, Zloof's, under the tables: what no column can
@@ -278,7 +281,8 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLAlgebra` | relational algebra (tables as tuple variables, joins, σ, γ with aggregates, π, ∪, order, page, count; predicates; expressions) and the SQL written from it, pretty-printed as by hand |
 | `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, G. and aggregates (HAVING), ¬ and ! rows, alternatives (aggregated: united); as algebra |
 | `UDSQLExampleCondition` | a line of the condition box: comparisons, arithmetic, AND/OR/NOT, aggregates of elements; a predicate once its elements' columns are known |
-| `UDSQLExampleSyntax` | what is typed coloured, and said in words (the cells' tooltips, the condition box's) |
+| `UDSQLExampleSyntax` | the colour of each kind of token (`UDSQLExampleCondition`'s lexer says what each is), what is typed said in words (the cells' tooltips, the condition box's) |
+| `UDSQLExampleTextStorage` | text being edited (the condition box, a cell's field editor) that recolours itself on every change, as XFormsKit's `XFDXPathTextStorage` |
 | `UDSQLExampleFile` | a `.qbe` file: its skeletons by table name, its rows, its order; asked of a database |
 | `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`), its connection, its answer |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |

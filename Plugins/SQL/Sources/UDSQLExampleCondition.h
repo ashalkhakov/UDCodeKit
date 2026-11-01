@@ -29,6 +29,15 @@ FOUNDATION_EXPORT NSString *UDSQLZloofName(NSString *function);
 
 @interface UDSQLExampleCondition : NSObject
 
+/// Token spans for syntax highlighting, of a condition box's line or a
+/// skeleton's entry: one { kind, range } per token, in order, kind ∈ name,
+/// function (an aggregate: SUM. CNT.ALL.), variable (an example element:
+/// _x), command (P. G.), string ('x' "x"), number, operator (comparisons,
+/// arithmetic, .. ! *, AND OR NOT IS NULL), punct (parentheses, commas,
+/// what can't be read). Lexes only — what is half typed highlights; the
+/// same lexer the condition is read with.
++ (NSArray<NSDictionary *> *)highlightTokensForString:(NSString *)text;
+
 /// @a text read; nil and why in @a message (what can't be read, and where).
 + (nullable instancetype)conditionOf:(NSString *)text message:(NSString *_Nullable *_Nullable)message;
 

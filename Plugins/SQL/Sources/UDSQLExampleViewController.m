@@ -6,6 +6,7 @@
 #import "UDSQLDatabases.h"
 #import "UDSQLValues.h"
 #import "UDSQLExampleSyntax.h"
+#import "UDSQLExampleTextStorage.h"
 #import <objc/runtime.h>
 
 /// The rows a page has (◀ ▶ turn them), and the most an export keeps.
@@ -80,7 +81,10 @@ static const NSUInteger UDMaxExported = 10000000;
     [super viewDidLoad];
     [_resultTemplate.tableView removeTableColumn:_resultTemplate];
     // the condition box: its lines, coloured; what it takes, its tip
-    _conditionsView.font = [NSFont userFixedPitchFontOfSize:[NSFont smallSystemFontSize]];
+    // coloured as it is typed: its storage does it (RDLKit's, XFormsKit's way)
+    UDSQLExampleTextStorage *storage = [UDSQLExampleTextStorage installedInTextView:_conditionsView];
+    storage.baseAttributes = @{ NSFontAttributeName: [NSFont userFixedPitchFontOfSize:[NSFont smallSystemFontSize]] ?: [NSFont systemFontOfSize:0],
+                                NSForegroundColorAttributeName: [NSColor textColor] };
     _conditionsView.toolTip = UDSQLExampleConditionHelp();
     [self _showConditions];
     // a column's name right-clicked: its menu (copied, sorted)
@@ -147,7 +151,6 @@ static const NSUInteger UDMaxExported = 10000000;
     NSString *shown = _conditionsView.string;
     if ([[self _linesOf:shown] isEqual:_file.conditions ?: @[]]) return;
     _conditionsView.string = text;
-    UDSQLExampleHighlight(_conditionsView.textStorage);
 }
 
 /// Its lines, as kept: those typed (an empty line kept nothing).
@@ -163,7 +166,6 @@ static const NSUInteger UDMaxExported = 10000000;
 /// A line typed: coloured, kept in the file (its document's text).
 - (void)textDidChange:(NSNotification *)note {
     if (note.object != _conditionsView || !_file) return;
-    UDSQLExampleHighlight(_conditionsView.textStorage);
     NSArray *lines = [self _linesOf:_conditionsView.string];
     if ([lines isEqual:_file.conditions]) return;
     _file.conditions = lines;

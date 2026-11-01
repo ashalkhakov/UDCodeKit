@@ -141,7 +141,7 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
     // coloured (P., aggregates, elements…); being edited, as typed
     if (!entry.length || (tableView.editedRow == row && tableView.editedColumn == [tableView.tableColumns indexOfObject:column])) return entry;
     NSFont *font = [(NSCell *)column.dataCell font] ?: [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-    return UDSQLExampleHighlighted(entry, font, [NSColor controlTextColor]);
+    return UDSQLExampleAttributedString(entry, font);
 }
 
 - (void)setEntry:(NSString *)text column:(NSString *)column row:(NSUInteger)row {

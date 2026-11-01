@@ -29,7 +29,11 @@ NSString *UDSQLQuoted(NSString *name, UDSQLDialect dialect) {
 // MARK: - Expressions
 // ---------------------------------------------------------------------------
 
-@implementation UDSQLExpression
+@implementation UDSQLExpression {
+    NSString *_function;            // an aggregate's
+    UDSQLExpression *_argument;
+    BOOL _distinct;
+}
 
 + (instancetype)column:(NSString *)name of:(NSString *)variable {
     UDSQLExpression *expression = [[self alloc] init];
@@ -50,6 +54,14 @@ NSString *UDSQLQuoted(NSString *name, UDSQLDialect dialect) {
     return expression;
 }
 
++ (instancetype)aggregate:(NSString *)function of:(UDSQLExpression *)argument distinct:(BOOL)distinct {
+    UDSQLExpression *expression = [[self alloc] init];
+    expression->_function = [function copy];
+    expression->_argument = argument;
+    expression->_distinct = distinct;
+    return expression;
+}
+
 static NSString *UDLiteral(id value, UDSQLDialect dialect) {
     if (value == [NSNull null]) return @"NULL";
     if ([value isKindOfClass:[NSNumber class]]) return [value description];
@@ -59,6 +71,10 @@ static NSString *UDLiteral(id value, UDSQLDialect dialect) {
 }
 
 - (NSString *)_SQLWith:(UDSQLWriter *)writer {
+    if (_function) {
+        if (!_argument) return [NSString stringWithFormat:@"%@(*)", _function];
+        return [NSString stringWithFormat:@"%@(%@%@)", _function, _distinct ? @"DISTINCT " : @"", [_argument _SQLWith:writer]];
+    }
     if (_name) {
         NSString *name = UDSQLQuoted(_name, writer.dialect);
         return _variable && writer.qualified ? [NSString stringWithFormat:@"%@.%@", UDSQLQuoted(_variable, writer.dialect), name] : name;
@@ -79,7 +95,7 @@ typedef NS_ENUM(NSInteger, UDPredicateKind) {
 };
 
 typedef NS_ENUM(NSInteger, UDRelationKind) {
-    UDTable, UDJoin, UDSelect, UDProject, UDUnion, UDOrder, UDPage, UDCount,
+    UDTable, UDJoin, UDSelect, UDGroup, UDProject, UDUnion, UDOrder, UDPage, UDCount,
 };
 
 @interface UDSQLRelation ()
@@ -262,6 +278,7 @@ static NSString *UDOperator(UDSQLComparison op) {
     NSArray<NSString *> *_names;
     NSArray<UDSQLRelation *> *_relations;       // a union's
     NSArray<UDSQLOrderKey *> *_keys;
+    NSArray<UDSQLExpression *> *_groupKeys;     // a group's
     NSUInteger _offset, _limit;
 }
 
@@ -294,6 +311,12 @@ static UDSQLRelation *UDRelation(UDRelationKind kind, UDSQLRelation *input) {
 - (UDSQLRelation *)select:(UDSQLPredicate *)predicate {
     UDSQLRelation *relation = UDRelation(UDSelect, self);
     relation->_predicate = predicate;
+    return relation;
+}
+
+- (UDSQLRelation *)group:(NSArray<UDSQLExpression *> *)keys {
+    UDSQLRelation *relation = UDRelation(UDGroup, self);
+    relation->_groupKeys = [keys copy];
     return relation;
 }
 
@@ -407,8 +430,18 @@ static UDSQLRelation *UDRelation(UDRelationKind kind, UDSQLRelation *input) {
     return [parts componentsJoinedByString:@", "];
 }
 
-/// Its block: a projection's columns (else all) of its chain.
+/// Its block: a projection's columns (else all) of its chain; of a
+/// group's, GROUP BY its keys.
 - (NSString *)_blockWith:(UDSQLWriter *)writer {
+    if (_kind == UDProject && _input->_kind == UDGroup) {
+        UDSQLRelation *group = _input;
+        // its columns written first: parameters in the order they are written
+        NSString *columns = [self _columnsWith:writer];
+        NSString *sql = [self _selectColumns:columns of:group->_input with:writer];
+        NSMutableArray *keys = [NSMutableArray array];
+        for (UDSQLExpression *key in group->_groupKeys) [keys addObject:[key _SQLWith:writer]];
+        return keys.count ? [NSString stringWithFormat:@"%@ GROUP BY %@", sql, [keys componentsJoinedByString:@", "]] : sql;
+    }
     if (_kind == UDProject) return [self _selectColumns:[self _columnsWith:writer] of:_input with:writer];
     return [self _selectColumns:@"*" of:self with:writer];
 }

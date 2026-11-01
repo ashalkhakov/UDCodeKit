@@ -192,6 +192,8 @@ static UDSQLPredicate *UDCompare(UDSQLExpression *column, UDSQLComparison op, UD
 @property (nonatomic, copy, nullable) NSString *compared;   // compared with it…
 @property (nonatomic) UDSQLComparison comparison;           // …so
 @property (nonatomic, copy, nullable) NSString *condition;  // its value's, as typed
+@property (nonatomic, copy, nullable) NSString *aggregate;  // SUM, AVG, MIN, MAX, COUNT: printed so
+@property (nonatomic) BOOL distinct;                        // of its distinct values (UNQ.)
 @end
 
 @implementation UDExampleEntry
@@ -226,7 +228,9 @@ static BOOL UDIsElement(NSString *text) {
     return [element firstMatchInString:text options:0 range:NSMakeRange(0, text.length)] != nil;
 }
 
-@implementation UDSQLExampleQuery
+@implementation UDSQLExampleQuery {
+    NSArray<NSString *> *_groupNames;   // the last relation's groups' keys, by name (none: not grouped)
+}
 
 + (UDSQLPredicate *)predicateOf:(NSString *)typed column:(UDSQLColumnInfo *)column variable:(NSString *)variable
                          schema:(UDSQLSchema *)schema message:(NSString **)message {
@@ -337,6 +341,22 @@ static NSError *UDError(NSString *message, NSUInteger skeleton, NSUInteger row, 
                     entry.printed = YES;
                     text = [[text substringFromIndex:2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
                 }
+                // an aggregate, Zloof's: P.SUM. P.AVG. P.MIN. P.MAX. P.CNT., UNQ. its distinct values
+                NSDictionary *aggregates = @{ @"SUM.": @"SUM", @"AVG.": @"AVG", @"MIN.": @"MIN", @"MAX.": @"MAX", @"CNT.": @"COUNT" };
+                for (NSString *prefix in aggregates) {
+                    if (![text.uppercaseString hasPrefix:prefix]) continue;
+                    if (!entry.printed) {
+                        if (error) *error = UDError([NSString stringWithFormat:@"%@: an aggregate is printed: P.%@", column.name, prefix], k, j, column.name);
+                        return nil;
+                    }
+                    entry.aggregate = aggregates[prefix];
+                    text = [[text substringFromIndex:prefix.length] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                    if ([text.uppercaseString hasPrefix:@"UNQ."]) {
+                        entry.distinct = YES;
+                        text = [[text substringFromIndex:4] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                    }
+                    break;
+                }
                 if (UDIsElement(text)) entry.element = text;
                 else if (text.length) {
                     for (NSString *op in UDOperators()) {
@@ -422,13 +442,13 @@ static NSArray<NSArray<UDExampleTuple *> *> *UDAlternatives(NSArray<UDExampleTup
 /// @a all (nothing marked P.), all columns of each row joined (a ¬ row's
 /// none), as SELECT * of a join.
 - (void)_printsOf:(NSArray<UDExampleTuple *> *)alternative all:(BOOL)all columns:(NSMutableArray *)columns names:(NSMutableArray *)names {
-    NSMutableArray *printed = [NSMutableArray array];     // [tuple, column name]
+    NSMutableArray *printed = [NSMutableArray array];     // [tuple, column name, entry (an aggregate's)]
     for (UDExampleTuple *tuple in alternative) {
         if (all) {
             if (tuple.source.negated) continue;
-            for (UDSQLColumnInfo *column in tuple.table.columns) [printed addObject:@[ tuple, column.name ]];
+            for (UDSQLColumnInfo *column in tuple.table.columns) [printed addObject:@[ tuple, column.name, [NSNull null] ]];
         } else {
-            for (UDExampleEntry *entry in tuple.entries) if (entry.printed) [printed addObject:@[ tuple, entry.column.name ]];
+            for (UDExampleEntry *entry in tuple.entries) if (entry.printed) [printed addObject:@[ tuple, entry.column.name, entry ]];
         }
     }
     NSCountedSet *seen = [NSCountedSet set];
@@ -436,9 +456,25 @@ static NSArray<NSArray<UDExampleTuple *> *> *UDAlternatives(NSArray<UDExampleTup
     for (NSArray *each in printed) {
         UDExampleTuple *tuple = each[0];
         NSString *name = each[1];
-        [columns addObject:[UDSQLExpression column:name of:tuple.variable]];
-        [names addObject:[seen countForObject:name] > 1 ? [NSString stringWithFormat:@"%@.%@", tuple.variable, name] : name];
+        UDExampleEntry *entry = each[2] == [NSNull null] ? nil : each[2];
+        UDSQLExpression *column = [UDSQLExpression column:name of:tuple.variable];
+        NSString *named = [seen countForObject:name] > 1 ? [NSString stringWithFormat:@"%@.%@", tuple.variable, name] : name;
+        if (entry.aggregate) {
+            // named as it is written: SUM(total), COUNT(DISTINCT city)
+            [columns addObject:[UDSQLExpression aggregate:entry.aggregate of:column distinct:entry.distinct]];
+            [names addObject:[NSString stringWithFormat:@"%@(%@%@)", entry.aggregate, entry.distinct ? @"DISTINCT " : @"", named]];
+        } else {
+            [columns addObject:column];
+            [names addObject:named];
+        }
     }
+}
+
+/// Whether @a alternative aggregates (its printed columns not aggregated
+/// then its groups').
+static BOOL UDAggregates(NSArray<UDExampleTuple *> *alternative) {
+    for (UDExampleTuple *tuple in alternative) for (UDExampleEntry *entry in tuple.entries) if (entry.aggregate) return YES;
+    return NO;
 }
 
 /// An alternative as a relation: its first row's table joined to its
@@ -539,6 +575,13 @@ static NSArray<NSArray<UDExampleTuple *> *> *UDAlternatives(NSArray<UDExampleTup
     if (!anyPrinted && !all) return [relation projectAllOf:first.variable];
     NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
     [self _printsOf:alternative all:!anyPrinted columns:columns names:names];
+    if (UDAggregates(alternative)) {
+        // γ: grouped by what is printed and not aggregated (Paradox's checked
+        // columns), an aggregate a row of each group
+        NSMutableArray *keys = [NSMutableArray array];
+        for (UDSQLExpression *column in columns) if (column.name) [keys addObject:column];
+        relation = [relation group:keys];
+    }
     return [relation project:columns names:names];
 }
 
@@ -565,7 +608,7 @@ static NSArray<NSArray<UDExampleTuple *> *> *UDAlternatives(NSArray<UDExampleTup
 /// Whether an alternative is a row of the first skeleton alone, asking of
 /// its values only (alternatives of those are one OR).
 static BOOL UDIsPlain(NSArray<UDExampleTuple *> *alternative) {
-    if (alternative.count != 1) return NO;
+    if (alternative.count != 1 || UDAggregates(alternative)) return NO;
     UDExampleTuple *tuple = alternative.firstObject;
     return tuple.skeleton == 0 && !tuple.source.negated && !tuple.source.inclusive && tuple.elements.count == 0;
 }
@@ -586,6 +629,7 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
         if (error) *error = [NSError errorWithDomain:UDSQLErrorDomain code:-1 userInfo:@{ NSLocalizedDescriptionKey: @"Nothing to ask of." }];
         return nil;
     }
+    _groupNames = @[];
     NSArray *tuples = [self _tuples:error];
     if (!tuples) return nil;
     BOOL anyPrinted = NO;
@@ -624,6 +668,11 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
     // nothing printed: a join's columns, all of them (a union's: the first table's)
     BOOL all = !anyPrinted && alternatives.count == 1;
     for (NSArray<UDExampleTuple *> *alternative in alternatives) {
+        if (alternatives.count > 1 && UDAggregates(alternative)) {
+            UDExampleTuple *tuple = alternative.firstObject;
+            if (error) *error = UDError(@"An aggregate (P.SUM., P.CNT.…) is of one alternative: link its rows by example elements", tuple.skeleton, tuple.row, nil);
+            return nil;
+        }
         UDSQLRelation *relation = [self _relationOf:alternative anyPrinted:anyPrinted all:all error:error];
         if (!relation) return nil;
         NSMutableArray *columns = [NSMutableArray array], *names = [NSMutableArray array];
@@ -642,6 +691,12 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
         if (width == NSNotFound) {
             [printed addObjectsFromArray:names];
             if (alternatives.count == 1) [expressions addObjectsFromArray:columns];
+        }
+        if (UDAggregates(alternative)) {
+            // its groups' keys, by name: its order, none asked
+            NSMutableArray *keys = [NSMutableArray array];
+            for (NSUInteger i = 0; i < columns.count; i++) if ([columns[i] name]) [keys addObject:names[i]];
+            _groupNames = keys;
         }
         width = names.count;
         [relations addObject:relation];
@@ -667,6 +722,13 @@ static NSArray<NSString *> *UDPrintedNames(NSArray<UDExampleTuple *> *alternativ
     for (NSSortDescriptor *descriptor in _order) {
         [names addObject:descriptor.key];
         [ascending addObject:@(descriptor.ascending)];
+    }
+    if (!names.count && _groupNames.count) {
+        // its groups, by their keys (pages that don't overlap)
+        for (NSString *name in _groupNames) {
+            [names addObject:name];
+            [ascending addObject:@YES];
+        }
     }
     if (!names.count) {
         UDSQLTable *base = _skeletons.firstObject.table;

@@ -10,8 +10,9 @@
  *  list's + and − under them (+ joins a table to those there along their
  *  foreign keys, example elements filled in; − removes the selected one),
  *  asked of the connection chosen (the document's, as a SQL document's: the
- *  same file of staging or production): Run shows its answer, Show SQL and
- *  Copy SQL its plain SQL, for an app to run.
+ *  same file of staging or production): Run shows its answer a page at a
+ *  time (◀ ▶), Export… all of it (CSV, JSON), a column's menu copies or
+ *  sorts by it; Show SQL and Copy SQL its plain SQL, for an app to run.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -27,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UDSQLExampleStackView : NSView
 @end
 
-@interface UDSQLExampleViewController : NSViewController <UDSQLSkeletonDelegate, NSTableViewDataSource, NSTableViewDelegate>
+@interface UDSQLExampleViewController : NSViewController <UDSQLSkeletonDelegate, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate>
 
 - (instancetype)initWithDatabases:(UDSQLDatabases *)databases document:(UDCodeDocument *)document;
 
@@ -53,6 +54,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *statusLabel;
 @property (nonatomic, weak, readonly) IBOutlet UDSQLExampleStackView *stackView;
 @property (nonatomic, weak, readonly) IBOutlet NSTableView *resultsView;
+/// ◀ and ▶: its answer a page at a time (its count told: Rows 101–200 of
+/// 2,345).
+@property (nonatomic, weak, readonly) IBOutlet NSButton *previousButton;
+@property (nonatomic, weak, readonly) IBOutlet NSButton *nextButton;
+/// A result column's name's menu (Copy Column, Sort…), and Export…'s
+/// panel's format (CSV, JSON).
+@property (nonatomic, strong, readonly) IBOutlet NSMenu *headerMenu;
+@property (nonatomic, weak, readonly) IBOutlet NSPopUpButton *exportFormatButton;
+/// How many rows a page has (100).
+@property (nonatomic) NSUInteger pageSize;
 
 /// @a table's skeleton added (as Add Table does).
 - (void)addTable:(UDSQLTable *)table;
@@ -62,7 +73,23 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)chooseDatabase:(nullable id)sender;
 - (IBAction)addTableChosen:(nullable id)sender;
 - (IBAction)removeTable:(nullable id)sender;
+/// Its first page.
 - (IBAction)run:(nullable id)sender;
+- (IBAction)previousPage:(nullable id)sender;
+- (IBAction)nextPage:(nullable id)sender;
+/// Its answer ordered by @a name (a column it prints), run again.
+- (void)sortByColumn:(NSString *)name ascending:(BOOL)ascending;
+/// A column of its answer copied: its values (the selected rows', else
+/// all), one a line; its name first, @a name.
+- (void)copyColumnAtIndex:(NSUInteger)index withName:(BOOL)name;
+- (IBAction)copyColumn:(nullable id)sender;
+- (IBAction)copyColumnWithName:(nullable id)sender;
+- (IBAction)sortAscending:(nullable id)sender;
+- (IBAction)sortDescending:(nullable id)sender;
+/// Export…: all its rows, not a page's, as CSV or JSON (@a format: "csv",
+/// "json"), where the save panel says.
+- (IBAction)exportResult:(nullable id)sender;
+- (void)exportToURL:(NSURL *)url format:(NSString *)format;
 - (IBAction)showSQL:(nullable id)sender;
 - (IBAction)copySQL:(nullable id)sender;
 - (IBAction)showAsText:(nullable id)sender;

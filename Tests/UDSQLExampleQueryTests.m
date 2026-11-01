@@ -126,6 +126,39 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects([query printedColumns:NULL], (@[ @"id", @"name", @"city" ]));
 }
 
+- (void)testAggregatesGroupedByWhatElseIsPrinted {
+    // each customer's orders: their sum and count, grouped by the name printed
+    UDSQLExampleQuery *query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"id": @"_c", @"name": @"P." }] ]],
+                                                [self skeleton:@"orders" rows:@[ [self row:@{ @"customer": @"_c", @"total": @"P.SUM.",
+                                                                                               @"id": @"P.CNT." }] ]] ]];
+    NSString *sql = nil;
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @"Ann", @2, @25.5 ], @[ @"Bob", @1, @7 ] ]), @"%@", sql);
+    XCTAssertEqualObjects([query printedColumns:NULL], (@[ @"name", @"COUNT(id)", @"SUM(total)" ]));
+    XCTAssertTrue([sql containsString:@"SELECT \"customers\".\"name\", COUNT(\"orders\".\"id\") AS \"COUNT(id)\", "
+                                       "SUM(\"orders\".\"total\") AS \"SUM(total)\" FROM"], @"%@", sql);
+    XCTAssertTrue([sql hasSuffix:@"GROUP BY \"customers\".\"name\" ORDER BY \"customers\".\"name\" LIMIT 100"],
+                  @"its groups ordered by their keys: %@", sql);
+    // its count: of its groups
+    NSError *error = nil;
+    UDSQLStatement *count = [query countStatement:&error];
+    XCTAssertEqualObjects([[_connection execute:count.SQL parameters:count.parameters maxRows:1 error:&error].rows[0] firstObject], @2, @"%@", count.SQL);
+    // ordered by an aggregate, as by its name
+    query.order = @[ [NSSortDescriptor sortDescriptorWithKey:@"SUM(total)" ascending:NO] ];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql].firstObject, (@[ @"Ann", @2, @25.5 ]));
+
+    // no group: one row; UNQ.: distinct values
+    query = [self queryOf:@[ [self skeleton:@"customers" rows:@[ [self row:@{ @"city": @"P.CNT.UNQ.", @"id": @"P.CNT." }] ]] ]];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @3, @2 ] ]), @"%@", sql);
+    XCTAssertFalse([sql containsString:@"GROUP BY"], @"%@", sql);
+    // a condition after it: on the rows aggregated
+    query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"total": @"P.MAX. < 10" }] ]] ]];
+    XCTAssertEqualObjects([self rowsOf:query SQL:&sql], (@[ @[ @7 ] ]), @"%@", sql);
+    // not printed: said
+    query = [self queryOf:@[ [self skeleton:@"orders" rows:@[ [self row:@{ @"total": @"SUM." }] ]] ]];
+    XCTAssertNil([query selectStatementWithLimit:10 offset:0 error:&error]);
+    XCTAssertEqualObjects(error.localizedDescription, @"total: an aggregate is printed: P.SUM.");
+}
+
 - (void)testAnInclusionKeepsRowsWithoutAMatch {
     // every customer, an order's id where they have one (Paradox's !)
     UDSQLExampleRow *orders = [self row:@{ @"customer": @"_c", @"id": @"P." }];

@@ -11,6 +11,11 @@
                 <outlet property="databaseButton" destination="QE-database" id="QE-o-database"/>
                 <outlet property="addTableButton" destination="QE-add" id="QE-o-add"/>
                 <outlet property="removeTableButton" destination="QE-remove" id="QE-o-remove"/>
+                <outlet property="previousButton" destination="QE-previous" id="QE-o-previous"/>
+                <outlet property="nextButton" destination="QE-next" id="QE-o-next"/>
+                <outlet property="headerMenu" destination="QE-hmenu" id="QE-o-hmenu"/>
+                <outlet property="exportAccessory" destination="QE-export" id="QE-o-export"/>
+                <outlet property="exportFormatButton" destination="QE-export-format" id="QE-o-exportformat"/>
                 <outlet property="statusLabel" destination="QE-status" id="QE-o-status"/>
                 <outlet property="stackView" destination="QE-stack" id="QE-o-stack"/>
                 <outlet property="resultsView" destination="QE-results" id="QE-o-results"/>
@@ -31,8 +36,79 @@
                         <action selector="copyWithColumnNames:" target="-2" id="QE-m-headers-a"/>
                     </connections>
                 </menuItem>
+                <menuItem isSeparatorItem="YES" id="QE-m-sep"/>
+                <menuItem title="Copy Column" id="QE-m-column">
+                    <connections>
+                        <action selector="copyColumn:" target="-2" id="QE-m-column-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy Column with Name" id="QE-m-columnname">
+                    <connections>
+                        <action selector="copyColumnWithName:" target="-2" id="QE-m-columnname-a"/>
+                    </connections>
+                </menuItem>
             </items>
+            <connections>
+                <outlet property="delegate" destination="-2" id="QE-rmenu-o-delegate"/>
+            </connections>
         </menu>
+        <menu title="Column" autoenablesItems="YES" id="QE-hmenu" userLabel="A Result Column's Name's">
+            <items>
+                <menuItem title="Copy Column" id="QE-h-column">
+                    <connections>
+                        <action selector="copyColumn:" target="-2" id="QE-h-column-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Copy Column with Name" id="QE-h-columnname">
+                    <connections>
+                        <action selector="copyColumnWithName:" target="-2" id="QE-h-columnname-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="QE-h-sep"/>
+                <menuItem title="Sort Ascending" id="QE-h-asc">
+                    <connections>
+                        <action selector="sortAscending:" target="-2" id="QE-h-asc-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Sort Descending" id="QE-h-desc">
+                    <connections>
+                        <action selector="sortDescending:" target="-2" id="QE-h-desc-a"/>
+                    </connections>
+                </menuItem>
+            </items>
+            <connections>
+                <outlet property="delegate" destination="-2" id="QE-hmenu-o-delegate"/>
+            </connections>
+        </menu>
+        <customView id="QE-export" userLabel="Export…'s Format (the save panel's accessory)">
+            <rect key="frame" x="0.0" y="0.0" width="260" height="40"/>
+            <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxX="YES"/>
+            <subviews>
+                <textField verticalHuggingPriority="750" id="QE-export-label">
+                    <rect key="frame" x="18.0" y="12.0" width="70.0" height="17.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
+                    <textFieldCell key="cell" lineBreakMode="clipping" alignment="right" title="Format:" id="QE-export-label-cell">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+                <popUpButton verticalHuggingPriority="750" id="QE-export-format">
+                    <rect key="frame" x="92.0" y="6.0" width="150.0" height="26.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="CSV" bezelStyle="rounded" alignment="left" lineBreakMode="truncatingTail" state="on" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" selectedItem="QE-export-csv" id="QE-export-format-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                        <menu key="menu" id="QE-export-format-menu">
+                            <items>
+                                <menuItem title="CSV" state="on" id="QE-export-csv"/>
+                                <menuItem title="JSON" id="QE-export-json"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                </popUpButton>
+            </subviews>
+        </customView>
         <customView id="QE-root" userLabel="Query by Example">
             <rect key="frame" x="0.0" y="0.0" width="900" height="600"/>
             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -97,8 +173,41 @@
                         <action selector="showAsText:" target="-2" id="QE-text-a"/>
                     </connections>
                 </button>
+                <button toolTip="All its rows (not a page's), as CSV or JSON" verticalHuggingPriority="750" id="QE-exportbutton">
+                    <rect key="frame" x="454.0" y="574.0" width="70.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="Export…" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-exportbutton-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="exportResult:" target="-2" id="QE-exportbutton-a"/>
+                    </connections>
+                </button>
+                <button toolTip="The page before" verticalHuggingPriority="750" id="QE-previous">
+                    <rect key="frame" x="530.0" y="574.0" width="28.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="◀" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-previous-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="previousPage:" target="-2" id="QE-previous-a"/>
+                    </connections>
+                </button>
+                <button toolTip="The page after" verticalHuggingPriority="750" id="QE-next">
+                    <rect key="frame" x="560.0" y="574.0" width="28.0" height="22.0"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="push" title="▶" bezelStyle="texturedRounded" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-next-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="system"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="nextPage:" target="-2" id="QE-next-a"/>
+                    </connections>
+                </button>
                 <textField verticalHuggingPriority="750" id="QE-status" userLabel="Status">
-                    <rect key="frame" x="456.0" y="577.0" width="438.0" height="16.0"/>
+                    <rect key="frame" x="594.0" y="577.0" width="300.0" height="16.0"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                     <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" id="QE-status-cell">
                         <font key="font" metaFont="smallSystem"/>

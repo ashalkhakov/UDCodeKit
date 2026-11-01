@@ -26,4 +26,14 @@ FOUNDATION_EXPORT id UDSQLCellOfValue(id value, NSString *_Nullable name, NSStri
 /// The format dates are shown in (and a Core Data date is typed in).
 FOUNDATION_EXPORT NSDateFormatter *UDSQLDateFormatter(void);
 
+@class UDSQLResult;
+
+/// @a result as CSV (RFC 4180: its names a first line; a field quoted
+/// where it holds a comma, quote or line break; NULL empty; CRLF lines),
+/// its values as text (a Core Data date as a date).
+FOUNDATION_EXPORT NSString *UDSQLCSVOfResult(UDSQLResult *result, UDSQLSchema *_Nullable schema);
+/// @a result as JSON: an array of objects, a column's name to its value
+/// (numbers as numbers, NULL as null, the rest as text), in their order.
+FOUNDATION_EXPORT NSString *UDSQLJSONOfResult(UDSQLResult *result, UDSQLSchema *_Nullable schema);
+
 NS_ASSUME_NONNULL_END

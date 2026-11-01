@@ -27,6 +27,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// What is typed in it changed (its skeleton's rows are as they are now).
 - (void)skeletonDidChange:(UDSQLSkeletonViewController *)skeleton;
 - (void)skeletonWantsToBeRemoved:(UDSQLSkeletonViewController *)skeleton;
+/// Its menu's Sort Ascending, Sort Descending: the answer ordered by
+/// @a column (printed).
+- (void)skeleton:(UDSQLSkeletonViewController *)skeleton sortsByColumn:(NSString *)column ascending:(BOOL)ascending;
 /// Clicked (its title, its grid): the one the − removes.
 - (void)skeletonWantsToBeSelected:(UDSQLSkeletonViewController *)skeleton;
 /// The example elements in the query (its menu offers them), and a new one.
@@ -53,7 +56,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// What is typed under @a column in @a row (as its cell's edit does).
 - (void)setEntry:(NSString *)text column:(NSString *)column row:(NSUInteger)row;
 /// The menu's operator (100: P., 101: a new example element, 102: the row
-/// removed, an element's: it; else UDSQLQbEOperator) made of what is typed.
+/// removed, 110-115: SUM. AVG. MIN. MAX. CNT. CNT.UNQ., 120-121: sorted
+/// ascending, descending; an element's: it; else UDSQLQbEOperator) made
+/// of what is typed.
 - (void)applyOperator:(NSInteger)tag element:(nullable NSString *)element column:(NSString *)column row:(NSUInteger)row;
 /// Its rows shown again (their model changed elsewhere).
 - (void)reload;

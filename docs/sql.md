@@ -102,7 +102,7 @@ its version.
 
 Double-click a table (or an entity) in the navigator, or choose **Browse**
 in its menu or the ER diagram's: a query by example of it opens, untitled,
-named for the table, and runs — its first 1,000 rows. An entity's are its
+named for the table, and runs — 100 rows a page. An entity's are its
 own and its subentities' (a subentity's rows are in its root entity's
 table: `Z_ENT` is typed under its column). Browsing the table again shows
 its tab again. **Browse** in a database's menu opens one of no table yet.
@@ -130,6 +130,7 @@ Example language mode: JSON).
   | `P.` | printed: a column of the answer (before anything else too: `P.> 6`) |
   | `_c` | an example element: the same one in two rows' columns joins them |
   | `> _c` | compared with what `_c` is (`=`, `<`, `<=`, `>=`, `<>` too) |
+  | `P.SUM.`, `P.AVG.`, `P.MIN.`, `P.MAX.`, `P.CNT.` | an aggregate of the column's rows, printed (`P.CNT.UNQ.`: of its distinct values); the other columns printed are grouped (GROUP BY), as Paradox's checked ones; a condition may follow (`P.SUM. > 5`: of those rows) |
   | `Ann`, `5` | rows whose value is that (a number where the column holds numbers) |
   | `> 5`, `<= 3`, `<> x` | compared (`>=`, `<`, `=` and `!=` too) |
   | `NULL`, `NOT NULL` | NULL, or not |
@@ -142,7 +143,8 @@ Example language mode: JSON).
   An empty cell shows an example of what its column takes (`e.g. > 5`,
   `e.g. Ann*`), and its tooltip all of the above. The ▾ at a cell's right
   (or a right-click) offers them as a menu: Print, an example element (new,
-  or one in the query), Remove This Row, and the conditions — Equal To,
+  or one in the query), an Aggregate, Sort Ascending or Descending (by
+  it, printed), Remove This Row, and the conditions — Equal To,
   Greater Than, Like, Between, One Of, Is NULL… — made of what is typed:
   `5` and Greater Than make `> 5`. A condition that can't be read says why.
   In a Core Data store, dates are typed as dates (`2024-05-01`, `> 2024-05-01
@@ -160,9 +162,16 @@ Example language mode: JSON).
 The query isn't tied to a connection: the database it is asked of is
 chosen at its top (and remembered for the file, as a SQL document's), so
 the same file is asked of staging and production; its tables are found by
-name there (one missing is said). **Run** shows its answer (a column's
-name sorts by it, again the other way; the rows selected copy as
-tab-separated text, Copy with Column Names their names first); **Show SQL**
+name there (one missing is said). **Run** shows its answer, 100 rows a
+page: ◀ and ▶ turn them, and how many there are is told (Rows 101–200 of
+2,345). A column's name clicked sorts by it (again: the other way); its
+menu (a right-click) copies the column — its values one a line, the
+selected rows' or all, Copy Column with Name its name first — or sorts.
+The rows selected copy as tab-separated text (Copy with Column Names,
+their names first). **Export…** saves all of it, not a page's, as CSV
+(RFC 4180: its names a first line, NULL empty) or JSON (an array of
+objects, its columns in order; numbers as numbers, NULL as null); a Core
+Data date as a date. **Show SQL**
 opens its SQL as a document, **Copy SQL** puts it on the clipboard — plain
 SQL as written by hand (a clause a line, a WHERE's conditions a line
 each), the chosen database's dialect, its values written in — for an app
@@ -249,8 +258,8 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLRunner` | a connection's work off the main thread, one operation at a time |
 | `UDSQLDatabases` | a window's connections, which database each document uses, running |
 | `UDSQLQbE` | what is typed under a column: its example, its help, the ▾'s operators; one table's conditions as a query |
-| `UDSQLAlgebra` | relational algebra (tables as tuple variables, joins, σ, π, ∪, order, page, count; predicates; expressions) and the SQL written from it, pretty-printed as by hand |
-| `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, ¬ and ! rows, alternatives; as algebra |
+| `UDSQLAlgebra` | relational algebra (tables as tuple variables, joins, σ, γ with aggregates, π, ∪, order, page, count; predicates; expressions) and the SQL written from it, pretty-printed as by hand |
+| `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, aggregates and their groups, ¬ and ! rows, alternatives; as algebra |
 | `UDSQLExampleFile` | a `.qbe` file: its skeletons by table name, its rows, its order; asked of a database |
 | `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`), its connection, its answer |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |

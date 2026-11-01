@@ -9,7 +9,13 @@
 
 /// The menu's own items (the XIB's tags): P., a new element, the row removed;
 /// the elements in the query from UDElementTag on.
-enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDElementTag = 200 };
+enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDAggregateTag = 110, UDAscendingTag = 120,
+       UDDescendingTag = 121, UDElementTag = 200 };
+
+/// The Aggregate submenu's (tags 110-115), as typed after P.
+static NSArray<NSString *> *UDAggregatePrefixes(void) {
+    return @[ @"SUM.", @"AVG.", @"MIN.", @"MAX.", @"CNT.", @"CNT.UNQ." ];
+}
 
 @implementation UDSQLSkeletonView
 
@@ -230,14 +236,37 @@ enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDElementT
     // P. kept apart: what follows it made, then it put back
     BOOL printed = [typed.uppercaseString hasPrefix:@"P."];
     NSString *rest = printed ? [[typed substringFromIndex:2] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] : typed;
-    if (tag == UDPrintTag) printed = !printed;
+    // what it aggregates kept apart too: SUM. and the like
+    NSString *aggregate = @"";
+    for (NSString *prefix in [UDAggregatePrefixes() reverseObjectEnumerator]) {
+        if (!printed || ![rest.uppercaseString hasPrefix:prefix]) continue;
+        aggregate = prefix;
+        rest = [[rest substringFromIndex:prefix.length] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        break;
+    }
+    if (tag == UDAscendingTag || tag == UDDescendingTag) {
+        // sorted by it: printed, then ordered by
+        if (!printed) [self setEntry:rest.length ? [@"P." stringByAppendingString:rest] : @"P." column:column row:row];
+        [_delegate skeleton:self sortsByColumn:column ascending:tag == UDAscendingTag];
+        return;
+    }
+    if (tag >= UDAggregateTag && tag < UDAggregateTag + (NSInteger)UDAggregatePrefixes().count) {
+        NSString *chosen = UDAggregatePrefixes()[(NSUInteger)(tag - UDAggregateTag)];
+        printed = YES;
+        aggregate = [aggregate isEqualToString:chosen] ? @"" : chosen;    // again: none
+    }
+    else if (tag == UDPrintTag) {
+        printed = !printed;
+        if (!printed) aggregate = @"";
+    }
     else if (tag == UDNewElementTag) rest = [_delegate newExampleElementForSkeleton:self];
     else if (tag == UDElementTag && element) rest = element;
     else {
         BOOL complete = NO;
         rest = [UDSQLQbE condition:rest withOperator:(UDSQLQbEOperator)tag complete:&complete];
     }
-    NSString *made = printed ? (rest.length ? [@"P." stringByAppendingString:rest] : @"P.") : rest;
+    NSString *head = [@"P." stringByAppendingString:aggregate];
+    NSString *made = printed ? (rest.length ? [head stringByAppendingFormat:@"%@%@", aggregate.length ? @" " : @"", rest] : head) : rest;
     [self setEntry:made column:column row:row];
 }
 

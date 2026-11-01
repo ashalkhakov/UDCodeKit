@@ -3,10 +3,11 @@
  *
  *  Relational algebra, as SQL is written from it: relations (a table under
  *  an alias — a tuple variable — joined, inner or left, on a predicate;
- *  selected, σ; projected, π; united, ∪; ordered; a page of them; their
- *  count), predicates over them (comparisons, NULL, LIKE, IN, BETWEEN, and,
+ *  selected, σ; grouped, γ, its projection's aggregates over each group;
+ *  projected, π; united, ∪; ordered; a page of them; their count),
+ *  predicates over them (comparisons, NULL, LIKE, IN, BETWEEN, and,
  *  or, not, a relation's rows existing) and expressions (a tuple
- *  variable's column, a value). A term's SQL is written in one pass, its
+ *  variable's column, a value, an aggregate of one). A term's SQL is written in one pass, its
  *  values parameters in the dialect's style in the order they are written,
  *  or written in; its columns qualified by their variables where a query
  *  has more than one.
@@ -35,6 +36,9 @@ typedef NS_ENUM(NSInteger, UDSQLComparison) {
 /// A column of what a query gives, by its name (a union's, ordered).
 + (instancetype)outputColumn:(NSString *)name;
 + (instancetype)value:(id)value;
+/// @a function (SUM, AVG, MIN, MAX, COUNT) of @a argument over a group's
+/// rows (of its distinct values, @a distinct); COUNT of none: count(*).
++ (instancetype)aggregate:(NSString *)function of:(nullable UDSQLExpression *)argument distinct:(BOOL)distinct;
 /// The variable (nil: an output column's, or a value), the column's name,
 /// the value.
 @property (nonatomic, readonly, copy, nullable) NSString *variable;
@@ -80,6 +84,9 @@ typedef NS_ENUM(NSInteger, UDSQLJoinKind) {
 - (UDSQLRelation *)join:(UDSQLRelation *)right on:(UDSQLPredicate *)on kind:(UDSQLJoinKind)kind;
 /// σ: those meeting @a predicate.
 - (UDSQLRelation *)select:(UDSQLPredicate *)predicate;
+/// γ: its rows in groups, one each of @a keys' values; projected, a row
+/// of each group (its keys, aggregates of its rows: GROUP BY).
+- (UDSQLRelation *)group:(NSArray<UDSQLExpression *> *)keys;
 /// π: @a columns (named @a names, else by their own), or all of a
 /// variable's (@a variable), or all (nil, nil).
 - (UDSQLRelation *)project:(nullable NSArray<UDSQLExpression *> *)columns names:(nullable NSArray<NSString *> *)names;

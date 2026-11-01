@@ -184,6 +184,58 @@ static Class UDPluginClass(NSString *name) {
     UDRunUntil(!editor.running && editor.result != nil, 10.0);
     XCTAssertEqualObjects(editor.result.rows, (@[ @[ @"Ann", @20 ], @[ @"Bob", @7 ] ]), @"%@", editor.statusLabel.stringValue);
     XCTAssertEqual(editor.resultsView.numberOfRows, 2);
+    XCTAssertEqualObjects(editor.statusLabel.stringValue, @"Rows 1–2 of 2 (shop.sqlite)");
+
+    // a page at a time: ◀ ▶, how many told
+    editor.pageSize = 1;
+    [editor run:nil];
+    UDRunUntil(!editor.running && editor.result.rows.count == 1, 10.0);
+    XCTAssertEqualObjects(editor.statusLabel.stringValue, @"Rows 1–1 of 2 (shop.sqlite)");
+    XCTAssertTrue(editor.nextButton.isEnabled);
+    XCTAssertFalse(editor.previousButton.isEnabled);
+    [editor nextPage:nil];
+    UDRunUntil(!editor.running && [editor.statusLabel.stringValue hasPrefix:@"Rows 2"], 10.0);
+    XCTAssertEqualObjects(editor.result.rows, (@[ @[ @"Bob", @7 ] ]));
+    XCTAssertFalse(editor.nextButton.isEnabled);
+    XCTAssertTrue(editor.previousButton.isEnabled);
+    [editor previousPage:nil];
+    UDRunUntil(!editor.running && [editor.statusLabel.stringValue hasPrefix:@"Rows 1"], 10.0);
+    editor.pageSize = 100;
+    [editor run:nil];
+    UDRunUntil(!editor.running && editor.result.rows.count == 2, 10.0);
+
+    // a column copied: its values, its name first; its name's menu
+    [editor copyColumnAtIndex:0 withName:YES];
+    XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString], @"name\nAnn\nBob");
+    XCTAssertEqual(editor.resultsView.headerView.menu, editor.headerMenu);
+    XCTAssertEqualObjects([editor.headerMenu.itemArray valueForKey:@"title"],
+                          (@[ @"Copy Column", @"Copy Column with Name", @"", @"Sort Ascending", @"Sort Descending" ]));
+    XCTAssertEqualObjects([editor.exportFormatButton itemTitles], (@[ @"CSV", @"JSON" ]));
+
+    // exported: all of it (not a page's), as CSV and JSON
+    editor.pageSize = 1;
+    NSURL *csv = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"orders.csv"]];
+    [editor exportToURL:csv format:@"csv"];
+    UDRunUntil(!editor.running && [editor.statusLabel.stringValue hasSuffix:@"orders.csv"], 10.0);
+    XCTAssertEqualObjects(editor.statusLabel.stringValue, @"2 rows exported to orders.csv");
+    XCTAssertEqualObjects([NSString stringWithContentsOfURL:csv encoding:NSUTF8StringEncoding error:NULL], @"name,total\r\nAnn,20\r\nBob,7\r\n");
+    NSURL *json = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"orders.json"]];
+    [editor exportToURL:json format:@"json"];
+    UDRunUntil(!editor.running && [editor.statusLabel.stringValue hasSuffix:@"orders.json"], 10.0);
+    XCTAssertEqualObjects([NSString stringWithContentsOfURL:json encoding:NSUTF8StringEncoding error:NULL],
+                          @"[\n  {\"name\": \"Ann\", \"total\": 20},\n  {\"name\": \"Bob\", \"total\": 7}\n]\n");
+    editor.pageSize = 100;
+
+    // its ▾'s Aggregate (again: none), and Sort, by the name it is printed under
+    [editor.skeletons[1] applyOperator:110 element:nil column:@"total" row:0];
+    XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.SUM. > 6");
+    [editor.skeletons[1] applyOperator:110 element:nil column:@"total" row:0];
+    XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.> 6");
+    [editor skeleton:editor.skeletons[1] sortsByColumn:@"total" ascending:NO];
+    XCTAssertEqualObjects(editor.file.order.firstObject.key, @"total");
+    XCTAssertFalse(editor.file.order.firstObject.ascending);
+    UDRunUntil(!editor.running && editor.result.rows.count == 2, 10.0);
+    XCTAssertEqualObjects(editor.result.rows.firstObject, (@[ @"Ann", @20 ]));
 
     // its first save: where asked (the window's Save's panel), its tab named
     // for its file, its database remembered for it
@@ -249,8 +301,9 @@ static Class UDPluginClass(NSString *name) {
     [editor copySQL:nil];
     XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString],
                           @"SELECT \"customers\".\"name\", \"orders\".\"total\"\nFROM \"customers\"\n"
-                           "JOIN \"orders\" ON \"orders\".\"customer\" = \"customers\".\"id\"\nWHERE \"orders\".\"total\" > 10",
-                          @"as written by hand: a clause a line");
+                           "JOIN \"orders\" ON \"orders\".\"customer\" = \"customers\".\"id\"\nWHERE \"orders\".\"total\" > 10\n"
+                           "ORDER BY \"orders\".\"total\" DESC",
+                          @"as written by hand: a clause a line; its order, the file's");
 
     // a row added, the selected one removed (Remove Row); the selected
     // table removed (the list's −); each an event's edit

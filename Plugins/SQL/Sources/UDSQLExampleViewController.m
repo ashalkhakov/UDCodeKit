@@ -7,7 +7,9 @@
 #import "UDSQLValues.h"
 #import <objc/runtime.h>
 
-static const NSUInteger UDMaxRows = 1000;
+/// The rows a page has (◀ ▶ turn them), and the most an export keeps.
+static const NSUInteger UDPageSize = 100;
+static const NSUInteger UDMaxExported = 10000000;
 
 @implementation UDSQLExampleStackView
 
@@ -21,6 +23,11 @@ static const NSUInteger UDMaxRows = 1000;
 @property (nonatomic, weak) IBOutlet NSPopUpButton *databaseButton;
 @property (nonatomic, weak) IBOutlet NSPopUpButton *addTableButton;
 @property (nonatomic, weak) IBOutlet NSButton *removeTableButton;
+@property (nonatomic, weak) IBOutlet NSButton *previousButton;
+@property (nonatomic, weak) IBOutlet NSButton *nextButton;
+@property (nonatomic, strong) IBOutlet NSMenu *headerMenu;
+@property (nonatomic, strong) IBOutlet NSView *exportAccessory;
+@property (nonatomic, weak) IBOutlet NSPopUpButton *exportFormatButton;
 @property (nonatomic, weak) IBOutlet NSTextField *statusLabel;
 @property (nonatomic, weak) IBOutlet UDSQLExampleStackView *stackView;
 @property (nonatomic, weak) IBOutlet NSTableView *resultsView;
@@ -34,6 +41,11 @@ static const NSUInteger UDMaxRows = 1000;
     BOOL _writing;                      // its own edit of its document's text, under way
     BOOL _waitsForConnection, _runsWhenConnected;
     NSInteger _selected;                // its selected skeleton's index; -1: none
+    NSUInteger _offset, _count;         // its page's first row; how many it has (NSNotFound: not yet known)
+    NSInteger _menuColumn;              // the result's column a menu is of; -1: none
+    NSArray<UDSQLStatement *> *_exporting;
+    NSURL *_exportURL;
+    NSString *_exportFormat;
     NSArray<UDSQLStatement *> *_pending;
 }
 
@@ -44,6 +56,9 @@ static const NSUInteger UDMaxRows = 1000;
         _document = document;
         _skeletons = [NSMutableArray array];
         _selected = 0;
+        _pageSize = UDPageSize;
+        _count = NSNotFound;
+        _menuColumn = -1;
         [self _readDocument];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
                                                      name:UDTextModelDidChangeNotification object:document.textModel];
@@ -62,6 +77,14 @@ static const NSUInteger UDMaxRows = 1000;
 - (void)viewDidLoad {
     [super viewDidLoad];
     [_resultTemplate.tableView removeTableColumn:_resultTemplate];
+    // a column's name right-clicked: its menu (copied, sorted)
+    _resultsView.headerView.menu = _headerMenu;
+    // Export…'s formats, by their files' extensions
+    if (_exportFormatButton.numberOfItems >= 2) {
+        [_exportFormatButton itemAtIndex:0].representedObject = @"csv";
+        [_exportFormatButton itemAtIndex:1].representedObject = @"json";
+    }
+    [self _updatePager];
     [self _reloadDatabases];
     [self _useDatabase];
 }
@@ -247,6 +270,24 @@ static const NSUInteger UDMaxRows = 1000;
     if (index != NSNotFound) [self _select:(NSInteger)index];
 }
 
+/// Sorted by a skeleton's column: by the name it is printed under (its
+/// own, its table's and its, an aggregate's of it).
+- (void)skeleton:(UDSQLSkeletonViewController *)skeleton sortsByColumn:(NSString *)column ascending:(BOOL)ascending {
+    NSArray<NSString *> *printed = [[self _query:NULL] printedColumns:NULL];
+    NSString *table = skeleton.skeleton.table;
+    NSString *found = nil;
+    for (NSString *name in printed) if ([name isEqualToString:column]) found = name;
+    for (NSString *name in found ? @[] : printed) if ([name isEqualToString:[NSString stringWithFormat:@"%@.%@", table, column]]) found = name;
+    for (NSString *name in found ? @[] : printed) {
+        if ([name hasSuffix:[NSString stringWithFormat:@"(%@)", column]] || [name hasSuffix:[NSString stringWithFormat:@"(DISTINCT %@)", column]]) found = name;
+    }
+    if (!found) {
+        [self _showStatus:[NSString stringWithFormat:@"%@ isn't printed: it can't be sorted by", column] error:YES];
+        return;
+    }
+    [self sortByColumn:found ascending:ascending];
+}
+
 - (IBAction)removeTable:(id)sender {
     if (_selected >= 0 && _selected < (NSInteger)_skeletons.count) [self skeletonWantsToBeRemoved:_skeletons[(NSUInteger)_selected]];
 }
@@ -377,6 +418,24 @@ static const NSUInteger UDMaxRows = 1000;
 }
 
 - (IBAction)run:(id)sender {
+    _offset = 0;
+    [self _runPage];
+}
+
+- (IBAction)previousPage:(id)sender {
+    if (_running || !_offset) return;
+    _offset = _offset > _pageSize ? _offset - _pageSize : 0;
+    [self _runPage];
+}
+
+- (IBAction)nextPage:(id)sender {
+    if (_running || !_result || _offset + _result.rows.count >= _count) return;
+    _offset += _pageSize;
+    [self _runPage];
+}
+
+/// Its page from _offset, and how many rows it has: one run, two statements.
+- (void)_runPage {
     [self.view.window makeFirstResponder:nil];
     UDSQLDatabase *database = self.database;
     if (database && !database.schema) {
@@ -388,15 +447,17 @@ static const NSUInteger UDMaxRows = 1000;
     }
     NSError *error = nil;
     UDSQLExampleQuery *query = [self _query:&error];
-    UDSQLStatement *statement = [query selectStatementWithLimit:UDMaxRows offset:0 error:&error];
-    if (!statement) {
+    UDSQLStatement *statement = [query selectStatementWithLimit:_pageSize offset:_offset error:&error];
+    UDSQLStatement *count = statement ? [query countStatement:&error] : nil;
+    if (!statement || !count) {
         [self _showStatus:error.localizedDescription ?: @"It can't be asked." error:YES];
         return;
     }
-    _pending = @[ statement ];
+    _pending = @[ statement, count ];
     _running = YES;
+    [self _updatePager];
     [self _showStatus:@"Running…" error:NO];
-    [database.runner run:_pending maxRows:UDMaxRows target:self action:@selector(_didRun:)];
+    [database.runner run:_pending maxRows:_pageSize target:self action:@selector(_didRun:)];
 }
 
 - (void)_didRun:(UDSQLRun *)run {
@@ -404,16 +465,27 @@ static const NSUInteger UDMaxRows = 1000;
     _pending = nil;
     _running = NO;
     if (run.error) {
+        [self _updatePager];
         [self _showStatus:run.error.localizedDescription error:YES];
         return;
     }
     _result = run.results.firstObject;
+    id counted = run.results.count > 1 ? [run.results[1].rows.firstObject firstObject] : nil;
+    _count = [counted respondsToSelector:@selector(unsignedIntegerValue)] ? [counted unsignedIntegerValue] : NSNotFound;
     [self _makeResultColumns];
+    [self _updatePager];
     NSNumberFormatter *numbers = [[NSNumberFormatter alloc] init];
     numbers.numberStyle = NSNumberFormatterDecimalStyle;
-    [self _showStatus:[NSString stringWithFormat:@"%@ %@%@ (%@)", [numbers stringFromNumber:@(_result.rows.count)],
-                                                 _result.rows.count == 1 ? @"row" : @"rows", _result.truncated ? @", the first ones" : @"",
-                                                 self.database.name] error:NO];
+    NSString *shown = !_result.rows.count ? @"No rows"
+        : [NSString stringWithFormat:@"Rows %@–%@", [numbers stringFromNumber:@(_offset + 1)], [numbers stringFromNumber:@(_offset + _result.rows.count)]];
+    if (_count != NSNotFound && _result.rows.count) shown = [shown stringByAppendingFormat:@" of %@", [numbers stringFromNumber:@(_count)]];
+    [self _showStatus:[NSString stringWithFormat:@"%@ (%@)", shown, self.database.name] error:NO];
+}
+
+/// ◀ and ▶: a page before this one, after it.
+- (void)_updatePager {
+    [_previousButton setEnabled:!_running && _offset > 0];
+    [_nextButton setEnabled:!_running && _result && _count != NSNotFound && _offset + _result.rows.count < _count];
 }
 
 - (void)_makeResultColumns {
@@ -453,10 +525,7 @@ static const NSUInteger UDMaxRows = 1000;
 - (void)tableView:(NSTableView *)tableView didClickTableColumn:(NSTableColumn *)column {
     NSString *name = [column.headerCell stringValue];
     NSSortDescriptor *first = _file.order.firstObject;
-    BOOL ascending = !([first.key isEqualToString:name] && first.ascending);
-    _file.order = @[ [NSSortDescriptor sortDescriptorWithKey:name ascending:ascending] ];
-    [self _writeDocument];
-    [self run:nil];
+    [self sortByColumn:name ascending:!([first.key isEqualToString:name] && first.ascending)];
 }
 
 - (IBAction)showSQL:(id)sender {
@@ -511,8 +580,142 @@ static const NSUInteger UDMaxRows = 1000;
     [self _copyHeaders:YES];
 }
 
+// ---------------------------------------------------------------------------
+// MARK: - A column copied, the answer exported
+// ---------------------------------------------------------------------------
+
+/// The column a menu opens on: the cell's right-clicked, else the name's.
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    _menuColumn = _resultsView.clickedColumn;
+    NSEvent *event = [NSApp currentEvent];
+    if (_menuColumn < 0 && event) {
+        NSTableHeaderView *header = _resultsView.headerView;
+        _menuColumn = [header columnAtPoint:[header convertPoint:event.locationInWindow fromView:nil]];
+    }
+}
+
+- (void)copyColumnAtIndex:(NSUInteger)index withName:(BOOL)name {
+    if (index >= _result.columns.count) return;
+    NSIndexSet *rows = _resultsView.selectedRowIndexes.count ? _resultsView.selectedRowIndexes
+                                                             : [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _result.rows.count)];
+    UDSQLColumn *described = _result.columns[index];
+    NSMutableArray *lines = [NSMutableArray array];
+    if (name) [lines addObject:described.name];
+    for (NSUInteger row = rows.firstIndex; row != NSNotFound; row = [rows indexGreaterThanIndex:row]) {
+        NSArray *values = _result.rows[row];
+        id value = index < values.count ? values[index] : [NSNull null];
+        [lines addObject:value == [NSNull null] ? @"" : UDSQLTextOfValue(value, described.name, described.type, self.database.schema)];
+    }
+    NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+    [pasteboard declareTypes:@[ NSPasteboardTypeString ] owner:nil];
+    [pasteboard setString:[lines componentsJoinedByString:@"\n"] forType:NSPasteboardTypeString];
+}
+
+/// The column's index in the answer (the table's columns may be moved).
+- (NSInteger)_resultColumnOfMenu {
+    if (_menuColumn < 0 || _menuColumn >= (NSInteger)_resultsView.tableColumns.count) return -1;
+    return [[_resultsView.tableColumns[(NSUInteger)_menuColumn] identifier] integerValue];
+}
+
+- (IBAction)copyColumn:(id)sender {
+    NSInteger index = [self _resultColumnOfMenu];
+    if (index >= 0) [self copyColumnAtIndex:(NSUInteger)index withName:NO];
+}
+
+- (IBAction)copyColumnWithName:(id)sender {
+    NSInteger index = [self _resultColumnOfMenu];
+    if (index >= 0) [self copyColumnAtIndex:(NSUInteger)index withName:YES];
+}
+
+- (IBAction)sortAscending:(id)sender {
+    NSInteger index = [self _resultColumnOfMenu];
+    if (index >= 0) [self sortByColumn:_result.columns[(NSUInteger)index].name ascending:YES];
+}
+
+- (IBAction)sortDescending:(id)sender {
+    NSInteger index = [self _resultColumnOfMenu];
+    if (index >= 0) [self sortByColumn:_result.columns[(NSUInteger)index].name ascending:NO];
+}
+
+- (void)sortByColumn:(NSString *)name ascending:(BOOL)ascending {
+    _file.order = @[ [NSSortDescriptor sortDescriptorWithKey:name ascending:ascending] ];
+    [self _writeDocument];
+    [self run:nil];
+}
+
+/// Export…: all its rows (not a page's), where and as what (CSV, JSON) asked.
+- (IBAction)exportResult:(id)sender {
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    NSString *name = [_document.displayName stringByDeletingPathExtension];
+    panel.nameFieldStringValue = [name stringByAppendingPathExtension:@"csv"];
+    panel.allowedFileTypes = @[ @"csv", @"json" ];
+    panel.accessoryView = _exportAccessory;
+    [_exportFormatButton selectItemAtIndex:0];
+    _exportFormatButton.target = self;
+    _exportFormatButton.action = @selector(_exportFormatChosen:);
+    objc_setAssociatedObject(_exportFormatButton, "panel", panel, OBJC_ASSOCIATION_ASSIGN);
+    [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
+        objc_setAssociatedObject(self->_exportFormatButton, "panel", nil, OBJC_ASSOCIATION_ASSIGN);
+        if (response != NSModalResponseOK || !panel.URL) return;
+        [self exportToURL:panel.URL format:self->_exportFormatButton.selectedItem.representedObject ?: panel.URL.pathExtension];
+    }];
+}
+
+/// The format chosen: the file's name says it too.
+- (void)_exportFormatChosen:(NSPopUpButton *)sender {
+    NSSavePanel *panel = objc_getAssociatedObject(sender, "panel");
+    NSString *extension = sender.selectedItem.representedObject;
+    if (!panel || !extension) return;
+    panel.allowedFileTypes = @[ extension ];
+    panel.nameFieldStringValue = [[panel.nameFieldStringValue stringByDeletingPathExtension] stringByAppendingPathExtension:extension];
+}
+
+- (void)exportToURL:(NSURL *)url format:(NSString *)format {
+    UDSQLDatabase *database = self.database;
+    NSError *error = nil;
+    NSString *sql = database.schema ? [self SQL:&error] : nil;
+    if (!sql) {
+        [self _showStatus:error.localizedDescription ?: @"Connect first: it is asked of a database." error:YES];
+        return;
+    }
+    _exportURL = url;
+    _exportFormat = [format.lowercaseString isEqualToString:@"json"] ? @"json" : @"csv";
+    _exporting = @[ [[UDSQLStatement alloc] initWithText:sql SQL:sql parameters:@[]] ];
+    _running = YES;
+    [self _updatePager];
+    [self _showStatus:@"Exporting…" error:NO];
+    [database.runner run:_exporting maxRows:UDMaxExported target:self action:@selector(_didExport:)];
+}
+
+- (void)_didExport:(UDSQLRun *)run {
+    if (!run.finished || run.statements != _exporting) return;
+    _exporting = nil;
+    _running = NO;
+    [self _updatePager];
+    if (run.error) {
+        [self _showStatus:run.error.localizedDescription error:YES];
+        return;
+    }
+    UDSQLResult *all = run.results.firstObject;
+    UDSQLSchema *schema = self.database.schema;
+    NSString *text = [_exportFormat isEqualToString:@"json"] ? UDSQLJSONOfResult(all, schema) : UDSQLCSVOfResult(all, schema);
+    NSError *error = nil;
+    if (![text writeToURL:_exportURL atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
+        [self _showStatus:error.localizedDescription error:YES];
+        return;
+    }
+    NSNumberFormatter *numbers = [[NSNumberFormatter alloc] init];
+    numbers.numberStyle = NSNumberFormatterDecimalStyle;
+    [self _showStatus:[NSString stringWithFormat:@"%@ %@ exported to %@", [numbers stringFromNumber:@(all.rows.count)],
+                                                 all.rows.count == 1 ? @"row" : @"rows", _exportURL.lastPathComponent] error:NO];
+}
+
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     SEL action = item.action;
+    if (sel_isEqual(action, @selector(copyColumn:)) || sel_isEqual(action, @selector(copyColumnWithName:)) ||
+        sel_isEqual(action, @selector(sortAscending:)) || sel_isEqual(action, @selector(sortDescending:))) {
+        return [self _resultColumnOfMenu] >= 0;
+    }
     if (sel_isEqual(action, @selector(undo:))) return _document.textModel.undoManager.canUndo;
     if (sel_isEqual(action, @selector(redo:))) return _document.textModel.undoManager.canRedo;
     if (sel_isEqual(action, @selector(copy:)) || sel_isEqual(action, @selector(copyWithColumnNames:))) return _result.rows.count > 0;

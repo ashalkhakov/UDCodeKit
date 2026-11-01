@@ -1,12 +1,16 @@
 /*---------------------------------------------------------------------------------------------
  *  UDSQLSkeletonViewController.h
  *
- *  A skeleton of a query by example's (UDSQLSkeleton.xib): its table's name,
- *  and its rows' grid, a column for each of its table's columns, what is
- *  typed under them (P., an example element, a condition; its ▾, a
- *  right-click: a menu of them), and each row's ¬ or !. Its table's columns
- *  are the database's; a table the database lacks, the columns typed under.
- *  A click in a cell edits it; a click on it selects it (its title's band).
+ *  A skeleton of a query by example's (UDSQLSkeleton.xib), a form: its
+ *  table's name, and a line each of its columns — its Sort, then for each
+ *  of its rows (tuple variables) Show (P.), Total (Group, Sum…), an
+ *  operator, a value and a range's To;
+ *  the first line, each row's kind (there, not there ¬, optional !). What
+ *  they say is kept as the entry's text (UDSQLExampleEntry), as typed: the
+ *  query, the file and Show as Text as they were. A click in a value edits
+ *  it; a right-click offers the query's example elements; a click on it
+ *  selects it (its title's band). Its table's columns are the database's;
+ *  a table the database lacks, the columns typed under.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -27,9 +31,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// What is typed in it changed (its skeleton's rows are as they are now).
 - (void)skeletonDidChange:(UDSQLSkeletonViewController *)skeleton;
 - (void)skeletonWantsToBeRemoved:(UDSQLSkeletonViewController *)skeleton;
-/// Its menu's Sort Ascending, Sort Descending: the answer ordered by
-/// @a column (printed).
+/// Its Sort: the answer ordered by @a column, or not; how it is (0: not
+/// sorted by it, 1: ascending, 2: descending).
 - (void)skeleton:(UDSQLSkeletonViewController *)skeleton sortsByColumn:(NSString *)column ascending:(BOOL)ascending;
+- (void)skeleton:(UDSQLSkeletonViewController *)skeleton unsortsColumn:(NSString *)column;
+- (NSInteger)skeleton:(UDSQLSkeletonViewController *)skeleton sortOfColumn:(NSString *)column;
 /// Clicked (its title, its grid): the one the − removes.
 - (void)skeletonWantsToBeSelected:(UDSQLSkeletonViewController *)skeleton;
 /// The example elements in the query (its menu offers them), and a new one.
@@ -53,7 +59,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, readonly) IBOutlet NSTableView *rowsView;
 @property (nonatomic, strong, readonly) IBOutlet NSMenu *operatorMenu;
 
-/// What is typed under @a column in @a row (as its cell's edit does).
+/// What is typed under @a column in @a row (a tuple), as the form's line
+/// sets it.
 - (void)setEntry:(NSString *)text column:(NSString *)column row:(NSUInteger)row;
 /// The menu's operator (100: P., 101: a new example element, 102: the row
 /// removed, 103: G. (grouped by it), 110-115: SUM. AVG. MIN. MAX. CNT.
@@ -64,7 +71,7 @@ NS_ASSUME_NONNULL_BEGIN
 /// Its rows shown again (their model changed elsewhere).
 - (void)reload;
 
-/// A row added; the selected one removed (none selected: the last).
+/// A row added; the one last clicked in removed (none: the last).
 - (IBAction)addRow:(nullable id)sender;
 - (IBAction)removeRow:(nullable id)sender;
 - (IBAction)removeSkeleton:(nullable id)sender;

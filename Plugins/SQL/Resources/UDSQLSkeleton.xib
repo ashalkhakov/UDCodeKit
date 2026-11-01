@@ -11,147 +11,29 @@
                 <outlet property="titleLabel" destination="SK-title" id="SK-o-title"/>
                 <outlet property="rowsView" destination="SK-rows" id="SK-o-rows"/>
                 <outlet property="flagTemplate" destination="flag-col" id="SK-o-flag"/>
-                <outlet property="entryTemplate" destination="entry-col" id="SK-o-entry"/>
+                <outlet property="nameColumn" destination="SK-name-col" id="SK-o-name"/>
+                <outlet property="sortColumn" destination="SK-sort-col" id="SK-o-sort"/>
+                <outlet property="showTemplate" destination="SK-show-col" id="SK-o-show"/>
+                <outlet property="totalTemplate" destination="SK-total-col" id="SK-o-total"/>
+                <outlet property="opTemplate" destination="SK-op-col" id="SK-o-op"/>
+                <outlet property="valueTemplate" destination="SK-value-col" id="SK-o-value"/>
+                <outlet property="toTemplate" destination="SK-to-col" id="SK-o-to"/>
                 <outlet property="operatorMenu" destination="SK-cmenu" id="SK-o-cmenu"/>
             </connections>
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
-        <menu title="Entry" autoenablesItems="YES" id="SK-cmenu" userLabel="An Entry's (its ▾, its right-click): printed, an example element, a condition">
+        <menu title="Entry" autoenablesItems="YES" id="SK-cmenu" userLabel="A Value's (its right-click): an example element, the row removed">
             <items>
-                <menuItem title="Print (P.)" tag="100" id="SK-c-print">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-print-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Group By (G.)" tag="103" id="SK-c-group">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-group-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Aggregate" id="SK-c-aggregate">
-                    <menu key="submenu" title="Aggregate" id="SK-c-aggregate-menu">
-                        <items>
-                    <menuItem title="Sum (SUM.)" tag="110" id="SK-c-sum">
-                        <connections>
-                            <action selector="applyOperator:" target="-2" id="SK-c-sum-a"/>
-                        </connections>
-                    </menuItem>
-                    <menuItem title="Average (AVG.)" tag="111" id="SK-c-avg">
-                        <connections>
-                            <action selector="applyOperator:" target="-2" id="SK-c-avg-a"/>
-                        </connections>
-                    </menuItem>
-                    <menuItem title="Minimum (MIN.)" tag="112" id="SK-c-min">
-                        <connections>
-                            <action selector="applyOperator:" target="-2" id="SK-c-min-a"/>
-                        </connections>
-                    </menuItem>
-                    <menuItem title="Maximum (MAX.)" tag="113" id="SK-c-max">
-                        <connections>
-                            <action selector="applyOperator:" target="-2" id="SK-c-max-a"/>
-                        </connections>
-                    </menuItem>
-                    <menuItem title="Count (CNT.)" tag="114" id="SK-c-cnt">
-                        <connections>
-                            <action selector="applyOperator:" target="-2" id="SK-c-cnt-a"/>
-                        </connections>
-                    </menuItem>
-                    <menuItem title="Count Distinct (CNT.UNQ.)" tag="115" id="SK-c-unq">
-                        <connections>
-                            <action selector="applyOperator:" target="-2" id="SK-c-unq-a"/>
-                        </connections>
-                    </menuItem>
-                        </items>
-                    </menu>
-                </menuItem>
-                <menuItem title="Sort Ascending" tag="120" id="SK-c-asc">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-asc-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Sort Descending" tag="121" id="SK-c-desc">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-desc-a"/>
-                    </connections>
-                </menuItem>
                 <menuItem title="New Example Element" tag="101" id="SK-c-element">
                     <connections>
                         <action selector="applyOperator:" target="-2" id="SK-c-element-a"/>
                     </connections>
                 </menuItem>
+                <menuItem isSeparatorItem="YES" id="SK-c-sep0"/>
                 <menuItem title="Remove This Row" tag="102" id="SK-c-removerow">
                     <connections>
                         <action selector="applyOperator:" target="-2" id="SK-c-removerow-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem isSeparatorItem="YES" id="SK-c-sep0"/>
-                <menuItem title="Equal To" tag="1" id="SK-c-eq">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-eq-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Not Equal To" tag="2" id="SK-c-ne">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-ne-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Greater Than" tag="3" id="SK-c-gt">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-gt-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="At Least" tag="4" id="SK-c-ge">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-ge-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Less Than" tag="5" id="SK-c-lt">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-lt-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="At Most" tag="6" id="SK-c-le">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-le-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem isSeparatorItem="YES" id="SK-c-sep1"/>
-                <menuItem title="Like (Ann*)" tag="7" id="SK-c-like">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-like-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Between (1..10)" tag="8" id="SK-c-between">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-between-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="One Of (a, b, c)" tag="9" id="SK-c-in">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-in-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem isSeparatorItem="YES" id="SK-c-sep2"/>
-                <menuItem title="Is NULL" tag="10" id="SK-c-null">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-null-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Is Not NULL" tag="11" id="SK-c-notnull">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-notnull-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Not" tag="12" id="SK-c-not">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-not-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem isSeparatorItem="YES" id="SK-c-sep3"/>
-                <menuItem title="Clear" tag="13" id="SK-c-clear">
-                    <connections>
-                        <action selector="applyOperator:" target="-2" id="SK-c-clear-a"/>
                     </connections>
                 </menuItem>
             </items>
@@ -191,7 +73,7 @@
                         <action selector="removeRow:" target="-2" id="SK-remove-a"/>
                     </connections>
                 </button>
-                <scrollView toolTip="Under each column: P. (printed), an example element (_c: the same one in two rows joins them), > _c, or a condition (Ann, > 5, NULL, Ann*). A row's ¬: no such row; !: kept without a match" borderType="bezel" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" hasVerticalScroller="NO" usesPredominantAxisScrolling="NO" id="SK-scroll">
+                <scrollView toolTip="A line each column: Show it, Total (Group, Sum…), an operator and a value (or an example element, _c: the same one in two rows joins them)" borderType="bezel" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" usesPredominantAxisScrolling="NO" id="SK-scroll">
                     <rect key="frame" x="0.0" y="0.0" width="880.0" height="110.0"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                     <clipView key="contentView" id="SK-clip">
@@ -206,35 +88,139 @@
                                 <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
                                 <tableViewGridLines key="gridStyleMask" vertical="YES" horizontal="YES"/>
                                 <tableColumns>
-                                    <tableColumn identifier="flag" editable="YES" width="44" minWidth="40" maxWidth="60" id="flag-col" userLabel="A Row's ¬ or !">
-                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="">
-                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
-                                        </tableHeaderCell>
-                                        <popUpButtonCell key="dataCell" type="bevel" title="" bezelStyle="regularSquare" alignment="center" controlSize="small" lineBreakMode="truncatingTail" borderStyle="bezel" imageScaling="proportionallyDown" inset="2" selectedItem="SK-flag-none" id="SK-flag-cell">
-                                            <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <menu key="menu" id="SK-flag-menu">
-                                                <items>
-                                                    <menuItem title="" state="on" toolTip="A row there is" id="SK-flag-none"/>
-                                                    <menuItem title="¬" toolTip="No such row (none of the rows it is linked to has one)" id="SK-flag-not"/>
-                                                    <menuItem title="!" toolTip="Kept: the rows it is linked to are kept where it has no match (a left join)" id="SK-flag-keep"/>
-                                                </items>
-                                            </menu>
-                                        </popUpButtonCell>
-                                        <tableColumnResizingMask key="resizingMask"/>
-                                    </tableColumn>
-                                    <tableColumn identifier="entryTemplate" editable="YES" width="120" minWidth="40" maxWidth="2000" id="entry-col" userLabel="Each Column's Is Made Like It">
+                                    <tableColumn identifier="name" width="150" minWidth="30" maxWidth="1000" id="SK-name-col" userLabel="Each Column's Name (a line each)">
                                         <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Column">
                                             <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
                                             <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
                                         </tableHeaderCell>
-                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" editable="YES" customClass="UDSQLConditionCell" title="Text Cell" id="SK-entry-cell">
+                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" title="Text Cell" id="SK-name-cell">
                                             <font key="font" metaFont="smallSystem"/>
                                             <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
                                             <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
                                         </textFieldCell>
                                         <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="sort" editable="YES" width="50" minWidth="30" maxWidth="1000" id="SK-sort-col" userLabel="Sorted by It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Sort">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <popUpButtonCell key="dataCell" type="bevel" title="" bezelStyle="regularSquare" alignment="left" controlSize="small" lineBreakMode="truncatingTail" borderStyle="bezel" imageScaling="proportionallyDown" inset="2" selectedItem="SK-sort-cell-0" id="SK-sort-cell">
+                                            <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <menu key="menu" id="SK-sort-cell-menu">
+                                                <items>
+                                                    <menuItem title="" state="on" toolTip="Not sorted by it" id="SK-sort-cell-0"/>
+                                                    <menuItem title="↑" toolTip="Sorted by it, ascending" id="SK-sort-cell-1"/>
+                                                    <menuItem title="↓" toolTip="Sorted by it, descending" id="SK-sort-cell-2"/>
+                                                </items>
+                                            </menu>
+                                        </popUpButtonCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="show" editable="YES" width="44" minWidth="30" maxWidth="1000" id="SK-show-col" userLabel="A Row's: Shown (P.), Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Show">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <buttonCell key="dataCell" type="check" bezelStyle="regularSquare" imagePosition="only" alignment="center" controlSize="small" inset="2" id="SK-show-cell">
+                                            <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                                            <font key="font" metaFont="smallSystem"/>
+                                        </buttonCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="total" editable="YES" width="100" minWidth="30" maxWidth="1000" id="SK-total-col" userLabel="A Row's: Grouped or Totalled, Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Total">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <popUpButtonCell key="dataCell" type="bevel" title="" bezelStyle="regularSquare" alignment="left" controlSize="small" lineBreakMode="truncatingTail" borderStyle="bezel" imageScaling="proportionallyDown" inset="2" selectedItem="SK-total-cell-0" id="SK-total-cell">
+                                            <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <menu key="menu" id="SK-total-cell-menu">
+                                                <items>
+                                                    <menuItem title="" state="on" toolTip="Each row as it is" id="SK-total-cell-0"/>
+                                                    <menuItem title="Group" toolTip="Grouped by it: rows alike in it are one (G.)" id="SK-total-cell-1"/>
+                                                    <menuItem title="Sum" toolTip="The sum of its values in each group (SUM.)" id="SK-total-cell-2"/>
+                                                    <menuItem title="Average" toolTip="Their average (AVG.)" id="SK-total-cell-3"/>
+                                                    <menuItem title="Minimum" toolTip="The least (MIN.)" id="SK-total-cell-4"/>
+                                                    <menuItem title="Maximum" toolTip="The greatest (MAX.)" id="SK-total-cell-5"/>
+                                                    <menuItem title="Count" toolTip="How many values (CNT.)" id="SK-total-cell-6"/>
+                                                    <menuItem title="Count distinct" toolTip="How many distinct values (CNT.UNQ.)" id="SK-total-cell-7"/>
+                                                </items>
+                                            </menu>
+                                        </popUpButtonCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="op" editable="YES" width="84" minWidth="30" maxWidth="1000" id="SK-op-col" userLabel="A Row's: Its Operator, Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Op">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <popUpButtonCell key="dataCell" type="bevel" title="" bezelStyle="regularSquare" alignment="left" controlSize="small" lineBreakMode="truncatingTail" borderStyle="bezel" imageScaling="proportionallyDown" inset="2" selectedItem="SK-op-cell-0" id="SK-op-cell">
+                                            <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <menu key="menu" id="SK-op-cell-menu">
+                                                <items>
+                                                    <menuItem title="" state="on" toolTip="Nothing asked (or the value as typed)" id="SK-op-cell-0"/>
+                                                    <menuItem title="=" toolTip="Equal to the value (or an example element: _c)" id="SK-op-cell-1"/>
+                                                    <menuItem title="≠" toolTip="Not equal to it" id="SK-op-cell-2"/>
+                                                    <menuItem title="&gt;" toolTip="Greater than it" id="SK-op-cell-3"/>
+                                                    <menuItem title="≥" toolTip="At least it" id="SK-op-cell-4"/>
+                                                    <menuItem title="&lt;" toolTip="Less than it" id="SK-op-cell-5"/>
+                                                    <menuItem title="≤" toolTip="At most it" id="SK-op-cell-6"/>
+                                                    <menuItem title="between" toolTip="From the value to To, both included" id="SK-op-cell-7"/>
+                                                    <menuItem title="like" toolTip="Like it: * any text, case aside" id="SK-op-cell-8"/>
+                                                    <menuItem title="one of" toolTip="One of them: a, b, c" id="SK-op-cell-9"/>
+                                                    <menuItem title="not" toolTip="Not so" id="SK-op-cell-10"/>
+                                                    <menuItem title="is null" toolTip="NULL" id="SK-op-cell-11"/>
+                                                    <menuItem title="is not null" toolTip="Not NULL" id="SK-op-cell-12"/>
+                                                </items>
+                                            </menu>
+                                        </popUpButtonCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="value" editable="YES" width="160" minWidth="30" maxWidth="1000" id="SK-value-col" userLabel="A Row's: Its Value, Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Value">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" editable="YES" customClass="UDSQLConditionCell" title="Text Cell" id="SK-value-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="to" editable="YES" width="100" minWidth="30" maxWidth="1000" id="SK-to-col" userLabel="A Row's: A Range's End, Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="To">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" editable="YES" customClass="UDSQLConditionCell" title="Text Cell" id="SK-to-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                    <tableColumn identifier="flag" editable="YES" width="44" minWidth="40" maxWidth="60" id="flag-col" userLabel="A Row's ¬ or !">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <popUpButtonCell key="dataCell" type="bevel" title="is there" bezelStyle="regularSquare" alignment="center" controlSize="small" lineBreakMode="truncatingTail" borderStyle="bezel" imageScaling="proportionallyDown" inset="2" selectedItem="SK-flag-none" id="SK-flag-cell">
+                                            <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <menu key="menu" id="SK-flag-menu">
+                                                <items>
+                                                    <menuItem title="is there" state="on" toolTip="A row there is" id="SK-flag-none"/>
+                                                    <menuItem title="isn't there (¬)" toolTip="No such row (none of the rows it is linked to has one)" id="SK-flag-not"/>
+                                                    <menuItem title="optional (!)" toolTip="Kept: the rows it is linked to are kept where it has no match (a left join)" id="SK-flag-keep"/>
+                                                </items>
+                                            </menu>
+                                        </popUpButtonCell>
+                                        <tableColumnResizingMask key="resizingMask"/>
                                     </tableColumn>
                                 </tableColumns>
                                 <connections>

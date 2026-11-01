@@ -346,19 +346,42 @@ static const NSUInteger UDMaxExported = 10000000;
     if (index != NSNotFound) [self _select:(NSInteger)index];
 }
 
-/// Sorted by a skeleton's column: by the name it is printed under (its
-/// own, its table's and its, an aggregate's of it).
-- (void)skeleton:(UDSQLSkeletonViewController *)skeleton sortsByColumn:(NSString *)column ascending:(BOOL)ascending {
+/// The names a skeleton's column is sorted by: the one it is printed under
+/// (its own, its table's and its, an aggregate's of it), else its table's
+/// and its (TABLE.NAME), and its own.
+- (NSArray<NSString *> *)_sortNamesOf:(NSString *)column skeleton:(UDSQLSkeletonViewController *)skeleton {
     NSArray<NSString *> *printed = [[self _query:NULL] printedColumns:NULL];
-    NSString *table = skeleton.skeleton.table;
-    NSString *found = nil;
-    for (NSString *name in printed) if ([name isEqualToString:column]) found = name;
-    for (NSString *name in found ? @[] : printed) if ([name isEqualToString:[NSString stringWithFormat:@"%@.%@", table, column]]) found = name;
-    for (NSString *name in found ? @[] : printed) {
-        if ([name hasSuffix:[NSString stringWithFormat:@"(%@)", column]] || [name hasSuffix:[NSString stringWithFormat:@"(DISTINCT %@)", column]]) found = name;
+    NSString *qualified = [NSString stringWithFormat:@"%@.%@", skeleton.skeleton.table, column];
+    NSMutableArray *names = [NSMutableArray array];
+    for (NSString *name in printed) if ([name isEqualToString:column] || [name isEqualToString:qualified]) [names addObject:name];
+    for (NSString *name in printed) {
+        if ([name hasSuffix:[NSString stringWithFormat:@"(%@)", column]] || [name hasSuffix:[NSString stringWithFormat:@"(DISTINCT %@)", column]] ||
+            [name hasSuffix:[NSString stringWithFormat:@"(%@)", qualified]]) [names addObject:name];
     }
-    // not printed: by its table's column, as it is (TABLE.NAME)
-    [self sortByColumn:found ?: [NSString stringWithFormat:@"%@.%@", table, column] ascending:ascending];
+    for (NSString *name in @[ qualified, column ]) if (![names containsObject:name]) [names addObject:name];
+    return names;
+}
+
+- (void)skeleton:(UDSQLSkeletonViewController *)skeleton sortsByColumn:(NSString *)column ascending:(BOOL)ascending {
+    [self sortByColumn:[self _sortNamesOf:column skeleton:skeleton].firstObject ascending:ascending];
+}
+
+- (void)skeleton:(UDSQLSkeletonViewController *)skeleton unsortsColumn:(NSString *)column {
+    NSArray *names = [self _sortNamesOf:column skeleton:skeleton];
+    NSMutableArray *order = [NSMutableArray array];
+    for (NSSortDescriptor *key in _file.order) if (![names containsObject:key.key]) [order addObject:key];
+    if (order.count == _file.order.count) return;
+    _file.order = order;
+    [self _writeDocument];
+    for (UDSQLSkeletonViewController *each in _skeletons) [each reload];
+    [self run:nil];
+}
+
+- (NSInteger)skeleton:(UDSQLSkeletonViewController *)skeleton sortOfColumn:(NSString *)column {
+    if (!_file.order.count) return 0;
+    NSArray *names = [self _sortNamesOf:column skeleton:skeleton];
+    for (NSSortDescriptor *key in _file.order) if ([names containsObject:key.key]) return key.ascending ? 1 : 2;
+    return 0;
 }
 
 - (IBAction)removeTable:(id)sender {
@@ -748,6 +771,8 @@ static const NSUInteger UDMaxExported = 10000000;
 - (void)sortByColumn:(NSString *)name ascending:(BOOL)ascending {
     _file.order = @[ [NSSortDescriptor sortDescriptorWithKey:name ascending:ascending] ];
     [self _writeDocument];
+    // the forms' Sort, as it is now
+    for (UDSQLSkeletonViewController *each in _skeletons) [each reload];
     [self run:nil];
 }
 

@@ -116,40 +116,49 @@ text editors are of theirs: Save, Undo and its tab's dot are the
 document's, and **Show as Text** shows the file as it is (the Query by
 Example language mode: JSON).
 
-- **Skeletons.** Each table asked of has a skeleton, one under another:
-  its columns, and rows under them. Under them, as under any list, **+**
-  adds a table (joined to those there along their foreign keys, example
-  elements filled in) and **−** removes the selected one (a click on a
-  table selects it). Each row is a row of its table (a tuple variable);
-  **Add Row** adds another, **Remove Row** the selected one.
-- **A click in a cell edits it**, as a spreadsheet's (Tab: the next).
-  What is typed is a value, never SQL: each becomes a parameter.
+- **Each table a form.** Each table asked of
+  has a form, one under another: a line each of its columns, and across
+  them its **Sort** (↑ ↓), then for each of its rows **Show** (a column of
+  the answer), **Total** (Group, Sum, Average, Minimum, Maximum, Count,
+  Count distinct), **Op** (=, ≠, >, ≥, <, ≤, between, like, one of, not,
+  is null, is not null), **Value** and, for between, **To**. Its first
+  line is each row's kind: there, not there (¬), or optional (!). Under
+  the tables, as under any list, **+** adds a table (joined to those
+  there along their foreign keys, example elements filled in) and **−**
+  removes the selected one (a click on a table selects it). Each row is a
+  row of its table (a tuple variable): **Add Row** adds another (a set of
+  parts across: Show 2, Op 2…), **Remove Row** the one last clicked in.
+- **A click in a value edits it**, as a spreadsheet's cell (Tab: the
+  next). What is typed is a value, never SQL: each becomes a parameter.
+  An example element (`_c`) as a value is one: the same one in two rows'
+  columns joins them; a right-click offers the query's elements and a new
+  one. A whole condition typed in a value with no operator (`> 5`,
+  `Ann*`, `1..10`) is read so, its operator shown.
 
-  | Typed | Means |
-  |---|---|
-  | `P.` | printed: a column of the answer (before anything else too: `P.> 6`) |
-  | `_c` | an example element: the same one in two rows' columns joins them |
-  | `> _c` | compared with what `_c` is (`=`, `<`, `<=`, `>=`, `<>` too) |
-  | `G.` | grouped by it (GROUP BY): rows alike in it are one row of the answer; `P.G.` prints it too |
-  | `P.SUM.`, `P.AVG.`, `P.MIN.`, `P.MAX.`, `P.CNT.` | an aggregate of the column's values in each group, printed; `ALL.` (the default) or `UNQ.` after it (`P.CNT.UNQ.`: its distinct values). The groups are the `G.` columns and the others printed, as Paradox's checked ones (none: all the rows one group) |
-  | `P.SUM. > 5`, `CNT. > 2` | an aggregate's condition: the groups it keeps (HAVING), printed or not |
-  | `Ann`, `5` | rows whose value is that (a number where the column holds numbers) |
-  | `> 5`, `<= 3`, `<> x` | compared (`>=`, `<`, `=` and `!=` too) |
-  | `NULL`, `NOT NULL` | NULL, or not |
-  | `Ann*`, `%ann%` | like it: `*` and `%` stand for any text, case aside |
-  | `1..10` | between the two, both included |
-  | `a, b, c` | one of them |
-  | `!x`, `not x` | not so (any of the above) |
-  | `'x'`, `"5, 6"` | the text in quotes, as it is |
+  What the form sets is kept as Zloof's text, which a value may hold too
+  (Show as Text shows it), and which the condition box's lines are like:
 
-  An empty cell shows an example of what its column takes (`e.g. > 5`,
-  `e.g. Ann*`), and its tooltip all of the above. The ▾ at a cell's right
-  (or a right-click) offers them as a menu: Print, an example element (new,
-  or one in the query), Group By, an Aggregate, Sort Ascending or
-  Descending (by it, printed), Remove This Row, and the conditions — Equal To,
-  Greater Than, Like, Between, One Of, Is NULL… — made of what is typed:
-  `5` and Greater Than make `> 5`. A condition that can't be read says why.
-  In a Core Data store, dates are typed as dates (`2024-05-01`, `> 2024-05-01
+  | Text | The form | Means |
+  |---|---|---|
+  | `P.` | Show | printed: a column of the answer |
+  | `_c` | = `_c` | an example element: the same one in two rows' columns joins them |
+  | `> _c` | > `_c` | compared with what `_c` is |
+  | `G.`, `P.G.` | Total: Group | grouped by it (GROUP BY): rows alike in it are one row of the answer |
+  | `P.SUM.` `AVG.` `MIN.` `MAX.` `CNT.`, `CNT.UNQ.` | Total: Sum… Count distinct | a total of its values in each group (`ALL.`, the default, or `UNQ.`: distinct values). The groups are the Group columns and the others shown, as Paradox's checked ones (none: all the rows one group) |
+  | `P.SUM. > 5`, `CNT. > 2` | a Total, an Op and a Value | the groups it keeps (HAVING), shown or not |
+  | `Ann`, `5` | = | rows whose value is that (a number where the column holds numbers) |
+  | `> 5`, `<= 3`, `<> x` | > ≤ ≠… | compared |
+  | `NULL`, `NOT NULL` | is null, is not null | NULL, or not |
+  | `Ann*`, `%ann%` | like | `*` and `%` stand for any text, case aside |
+  | `1..10` | between, To | between the two, both included |
+  | `a, b, c` | one of | one of them |
+  | `!x`, `not x` | not | not so |
+  | `'x'`, `"5, 6"` | = | the text in quotes, as it is |
+
+  An empty value shows an example of what its column takes (`e.g. > 5`,
+  `e.g. Ann*`); each part's tooltip says what it does, a value's what its
+  line means in words. A condition that can't be read says why. In a
+  Core Data store, dates are typed as dates (`2024-05-01`, `> 2024-05-01
   14:30`: a day alone is the whole day) and `Z_ENT` by entity name
   (`Employee`).
 - **Coloured, and said in words.** What is typed is coloured as RDLKit's
@@ -188,7 +197,7 @@ page: ◀ and ▶ turn them, and how many there are is told (Rows 101–200 of
 2,345). A column's name clicked sorts by it (again: the other way); its
 menu (a right-click) copies the column — its values one a line, the
 selected rows' or all, Copy Column with Name its name first — or sorts.
-A table's ▾ sorts by its column too, printed or not (`TABLE.COLUMN`
+A form's Sort sorts by its column too, shown or not (`TABLE.COLUMN`
 where two tables have one of its name). A cell right-clicked: **Copy
 Value** copies it alone; double-clicked, its whole value shows in a
 popover, to read and select from. The rows selected copy as
@@ -289,14 +298,15 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLSchema` | tables, views, columns, keys and indexes from each catalogue; a Core Data store read as one |
 | `UDSQLRunner` | a connection's work off the main thread, one operation at a time |
 | `UDSQLDatabases` | a window's connections, which database each document uses, running |
-| `UDSQLQbE` | what is typed under a column: its example, its help, the ▾'s operators; one table's conditions as a query |
+| `UDSQLQbE` | what is typed under a column: its example, its help, its operators; one table's conditions as a query |
 | `UDSQLAlgebra` | relational algebra (tables as tuple variables, joins, σ, γ with aggregates, π, ∪, order, page, count; predicates; expressions) and the SQL written from it, pretty-printed as by hand |
 | `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, G. and aggregates (HAVING), ¬ and ! rows, alternatives (aggregated: united); as algebra |
 | `UDSQLExampleCondition` | a line of the condition box: comparisons, arithmetic, AND/OR/NOT, aggregates of elements; a predicate once its elements' columns are known |
 | `UDSQLExampleSyntax` | the colour of each kind of token (`UDSQLExampleCondition`'s lexer says what each is), what is typed said in words (the cells' tooltips, the condition box's) |
 | `UDSQLExampleTextStorage` | text being edited (the condition box, a cell's field editor) that recolours itself on every change, as XFormsKit's `XFDXPathTextStorage` |
 | `UDSQLExampleFile` | a `.qbe` file: its skeletons by table name, its rows, its order; asked of a database |
-| `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`), its connection, its answer |
+| `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`: a form each), its connection, its answer |
+| `UDSQLExampleEntry` | an entry's text as the form's line shows it (Show, Total, Op, Value, To), and written back |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |
 | `UDSQLDiagramViewController` | the diagram's tab: DiagramKit's canvas, Arrange, zoom, export, a table's menu |
 

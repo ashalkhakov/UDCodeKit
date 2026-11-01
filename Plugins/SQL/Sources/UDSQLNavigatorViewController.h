@@ -40,6 +40,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)newQuery:(nullable id)sender;
 /// The database's ER diagram, in an editor tab (one per database).
 - (IBAction)showDiagram:(nullable id)sender;
+/// A query designed (the query builder), a table's begun with it.
+- (IBAction)designQuery:(nullable id)sender;
 /// A table's (an entity's) rows, browsed in a tab of their own.
 - (IBAction)browseRows:(nullable id)sender;
 - (IBAction)copyName:(nullable id)sender;

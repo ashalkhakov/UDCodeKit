@@ -7,6 +7,7 @@
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLResultsViewController.h"
 #import "UDSQLBrowserViewController.h"
+#import "UDSQLQueryBuilderViewController.h"
 #import "UDSQLSheets.h"
 
 NSNotificationName const UDSQLDatabasesDidChangeNotification = @"UDSQLDatabasesDidChange";
@@ -62,6 +63,7 @@ static const NSUInteger UDSQLMaxRows = 1000;
     NSMapTable<UDCodeDocument *, NSString *> *_documentDatabases;     // untitled documents'
     NSMapTable<UDCodeDocument *, NSDictionary *> *_parameterValues;   // the last given, a document's
     NSMutableDictionary<NSString *, UDSQLBrowserViewController *> *_browsers;   // by database, table and entity
+    NSMutableArray<UDSQLQueryBuilderViewController *> *_builders;
 }
 
 - (instancetype)initWithWorkbench:(id<UDWorkbench>)workbench {
@@ -286,6 +288,18 @@ static BOOL UDWantsPassword(NSError *error) {
     }
     NSString *name = entity ? database.schema.coreDataEntities[entity] ?: table.name : table.name;
     [_workbench showViewController:browser title:[NSString stringWithFormat:@"%@ (%@)", name, database.name]];
+}
+
+- (void)designQueryOfDatabase:(UDSQLDatabase *)database tables:(NSArray<UDSQLTable *> *)tables {
+    if (!_builders) _builders = [NSMutableArray array];
+    UDSQLQueryBuilderViewController *builder = [[UDSQLQueryBuilderViewController alloc] initWithDatabases:self database:database];
+    NSUInteger number = 1;
+    for (UDSQLQueryBuilderViewController *other in _builders) if (other.database == database) number++;
+    [_builders addObject:builder];
+    NSString *title = number == 1 ? [NSString stringWithFormat:@"Query (%@)", database.name]
+                                  : [NSString stringWithFormat:@"Query %lu (%@)", (unsigned long)number, database.name];
+    [_workbench showViewController:builder title:title];
+    for (UDSQLTable *table in tables) [builder addTable:table];
 }
 
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run {

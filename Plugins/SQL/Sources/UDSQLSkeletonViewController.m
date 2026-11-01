@@ -4,7 +4,6 @@
 
 #import "UDSQLSkeletonViewController.h"
 #import "UDSQLQbE.h"
-#import "UDSQLConditionCell.h"
 #import "UDSQLExampleSyntax.h"
 #import "UDSQLExampleEntry.h"
 #import <objc/runtime.h>
@@ -42,47 +41,79 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
 
 @end
 
-/// A column of the form whose first line (a row's kind) has a cell of its
-/// own (the ¬ ! popup), or none to speak of; its others, the column's.
-@interface UDSQLFormColumn : NSTableColumn
-@property (nonatomic, strong, nullable) NSCell *firstLineCell;
-@end
+@implementation UDSQLFormView
 
-@implementation UDSQLFormColumn
-
-- (id)dataCellForRow:(NSInteger)row {
-    return row == 0 && _firstLineCell ? _firstLineCell : [super dataCellForRow:row];
+- (BOOL)isFlipped {
+    return YES;
 }
 
 @end
 
-/// A row's columns in the form, as their identifiers end (2.op: the second
-/// row's operator).
-static NSArray<NSString *> *UDParts(void) {
-    return @[ @"show", @"total", @"op", @"value", @"to" ];
+/// A form's piece's view, from its XIB, its owner @a owner; nil when it
+/// can't be read.
+static NSView *UDLoad(NSString *name, id owner) {
+    NSNib *nib = [[NSNib alloc] initWithNibNamed:name bundle:[NSBundle bundleForClass:[UDSQLFormView class]]];
+    NSArray *objects = nil;     // held by the owner's outlets
+    if (![nib instantiateWithOwner:owner topLevelObjects:&objects]) {
+        NSLog(@"UDSQLSkeletonViewController: could not load %@.xib", name);
+        return nil;
+    }
+    return [(UDSQLFormParts *)owner view];   // each owner's view outlet
 }
 
 @interface UDSQLSkeletonViewController ()
+- (void)_partsChanged:(UDSQLFormParts *)parts sender:(id)sender;
+- (void)_line:(UDSQLFormLine *)line sortChanged:(NSInteger)sort;
+- (void)_row:(UDSQLFormRow *)row kindChanged:(NSInteger)kind;
+- (void)_partsBeganEditing:(UDSQLFormParts *)parts;
+@end
+
+@implementation UDSQLFormLine
+
+- (IBAction)sortChanged:(id)sender {
+    [_controller _line:self sortChanged:_sortButton.indexOfSelectedItem];
+}
+
+@end
+
+@implementation UDSQLFormRow
+
+- (IBAction)kindChanged:(id)sender {
+    [_controller _row:self kindChanged:_kindButton.indexOfSelectedItem];
+}
+
+@end
+
+@implementation UDSQLFormParts
+
+- (IBAction)changed:(id)sender {
+    [_controller _partsChanged:self sender:sender];
+}
+
+- (void)controlTextDidBeginEditing:(NSNotification *)note {
+    [_controller _partsBeganEditing:self];
+}
+
+@end
+
+/// Its form's measures: a line's height, its rows' heads'.
+static const CGFloat UDLineHeight = 24, UDHeadHeight = 42;
+
+@interface UDSQLSkeletonViewController ()
 @property (nonatomic, weak) IBOutlet NSTextField *titleLabel;
-@property (nonatomic, weak) IBOutlet NSTableView *rowsView;
+@property (nonatomic, weak) IBOutlet UDSQLFormView *formView;
 @property (nonatomic, strong) IBOutlet NSMenu *operatorMenu;
-@property (nonatomic, strong) IBOutlet NSTableColumn *flagTemplate;
-@property (nonatomic, strong) IBOutlet NSTableColumn *nameColumn;
-@property (nonatomic, strong) IBOutlet NSTableColumn *sortColumn;
-@property (nonatomic, strong) IBOutlet NSTableColumn *showTemplate;
-@property (nonatomic, strong) IBOutlet NSTableColumn *totalTemplate;
-@property (nonatomic, strong) IBOutlet NSTableColumn *opTemplate;
-@property (nonatomic, strong) IBOutlet NSTableColumn *valueTemplate;
-@property (nonatomic, strong) IBOutlet NSTableColumn *toTemplate;
 @end
 
 @implementation UDSQLSkeletonViewController {
     UDSQLTable *_table;
     UDSQLSchema *_schema;
     NSArray<NSString *> *_columns;      // its table's, else those typed under: a line each
-    NSInteger _menuRow, _menuColumn;    // the cell right-clicked; -1: none
-    NSUInteger _currentRow;             // the row (tuple) last clicked in: Remove Row's
-    NSTextFieldCell *_blankCell;        // a first line's, where a row's kind isn't
+    NSMutableArray<UDSQLFormLine *> *_lines;
+    NSMutableArray<UDSQLFormRow *> *_heads;
+    NSMutableDictionary<NSString *, UDSQLFormParts *> *_parts;     // by "row column"
+    UDSQLFormParts *_menuParts;         // the value right-clicked
+    NSUInteger _currentRow;             // the row (tuple) last edited in: Remove Row's
     NSMutableDictionary<NSString *, NSNumber *> *_pendingOps;   // an operator chosen before its value ("row column"): the text has none yet
 }
 
@@ -92,9 +123,11 @@ static NSArray<NSString *> *UDParts(void) {
         _skeleton = skeleton;
         _table = table;
         _schema = schema;
-        _menuRow = _menuColumn = -1;
         _currentRow = NSNotFound;
         _pendingOps = [NSMutableDictionary dictionary];
+        _lines = [NSMutableArray array];
+        _heads = [NSMutableArray array];
+        _parts = [NSMutableDictionary dictionary];
         if (table) _columns = [table.columns valueForKey:@"name"];
         else {
             NSMutableSet *typed = [NSMutableSet set];
@@ -107,12 +140,6 @@ static NSArray<NSString *> *UDParts(void) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // the row's parts are made like the XIB's, a set each row
-    for (NSTableColumn *template in @[ _showTemplate, _totalTemplate, _opTemplate, _valueTemplate, _toTemplate, _flagTemplate ]) {
-        [_rowsView removeTableColumn:template];
-    }
-    _blankCell = [[NSTextFieldCell alloc] initTextCell:@""];
-    _blankCell.editable = NO;
     _operatorMenu.delegate = self;
     if ([self.view isKindOfClass:[UDSQLSkeletonView class]]) {
         UDSQLSkeletonView *view = (UDSQLSkeletonView *)self.view;
@@ -121,33 +148,120 @@ static NSArray<NSString *> *UDParts(void) {
     }
     NSString *table = _skeleton.schema.length ? [NSString stringWithFormat:@"%@.%@", _skeleton.schema, _skeleton.table] : _skeleton.table;
     _titleLabel.stringValue = _table ? table : [table stringByAppendingString:@" (not in this database)"];
-    [self _makeRowColumns];
+    [self _makeForm];
 }
 
-/// A set of the parts (Show, Total, Op, Value, To) for each of its rows.
-- (void)_makeRowColumns {
-    for (NSTableColumn *column in [_rowsView.tableColumns copy]) {
-        if (column != _nameColumn && column != _sortColumn) [_rowsView removeTableColumn:column];
-    }
-    NSDictionary *templates = @{ @"show": _showTemplate, @"total": _totalTemplate, @"op": _opTemplate, @"value": _valueTemplate, @"to": _toTemplate };
+- (NSArray<UDSQLFormLine *> *)lines {
+    return [_lines copy];
+}
+
+- (NSArray<UDSQLFormRow *> *)rowHeads {
+    return [_heads copy];
+}
+
+- (UDSQLFormParts *)partsOfColumn:(NSString *)column row:(NSUInteger)row {
+    return _parts[[NSString stringWithFormat:@"%lu %@", (unsigned long)row, column]];
+}
+
+/// Its form, made: its rows' heads across its top, then a line each column
+/// (its head, then each row's parts across), from their XIBs.
+- (void)_makeForm {
+    for (NSView *view in [_formView.subviews copy]) [view removeFromSuperview];
+    [_lines removeAllObjects];
+    [_heads removeAllObjects];
+    [_parts removeAllObjects];
     NSUInteger count = MAX(1u, _skeleton.rows.count);
-    for (NSUInteger row = 0; row < count; row++) {
-        for (NSString *part in UDParts()) {
-            NSTableColumn *template = templates[part];
-            UDSQLFormColumn *column = [[UDSQLFormColumn alloc] initWithIdentifier:[NSString stringWithFormat:@"%lu.%@", (unsigned long)row, part]];
-            column.dataCell = [template.dataCell copy];
-            column.firstLineCell = [part isEqualToString:@"op"] ? [_flagTemplate.dataCell copy] : _blankCell;
-            NSString *title = [template.headerCell stringValue];
-            [column.headerCell setStringValue:count > 1 ? [NSString stringWithFormat:@"%@ %lu", title, (unsigned long)row + 1] : title];
-            column.headerToolTip = template.headerToolTip;
-            column.width = [part isEqualToString:@"op"] ? MAX(template.width, 104) : template.width;
-            column.minWidth = template.minWidth;
-            column.maxWidth = template.maxWidth;
-            column.editable = YES;
-            [_rowsView addTableColumn:column];
+    CGFloat headWidth = 0, partsWidth = 0;
+    for (NSString *column in _columns) {
+        UDSQLFormLine *line = [[UDSQLFormLine alloc] init];
+        line.column = column;
+        line.controller = self;
+        if (!UDLoad(@"UDSQLFormLine", line)) return;
+        UDSQLColumnInfo *info = [self _infoOf:column];
+        line.nameLabel.stringValue = column;
+        line.nameLabel.toolTip = info.coreDataMeaning ? [NSString stringWithFormat:@"%@: %@", info.type, info.coreDataMeaning] : info.type;
+        headWidth = NSWidth(line.view.frame);
+        [_lines addObject:line];
+        for (NSUInteger row = 0; row < count; row++) {
+            UDSQLFormParts *parts = [[UDSQLFormParts alloc] init];
+            parts.column = column;
+            parts.row = row;
+            parts.controller = self;
+            if (!UDLoad(@"UDSQLFormParts", parts)) return;
+            parts.valueField.delegate = parts;
+            parts.toField.delegate = parts;
+            parts.valueField.menu = _operatorMenu;
+            [(NSTextFieldCell *)parts.valueField.cell setPlaceholderString:info ? [UDSQLQbE exampleForColumn:info schema:_schema] : @""];
+            partsWidth = NSWidth(parts.view.frame);
+            _parts[[NSString stringWithFormat:@"%lu %@", (unsigned long)row, column]] = parts;
         }
     }
-    [_rowsView reloadData];
+    for (NSUInteger row = 0; row < count; row++) {
+        UDSQLFormRow *head = [[UDSQLFormRow alloc] init];
+        head.row = row;
+        head.controller = self;
+        if (!UDLoad(@"UDSQLFormRow", head)) return;
+        head.titleLabel.stringValue = [NSString stringWithFormat:@"Row %lu", (unsigned long)row + 1];
+        partsWidth = MAX(partsWidth, NSWidth(head.view.frame));
+        [_heads addObject:head];
+    }
+    if (!headWidth) headWidth = 210;
+    // laid out: the captions over the lines' heads, the rows' heads over
+    // their parts, a line each column under them
+    UDSQLFormLine *captions = [[UDSQLFormLine alloc] init];
+    if (UDLoad(@"UDSQLFormCaptions", captions)) {
+        [captions.view setFrameOrigin:NSZeroPoint];
+        [_formView addSubview:captions.view];
+    }
+    for (NSUInteger row = 0; row < count; row++) {
+        NSView *view = _heads[row].view;
+        [view setFrameOrigin:NSMakePoint(headWidth + row * partsWidth, 0)];
+        [_formView addSubview:view];
+    }
+    for (NSUInteger i = 0; i < _lines.count; i++) {
+        CGFloat y = UDHeadHeight + i * UDLineHeight;
+        [_lines[i].view setFrameOrigin:NSMakePoint(0, y)];
+        [_formView addSubview:_lines[i].view];
+        for (NSUInteger row = 0; row < count; row++) {
+            NSView *view = [self partsOfColumn:_columns[i] row:row].view;
+            [view setFrameOrigin:NSMakePoint(headWidth + row * partsWidth, y)];
+            [_formView addSubview:view];
+        }
+    }
+    [_formView setFrameSize:NSMakeSize(headWidth + count * partsWidth, UDHeadHeight + _lines.count * UDLineHeight)];
+    [self _showEntries];
+}
+
+/// Its controls as its entries say (a value being typed in left be).
+- (void)_showEntries {
+    for (UDSQLFormLine *line in _lines) [line.sortButton selectItemAtIndex:[_delegate skeleton:self sortOfColumn:line.column]];
+    for (UDSQLFormRow *head in _heads) {
+        UDSQLExampleRow *kept = head.row < _skeleton.rows.count ? _skeleton.rows[head.row] : nil;
+        [head.kindButton selectItemAtIndex:kept.negated ? 1 : kept.inclusive ? 2 : 0];
+    }
+    for (UDSQLFormParts *parts in _parts.allValues) {
+        UDSQLExampleEntry *entry = [self _entryOfColumn:parts.column row:parts.row];
+        parts.showButton.state = entry.shown ? NSControlStateValueOn : NSControlStateValueOff;
+        [parts.totalButton selectItemAtIndex:entry.total];
+        [parts.opButton selectItemAtIndex:entry.op];
+        [self _show:entry.value in:parts.valueField];
+        [self _show:entry.to in:parts.toField];
+        // To: a range's end, between's alone
+        [parts.toField setEnabled:entry.op == UDSQLExampleOperatorBetween || entry.to.length];
+        NSString *explained = UDSQLExampleExplanation(entry.text);
+        parts.valueField.toolTip = explained ? [explained stringByAppendingString:@"\n\nAn example element (_c) as the value: the same one in "
+                                                                                    "another row's column joins them; the condition box may name it."]
+                                             : @"Its value, or an example element (_c: the same one in another row's column joins them)";
+    }
+}
+
+/// @a text in @a field, coloured (an element, a pattern…); a field being
+/// typed in, as it is.
+- (void)_show:(NSString *)text in:(NSTextField *)field {
+    if (field.currentEditor) return;
+    NSFont *font = field.font ?: [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
+    if (text.length) field.attributedStringValue = UDSQLExampleAttributedString(text, font);
+    else field.stringValue = @"";
 }
 
 - (nullable UDSQLColumnInfo *)_infoOf:(NSString *)name {
@@ -156,9 +270,8 @@ static NSArray<NSString *> *UDParts(void) {
 }
 
 - (CGFloat)preferredHeight {
-    // its title, its header, a line a column (and its rows' kinds), its scroller
-    CGFloat line = (self.isViewLoaded ? _rowsView.rowHeight + _rowsView.intercellSpacing.height : 24);
-    return 26 + 23 + (_columns.count + 1) * line + 20;
+    // its title, its rows' heads, a line each column, its scroller
+    return 26 + UDHeadHeight + _columns.count * UDLineHeight + 4 + 18;
 }
 
 - (void)setSelected:(BOOL)selected {
@@ -167,34 +280,19 @@ static NSArray<NSString *> *UDParts(void) {
 }
 
 - (void)reload {
-    [_rowsView reloadData];
+    if (self.isViewLoaded) [self _showEntries];
 }
 
 - (void)_changed {
-    // a row added or removed: its parts' columns made again
-    NSUInteger sets = (_rowsView.tableColumns.count - 2) / UDParts().count;
-    if (sets != MAX(1u, _skeleton.rows.count)) [self _makeRowColumns];
-    else [_rowsView reloadData];
+    // a row added or removed: its form made again
+    if (_heads.count != MAX(1u, _skeleton.rows.count)) [self _makeForm];
+    else [self _showEntries];
     [_delegate skeletonDidChange:self];
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - Its form: a line each column, a set of parts each row
+// MARK: - Its form's controls: what they say kept as the entries' text
 // ---------------------------------------------------------------------------
-
-/// A form's column's row (its tuple) and part; NO for the name's and Sort.
-static BOOL UDPartOf(NSTableColumn *column, NSUInteger *row, NSString **part) {
-    NSRange dot = [column.identifier rangeOfString:@"."];
-    if (dot.location == NSNotFound) return NO;
-    if (row) *row = (NSUInteger)[[column.identifier substringToIndex:dot.location] integerValue];
-    if (part) *part = [column.identifier substringFromIndex:NSMaxRange(dot)];
-    return YES;
-}
-
-/// A line's column (its table's): line 0 is the rows' kinds.
-- (nullable NSString *)_columnOfLine:(NSInteger)line {
-    return line >= 1 && line <= (NSInteger)_columns.count ? _columns[(NSUInteger)line - 1] : nil;
-}
 
 - (UDSQLExampleEntry *)_entryOfColumn:(NSString *)column row:(NSUInteger)row {
     NSString *text = row < _skeleton.rows.count ? _skeleton.rows[row].entries[column] : nil;
@@ -203,30 +301,6 @@ static BOOL UDPartOf(NSTableColumn *column, NSUInteger *row, NSString **part) {
     NSNumber *pending = _pendingOps[[NSString stringWithFormat:@"%lu %@", (unsigned long)row, column]];
     if (entry.op == UDSQLExampleOperatorNone && !entry.value.length && pending) entry.op = pending.integerValue;
     return entry;
-}
-
-- (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)_columns.count + 1;
-}
-
-- (id)tableView:(NSTableView *)tableView objectValueForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)line {
-    NSString *column = [self _columnOfLine:line];
-    if (tableColumn == _nameColumn) return column ?: @"Row";
-    if (tableColumn == _sortColumn) return column ? @([_delegate skeleton:self sortOfColumn:column]) : @"";
-    NSUInteger row = 0;
-    NSString *part = nil;
-    if (!UDPartOf(tableColumn, &row, &part)) return @"";
-    UDSQLExampleRow *kept = row < _skeleton.rows.count ? _skeleton.rows[row] : nil;
-    if (!column) return [part isEqualToString:@"op"] ? @(kept.negated ? 1 : kept.inclusive ? 2 : 0) : @"";
-    UDSQLExampleEntry *entry = [self _entryOfColumn:column row:row];
-    if ([part isEqualToString:@"show"]) return @(entry.shown ? NSControlStateValueOn : NSControlStateValueOff);
-    if ([part isEqualToString:@"total"]) return @(entry.total);
-    if ([part isEqualToString:@"op"]) return @(entry.op);
-    NSString *text = [part isEqualToString:@"value"] ? entry.value : entry.to;
-    // coloured (an element, a pattern…); being edited, as typed
-    if (!text.length || (tableView.editedRow == line && tableView.editedColumn == [tableView.tableColumns indexOfObject:tableColumn])) return text;
-    NSFont *font = [(NSCell *)tableColumn.dataCell font] ?: [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-    return UDSQLExampleAttributedString(text, font);
 }
 
 - (void)setEntry:(NSString *)text column:(NSString *)column row:(NSUInteger)row {
@@ -240,114 +314,61 @@ static BOOL UDPartOf(NSTableColumn *column, NSUInteger *row, NSString **part) {
     [self _changed];
 }
 
-- (void)tableView:(NSTableView *)tableView setObjectValue:(id)value forTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)line {
-    NSString *column = [self _columnOfLine:line];
-    if (tableColumn == _sortColumn) {
-        if (!column) return;
-        NSInteger sort = [value integerValue];
-        if (sort == 0) [_delegate skeleton:self unsortsColumn:column];
-        else [_delegate skeleton:self sortsByColumn:column ascending:sort == 1];
-        return;
-    }
-    NSUInteger row = 0;
-    NSString *part = nil;
-    if (!UDPartOf(tableColumn, &row, &part) || row >= _skeleton.rows.count) return;
+- (void)_partsBeganEditing:(UDSQLFormParts *)parts {
+    _currentRow = parts.row;
+    [_delegate skeletonWantsToBeSelected:self];
+}
+
+- (void)_partsChanged:(UDSQLFormParts *)parts sender:(id)sender {
+    NSString *column = parts.column;
+    NSUInteger row = parts.row;
+    if (row >= _skeleton.rows.count) return;
     _currentRow = row;
-    if (!column) {
-        // a row's kind: there, not there (¬), optional (!)
-        if (![part isEqualToString:@"op"]) return;
-        UDSQLExampleRow *kept = _skeleton.rows[row];
-        NSInteger flag = [value integerValue];
-        kept.negated = flag == 1;
-        kept.inclusive = flag == 2;
-        [self _changed];
-        return;
-    }
+    [_delegate skeletonWantsToBeSelected:self];
+    NSString *key = [NSString stringWithFormat:@"%lu %@", (unsigned long)row, column];
     UDSQLExampleEntry *entry = [self _entryOfColumn:column row:row];
-    if ([part isEqualToString:@"show"]) entry.shown = [value integerValue] == NSControlStateValueOn;
-    else if ([part isEqualToString:@"total"]) {
-        entry.total = [value integerValue];
+    if (sender == parts.showButton) entry.shown = parts.showButton.state == NSControlStateValueOn;
+    else if (sender == parts.totalButton) {
+        entry.total = parts.totalButton.indexOfSelectedItem;
         // an aggregate shown (else it only keeps groups, with a condition)
         if (entry.total > UDSQLExampleTotalGroup && entry.op == UDSQLExampleOperatorNone) entry.shown = YES;
-    }
-    else if ([part isEqualToString:@"op"]) {
-        entry.op = [value integerValue];
+    } else if (sender == parts.opButton) {
+        entry.op = parts.opButton.indexOfSelectedItem;
         // kept till its value is typed (its text has none without one)
-        NSString *key = [NSString stringWithFormat:@"%lu %@", (unsigned long)row, column];
         if (entry.op != UDSQLExampleOperatorNone && !entry.value.length) _pendingOps[key] = @(entry.op);
         else [_pendingOps removeObjectForKey:key];
-    }
-    else {
-        NSString *typed = [value isKindOfClass:[NSAttributedString class]] ? [value string] : [value description] ?: @"";
-        if ([part isEqualToString:@"value"]) {
-            // typed with nothing asked: = (an element, a value), or as it reads
-            if (entry.op == UDSQLExampleOperatorNone && typed.length) {
-                UDSQLExampleEntry *read = [UDSQLExampleEntry entryOfText:typed];
-                entry.op = read.op;
-                entry.value = read.value;
-                entry.to = read.to.length ? read.to : entry.to;
-            } else {
-                entry.value = typed;
-            }
+    } else if (sender == parts.valueField) {
+        NSString *typed = parts.valueField.stringValue ?: @"";
+        // typed with nothing asked: = (an element, a value), or as it reads
+        if (entry.op == UDSQLExampleOperatorNone && typed.length) {
+            UDSQLExampleEntry *read = [UDSQLExampleEntry entryOfText:typed];
+            entry.op = read.op;
+            entry.value = read.value;
+            if (read.to.length) entry.to = read.to;
         } else {
-            entry.to = typed;
-            if (typed.length && entry.op == UDSQLExampleOperatorNone) entry.op = UDSQLExampleOperatorBetween;
+            entry.value = typed;
         }
+    } else if (sender == parts.toField) {
+        entry.to = parts.toField.stringValue ?: @"";
+        if (entry.to.length && entry.op == UDSQLExampleOperatorNone) entry.op = UDSQLExampleOperatorBetween;
     }
-    if (entry.value.length) [_pendingOps removeObjectForKey:[NSString stringWithFormat:@"%lu %@", (unsigned long)row, column]];
+    if (entry.value.length) [_pendingOps removeObjectForKey:key];
     [self setEntry:entry.text column:column row:row];
-    [_rowsView reloadData];
+    [self _showEntries];
 }
 
-- (BOOL)tableView:(NSTableView *)tableView shouldEditTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)line {
-    if (tableColumn == _nameColumn) return NO;
-    if (line == 0) {
-        NSString *part = nil;
-        return UDPartOf(tableColumn, NULL, &part) && [part isEqualToString:@"op"];
-    }
-    return YES;
+- (void)_line:(UDSQLFormLine *)line sortChanged:(NSInteger)sort {
+    if (sort == 0) [_delegate skeleton:self unsortsColumn:line.column];
+    else [_delegate skeleton:self sortsByColumn:line.column ascending:sort == 1];
 }
 
-/// An empty value shows what its column takes (e.g. Ann*); a line's name,
-/// bold for the rows' kinds.
-- (void)tableView:(NSTableView *)tableView willDisplayCell:(id)cell forTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)line {
-    NSString *column = [self _columnOfLine:line];
-    NSString *part = nil;
-    if (UDPartOf(tableColumn, NULL, &part) && [part isEqualToString:@"value"] && [cell isKindOfClass:[NSTextFieldCell class]] && column) {
-        UDSQLColumnInfo *info = [self _infoOf:column];
-        [(NSTextFieldCell *)cell setPlaceholderString:info ? [UDSQLQbE exampleForColumn:info schema:_schema] : @""];
-    }
-    if (tableColumn == _nameColumn && [cell isKindOfClass:[NSTextFieldCell class]]) {
-        CGFloat size = [NSFont smallSystemFontSize];
-        [(NSTextFieldCell *)cell setFont:column ? [NSFont systemFontOfSize:size] : [NSFont boldSystemFontOfSize:size]];
-    }
-}
-
-- (NSString *)tableView:(NSTableView *)tableView toolTipForCell:(NSCell *)cell rect:(NSRectPointer)rect tableColumn:(NSTableColumn *)tableColumn
-                    row:(NSInteger)line mouseLocation:(NSPoint)location {
-    NSString *column = [self _columnOfLine:line];
-    UDSQLColumnInfo *info = column ? [self _infoOf:column] : nil;
-    if (tableColumn == _nameColumn) {
-        if (!column) return @"Each row asked of its table: one there is; one that isn't there (¬: none of the rows it is linked to has one); "
-                             "or optional (!: the rows it is linked to are kept where it has no match)";
-        return info.coreDataMeaning ? [NSString stringWithFormat:@"%@: %@", info.type, info.coreDataMeaning] : info.type;
-    }
-    if (tableColumn == _sortColumn) return @"The answer sorted by it, ascending (↑) or descending (↓)";
-    NSUInteger row = 0;
-    NSString *part = nil;
-    if (!UDPartOf(tableColumn, &row, &part)) return nil;
-    if (!column) return [part isEqualToString:@"op"] ? @"This row: there is one; isn't there (¬); or optional (!: kept without a match)" : nil;
-    if ([part isEqualToString:@"show"]) return @"Shown: a column of the answer (P.)";
-    if ([part isEqualToString:@"total"]) return @"Group by it (G.), or a total of its values in each group: Sum, Average, Minimum, Maximum, Count "
-                                                 "(SUM. AVG. MIN. MAX. CNT.); the other columns shown are the groups. With a total, the operator "
-                                                 "and value keep groups (HAVING)";
-    if ([part isEqualToString:@"to"]) return @"A range's end: from the value to it, both included (between)";
-    NSString *help = info ? [UDSQLQbE helpForColumn:info schema:_schema] : @"";
-    help = [help stringByAppendingString:@"\nAn example element (_c) as the value: the same one in another row's column joins them; "
-                                          "the condition box may name it."];
-    NSString *entry = row < _skeleton.rows.count ? _skeleton.rows[row].entries[column] : nil;
-    NSString *explained = entry ? UDSQLExampleExplanation(entry) : nil;
-    return explained ? [NSString stringWithFormat:@"%@\n\n%@", explained, help] : help;
+- (void)_row:(UDSQLFormRow *)head kindChanged:(NSInteger)kind {
+    if (head.row >= _skeleton.rows.count) return;
+    UDSQLExampleRow *kept = _skeleton.rows[head.row];
+    kept.negated = kind == 1;
+    kept.inclusive = kind == 2;
+    _currentRow = head.row;
+    [self _changed];
 }
 
 - (IBAction)addRow:(id)sender {
@@ -357,7 +378,8 @@ static BOOL UDPartOf(NSTableColumn *column, NSUInteger *row, NSString **part) {
 }
 
 - (IBAction)removeRow:(id)sender {
-    [_rowsView abortEditing];
+    [self.view.window makeFirstResponder:nil];
+    [_pendingOps removeAllObjects];
     NSUInteger row = _currentRow < _skeleton.rows.count ? _currentRow : _skeleton.rows.count - 1;
     _currentRow = NSNotFound;
     if (_skeleton.rows.count) [self applyOperator:UDRemoveRowTag element:nil column:@"" row:row];
@@ -368,29 +390,20 @@ static BOOL UDPartOf(NSTableColumn *column, NSUInteger *row, NSString **part) {
 }
 
 // ---------------------------------------------------------------------------
-// MARK: - A click; its right-click's menu
+// MARK: - A value's right-click: the query's example elements
 // ---------------------------------------------------------------------------
-
-/// A click: its row (tuple) the current one (Remove Row's); in a value or
-/// To, it edited at once (as a spreadsheet's cell: no double-click, no
-/// line selected first). Its skeleton selected, either way.
-- (IBAction)entryClicked:(id)sender {
-    [_delegate skeletonWantsToBeSelected:self];
-    NSInteger line = _rowsView.clickedRow, index = _rowsView.clickedColumn;
-    if (line < 0 || index < 0 || index >= (NSInteger)_rowsView.tableColumns.count) return;
-    NSUInteger row = 0;
-    NSString *part = nil;
-    if (!UDPartOf(_rowsView.tableColumns[(NSUInteger)index], &row, &part)) return;
-    _currentRow = row;
-    if (line >= 1 && ([part isEqualToString:@"value"] || [part isEqualToString:@"to"])) {
-        // the line selected first (GNUstep edits a selected line's only)
-        [_rowsView selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)line] byExtendingSelection:NO];
-        [_rowsView editColumn:index row:line withEvent:nil select:YES];
-    }
-}
 
 /// The elements in the query, as items of their own.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
+    // the value right-clicked: under the pointer
+    _menuParts = nil;
+    NSEvent *event = [NSApp currentEvent];
+    if (event) {
+        NSPoint point = [_formView convertPoint:event.locationInWindow fromView:nil];
+        for (UDSQLFormParts *parts in _parts.allValues) {
+            if (NSPointInRect([parts.valueField convertPoint:point fromView:_formView], parts.valueField.bounds)) _menuParts = parts;
+        }
+    }
     for (NSMenuItem *item in [menu.itemArray copy]) if (item.tag >= UDElementTag) [menu removeItem:item];
     NSUInteger index = [menu indexOfItemWithTag:UDNewElementTag] + 1;
     for (NSString *element in [_delegate exampleElementsForSkeleton:self]) {
@@ -457,28 +470,25 @@ static BOOL UDPartOf(NSTableColumn *column, NSUInteger *row, NSString **part) {
 }
 
 - (IBAction)applyOperator:(id)sender {
-    NSInteger line = _menuRow >= 0 ? _menuRow : _rowsView.clickedRow;
-    NSInteger index = _menuRow >= 0 ? _menuColumn : _rowsView.clickedColumn;
-    _menuRow = _menuColumn = -1;
-    NSUInteger row = 0;
-    if (index < 0 || index >= (NSInteger)_rowsView.tableColumns.count || !UDPartOf(_rowsView.tableColumns[(NSUInteger)index], &row, NULL)) {
-        // not a row's cell: the current row's, removed
-        if ([sender tag] == UDRemoveRowTag) [self removeRow:sender];
+    UDSQLFormParts *parts = _menuParts;
+    _menuParts = nil;
+    [self.view.window makeFirstResponder:nil];
+    if ([sender tag] == UDRemoveRowTag) {
+        if (parts) _currentRow = parts.row;
+        [self removeRow:sender];
         return;
     }
-    [_rowsView abortEditing];
-    NSString *column = [self _columnOfLine:line];
-    if ([sender tag] == UDRemoveRowTag) [self applyOperator:UDRemoveRowTag element:nil column:@"" row:row];
-    else if (column) [self applyOperator:[sender tag] element:[sender representedObject] column:column row:row];
+    if (!parts) return;
+    // an element: the value, its operator =
+    UDSQLExampleEntry *entry = [self _entryOfColumn:parts.column row:parts.row];
+    entry.op = UDSQLExampleOperatorEqual;
+    entry.value = [sender tag] == UDNewElementTag ? [_delegate newExampleElementForSkeleton:self] : [sender representedObject] ?: @"";
+    [self setEntry:entry.text column:parts.column row:parts.row];
+    [self _showEntries];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
-    if (sel_isEqual(item.action, @selector(applyOperator:))) {
-        NSInteger index = _menuRow >= 0 ? _menuColumn : _rowsView.clickedColumn;
-        NSInteger line = _menuRow >= 0 ? _menuRow : _rowsView.clickedRow;
-        BOOL cell = index >= 0 && index < (NSInteger)_rowsView.tableColumns.count && UDPartOf(_rowsView.tableColumns[(NSUInteger)index], NULL, NULL);
-        return item.tag == UDRemoveRowTag || (cell && line >= 1);
-    }
+    if (sel_isEqual(item.action, @selector(applyOperator:))) return item.tag == UDRemoveRowTag || _menuParts != nil;
     return YES;
 }
 

@@ -196,59 +196,77 @@ static Class UDPluginClass(NSString *name) {
     [databases newExampleQueryOfDatabase:shop table:[shop.schema tableNamed:@"customers"]];
     UDSQLExampleViewController *editor = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
     UDSQLSkeletonViewController *customers = editor.skeletons[0];
-    NSTableView *form = customers.rowsView;
-    NSArray *names = @[ @"Row", @"id", @"name", @"city" ];
-    for (NSInteger line = 0; line < 4; line++) {
-        XCTAssertEqualObjects([customers tableView:form objectValueForTableColumn:[form tableColumnWithIdentifier:@"name"] row:line], names[(NSUInteger)line]);
-    }
-    NSTableColumn *(^part)(NSString *) = ^NSTableColumn *(NSString *identifier) { return [form tableColumnWithIdentifier:identifier]; };
+    XCTAssertEqualObjects([customers.lines valueForKey:@"column"], (@[ @"id", @"name", @"city" ]));
+    XCTAssertEqualObjects(customers.lines[1].nameLabel.stringValue, @"name");
+    XCTAssertEqualObjects(customers.rowHeads[0].titleLabel.stringValue, @"Row 1");
     NSString *(^entry)(NSString *) = ^NSString *(NSString *column) { return editor.file.skeletons[0].rows[0].entries[column]; };
+    UDSQLFormParts *ids = [customers partsOfColumn:@"id" row:0], *names = [customers partsOfColumn:@"name" row:0];
+    UDSQLFormParts *cities = [customers partsOfColumn:@"city" row:0];
+    void (^choose)(UDSQLFormParts *, NSPopUpButton *, NSInteger) = ^(UDSQLFormParts *parts, NSPopUpButton *button, NSInteger index) {
+        [button selectItemAtIndex:index];
+        [parts changed:button];
+    };
+    void (^type)(UDSQLFormParts *, NSTextField *, NSString *) = ^(UDSQLFormParts *parts, NSTextField *field, NSString *text) {
+        field.stringValue = text;
+        [parts changed:field];
+    };
     // Show: P.; a Total: P.CNT. (shown); a value typed whole: read so
-    [customers tableView:form setObjectValue:@(NSControlStateValueOn) forTableColumn:part(@"0.show") row:2];
+    names.showButton.state = NSControlStateValueOn;
+    [names changed:names.showButton];
     XCTAssertEqualObjects(entry(@"name"), @"P.");
-    [customers tableView:form setObjectValue:@(UDSQLExampleTotalCount) forTableColumn:part(@"0.total") row:1];
+    choose(ids, ids.totalButton, UDSQLExampleTotalCount);
     XCTAssertEqualObjects(entry(@"id"), @"P.CNT.");
-    [customers tableView:form setObjectValue:@"> 1" forTableColumn:part(@"0.value") row:1];
+    XCTAssertEqual(ids.showButton.state, NSControlStateValueOn, @"an aggregate, shown");
+    type(ids, ids.valueField, @"> 1");
     XCTAssertEqualObjects(entry(@"id"), @"P.CNT. > 1", @"a value typed whole: its operator read from it");
-    XCTAssertEqualObjects([customers tableView:form objectValueForTableColumn:part(@"0.op") row:1], @(UDSQLExampleOperatorGreater));
-    [customers tableView:form setObjectValue:@(UDSQLExampleTotalNone) forTableColumn:part(@"0.total") row:1];
-    [customers tableView:form setObjectValue:@(UDSQLExampleOperatorNone) forTableColumn:part(@"0.op") row:1];
+    XCTAssertEqual(ids.opButton.indexOfSelectedItem, (NSInteger)UDSQLExampleOperatorGreater);
+    XCTAssertEqualObjects(ids.valueField.stringValue, @"1");
+    choose(ids, ids.totalButton, UDSQLExampleTotalNone);
+    choose(ids, ids.opButton, UDSQLExampleOperatorNone);
     XCTAssertEqualObjects(entry(@"id"), @"P.1", @"no operator: the value as typed");
-    [customers tableView:form setObjectValue:@"" forTableColumn:part(@"0.value") row:1];
-    [customers tableView:form setObjectValue:@(NSControlStateValueOff) forTableColumn:part(@"0.show") row:1];
+    type(ids, ids.valueField, @"");
+    ids.showButton.state = NSControlStateValueOff;
+    [ids changed:ids.showButton];
     XCTAssertNil(entry(@"id"), @"nothing asked: nothing kept");
-    // an operator and a value; between, its To
-    [customers tableView:form setObjectValue:@(UDSQLExampleOperatorBetween) forTableColumn:part(@"0.op") row:3];
-    [customers tableView:form setObjectValue:@"A" forTableColumn:part(@"0.value") row:3];
-    [customers tableView:form setObjectValue:@"P" forTableColumn:part(@"0.to") row:3];
+    // an operator before its value; between, its To
+    choose(cities, cities.opButton, UDSQLExampleOperatorBetween);
+    XCTAssertEqual(cities.opButton.indexOfSelectedItem, (NSInteger)UDSQLExampleOperatorBetween, @"kept till a value is typed");
+    XCTAssertTrue(cities.toField.isEnabled);
+    type(cities, cities.valueField, @"A");
+    type(cities, cities.toField, @"P");
     XCTAssertEqualObjects(entry(@"city"), @"A..P");
-    [customers tableView:form setObjectValue:@(UDSQLExampleOperatorEqual) forTableColumn:part(@"0.op") row:3];
-    [customers tableView:form setObjectValue:@"Oslo" forTableColumn:part(@"0.value") row:3];
+    choose(cities, cities.opButton, UDSQLExampleOperatorEqual);
+    type(cities, cities.valueField, @"Oslo");
     XCTAssertEqualObjects(entry(@"city"), @"Oslo");
+    XCTAssertFalse(cities.toField.isEnabled, @"To: between's alone");
     // Sort: the answer's order, shown as it is
-    [customers tableView:form setObjectValue:@2 forTableColumn:part(@"sort") row:2];
+    [customers.lines[1].sortButton selectItemAtIndex:2];
+    [customers.lines[1] sortChanged:nil];
     XCTAssertEqualObjects(editor.file.order.firstObject.key, @"name");
     XCTAssertFalse(editor.file.order.firstObject.ascending);
-    XCTAssertEqualObjects([customers tableView:form objectValueForTableColumn:part(@"sort") row:2], @2);
+    XCTAssertEqual(customers.lines[1].sortButton.indexOfSelectedItem, 2);
     UDRunUntil(!editor.running && editor.result.rows.count == 2, 10.0);
     XCTAssertEqualObjects(editor.result.rows, (@[ @[ @"Cy" ], @[ @"Ann" ] ]), @"%@", editor.statusLabel.stringValue);
-    [customers tableView:form setObjectValue:@0 forTableColumn:part(@"sort") row:2];
+    [customers.lines[1].sortButton selectItemAtIndex:0];
+    [customers.lines[1] sortChanged:nil];
     XCTAssertEqualObjects(editor.file.order, @[]);
-    // a row's kind, its first line: not there (¬)
-    XCTAssertTrue([[part(@"0.op") dataCellForRow:0] isKindOfClass:[NSPopUpButtonCell class]]);
-    XCTAssertEqualObjects([[(NSPopUpButtonCell *)[part(@"0.op") dataCellForRow:0] itemTitles] firstObject], @"is there");
-    [customers tableView:form setObjectValue:@1 forTableColumn:part(@"0.op") row:0];
+    // a row's kind: not there (¬)
+    XCTAssertEqualObjects(customers.rowHeads[0].kindButton.itemTitles.firstObject, @"is there");
+    [customers.rowHeads[0].kindButton selectItemAtIndex:1];
+    [customers.rowHeads[0] kindChanged:nil];
     XCTAssertTrue(editor.file.skeletons[0].rows[0].negated);
-    [customers tableView:form setObjectValue:@0 forTableColumn:part(@"0.op") row:0];
-    // another row: its parts' columns; removed, the one last set
+    [customers.rowHeads[0].kindButton selectItemAtIndex:0];
+    [customers.rowHeads[0] kindChanged:nil];
+    // another row: its parts across; removed, the one last set
     [customers addRow:nil];
-    XCTAssertNotNil(part(@"1.value"));
-    XCTAssertEqualObjects([part(@"1.show").headerCell stringValue], @"Show 2");
-    [customers tableView:form setObjectValue:@"Bob" forTableColumn:part(@"1.value") row:2];
+    XCTAssertEqualObjects(customers.rowHeads[1].titleLabel.stringValue, @"Row 2");
+    UDSQLFormParts *names2 = [customers partsOfColumn:@"name" row:1];
+    XCTAssertGreaterThan(NSMinX(names2.view.frame), NSMinX([customers partsOfColumn:@"name" row:0].view.frame), @"across, after the first");
+    type(names2, names2.valueField, @"Bob");
     XCTAssertEqualObjects(editor.file.skeletons[0].rows[1].entries[@"name"], @"Bob");
     [customers removeRow:nil];
     XCTAssertEqual(editor.file.skeletons[0].rows.count, 1u);
-    XCTAssertNil(part(@"1.value"));
+    XCTAssertNil([customers partsOfColumn:@"name" row:1]);
     XCTAssertEqualObjects(entry(@"name"), @"P.", @"the other row as it was");
     [controller close];
     [workspace close];
@@ -282,10 +300,10 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqual(editor.database, shop, @"asked of the database it was made from");
     XCTAssertEqualObjects(editor.databaseButton.titleOfSelectedItem, @"shop.sqlite");
     XCTAssertEqual(editor.skeletons.count, 1u);
-    XCTAssertNotNil(editor.skeletons[0].rowsView, @"its skeleton's XIB");
-    XCTAssertEqualObjects([editor.skeletons[0].rowsView.tableColumns valueForKey:@"identifier"],
-                          (@[ @"name", @"sort", @"0.show", @"0.total", @"0.op", @"0.value", @"0.to" ]), @"a form: its row's parts");
-    XCTAssertEqual(editor.skeletons[0].rowsView.numberOfRows, 4, @"a line each column, after its rows' kinds");
+    XCTAssertNotNil(editor.skeletons[0].formView, @"its skeleton's XIB");
+    XCTAssertEqualObjects([editor.skeletons[0].lines valueForKey:@"column"], (@[ @"id", @"name", @"city" ]), @"a form: a line each column");
+    XCTAssertEqual(editor.skeletons[0].rowHeads.count, 1u);
+    XCTAssertNotNil([editor.skeletons[0] partsOfColumn:@"city" row:0].valueField, @"its parts' XIB");
     XCTAssertEqualObjects([[editor.skeletons[0].operatorMenu itemAtIndex:0] title], @"New Example Element");
     XCTAssertFalse(controller.editorTabs.selectedItem.dirty);
 
@@ -391,31 +409,26 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertFalse([[editor.document.textModel getValue] containsString:@"conditions"], @"none typed: none kept");
 
     // the form's value: coloured, and what its line says in words in its tooltip
-    UDSQLSkeletonViewController *orders = editor.skeletons[1];
-    NSTableView *grid = orders.rowsView;
-    NSInteger totalLine = 3;   // its rows' kinds, id, customer, total
-    NSTableColumn *values = [grid tableColumnWithIdentifier:@"0.value"];
-    XCTAssertEqualObjects([orders tableView:grid objectValueForTableColumn:[grid tableColumnWithIdentifier:@"0.show"] row:totalLine],
-                          @(NSControlStateValueOn), @"P.: shown");
-    XCTAssertEqualObjects([orders tableView:grid objectValueForTableColumn:[grid tableColumnWithIdentifier:@"0.op"] row:totalLine],
-                          @(UDSQLExampleOperatorGreater));
-    id shown = [orders tableView:grid objectValueForTableColumn:values row:totalLine];
-    XCTAssertTrue([shown isKindOfClass:[NSAttributedString class]], @"%@", shown);
-    XCTAssertEqualObjects([shown string], @"6");
+    UDSQLFormParts *total = [editor.skeletons[1] partsOfColumn:@"total" row:0];
+    XCTAssertEqual(total.showButton.state, NSControlStateValueOn, @"P.: shown");
+    XCTAssertEqual(total.opButton.indexOfSelectedItem, (NSInteger)UDSQLExampleOperatorGreater);
+    NSAttributedString *shown = total.valueField.attributedStringValue;
+    XCTAssertEqualObjects(shown.string, @"6");
     NSColor *valueColour = [shown attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL];
+    XCTAssertNotNil(valueColour);
     // being edited, coloured as typed: the field editor's storage colours
     // (its own given back after)
-    [grid selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)totalLine] byExtendingSelection:NO];
-    [grid editColumn:[grid.tableColumns indexOfObject:values] row:totalLine withEvent:nil select:YES];
-    NSTextView *fieldEditor = (NSTextView *)[grid currentEditor];
+    XCTAssertTrue([controller.window makeFirstResponder:total.valueField]);
+    NSTextView *fieldEditor = (NSTextView *)total.valueField.currentEditor;
     XCTAssertTrue([fieldEditor.textStorage isKindOfClass:UDPluginClass(@"UDSQLExampleTextStorage")], @"%@", fieldEditor.textStorage);
     XCTAssertEqualObjects(fieldEditor.string, @"6");
     XCTAssertEqualObjects([fieldEditor.textStorage attribute:NSForegroundColorAttributeName atIndex:0 effectiveRange:NULL], valueColour,
-                          @"as the cell shows it");
-    [grid abortEditing];
+                          @"as the field shows it");
+    [controller.window makeFirstResponder:nil];
     XCTAssertFalse([fieldEditor.textStorage isKindOfClass:UDPluginClass(@"UDSQLExampleTextStorage")], @"the window's field editor, as it was");
-    NSString *tip = [orders tableView:grid toolTipForCell:values.dataCell rect:NULL tableColumn:values row:totalLine mouseLocation:NSZeroPoint];
-    XCTAssertTrue([tip hasPrefix:@"P. — printed: a column of the answer\n> 6 — the rows whose value is so"], @"%@", tip);
+    XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.> 6", @"left as it was");
+    XCTAssertTrue([total.valueField.toolTip hasPrefix:@"P. — printed: a column of the answer\n> 6 — the rows whose value is so"],
+                  @"%@", total.valueField.toolTip);
 
     // its first save: where asked (the window's Save's panel), its tab named
     // for its file, its database remembered for it
@@ -485,15 +498,17 @@ static Class UDPluginClass(NSString *name) {
                            "ORDER BY \"orders\".\"total\" DESC",
                           @"as written by hand: a clause a line; its order, the file's");
 
-    // a row added, the selected one removed (Remove Row); the selected
+    // a row added, the one last edited in removed (Remove Row); the selected
     // table removed (the list's −); each an event's edit
     [undo beginUndoGrouping];
     [editor.skeletons[1] addRow:nil];
     XCTAssertEqual(editor.file.skeletons[1].rows.count, 2u);
-    [editor.skeletons[1].rowsView selectRowIndexes:[NSIndexSet indexSetWithIndex:1] byExtendingSelection:NO];
+    UDSQLFormParts *second = [editor.skeletons[1] partsOfColumn:@"id" row:1];
+    second.showButton.state = NSControlStateValueOn;
+    [second changed:second.showButton];
     [editor.skeletons[1] removeRow:nil];
     XCTAssertEqual(editor.file.skeletons[1].rows.count, 1u);
-    XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.> 10", @"the selected row went, not the other");
+    XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.> 10", @"the one edited in went, not the other");
     [undo endUndoGrouping];
     [editor skeletonWantsToBeSelected:editor.skeletons[0]];
     XCTAssertEqual(editor.selectedSkeleton, 0);

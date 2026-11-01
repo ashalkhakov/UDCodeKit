@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
  *  UDSQLSkeletonViewController.h
  *
- *  A skeleton of a query by example's (UDSQLSkeleton.xib), a form: its
- *  table's name, and a line each of its columns — its Sort, then for each
- *  of its rows (tuple variables) Show (P.), Total (Group, Sum…), an
- *  operator, a value and a range's To;
- *  the first line, each row's kind (there, not there ¬, optional !). What
- *  they say is kept as the entry's text (UDSQLExampleEntry), as typed: the
- *  query, the file and Show as Text as they were. A click in a value edits
- *  it; a right-click offers the query's example elements; a click on it
- *  selects it (its title's band). Its table's columns are the database's;
- *  a table the database lacks, the columns typed under.
+ *  A skeleton of a query by example's (UDSQLSkeleton.xib): its table's
+ *  name, and a form — for each of its rows (tuple variables) a head
+ *  (UDSQLFormRow.xib: Row N, its kind: there, not there ¬, optional !),
+ *  then a line each of its table's columns (UDSQLFormLine.xib: its name,
+ *  its Sort), across it each row's parts (UDSQLFormParts.xib: Show,
+ *  Total, Op, Value, To). What they say is kept as the entry's text
+ *  (UDSQLExampleEntry), as typed: the query, the file and Show as Text as
+ *  they were. A value's right-click offers the query's example elements;
+ *  a click on it selects it (its title's band). Its table's columns are
+ *  the database's; a table the database lacks, the columns typed under.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -19,6 +19,46 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class UDSQLSkeletonViewController;
+
+/// Its form's view: flipped, its first line at its top.
+@interface UDSQLFormView : NSView
+@end
+
+/// A line's head (UDSQLFormLine.xib's owner): its column's name, its Sort.
+@interface UDSQLFormLine : NSObject
+@property (nonatomic, strong) IBOutlet NSView *view;
+@property (nonatomic, weak) IBOutlet NSTextField *nameLabel;
+@property (nonatomic, weak) IBOutlet NSPopUpButton *sortButton;
+@property (nonatomic, copy) NSString *column;
+@property (nonatomic, weak, nullable) UDSQLSkeletonViewController *controller;
+- (IBAction)sortChanged:(nullable id)sender;
+@end
+
+/// A row's head (UDSQLFormRow.xib's owner): Row N, its kind, its parts'
+/// captions.
+@interface UDSQLFormRow : NSObject
+@property (nonatomic, strong) IBOutlet NSView *view;
+@property (nonatomic, weak) IBOutlet NSTextField *titleLabel;
+@property (nonatomic, weak) IBOutlet NSPopUpButton *kindButton;
+@property (nonatomic) NSUInteger row;
+@property (nonatomic, weak, nullable) UDSQLSkeletonViewController *controller;
+- (IBAction)kindChanged:(nullable id)sender;
+@end
+
+/// A column's parts for a row (UDSQLFormParts.xib's owner).
+@interface UDSQLFormParts : NSObject <NSTextFieldDelegate>
+@property (nonatomic, strong) IBOutlet NSView *view;
+@property (nonatomic, weak) IBOutlet NSButton *showButton;
+@property (nonatomic, weak) IBOutlet NSPopUpButton *totalButton;
+@property (nonatomic, weak) IBOutlet NSPopUpButton *opButton;
+@property (nonatomic, weak) IBOutlet NSTextField *valueField;
+@property (nonatomic, weak) IBOutlet NSTextField *toField;
+@property (nonatomic, copy) NSString *column;
+@property (nonatomic) NSUInteger row;
+@property (nonatomic, weak, nullable) UDSQLSkeletonViewController *controller;
+/// Any of its controls changed: its entry made of them all.
+- (IBAction)changed:(nullable id)sender;
+@end
 
 /// A skeleton's view: selected, a band behind its title; clicked, its
 /// skeleton selected.
@@ -43,7 +83,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)newExampleElementForSkeleton:(UDSQLSkeletonViewController *)skeleton;
 @end
 
-@interface UDSQLSkeletonViewController : NSViewController <NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate>
+@interface UDSQLSkeletonViewController : NSViewController <NSMenuDelegate>
 
 - (instancetype)initWithSkeleton:(UDSQLExampleFileSkeleton *)skeleton table:(nullable UDSQLTable *)table
                           schema:(nullable UDSQLSchema *)schema;
@@ -56,8 +96,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isSelected) BOOL selected;
 
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *titleLabel;
-@property (nonatomic, weak, readonly) IBOutlet NSTableView *rowsView;
+@property (nonatomic, weak, readonly) IBOutlet UDSQLFormView *formView;
 @property (nonatomic, strong, readonly) IBOutlet NSMenu *operatorMenu;
+/// Its form's lines (a column's each), its rows' heads, and a column's
+/// parts for a row.
+@property (nonatomic, readonly, copy) NSArray<UDSQLFormLine *> *lines;
+@property (nonatomic, readonly, copy) NSArray<UDSQLFormRow *> *rowHeads;
+- (nullable UDSQLFormParts *)partsOfColumn:(NSString *)column row:(NSUInteger)row;
 
 /// What is typed under @a column in @a row (a tuple), as the form's line
 /// sets it.
@@ -75,7 +120,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)addRow:(nullable id)sender;
 - (IBAction)removeRow:(nullable id)sender;
 - (IBAction)removeSkeleton:(nullable id)sender;
-- (IBAction)entryClicked:(nullable id)sender;
 - (IBAction)applyOperator:(nullable id)sender;
 
 @end

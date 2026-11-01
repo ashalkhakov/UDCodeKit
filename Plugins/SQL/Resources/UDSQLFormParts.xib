@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="24127" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="NO" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="24127"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner" customClass="UDSQLFormParts">
+            <connections>
+                <outlet property="view" destination="FP-root" id="FP-root-o"/>
+                <outlet property="showButton" destination="FP-show" id="FP-show-o"/>
+                <outlet property="totalButton" destination="FP-total" id="FP-total-o"/>
+                <outlet property="opButton" destination="FP-op" id="FP-op-o"/>
+                <outlet property="valueField" destination="FP-value" id="FP-value-o"/>
+                <outlet property="toField" destination="FP-to" id="FP-to-o"/>
+            </connections>
+        </customObject>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <customView id="FP-root" userLabel="A Column's Parts for a Row: Show, Total, Op, Value, To">
+            <rect key="frame" x="0.0" y="0.0" width="530" height="24"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+            <subviews>
+                <button toolTip="Shown: a column of the answer (P.)" verticalHuggingPriority="750" id="FP-show" userLabel="Show">
+                    <rect key="frame" x="12" y="3" width="22" height="18"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <buttonCell key="cell" type="check" bezelStyle="regularSquare" imagePosition="only" alignment="center" controlSize="small" inset="2" id="FP-show-cell">
+                        <behavior key="behavior" changeContents="YES" doesNotDimImage="YES" lightByContents="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                    </buttonCell>
+                    <connections>
+                        <action selector="changed:" target="-2" id="FP-show-a"/>
+                    </connections>
+                </button>
+                <popUpButton toolTip="Group by it (G.), or a total of its values in each group (SUM. AVG. MIN. MAX. CNT.); the other columns shown are the groups. With a total, the operator and value keep groups (HAVING)" verticalHuggingPriority="750" id="FP-total" userLabel="Total">
+                    <rect key="frame" x="44" y="1" width="100" height="22"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="—" bezelStyle="rounded" alignment="left" controlSize="small" lineBreakMode="truncatingTail" state="on" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" selectedItem="FP-total-0" id="FP-total-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                        <menu key="menu" id="FP-total-menu">
+                            <items>
+                            <menuItem title="—" state="on" toolTip="Each row as it is" id="FP-total-0"/>
+                            <menuItem title="Group" toolTip="Grouped by it: rows alike in it are one (G.)" id="FP-total-1"/>
+                            <menuItem title="Sum" toolTip="The sum of its values in each group (SUM.)" id="FP-total-2"/>
+                            <menuItem title="Average" toolTip="Their average (AVG.)" id="FP-total-3"/>
+                            <menuItem title="Minimum" toolTip="The least (MIN.)" id="FP-total-4"/>
+                            <menuItem title="Maximum" toolTip="The greatest (MAX.)" id="FP-total-5"/>
+                            <menuItem title="Count" toolTip="How many values (CNT.)" id="FP-total-6"/>
+                            <menuItem title="Count distinct" toolTip="How many distinct values (CNT.UNQ.)" id="FP-total-7"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                    <connections>
+                        <action selector="changed:" target="-2" id="FP-total-a"/>
+                    </connections>
+                </popUpButton>
+                <popUpButton toolTip="How its value is asked" verticalHuggingPriority="750" id="FP-op" userLabel="Op">
+                    <rect key="frame" x="148" y="1" width="100" height="22"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <popUpButtonCell key="cell" type="push" title="—" bezelStyle="rounded" alignment="left" controlSize="small" lineBreakMode="truncatingTail" state="on" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" selectedItem="FP-op-0" id="FP-op-cell">
+                        <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                        <menu key="menu" id="FP-op-menu">
+                            <items>
+                            <menuItem title="—" state="on" toolTip="Nothing asked (or the value as typed)" id="FP-op-0"/>
+                            <menuItem title="=" toolTip="Equal to the value (or an example element: _c)" id="FP-op-1"/>
+                            <menuItem title="≠" toolTip="Not equal to it" id="FP-op-2"/>
+                            <menuItem title="&gt;" toolTip="Greater than it" id="FP-op-3"/>
+                            <menuItem title="≥" toolTip="At least it" id="FP-op-4"/>
+                            <menuItem title="&lt;" toolTip="Less than it" id="FP-op-5"/>
+                            <menuItem title="≤" toolTip="At most it" id="FP-op-6"/>
+                            <menuItem title="between" toolTip="From the value to To, both included" id="FP-op-7"/>
+                            <menuItem title="like" toolTip="Like it: * any text, case aside" id="FP-op-8"/>
+                            <menuItem title="one of" toolTip="One of them: a, b, c" id="FP-op-9"/>
+                            <menuItem title="not" toolTip="Not so" id="FP-op-10"/>
+                            <menuItem title="is null" toolTip="NULL" id="FP-op-11"/>
+                            <menuItem title="is not null" toolTip="Not NULL" id="FP-op-12"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                    <connections>
+                        <action selector="changed:" target="-2" id="FP-op-a"/>
+                    </connections>
+                </popUpButton>
+                <textField toolTip="Its value, or an example element (_c: the same one in another row's column joins them)" verticalHuggingPriority="750" id="FP-value" userLabel="Value">
+                    <rect key="frame" x="252" y="3" width="170" height="19"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" drawsBackground="YES" usesSingleLineMode="YES" id="FP-value-cell" customClass="UDSQLConditionCell">
+                        <font key="font" metaFont="smallSystem"/>
+                        <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                    <connections>
+                        <action selector="changed:" target="-2" id="FP-value-a"/>
+                    </connections>
+                </textField>
+                <textField toolTip="A range's end: from the value to it, both included (between)" verticalHuggingPriority="750" id="FP-to" userLabel="To">
+                    <rect key="frame" x="426" y="3" width="100" height="19"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" drawsBackground="YES" usesSingleLineMode="YES" id="FP-to-cell" customClass="UDSQLConditionCell">
+                        <font key="font" metaFont="smallSystem"/>
+                        <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                    <connections>
+                        <action selector="changed:" target="-2" id="FP-to-a"/>
+                    </connections>
+                </textField>
+            </subviews>
+        </customView>
+    </objects>
+</document>

@@ -116,24 +116,24 @@ text editors are of theirs: Save, Undo and its tab's dot are the
 document's, and **Show as Text** shows the file as it is (the Query by
 Example language mode: JSON).
 
-- **Each table a form.** Each table asked of
-  has a form, one under another: a line each of its columns, and across
-  them its **Sort** (↑ ↓), then for each of its rows **Show** (a column of
-  the answer), **Total** (Group, Sum, Average, Minimum, Maximum, Count,
-  Count distinct), **Op** (=, ≠, >, ≥, <, ≤, between, like, one of, not,
-  is null, is not null), **Value** and, for between, **To**. Its first
-  line is each row's kind: there, not there (¬), or optional (!). Under
-  the tables, as under any list, **+** adds a table (joined to those
-  there along their foreign keys, example elements filled in) and **−**
-  removes the selected one (a click on a table selects it). Each row is a
-  row of its table (a tuple variable): **Add Row** adds another (a set of
-  parts across: Show 2, Op 2…), **Remove Row** the one last clicked in.
-- **A click in a value edits it**, as a spreadsheet's cell (Tab: the
-  next). What is typed is a value, never SQL: each becomes a parameter.
-  An example element (`_c`) as a value is one: the same one in two rows'
-  columns joins them; a right-click offers the query's elements and a new
-  one. A whole condition typed in a value with no operator (`> 5`,
-  `Ann*`, `1..10`) is read so, its operator shown.
+- **Each table a form.** Each table asked of has a form, one under
+  another: a line each of its columns — its name, its **Sort** (↑ ↓),
+  then for each of its rows **Show** (a column of the answer), **Total**
+  (Group, Sum, Average, Minimum, Maximum, Count, Count distinct), **Op**
+  (=, ≠, >, ≥, <, ≤, between, like, one of, not, is null, is not null),
+  **Value** and, for between, **To**. Over each row's parts, its head:
+  Row 1, Row 2…, and its kind — there, not there (¬), or optional (!).
+  Under the tables, as under any list, **+** adds a table (joined to
+  those there along their foreign keys, example elements filled in) and
+  **−** removes the selected one (a click on a table selects it). Each row
+  is a row of its table (a tuple variable): **Add Row** adds another (its
+  parts across, after the first's), **Remove Row** the one last edited in.
+- **A value is typed in its field** (Tab: the next). What is typed is a
+  value, never SQL: each becomes a parameter. An example element (`_c`)
+  as a value is one: the same one in two rows' columns joins them; a
+  value's right-click offers the query's elements and a new one. A whole
+  condition typed with no operator (`> 5`, `Ann*`, `1..10`) is read so,
+  its operator shown.
 
   What the form sets is kept as Zloof's text, which a value may hold too
   (Show as Text shows it), and which the condition box's lines are like:
@@ -165,8 +165,8 @@ Example language mode: JSON).
   and XFormsKit's expressions are, in XFormsKit's palette: aggregates
   purple (as functions), example elements teal (as variables), `P.` and
   `G.` brown, text in quotes red, numbers blue, comparisons and AND/OR/NOT
-  orange (operators), punctuation dimmed — in a cell, while it is typed in
-  too, and in the condition box. A cell's tooltip says first
+  orange (operators), punctuation dimmed — in a value, while it is typed in
+  too, and in the condition box. A value's tooltip says first
   what its entry means, a line a part (`P. — printed: a column of the
   answer`, `SUM. — the sum of its values in each group`…).
 - **The condition box**, Zloof's, under the tables: what no column can
@@ -303,9 +303,9 @@ Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The S
 | `UDSQLExampleQuery` | query by example as Zloof made it: skeletons, P., example elements, G. and aggregates (HAVING), ¬ and ! rows, alternatives (aggregated: united); as algebra |
 | `UDSQLExampleCondition` | a line of the condition box: comparisons, arithmetic, AND/OR/NOT, aggregates of elements; a predicate once its elements' columns are known |
 | `UDSQLExampleSyntax` | the colour of each kind of token (`UDSQLExampleCondition`'s lexer says what each is), what is typed said in words (the cells' tooltips, the condition box's) |
-| `UDSQLExampleTextStorage` | text being edited (the condition box, a cell's field editor) that recolours itself on every change, as XFormsKit's `XFDXPathTextStorage` |
+| `UDSQLExampleTextStorage` | text being edited (the condition box, a value's field editor) that recolours itself on every change, as XFormsKit's `XFDXPathTextStorage` |
 | `UDSQLExampleFile` | a `.qbe` file: its skeletons by table name, its rows, its order; asked of a database |
-| `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`: a form each), its connection, its answer |
+| `UDSQLExampleViewController` | the `.qbe` editor (VS Code's custom text editor's way): its skeletons (`UDSQLSkeletonViewController`: a form each, of `UDSQLFormLine.xib`, `UDSQLFormRow.xib` and `UDSQLFormParts.xib` pieces), its connection, its answer |
 | `UDSQLExampleEntry` | an entry's text as the form's line shows it (Show, Total, Op, Value, To), and written back |
 | `UDSQLDiagram` | a schema's ER diagram: its boxes, links (declared or inferred), layout, routes and drawing, on DiagramKit |
 | `UDSQLDiagramViewController` | the diagram's tab: DiagramKit's canvas, Arrange, zoom, export, a table's menu |

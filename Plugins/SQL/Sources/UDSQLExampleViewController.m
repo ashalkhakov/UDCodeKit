@@ -111,7 +111,7 @@ static const NSUInteger UDMaxExported = 10000000;
     _conditionsView.toolTip = UDSQLExampleConditionHelp();
     if ([_conditionsView isKindOfClass:[UDSQLConditionBoxView class]]) {
         [(UDSQLConditionBoxView *)_conditionsView setPlaceholderString:
-            @"What no column can say, of example elements put in its cells (_t under one column, _n under another):\n"
+            @"What no column can say, of example elements given as values (_t as one column's value, _n as another's):\n"
              "e.g. _t > _n * 2    _city = 'Oslo' OR _city = 'Rome'    _d IS NOT NULL    CNT.ALL._note > 5 (groups)"];
     }
     [self _showConditions];

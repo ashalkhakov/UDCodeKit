@@ -35,10 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// @a viewController in an editor tab of its own (an extension's view: a
 /// database's diagram), titled @a title; its tab selected when it has one.
 - (void)showViewController:(NSViewController *)viewController title:(NSString *)title;
-/// @a url as text, in a tab (the one showing it so, else a new one), though
-/// an extension edits it another way (a query by example's file), as VS
+/// @a document as text, in a tab (the one showing it so, else a new one),
+/// though an extension edits it another way (a query by example's), as VS
 /// Code's Reopen Editor With… Text Editor.
-- (void)showURLAsText:(NSURL *)url;
+- (void)showDocumentAsText:(UDCodeDocument *)document;
 /// The navigator @a extension contributed, shown.
 - (void)showNavigatorOfExtension:(id<UDExtension>)extension;
 /// The editors of @a document (its tabs').

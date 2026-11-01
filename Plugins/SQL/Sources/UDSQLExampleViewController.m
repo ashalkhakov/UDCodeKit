@@ -46,6 +46,8 @@ static const NSUInteger UDMaxRows = 1000;
                                                      name:UDTextModelDidChangeNotification object:document.textModel];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_databasesDidChange:)
                                                      name:UDSQLDatabasesDidChangeNotification object:databases];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_databaseChosen:)
+                                                     name:UDSQLDocumentDatabaseDidChangeNotification object:document];
     }
     return self;
 }
@@ -110,7 +112,7 @@ static const NSUInteger UDMaxRows = 1000;
 }
 
 - (IBAction)showAsText:(id)sender {
-    if (_document.fileURL) [_databases.workbench showURLAsText:_document.fileURL];
+    [_databases.workbench showDocumentAsText:_document];
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +132,12 @@ static const NSUInteger UDMaxRows = 1000;
 
 - (IBAction)chooseDatabase:(id)sender {
     [_databases setDatabase:[_databases databaseNamed:_databaseButton.titleOfSelectedItem] ofDocument:_document];
+}
+
+/// Its document's database chosen (here, or as it was made): asked of it.
+- (void)_databaseChosen:(NSNotification *)note {
+    if (!self.isViewLoaded) return;
+    [self _reloadDatabases];
     [self _useDatabase];
 }
 
@@ -477,7 +485,6 @@ static const NSUInteger UDMaxRows = 1000;
     SEL action = item.action;
     if (sel_isEqual(action, @selector(undo:))) return _document.textModel.undoManager.canUndo;
     if (sel_isEqual(action, @selector(redo:))) return _document.textModel.undoManager.canRedo;
-    if (sel_isEqual(action, @selector(showAsText:))) return _document.fileURL != nil;
     if (sel_isEqual(action, @selector(copy:)) || sel_isEqual(action, @selector(copyWithColumnNames:))) return _result.rows.count > 0;
     return YES;
 }

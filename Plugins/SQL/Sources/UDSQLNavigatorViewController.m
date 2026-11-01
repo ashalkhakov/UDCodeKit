@@ -305,11 +305,16 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     // a database opened: connected
     UDSQLNode *node = note.userInfo[@"NSObject"];
     UDSQLDatabase *database = node.kind == UDSQLNodeDatabase ? node.object : nil;
-    UDSQLDatabases *databases = _databases;
     // connected once the outline is done expanding: its rows are made again then
     if (database && !database.connected && !database.connecting) {
-        [databases performSelector:@selector(connect:) withObject:database afterDelay:0];
+        [self performSelector:@selector(_connectExpanded:) withObject:database afterDelay:0];
     }
+}
+
+/// An expanded database connected, unless it has been since (opened as a
+/// file): connected again, its rows would be made anew, collapsed.
+- (void)_connectExpanded:(UDSQLDatabase *)database {
+    if (!database.connected && !database.connecting) [_databases connect:database];
 }
 
 - (nullable UDSQLNode *)_clickedNode {
@@ -442,15 +447,7 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     UDSQLNode *node = [self _actedOn:sender];
     UDSQLDatabase *database = [self _databaseOf:node];
     if (!database) return;
-    UDSQLTable *table = [self _tableOf:node];
-    // a file of its own: where, asked
-    NSSavePanel *panel = [NSSavePanel savePanel];
-    panel.allowedFileTypes = @[ @"qbe" ];
-    panel.nameFieldStringValue = [(table ? table.name : database.name.stringByDeletingPathExtension) stringByAppendingPathExtension:@"qbe"];
-    NSURL *folder = _databases.workbench.project.folderURL;
-    if (folder) panel.directoryURL = folder;
-    if ([panel runModal] != NSModalResponseOK || !panel.URL) return;
-    [_databases newExampleQueryAtURL:panel.URL database:database table:table];
+    [_databases newExampleQueryOfDatabase:database table:[self _tableOf:node]];
 }
 
 - (IBAction)showDiagram:(id)sender {

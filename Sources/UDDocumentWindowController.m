@@ -339,8 +339,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 // MARK: - Saving, building
 // ---------------------------------------------------------------------------
 
-/// A project's tabs are files of its own, each saved as itself; a window of
-/// files alone saves as its document does.
+/// A project's tabs are files of its own, each saved as itself (an untitled
+/// one's first save asks where, as VS Code's); a window of files alone saves
+/// as its document does.
 - (IBAction)saveDocument:(nullable id)sender {
     UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
     if (!_project) {
@@ -348,6 +349,38 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return;
     }
     if (document.fileURL) [self _save:document];
+    else if (document) [self _saveUntitled:document];
+}
+
+/// Where @a document is saved, asked: a file of its mode's, in the project.
+- (void)_saveUntitled:(UDCodeDocument *)document {
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    NSString *extension = document.languageMode.fileExtensions.firstObject;
+    if (extension.length) panel.allowedFileTypes = @[ extension ];
+    panel.nameFieldStringValue = extension.length ? [document.displayName stringByAppendingPathExtension:extension] : document.displayName;
+    if (_project.folderURL) panel.directoryURL = _project.folderURL;
+    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
+        if (response == NSModalResponseOK && panel.URL) [self _save:document asURL:panel.URL];
+    }];
+}
+
+/// @a document saved as @a url, of it from then on: its tabs named for it.
+- (void)_save:(UDCodeDocument *)document asURL:(NSURL *)url {
+    // as the workspace finds files: its folder's real path
+    if (url.isFileURL) url = [NSURL fileURLWithPath:[UDRealPath(url.path.stringByDeletingLastPathComponent)
+                                                       stringByAppendingPathComponent:url.lastPathComponent]];
+    NSError *error = nil;
+    if (![document saveAsURL:url error:&error]) {
+        if (error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
+        return;
+    }
+    for (UDTabBarItem *item in [self _itemsForDocument:document]) {
+        item.title = document.displayName;
+        item.toolTip = url.path;
+        item.dirty = document.isModified;
+    }
+    [_fileNavigator reload];
+    [self _documentsChanged];
 }
 
 - (IBAction)saveAllDocuments:(nullable id)sender {
@@ -2275,27 +2308,15 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     [self _showFile:url.path];
 }
 
-- (void)showURLAsText:(NSURL *)url {
-    if (url.isFileURL) url = [NSURL fileURLWithPath:UDRealPath(url.path)];
-    UDCodeDocument *document = [_workspaceModel documentForFileURL:url];
-    for (UDTabBarItem *item in document ? [self _itemsForDocument:document] : @[]) {
+- (void)showDocumentAsText:(UDCodeDocument *)document {
+    for (UDTabBarItem *item in [self _itemsForDocument:document]) {
         if ([[_editorTabs viewControllerForItem:item] isKindOfClass:[UDCodeEditorViewController class]]) {
             [_editorTabs selectItem:item];
             return;
         }
     }
-    if (!document) {
-        NSError *error = nil;
-        document = [_workspaceModel addDocumentFromURL:url error:&error];
-        if (!document) {
-            NSLog(@"[UDDocumentWindowController] Cannot open %@: %@", url.lastPathComponent, error);
-            return;
-        }
-    }
     [self _openTabForDocument:document asText:YES];
 }
-
-
 
 - (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier {
     UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:identifier];

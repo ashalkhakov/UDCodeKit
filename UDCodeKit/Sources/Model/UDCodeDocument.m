@@ -7,6 +7,8 @@
 
 NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     @"UDCodeDocumentTextDidChangeNotification";
+NSNotificationName const UDCodeDocumentFileURLDidChangeNotification =
+    @"UDCodeDocumentFileURLDidChangeNotification";
 
 @interface UDCodeDocument ()
 @property (nonatomic) NSInteger savedAlternativeVersionId;   // the text model's, when last read or saved
@@ -79,6 +81,18 @@ NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     BOOL ok = [text writeToURL:url atomically:YES encoding:NSUTF8StringEncoding error:outError];
     if (ok) _savedAlternativeVersionId = _textModel.alternativeVersionId;
     return ok;
+}
+
+- (BOOL)saveAsURL:(NSURL *)url error:(NSError *__autoreleasing *)outError {
+    if (![self saveToURL:url error:outError]) return NO;
+    [self willChangeValueForKey:@"fileURL"];
+    [self willChangeValueForKey:@"displayName"];
+    _fileURL     = [url copy];
+    _displayName = url.lastPathComponent;
+    [self didChangeValueForKey:@"displayName"];
+    [self didChangeValueForKey:@"fileURL"];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDCodeDocumentFileURLDidChangeNotification object:self];
+    return YES;
 }
 
 - (BOOL)reloadFromFileIfUnmodified {

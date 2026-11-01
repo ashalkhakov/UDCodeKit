@@ -137,10 +137,11 @@ Column Names, their names first).
 
 ## Queries by example, across tables
 
-**New Query by Example…**, in a database's menu in the navigator (or a
-table's: the query begun with it), makes a query by example of tables,
-joined, as Zloof's QBE and Paradox made them, saved as a file of its own
-(`.qbe`: JSON, as git diffs it). Opening a `.qbe` file brings up its
+**New Query by Example**, in a database's menu in the navigator (or a
+table's: the query begun with it), opens a query by example of tables,
+joined, as Zloof's QBE and Paradox made them, untitled; Save asks where
+it is kept, as a file of its own (`.qbe`: JSON, as git diffs it), its
+database remembered with it. Opening a `.qbe` file brings up its
 editor — the file's text is its model, as VS Code's custom text editors
 are of theirs: Save, Undo and its tab's dot are the document's, and
 **Show as Text** shows the file as it is (the Query by Example language

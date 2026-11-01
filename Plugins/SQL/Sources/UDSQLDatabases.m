@@ -11,6 +11,7 @@
 #import "UDSQLSheets.h"
 
 NSNotificationName const UDSQLDatabasesDidChangeNotification = @"UDSQLDatabasesDidChange";
+NSNotificationName const UDSQLDocumentDatabaseDidChangeNotification = @"UDSQLDocumentDatabaseDidChange";
 
 /// The project's settings key, and the user's defaults key, of the connections.
 static NSString *const UDSQLSettingsKey = @"databases";
@@ -76,11 +77,22 @@ static const NSUInteger UDSQLMaxRows = 1000;
         _calls = [NSMutableSet set];
         [self _load];
         _navigator = [[UDSQLNavigatorViewController alloc] initWithDatabases:self];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_documentSaved:)
+                                                     name:UDCodeDocumentFileURLDidChangeNotification object:nil];
     }
     return self;
 }
 
+/// An untitled document saved as a file: its database kept for the file.
+- (void)_documentSaved:(NSNotification *)note {
+    UDCodeDocument *document = note.object;
+    NSString *name = [_documentDatabases objectForKey:document];
+    UDSQLDatabase *database = name ? [self databaseNamed:name] : nil;
+    if (database) [self setDatabase:database ofDocument:document];
+}
+
 - (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     for (UDSQLDatabase *database in _databases) [database.runner close];
 }
 
@@ -275,6 +287,7 @@ static BOOL UDWantsPassword(NSError *error) {
         [[NSUserDefaults standardUserDefaults] setObject:saved forKey:UDSQLDocumentsDefaultsKey];
     }
     [[_results objectForKey:document] reloadDatabases];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDSQLDocumentDatabaseDidChangeNotification object:document];
 }
 
 - (void)browseTable:(UDSQLTable *)table entity:(NSNumber *)entity database:(UDSQLDatabase *)database {
@@ -289,19 +302,15 @@ static BOOL UDWantsPassword(NSError *error) {
     [_workbench showViewController:browser title:[NSString stringWithFormat:@"%@ (%@)", name, database.name]];
 }
 
-- (void)newExampleQueryAtURL:(NSURL *)url database:(UDSQLDatabase *)database table:(UDSQLTable *)table {
+- (void)newExampleQueryOfDatabase:(UDSQLDatabase *)database table:(UDSQLTable *)table {
     UDSQLExampleFile *file = [[UDSQLExampleFile alloc] init];
     if (table) file.skeletons = @[ [UDSQLExampleFileSkeleton skeletonOfTable:table.name schema:table.schema] ];
-    NSError *error = nil;
-    if (![[file data] writeToURL:url options:NSDataWritingAtomic error:&error]) {
-        [[NSAlert alertWithError:error] runModal];
-        return;
-    }
+    id<UDWorkbench> workbench = _workbench;
+    [workbench openUntitledDocumentWithText:[[NSString alloc] initWithData:[file data] encoding:NSUTF8StringEncoding]
+                               languageMode:@"qbe"];
     // asked of the database it was made from
-    NSMutableDictionary *chosen = [[[NSUserDefaults standardUserDefaults] dictionaryForKey:UDSQLDocumentsDefaultsKey] mutableCopy] ?: [NSMutableDictionary dictionary];
-    chosen[UDRealPath(url.path)] = database.name;
-    [[NSUserDefaults standardUserDefaults] setObject:chosen forKey:UDSQLDocumentsDefaultsKey];
-    [_workbench showURL:url];
+    UDCodeDocument *document = workbench.selectedDocument;
+    if (document) [self setDatabase:database ofDocument:document];
 }
 
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run {

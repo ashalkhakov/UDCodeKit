@@ -240,7 +240,7 @@ static NSString * const UDLinkURLKey = @"url";
 /// text editors are (a query by example's file): the document is its model,
 /// its changes edits of its text (its text model's -applyEdits:), so undo,
 /// saving and its tab's dot are the document's, and a tab of its text
-/// (-showURLAsText:) shows it as it is. Asked as a document opens in a tab;
+/// (-showDocumentAsText:) shows it as it is. Asked as a document opens in a tab;
 /// nil: its text.
 - (nullable NSViewController *)workbench:(id<UDWorkbench>)workbench editorForDocument:(UDCodeDocument *)document;
 

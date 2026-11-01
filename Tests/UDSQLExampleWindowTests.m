@@ -3,11 +3,12 @@
 //
 //  A query by example kept as a file (.qbe: its JSON written and read back,
 //  its tables found by name in the database asked), and its editor in the
-//  window, as VS Code's custom text editors are: a new one written and
-//  opened in it; a table added (its foreign key's example elements filled
+//  window, as VS Code's custom text editors are: a new one opened in it,
+//  untitled; a table added (its foreign key's example elements filled
 //  in), printed columns and a condition typed, Run (its answer); its
-//  document changed (its tab's dot), saved by the window's Save (its JSON
-//  on disk), undone; shown as text, its text edited (read back); the same
+//  document changed (its tab's dot), saved as a file (its tab named for
+//  it, its database remembered), by the window's Save (its JSON on disk),
+//  undone; shown as text, its text edited (read back); the same
 //  file asked of another database (staging) and of one without its table;
 //  Copy SQL.
 //
@@ -31,6 +32,7 @@ static Class UDPluginClass(NSString *name) {
 
 @interface UDDocumentWindowController (ExampleTesting)
 @property (nonatomic, strong) UDEditorTabsController *editorTabs;
+- (void)_save:(UDCodeDocument *)document asURL:(NSURL *)url;
 @end
 
 @interface UDSQLExampleWindowTests : UDCodeTestCase
@@ -144,15 +146,15 @@ static Class UDPluginClass(NSString *name) {
     [databases connect:shop];
     UDRunUntil(shop.connected, 10.0);
 
-    // a new one: written, opened in its editor (its document's mode's)
+    // a new one: untitled, opened in its editor (its document's mode's)
     NSURL *url = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"big orders.qbe"]];
-    [databases newExampleQueryAtURL:url database:shop table:[shop.schema tableNamed:@"customers"]];
-    XCTAssertTrue([[NSFileManager defaultManager] fileExistsAtPath:url.path]);
+    [databases newExampleQueryOfDatabase:shop table:[shop.schema tableNamed:@"customers"]];
     UDSQLExampleViewController *editor = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
     XCTAssertTrue([editor isKindOfClass:UDPluginClass(@"UDSQLExampleViewController")], @"%@", editor);
     XCTAssertEqualObjects(editor.document.languageMode.identifier, @"qbe");
     XCTAssertEqualObjects(editor.document.languageMode.displayName, @"Query by Example");
-    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"big orders.qbe");
+    XCTAssertNil(editor.document.fileURL, @"no file asked for yet");
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Untitled");
     XCTAssertEqual(editor.database, shop, @"asked of the database it was made from");
     XCTAssertEqualObjects(editor.databaseButton.titleOfSelectedItem, @"shop.sqlite");
     XCTAssertEqual(editor.skeletons.count, 1u);
@@ -178,6 +180,13 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(editor.result.rows, (@[ @[ @"Ann", @20 ], @[ @"Bob", @7 ] ]), @"%@", editor.statusLabel.stringValue);
     XCTAssertEqual(editor.resultsView.numberOfRows, 2);
 
+    // its first save: where asked (the window's Save's panel), its tab named
+    // for its file, its database remembered for it
+    [controller _save:editor.document asURL:url];
+    XCTAssertEqualObjects(editor.document.fileURL.path, url.path);
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"big orders.qbe");
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.toolTip, url.path);
+    XCTAssertEqualObjects([[NSUserDefaults standardUserDefaults] dictionaryForKey:@"UDSQLDocumentDatabases"][url.path], @"shop.sqlite");
     // saved by the window's Save: its JSON on disk
     [controller saveDocument:nil];
     XCTAssertFalse(editor.document.isModified);

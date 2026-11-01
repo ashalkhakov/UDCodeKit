@@ -19,7 +19,7 @@
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
         <menu title="Table" autoenablesItems="YES" id="ER-menu" userLabel="A Table's (the navigator's)">
             <items>
-                <menuItem title="Browse Rows" id="ER-m-rows">
+                <menuItem title="Browse" id="ER-m-rows">
                     <connections>
                         <action selector="browseRows:" target="-2" id="ER-m-rows-a"/>
                     </connections>

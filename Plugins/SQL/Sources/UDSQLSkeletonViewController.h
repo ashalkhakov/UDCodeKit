@@ -6,6 +6,7 @@
  *  typed under them (P., an example element, a condition; its ▾, a
  *  right-click: a menu of them), and each row's ¬ or !. Its table's columns
  *  are the database's; a table the database lacks, the columns typed under.
+ *  A click in a cell edits it; a click on it selects it (its title's band).
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -15,10 +16,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class UDSQLSkeletonViewController;
 
+/// A skeleton's view: selected, a band behind its title; clicked, its
+/// skeleton selected.
+@interface UDSQLSkeletonView : NSView
+@property (nonatomic, getter=isSelected) BOOL selected;
+@property (nonatomic, weak, nullable) UDSQLSkeletonViewController *controller;
+@end
+
 @protocol UDSQLSkeletonDelegate <NSObject>
 /// What is typed in it changed (its skeleton's rows are as they are now).
 - (void)skeletonDidChange:(UDSQLSkeletonViewController *)skeleton;
 - (void)skeletonWantsToBeRemoved:(UDSQLSkeletonViewController *)skeleton;
+/// Clicked (its title, its grid): the one the − removes.
+- (void)skeletonWantsToBeSelected:(UDSQLSkeletonViewController *)skeleton;
 /// The example elements in the query (its menu offers them), and a new one.
 - (NSArray<NSString *> *)exampleElementsForSkeleton:(UDSQLSkeletonViewController *)skeleton;
 - (NSString *)newExampleElementForSkeleton:(UDSQLSkeletonViewController *)skeleton;
@@ -33,6 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, nullable) id<UDSQLSkeletonDelegate> delegate;
 /// How tall it is, its rows all shown.
 @property (nonatomic, readonly) CGFloat preferredHeight;
+/// Whether it is its query's selected one.
+@property (nonatomic, getter=isSelected) BOOL selected;
 
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *titleLabel;
 @property (nonatomic, weak, readonly) IBOutlet NSTableView *rowsView;
@@ -46,7 +58,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Its rows shown again (their model changed elsewhere).
 - (void)reload;
 
+/// A row added; the selected one removed (none selected: the last).
 - (IBAction)addRow:(nullable id)sender;
+- (IBAction)removeRow:(nullable id)sender;
 - (IBAction)removeSkeleton:(nullable id)sender;
 - (IBAction)entryClicked:(nullable id)sender;
 - (IBAction)applyOperator:(nullable id)sender;

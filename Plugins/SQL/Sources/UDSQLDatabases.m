@@ -6,7 +6,6 @@
 #import "UDSQLText.h"
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLResultsViewController.h"
-#import "UDSQLBrowserViewController.h"
 #import "UDSQLExampleFile.h"
 #import "UDSQLSheets.h"
 
@@ -63,7 +62,8 @@ static const NSUInteger UDSQLMaxRows = 1000;
     NSMapTable<UDCodeDocument *, UDSQLResultsViewController *> *_results;
     NSMapTable<UDCodeDocument *, NSString *> *_documentDatabases;     // untitled documents'
     NSMapTable<UDCodeDocument *, NSDictionary *> *_parameterValues;   // the last given, a document's
-    NSMutableDictionary<NSString *, UDSQLBrowserViewController *> *_browsers;   // by database, table and entity
+    NSMapTable<NSString *, UDCodeDocument *> *_browsed;   // by database, table and entity: what browses it
+    NSHashTable<UDCodeDocument *> *_runWhenShown;          // browsed: run once their editors have their database
 }
 
 - (instancetype)initWithWorkbench:(id<UDWorkbench>)workbench {
@@ -74,6 +74,7 @@ static const NSUInteger UDSQLMaxRows = 1000;
         _results = [NSMapTable weakToStrongObjectsMapTable];
         _documentDatabases = [NSMapTable weakToStrongObjectsMapTable];
         _parameterValues = [NSMapTable weakToStrongObjectsMapTable];
+        _runWhenShown = [NSHashTable weakObjectsHashTable];
         _calls = [NSMutableSet set];
         [self _load];
         _navigator = [[UDSQLNavigatorViewController alloc] initWithDatabases:self];
@@ -231,6 +232,10 @@ static BOOL UDWantsPassword(NSError *error) {
     [[self _runnerOf:database] readSchemaWithTarget:call action:@selector(reply:)];
 }
 
+- (void)connectIfWanted:(UDSQLDatabase *)database {
+    if (!database.connected && !database.connecting && !database.error) [self connect:database];
+}
+
 - (void)refresh:(UDSQLDatabase *)database {
     database.schema = nil;
     [self connect:database];
@@ -291,26 +296,51 @@ static BOOL UDWantsPassword(NSError *error) {
 }
 
 - (void)browseTable:(UDSQLTable *)table entity:(NSNumber *)entity database:(UDSQLDatabase *)database {
-    if (!_browsers) _browsers = [NSMutableDictionary dictionary];
+    // the one browsing it still open, untitled: shown again
+    if (!_browsed) _browsed = [NSMapTable strongToWeakObjectsMapTable];
     NSString *key = [@[ database.name, table.schema ?: @"", table.name, entity ?: @"" ] componentsJoinedByString:@"\t"];
-    UDSQLBrowserViewController *browser = _browsers[key];
-    if (!browser) {
-        browser = [[UDSQLBrowserViewController alloc] initWithDatabases:self database:database table:table entity:entity];
-        _browsers[key] = browser;
+    UDCodeDocument *open = [_browsed objectForKey:key];
+    id<UDWorkbench> workbench = _workbench;
+    if (open && !open.fileURL && [workbench showDocument:open]) return;
+    UDSQLExampleFileSkeleton *skeleton = [UDSQLExampleFileSkeleton skeletonOfTable:table.name schema:table.schema];
+    UDSQLSchema *schema = database.schema;
+    if (entity && schema.coreDataStore) {
+        // an entity's rows: its own and its subentities', by Z_ENT
+        NSMutableArray *entities = [NSMutableArray arrayWithObject:entity];
+        for (NSUInteger i = 0; i < entities.count; i++) [entities addObjectsFromArray:[schema coreDataSubentitiesOf:entities[i]]];
+        skeleton.rows = @[ [UDSQLExampleRow rowWithEntries:@{ @"Z_ENT": [[entities valueForKey:@"stringValue"] componentsJoinedByString:@", "] }] ];
     }
-    NSString *name = entity ? database.schema.coreDataEntities[entity] ?: table.name : table.name;
-    [_workbench showViewController:browser title:[NSString stringWithFormat:@"%@ (%@)", name, database.name]];
+    NSString *name = entity ? schema.coreDataEntities[entity] ?: table.name : table.name;
+    UDCodeDocument *document = [self _openExampleQuery:skeleton database:database name:name];
+    if (!document) return;
+    [_browsed setObject:document forKey:key];
+    [_runWhenShown addObject:document];
+    [self setDatabase:database ofDocument:document];
 }
 
 - (void)newExampleQueryOfDatabase:(UDSQLDatabase *)database table:(UDSQLTable *)table {
+    UDSQLExampleFileSkeleton *skeleton = table ? [UDSQLExampleFileSkeleton skeletonOfTable:table.name schema:table.schema] : nil;
+    UDCodeDocument *document = [self _openExampleQuery:skeleton database:database name:table.name];
+    // asked of the database it was made from
+    if (document) [self setDatabase:database ofDocument:document];
+}
+
+/// An untitled query by example of @a skeleton's table (none: of nothing
+/// yet), named @a name, opened in its editor.
+- (nullable UDCodeDocument *)_openExampleQuery:(nullable UDSQLExampleFileSkeleton *)skeleton database:(UDSQLDatabase *)database
+                                          name:(nullable NSString *)name {
     UDSQLExampleFile *file = [[UDSQLExampleFile alloc] init];
-    if (table) file.skeletons = @[ [UDSQLExampleFileSkeleton skeletonOfTable:table.name schema:table.schema] ];
+    if (skeleton) file.skeletons = @[ skeleton ];
     id<UDWorkbench> workbench = _workbench;
     [workbench openUntitledDocumentWithText:[[NSString alloc] initWithData:[file data] encoding:NSUTF8StringEncoding]
-                               languageMode:@"qbe"];
-    // asked of the database it was made from
-    UDCodeDocument *document = workbench.selectedDocument;
-    if (document) [self setDatabase:database ofDocument:document];
+                               languageMode:@"qbe" name:name];
+    return workbench.selectedDocument;
+}
+
+- (BOOL)takeRunWhenShown:(UDCodeDocument *)document {
+    if (![_runWhenShown containsObject:document]) return NO;
+    [_runWhenShown removeObject:document];
+    return YES;
 }
 
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run {

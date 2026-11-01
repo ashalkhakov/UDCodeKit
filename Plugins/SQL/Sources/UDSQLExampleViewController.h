@@ -6,11 +6,12 @@
  *  changes edits of its text (one each, undone as the document's), so
  *  saving, its tab's dot and the file as text (Show as Text) are the
  *  document's; an edit of its text elsewhere (its text's tab, undo) is read
- *  back. Its skeletons one under another (UDSQLSkeletonViewController; Add
- *  Table joins one to those there along their foreign keys, example
- *  elements filled in), asked of the connection chosen (the document's,
- *  as a SQL document's: the same file of staging or production): Run shows
- *  its answer, Show SQL and Copy SQL its plain SQL, for an app to run.
+ *  back. Its skeletons one under another (UDSQLSkeletonViewController), a
+ *  list's + and − under them (+ joins a table to those there along their
+ *  foreign keys, example elements filled in; − removes the selected one),
+ *  asked of the connection chosen (the document's, as a SQL document's: the
+ *  same file of staging or production): Run shows its answer, Show SQL and
+ *  Copy SQL its plain SQL, for an app to run.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>
@@ -42,7 +43,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, getter=isRunning) BOOL running;
 
 @property (nonatomic, weak, readonly) IBOutlet NSPopUpButton *databaseButton;
+/// Under its skeletons, as a list's + and −: a table added (its menu),
+/// the selected one removed.
 @property (nonatomic, weak, readonly) IBOutlet NSPopUpButton *addTableButton;
+@property (nonatomic, weak, readonly) IBOutlet NSButton *removeTableButton;
+/// Its selected skeleton's index (a click on it selects it; one added is);
+/// -1: none.
+@property (nonatomic, readonly) NSInteger selectedSkeleton;
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *statusLabel;
 @property (nonatomic, weak, readonly) IBOutlet UDSQLExampleStackView *stackView;
 @property (nonatomic, weak, readonly) IBOutlet NSTableView *resultsView;
@@ -54,6 +61,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)chooseDatabase:(nullable id)sender;
 - (IBAction)addTableChosen:(nullable id)sender;
+- (IBAction)removeTable:(nullable id)sender;
 - (IBAction)run:(nullable id)sender;
 - (IBAction)showSQL:(nullable id)sender;
 - (IBAction)copySQL:(nullable id)sender;

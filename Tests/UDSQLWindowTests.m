@@ -8,7 +8,7 @@
 //  parameters asked for in a sheet; a store's dates and entities shown as
 //  such); the Editor menu's Run Statement and Run All; the store's ER
 //  diagram, in a tab of its own (its XIB's views and menu connected); a
-//  table's rows and an entity's browsed, with conditions, order and pages.
+//  table's rows and an entity's browsed (a query by example of each, run).
 //
 
 #import <XCTest/XCTest.h>
@@ -23,7 +23,7 @@
 #import "UDSQLResultsViewController.h"
 #import "UDSQLSheets.h"
 #import "UDSQLDiagramViewController.h"
-#import "UDSQLBrowserViewController.h"
+#import "UDSQLExampleViewController.h"
 
 static Class UDPluginClass(NSString *name) {
     (void)[UDLanguageModeRegistry sharedRegistry];
@@ -142,7 +142,7 @@ static Class UDPluginClass(NSString *name) {
     NSString *person = @"ZPERSON";
     NSRect box = [diagram.diagram tableWithIdentifier:person].frame;
     NSMenu *tableMenu = [diagram canvas:diagram.canvas menuForItem:person];
-    XCTAssertEqualObjects([tableMenu.itemArray valueForKey:@"title"], (@[ @"Browse Rows", @"New Query", @"Copy Name" ]));
+    XCTAssertEqualObjects([tableMenu.itemArray valueForKey:@"title"], (@[ @"Browse", @"New Query", @"Copy Name" ]));
     XCTAssertEqual([tableMenu itemAtIndex:0].target, (id)diagram);
     [[tableMenu itemWithTitle:@"Copy Name"].target performSelector:@selector(copyName:) withObject:[tableMenu itemWithTitle:@"Copy Name"]];
     XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString], person);
@@ -194,108 +194,45 @@ static Class UDPluginClass(NSString *name) {
     [databases.navigator showDiagram:nil];
     XCTAssertEqual(controller.editorTabs.items.count, tabs + 1, @"its tab again, not another");
 
-    // a table's rows, browsed: its conditions, its order, its pages
+    // a table's rows, browsed: a query by example of it, untitled, named for
+    // it, run; a condition typed, run again; its SQL shown, as by hand
     titles = [databases.navigator visibleTitles];
     [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:[titles indexOfObject:@"    ZPERSON"]] byExtendingSelection:NO];
     tabs = controller.editorTabs.items.count;
     [databases.navigator browseRows:nil];
     XCTAssertEqual(controller.editorTabs.items.count, tabs + 1);
-    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"ZPERSON (Model.sqlite)");
-    UDSQLBrowserViewController *browser = (UDSQLBrowserViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
-    XCTAssertTrue([browser isKindOfClass:UDPluginClass(@"UDSQLBrowserViewController")]);
-    XCTAssertNotNil(browser.conditionsView, @"the XIB's grids");
-    XCTAssertEqual(browser.rowsView.dataSource, (id)browser);
-    XCTAssertEqual(browser.conditionsView.delegate, (id)browser);
-    XCTAssertNil(browser.rowsView.headerView, @"the conditions' header names the columns of both");
-    XCTAssertEqualObjects([browser.conditionsView.tableColumns valueForKey:@"identifier"], [browser.table.columns valueForKey:@"name"]);
-    UDRunUntil(!browser.running && browser.rows.count == 2, 10.0);
-    XCTAssertEqual(browser.count, 2u);
-    XCTAssertEqualObjects(browser.statusLabel.stringValue, @"Rows 1–2 of 2");
-    XCTAssertEqualObjects([browser tableView:browser.rowsView objectValueForTableColumn:[browser.rowsView tableColumnWithIdentifier:@"ZNAME"] row:1], @"Bob");
-    XCTAssertEqualObjects([browser tableView:browser.rowsView objectValueForTableColumn:[browser.rowsView tableColumnWithIdentifier:@"Z_ENT"] row:1],
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"ZPERSON");
+    UDSQLExampleViewController *browser = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertTrue([browser isKindOfClass:UDPluginClass(@"UDSQLExampleViewController")], @"%@", browser);
+    XCTAssertNil(browser.document.fileURL, @"untitled: saved only if asked");
+    XCTAssertEqual(browser.database, store);
+    XCTAssertEqualObjects(browser.file.skeletons.firstObject.table, @"ZPERSON");
+    UDRunUntil(!browser.running && browser.result.rows.count == 2, 10.0);
+    XCTAssertEqual(browser.result.rows.count, 2u, @"run at once: %@", browser.statusLabel.stringValue);
+    NSUInteger entityColumn = [[browser.result.columns valueForKey:@"name"] indexOfObject:@"Z_ENT"];
+    XCTAssertEqualObjects([browser tableView:browser.resultsView
+                           objectValueForTableColumn:[browser.resultsView tableColumnWithIdentifier:[@(entityColumn) stringValue]] row:1],
                           @"2 · Employee", @"a store's values, as the results show them");
-    // a condition, typed under its column; one that can't be read, said
-    [browser tableView:browser.conditionsView setObjectValue:@"b*" forTableColumn:[browser.conditionsView tableColumnWithIdentifier:@"ZNAME"] row:0];
-    UDRunUntil(!browser.running && browser.count == 1, 10.0);
-    XCTAssertEqualObjects(browser.rows.firstObject[3], @"Bob");
-    [browser setCondition:@">" column:@"ZBORN" row:0];
-    XCTAssertFalse(browser.running);
-    XCTAssertEqualObjects(browser.statusLabel.stringValue, @"ZBORN: > what?");
-    [browser setCondition:@"" column:@"ZBORN" row:0];
-    // Or: another row of conditions
-    [browser addConditionRow:nil];
-    [browser setCondition:@"Ann" column:@"ZNAME" row:1];
-    UDRunUntil(!browser.running && browser.count == 2, 10.0);
-    XCTAssertEqual(browser.conditionsView.numberOfRows, 2);
-    // sorted by a column's name clicked, then the other way
-    [browser tableView:browser.conditionsView didClickTableColumn:[browser.conditionsView tableColumnWithIdentifier:@"ZNAME"]];
-    UDRunUntil(!browser.running && [browser.rows.firstObject[3] isEqual:@"Ann"], 10.0);
-    XCTAssertEqualObjects(browser.rows[0][3], @"Ann");
-    XCTAssertEqualObjects([[browser.conditionsView tableColumnWithIdentifier:@"ZNAME"].headerCell stringValue], @"ZNAME ▲");
-    [browser sortByColumn:@"ZNAME"];
-    UDRunUntil(!browser.running && [browser.rows.firstObject[3] isEqual:@"Bob"], 10.0);
-    XCTAssertEqualObjects(browser.rows[0][3], @"Bob", @"descending");
-    // a page at a time
-    browser.pageSize = 1;
-    [browser reload];
-    UDRunUntil(!browser.running && browser.count != NSNotFound, 10.0);
-    XCTAssertTrue(browser.nextButton.isEnabled);
-    XCTAssertFalse(browser.previousButton.isEnabled);
-    [browser nextPage:nil];
-    UDRunUntil(!browser.running && browser.offset == 1, 10.0);
-    XCTAssertEqualObjects(browser.rows[0][3], @"Ann");
-    XCTAssertEqualObjects(browser.statusLabel.stringValue, @"Rows 2–2 of 2");
-    XCTAssertFalse(browser.nextButton.isEnabled);
-    // copied as tab-separated text, and shown as SQL in a document of its own
-    [browser copyWithColumnNames:nil];
-    NSString *copied = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
-    XCTAssertTrue([copied hasPrefix:@"Z_PK\tZ_ENT\tZ_OPT\tZNAME"], @"%@", copied);
+    [browser.skeletons[0] setEntry:@"b*" column:@"ZNAME" row:0];
+    [browser run:nil];
+    UDRunUntil(!browser.running && browser.result.rows.count == 1, 10.0);
+    XCTAssertEqualObjects(browser.result.rows.firstObject[3], @"Bob");
     NSUInteger tabsBefore = controller.editorTabs.items.count;
     [browser showSQL:nil];
     XCTAssertEqual(controller.editorTabs.items.count, tabsBefore + 1);
     UDCodeEditorViewController *shown = (UDCodeEditorViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
-    XCTAssertEqualObjects(shown.textView.string,
-                          @"SELECT * FROM \"ZPERSON\" WHERE \"ZNAME\" LIKE 'b%' OR \"ZNAME\" = 'Ann' ORDER BY \"ZNAME\" DESC LIMIT 1 OFFSET 1;\n");
-    browser.pageSize = 100;
+    XCTAssertTrue([shown.textView.string hasPrefix:@"SELECT *\nFROM \"ZPERSON\"\nWHERE \"ZNAME\" LIKE 'b%'"], @"%@", shown.textView.string);
 
-    // what may be typed: each condition's placeholder and tooltip, its ▾'s
-    // menu (a right-click's too); an operator made of what is typed (its
-    // tab shown again: Show SQL's document is in front)
-    [databases browseTable:browser.table entity:nil database:store];
-    XCTAssertEqual([controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem], (id)browser);
-    NSTableColumn *names = [browser.conditionsView tableColumnWithIdentifier:@"ZNAME"];
-    XCTAssertEqualObjects(NSStringFromClass([names.dataCell class]), @"UDSQLConditionCell");
-    XCTAssertEqualObjects([(NSTextFieldCell *)names.dataCell placeholderString], @"e.g. Ann*");
-    XCTAssertEqualObjects([(NSTextFieldCell *)[browser.conditionsView tableColumnWithIdentifier:@"Z_PK"].dataCell placeholderString], @"e.g. > 5");
-    NSMenu *operators = browser.conditionsView.menu;
-    XCTAssertEqualObjects([operators.itemArray.firstObject title], @"Equal To");
-    XCTAssertEqual([operators itemWithTitle:@"Greater Than"].tag, (NSInteger)UDSQLQbEGreater);
-    XCTAssertEqual([operators itemWithTitle:@"Greater Than"].target, (id)browser);
-    XCTAssertTrue([[browser tableView:browser.conditionsView toolTipForCell:names.dataCell rect:NULL tableColumn:names row:0
-                                 mouseLocation:NSZeroPoint] containsString:@"Ann* — like it"]);
-    [browser clearConditions:nil];
-    UDRunUntil(!browser.running && browser.count == 2, 10.0);
-    [browser setCondition:@"1" column:@"Z_PK" row:0];
-    UDRunUntil(!browser.running && browser.count == 1, 10.0);
-    [browser applyOperator:UDSQLQbEGreater column:@"Z_PK" row:0];
-    UDRunUntil(!browser.running && browser.count == 1 && [browser.rows.firstObject[3] isEqual:@"Bob"], 10.0);
-    XCTAssertEqualObjects(browser.rows.firstObject[3], @"Bob", @"1, Greater Than: > 1");
-    [browser applyOperator:UDSQLQbEBetween column:@"ZNAME" row:0];
-    XCTAssertEqualObjects([browser.conditionsView currentEditor].string, @"..", @"a value still to type: edited");
-    [browser.conditionsView abortEditing];
-    [browser clearConditions:nil];
-
-    // an entity's rows: its own (Employee: Bob), in its table
+    // an entity's rows: its own (Employee: Bob), by Z_ENT, in its table's
+    // skeleton; the table browsed again: its tab again, not another
     titles = [databases.navigator visibleTitles];
     [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:[titles indexOfObject:@"      Employee"]] byExtendingSelection:NO];
     [databases.navigator browseRows:nil];
-    UDSQLBrowserViewController *employees = (UDSQLBrowserViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
-    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Employee (Model.sqlite)");
-    XCTAssertEqualObjects(employees.query.restrictionColumn, @"Z_ENT");
-    XCTAssertEqualObjects(employees.query.restrictionValues, @[ @2 ]);
-    UDRunUntil(!employees.running && employees.count != NSNotFound, 10.0);
-    XCTAssertEqual(employees.count, 1u);
-    XCTAssertEqualObjects(employees.rows.firstObject[3], @"Bob");
+    UDSQLExampleViewController *employees = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Employee");
+    XCTAssertEqualObjects(employees.file.skeletons.firstObject.rows.firstObject.entries[@"Z_ENT"], @"2");
+    UDRunUntil(!employees.running && employees.result.rows.count == 1, 10.0);
+    XCTAssertEqualObjects(employees.result.rows.firstObject[3], @"Bob");
     tabsBefore = controller.editorTabs.items.count;
     titles = [databases.navigator visibleTitles];
     [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:[titles indexOfObject:@"    ZPERSON"]] byExtendingSelection:NO];

@@ -17,6 +17,10 @@
     return [[self alloc] init];
 }
 
++ (NSString *)unavailableReason {
+    return nil;
+}
+
 - (NSString *)name {
     return @"Windows Credential Manager";
 }

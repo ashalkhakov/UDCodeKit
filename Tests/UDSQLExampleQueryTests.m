@@ -293,4 +293,26 @@ static Class UDPluginClass(NSString *name) {
                           @"SELECT count(*) FROM (SELECT \"name\" FROM \"customers\" WHERE \"city\" = 'O''Neil' UNION SELECT \"name\" FROM \"customers\") AS \"q\"");
 }
 
+- (void)testItsSQLPrettyPrinted {
+    // a clause a line, a WHERE's ANDs (not BETWEEN's, not an ON's, not a
+    // parenthesized one's), a subquery indented; quoted text as it is
+    NSString *sql = @"SELECT \"c\".\"name\" FROM \"customers\" AS \"c\" LEFT JOIN \"orders\" ON \"orders\".\"customer\" = \"c\".\"id\" AND \"orders\".\"total\" > 5 "
+                     "WHERE \"c\".\"id\" BETWEEN 1 AND 3 AND (\"c\".\"city\" = ' FROM x AND y' OR \"c\".\"name\" = 'Ann') AND NOT EXISTS "
+                     "(SELECT * FROM \"orders\" WHERE \"orders\".\"customer\" = \"c\".\"id\" AND \"orders\".\"total\" > 10) ORDER BY \"c\".\"name\" LIMIT 10";
+    XCTAssertEqualObjects([UDRel prettyPrinted:sql],
+                          @"SELECT \"c\".\"name\"\n"
+                           "FROM \"customers\" AS \"c\"\n"
+                           "LEFT JOIN \"orders\" ON \"orders\".\"customer\" = \"c\".\"id\" AND \"orders\".\"total\" > 5\n"
+                           "WHERE \"c\".\"id\" BETWEEN 1 AND 3\n"
+                           "  AND (\"c\".\"city\" = ' FROM x AND y' OR \"c\".\"name\" = 'Ann')\n"
+                           "  AND NOT EXISTS (\n"
+                           "  SELECT *\n"
+                           "  FROM \"orders\"\n"
+                           "  WHERE \"orders\".\"customer\" = \"c\".\"id\"\n"
+                           "    AND \"orders\".\"total\" > 10\n"
+                           ")\n"
+                           "ORDER BY \"c\".\"name\"\n"
+                           "LIMIT 10");
+}
+
 @end

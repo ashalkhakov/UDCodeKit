@@ -313,9 +313,11 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
 }
 
 /// An expanded database connected, unless it has been since (opened as a
-/// file): connected again, its rows would be made anew, collapsed.
+/// file: connected again, its rows would be made anew, collapsed) or failed
+/// (its rows, made again, expand it again: its password asked again, and
+/// again).
 - (void)_connectExpanded:(UDSQLDatabase *)database {
-    if (!database.connected && !database.connecting) [_databases connect:database];
+    [_databases connectIfWanted:database];
 }
 
 - (nullable UDSQLNode *)_clickedNode {

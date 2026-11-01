@@ -16,7 +16,12 @@ static UDCredentialStore *UDShared;
 
 + (UDCredentialStore *)sharedStore {
     @synchronized(self) {
-        if (!UDShared) UDShared = [UDSystemCredentialStore systemStore] ?: [self memoryStore];
+        if (!UDShared) UDShared = [UDSystemCredentialStore systemStore];
+        if (!UDShared) {
+            UDCredentialStore *memory = [self memoryStore];
+            memory->_unavailableReason = [[UDSystemCredentialStore unavailableReason] copy];
+            UDShared = memory;
+        }
         return UDShared;
     }
 }

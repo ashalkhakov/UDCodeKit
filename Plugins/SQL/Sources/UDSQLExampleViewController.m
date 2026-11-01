@@ -20,6 +20,7 @@ static const NSUInteger UDMaxRows = 1000;
 @interface UDSQLExampleViewController ()
 @property (nonatomic, weak) IBOutlet NSPopUpButton *databaseButton;
 @property (nonatomic, weak) IBOutlet NSPopUpButton *addTableButton;
+@property (nonatomic, weak) IBOutlet NSButton *removeTableButton;
 @property (nonatomic, weak) IBOutlet NSTextField *statusLabel;
 @property (nonatomic, weak) IBOutlet UDSQLExampleStackView *stackView;
 @property (nonatomic, weak) IBOutlet NSTableView *resultsView;
@@ -32,6 +33,7 @@ static const NSUInteger UDMaxRows = 1000;
     UDSQLSchema *_schema;               // the one its skeletons' tables are of
     BOOL _writing;                      // its own edit of its document's text, under way
     BOOL _waitsForConnection, _runsWhenConnected;
+    NSInteger _selected;                // its selected skeleton's index; -1: none
     NSArray<UDSQLStatement *> *_pending;
 }
 
@@ -41,6 +43,7 @@ static const NSUInteger UDMaxRows = 1000;
         _databases = databases;
         _document = document;
         _skeletons = [NSMutableArray array];
+        _selected = 0;
         [self _readDocument];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
                                                      name:UDTextModelDidChangeNotification object:document.textModel];
@@ -147,8 +150,9 @@ static const NSUInteger UDMaxRows = 1000;
     UDSQLDatabase *database = self.database;
     if (database && !database.schema) {
         _waitsForConnection = YES;
-        if (!database.connecting) [_databases connect:database];
-        [self _showStatus:@"Connecting…" error:NO];
+        [_databases connectIfWanted:database];
+        if (database.error) [self _showStatus:database.error.localizedDescription error:YES];
+        else [self _showStatus:@"Connecting…" error:NO];
     }
     _schema = database.schema;
     NSMenu *menu = _addTableButton.menu;
@@ -162,6 +166,8 @@ static const NSUInteger UDMaxRows = 1000;
     }
     [_addTableButton setEnabled:_schema != nil];
     [self _makeSkeletons];
+    // browsed: its rows shown at once
+    if (database && [_databases takeRunWhenShown:_document]) [self run:nil];
 }
 
 - (void)_databasesDidChange:(NSNotification *)note {
@@ -201,6 +207,7 @@ static const NSUInteger UDMaxRows = 1000;
         [_skeletons addObject:skeleton];
         [_stackView addSubview:skeleton.view];
     }
+    [self _select:MIN(_selected, (NSInteger)_skeletons.count - 1)];
     [self _layOut];
     if (_readError) [self _showStatus:[NSString stringWithFormat:@"Its text can't be read (Show as Text): %@", _readError.localizedDescription] error:YES];
     else if (!_file.skeletons.count) [self _showStatus:_schema ? @"Add a table: its skeleton, to type what its rows are to be"
@@ -222,6 +229,26 @@ static const NSUInteger UDMaxRows = 1000;
 - (void)skeletonDidChange:(UDSQLSkeletonViewController *)skeleton {
     [self _writeDocument];
     [self _layOut];
+}
+
+/// Its skeleton at @a index the selected one (-1: none): what − removes.
+- (void)_select:(NSInteger)index {
+    _selected = index;
+    for (NSUInteger i = 0; i < _skeletons.count; i++) _skeletons[i].selected = (NSInteger)i == index;
+    [_removeTableButton setEnabled:index >= 0];
+}
+
+- (NSInteger)selectedSkeleton {
+    return _selected;
+}
+
+- (void)skeletonWantsToBeSelected:(UDSQLSkeletonViewController *)skeleton {
+    NSUInteger index = [_skeletons indexOfObjectIdenticalTo:skeleton];
+    if (index != NSNotFound) [self _select:(NSInteger)index];
+}
+
+- (IBAction)removeTable:(id)sender {
+    if (_selected >= 0 && _selected < (NSInteger)_skeletons.count) [self skeletonWantsToBeRemoved:_skeletons[(NSUInteger)_selected]];
 }
 
 - (void)skeletonWantsToBeRemoved:(UDSQLSkeletonViewController *)skeleton {
@@ -312,6 +339,7 @@ static const NSUInteger UDMaxRows = 1000;
         break;
     }
     _file.skeletons = [_file.skeletons arrayByAddingObject:added];
+    _selected = (NSInteger)_file.skeletons.count - 1;     // the one added
     [self _writeDocument];
     [self _makeSkeletons];
 }
@@ -353,6 +381,8 @@ static const NSUInteger UDMaxRows = 1000;
     UDSQLDatabase *database = self.database;
     if (database && !database.schema) {
         _runsWhenConnected = YES;
+        // asked for: tried again, though it failed (its password not given)
+        if (database.error && !database.connecting) [_databases connect:database];
         [self _useDatabase];
         return;
     }
@@ -437,7 +467,7 @@ static const NSUInteger UDMaxRows = 1000;
         [self _showStatus:error.localizedDescription ?: @"It can't be asked." error:YES];
         return;
     }
-    [_databases openQuery:[sql stringByAppendingString:@";\n"] database:self.database run:NO];
+    [_databases openQuery:[UDSQLPrettyPrinted(sql) stringByAppendingString:@";\n"] database:self.database run:NO];
 }
 
 - (IBAction)copySQL:(id)sender {
@@ -450,7 +480,7 @@ static const NSUInteger UDMaxRows = 1000;
     }
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
     [pasteboard declareTypes:@[ NSPasteboardTypeString ] owner:nil];
-    [pasteboard setString:sql forType:NSPasteboardTypeString];
+    [pasteboard setString:UDSQLPrettyPrinted(sql) forType:NSPasteboardTypeString];
     [self _showStatus:[NSString stringWithFormat:@"Its SQL copied (%@'s)", self.database.name] error:NO];
 }
 

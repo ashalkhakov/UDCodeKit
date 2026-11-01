@@ -53,6 +53,10 @@ FOUNDATION_EXPORT NSNotificationName const UDSQLDocumentDatabaseDidChangeNotific
 /// Connected and its schema read (a password asked for when wanted); told
 /// by UDSQLDatabasesDidChangeNotification.
 - (void)connect:(UDSQLDatabase *)database;
+/// Connected as a view showing it wants it (a row expanded, a tab of it):
+/// unless it is, or is connecting, or failed last (its password not given,
+/// asked again only by Refresh or Run).
+- (void)connectIfWanted:(UDSQLDatabase *)database;
 - (void)refresh:(UDSQLDatabase *)database;
 - (void)disconnect:(UDSQLDatabase *)database;
 
@@ -63,9 +67,13 @@ FOUNDATION_EXPORT NSNotificationName const UDSQLDocumentDatabaseDidChangeNotific
 
 /// A new SQL document against @a database, with @a text; run when @a run.
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run;
-/// @a table's rows browsed, in a tab of its own (the one open for it, else
-/// a new one): an entity's only, @a entity given (a Core Data store's).
+/// @a table's rows browsed: a query by example of it (an entity's: its own
+/// and its subentities', by Z_ENT), untitled, named for it, run (the one
+/// still browsing it, untitled, shown again).
 - (void)browseTable:(UDSQLTable *)table entity:(nullable NSNumber *)entity database:(UDSQLDatabase *)database;
+/// Whether @a document's editor runs it once it has its database (it was
+/// browsed): YES once.
+- (BOOL)takeRunWhenShown:(UDCodeDocument *)document;
 /// A new query by example, of @a database (@a table's skeleton in it, given),
 /// opened untitled (its QbE editor; asked of @a database), where it is kept
 /// asked on its first save.

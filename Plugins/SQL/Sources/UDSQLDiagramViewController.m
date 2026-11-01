@@ -39,7 +39,7 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     [self reload];
-    if (!_database.schema && !_database.connecting) [_databases connect:_database];
+    if (!_database.schema) [_databases connectIfWanted:_database];
 }
 
 - (UDSQLDiagram *)diagram {

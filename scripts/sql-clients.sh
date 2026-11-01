@@ -244,8 +244,10 @@ windows() {
   # Each package's licence (MSYS2 keeps them in share/licenses) and the README.
   for package in "${order[@]}"; do
     local short=${package#"${MINGW_PACKAGE_PREFIX:-mingw-w64-clang-x86_64}-"}
-    local texts=("$prefix/share/licenses/$short"/*)
-    if [ -e "${texts[0]}" ]; then
+    # its files, those in folders too (gettext-runtime's intl/, libasprintf/)
+    local texts=()
+    [ -d "$prefix/share/licenses/$short" ] && mapfile -t texts < <(find "$prefix/share/licenses/$short" -type f | sort)
+    if [ ${#texts[@]} -gt 0 ]; then
       cat "${texts[@]}" > "$licenses/$short.txt"
     else
       echo "See https://packages.msys2.org/packages/$package" > "$licenses/$short.txt"

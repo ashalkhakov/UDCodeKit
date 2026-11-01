@@ -67,7 +67,14 @@ static void UDSetUpKeep(NSButton *button, BOOL keep) {
     button.enabled = store.persistent;
     button.state = store.persistent && keep ? NSControlStateValueOn : NSControlStateValueOff;
     button.toolTip = store.persistent ? [NSString stringWithFormat:@"Kept in %@, for when UDCode connects again", store.name]
-                                      : @"This system keeps no passwords (no Secret Service): it is kept until UDCode quits";
+                                      : [NSString stringWithFormat:@"%@ It is kept until UDCode quits.",
+                                         store.unavailableReason ?: @"This system keeps no passwords."];
+    // why it can't be: said where it is seen, not in its tip alone, where
+    // there is room (the password's sheet; the server's has its tip)
+    if (button.autoresizingMask & NSViewWidthSizable) {
+        NSString *title = [button.title componentsSeparatedByString:@" (can't"].firstObject;
+        button.title = store.persistent ? title : [title stringByAppendingString:@" (can't: no keyring answers)"];
+    }
 }
 
 /// The sheets up: each kept till it ends.

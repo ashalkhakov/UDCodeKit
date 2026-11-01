@@ -11,6 +11,29 @@
 /// the elements in the query from UDElementTag on.
 enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDElementTag = 200 };
 
+@implementation UDSQLSkeletonView
+
+- (void)setSelected:(BOOL)selected {
+    if (_selected == selected) return;
+    _selected = selected;
+    [self setNeedsDisplay:YES];
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    if (!_selected) return;
+    // its title's band (the XIB's: its top 26 points)
+    [[NSColor selectedControlColor] setFill];
+    NSRectFill(NSMakeRect(0, NSHeight(self.bounds) - 26, NSWidth(self.bounds), 26));
+}
+
+- (void)mouseDown:(NSEvent *)event {
+    UDSQLSkeletonViewController *controller = _controller;
+    [controller.delegate skeletonWantsToBeSelected:controller];
+    [super mouseDown:event];
+}
+
+@end
+
 @interface UDSQLSkeletonViewController ()
 @property (nonatomic, weak) IBOutlet NSTextField *titleLabel;
 @property (nonatomic, weak) IBOutlet NSTableView *rowsView;
@@ -47,6 +70,11 @@ enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDElementT
     [super viewDidLoad];
     [_entryTemplate.tableView removeTableColumn:_entryTemplate];
     _operatorMenu.delegate = self;
+    if ([self.view isKindOfClass:[UDSQLSkeletonView class]]) {
+        UDSQLSkeletonView *view = (UDSQLSkeletonView *)self.view;
+        view.controller = self;
+        view.selected = _selected;
+    }
     NSString *table = _skeleton.schema.length ? [NSString stringWithFormat:@"%@.%@", _skeleton.schema, _skeleton.table] : _skeleton.table;
     _titleLabel.stringValue = _table ? table : [table stringByAppendingString:@" (not in this database)"];
     NSDictionary *font = @{ NSFontAttributeName: [NSFont boldSystemFontOfSize:[NSFont smallSystemFontSize]] };
@@ -73,7 +101,13 @@ enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDElementT
 
 - (CGFloat)preferredHeight {
     // its title, its header, its rows, its scroller
-    return 26 + 23 + MAX(1u, _skeleton.rows.count) * 18 + 20;
+    CGFloat row = (self.isViewLoaded ? _rowsView.rowHeight + _rowsView.intercellSpacing.height : 24);
+    return 26 + 23 + MAX(1u, _skeleton.rows.count) * row + 20;
+}
+
+- (void)setSelected:(BOOL)selected {
+    _selected = selected;
+    if (self.isViewLoaded && [self.view isKindOfClass:[UDSQLSkeletonView class]]) [(UDSQLSkeletonView *)self.view setSelected:selected];
 }
 
 - (void)reload {
@@ -135,6 +169,12 @@ enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDElementT
     [self _changed];
 }
 
+- (IBAction)removeRow:(id)sender {
+    NSInteger row = _rowsView.selectedRow >= 0 ? _rowsView.selectedRow : (NSInteger)_skeleton.rows.count - 1;
+    [_rowsView abortEditing];
+    if (row >= 0) [self applyOperator:UDRemoveRowTag element:nil column:@"" row:(NSUInteger)row];
+}
+
 - (IBAction)removeSkeleton:(id)sender {
     [_delegate skeletonWantsToBeRemoved:self];
 }
@@ -143,14 +183,22 @@ enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDElementT
 // MARK: - Its ▾: what an entry can be
 // ---------------------------------------------------------------------------
 
-/// A click on an entry: on its ▾, the menu.
+/// A click on an entry: on its ▾, the menu; else it edited, at once (as
+/// a spreadsheet's cell: no double-click, no row selected first). Its
+/// skeleton selected, either way.
 - (IBAction)entryClicked:(id)sender {
+    [_delegate skeletonWantsToBeSelected:self];
     NSInteger row = _rowsView.clickedRow, column = _rowsView.clickedColumn;
     NSEvent *event = [NSApp currentEvent];
     if (row < 0 || column < 1 || !event) return;
     NSRect cell = [_rowsView frameOfCellAtColumn:column row:row];
     NSPoint point = [_rowsView convertPoint:event.locationInWindow fromView:nil];
-    if (point.x < NSMaxX(cell) - [UDSQLConditionCell menuWidth]) return;
+    if (point.x < NSMaxX(cell) - [UDSQLConditionCell menuWidth]) {
+        // the row selected first (GNUstep edits a selected row's only)
+        [_rowsView selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)row] byExtendingSelection:NO];
+        [_rowsView editColumn:column row:row withEvent:nil select:YES];
+        return;
+    }
     _menuRow = row;
     _menuColumn = column;
     [NSMenu popUpContextMenu:_operatorMenu withEvent:event forView:_rowsView];

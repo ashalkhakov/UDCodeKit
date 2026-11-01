@@ -98,10 +98,18 @@ typedef NS_ENUM(NSInteger, UDSQLJoinKind) {
 /// Its SQL: its values in @a parameters (placeholders numbered on from
 /// those there), or written in when nil.
 - (NSString *)SQLForDialect:(UDSQLDialect)dialect parameters:(nullable NSMutableArray *)parameters;
+/// UDSQLPrettyPrinted(@a sql).
++ (NSString *)prettyPrinted:(NSString *)sql;
 
 @end
 
 /// @a name quoted for @a dialect ("x", `x`).
 FOUNDATION_EXPORT NSString *UDSQLQuoted(NSString *name, UDSQLDialect dialect);
+
+/// @a sql (as a relation writes it: one line) as it is written by hand: a
+/// clause a line (FROM, JOIN, WHERE, ORDER BY, LIMIT, UNION), a WHERE's
+/// ANDs a line each, a subquery indented under its "(" (NOT EXISTS, a
+/// union's); what is quoted, as it is.
+FOUNDATION_EXPORT NSString *UDSQLPrettyPrinted(NSString *sql);
 
 NS_ASSUME_NONNULL_END

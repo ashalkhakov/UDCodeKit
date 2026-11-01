@@ -2319,9 +2319,21 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
 }
 
 - (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier {
+    [self openUntitledDocumentWithText:text languageMode:identifier name:nil];
+}
+
+- (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier name:(nullable NSString *)name {
     UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:identifier];
     UDCodeDocument *document = [_workspaceModel addDocumentWithText:text fileURL:nil languageMode:mode];
+    if (name.length) document.displayName = name;
     [self _openTabForDocument:document];
+}
+
+- (BOOL)showDocument:(UDCodeDocument *)document {
+    UDTabBarItem *item = [self _itemsForDocument:document].firstObject;
+    if (!item) return NO;
+    [_editorTabs selectItem:item];
+    return YES;
 }
 
 - (NSArray<UDCodeEditorViewController *> *)editorsOfDocument:(UDCodeDocument *)document {

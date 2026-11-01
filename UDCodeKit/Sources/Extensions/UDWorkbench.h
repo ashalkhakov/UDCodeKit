@@ -32,6 +32,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// A new, untitled document of the mode @a identifier ("sql"), with @a text,
 /// in a tab of its own.
 - (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier;
+/// The same, named @a name until it is saved (its tab's title; Save's
+/// file name): a table's rows browsed, by its table's.
+- (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier name:(nullable NSString *)name;
+/// @a document's tab selected (its first); NO when no tab shows it.
+- (BOOL)showDocument:(UDCodeDocument *)document;
 /// @a viewController in an editor tab of its own (an extension's view: a
 /// database's diagram), titled @a title; its tab selected when it has one.
 - (void)showViewController:(NSViewController *)viewController title:(NSString *)title;

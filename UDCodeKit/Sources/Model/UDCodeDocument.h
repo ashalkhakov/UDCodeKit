@@ -43,8 +43,9 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotifica
 @property (nonatomic, copy, readonly, nullable) NSURL *fileURL;
 
 /// Human-readable display name derived from fileURL.lastPathComponent,
-/// or "Untitled" for unsaved scratch buffers.
-@property (nonatomic, copy, readonly) NSString *displayName;
+/// or "Untitled" for unsaved scratch buffers; an untitled one's may be
+/// named (a table browsed: its table's), until it is saved.
+@property (nonatomic, copy) NSString *displayName;
 
 /// Piece-table text model.  Mirrors VS Code's ITextModel.
 @property (nonatomic, strong, readonly) UDTextModel *textModel;

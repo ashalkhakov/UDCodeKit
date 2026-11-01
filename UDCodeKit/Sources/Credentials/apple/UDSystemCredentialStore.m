@@ -14,6 +14,10 @@
     return [[self alloc] init];
 }
 
++ (NSString *)unavailableReason {
+    return nil;
+}
+
 - (NSString *)name {
     return @"the Keychain";
 }

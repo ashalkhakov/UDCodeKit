@@ -32,6 +32,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSString *name;
 /// Whether what it keeps outlives UDCode.
 @property (nonatomic, readonly, getter=isPersistent) BOOL persistent;
+/// Not persistent: why the system's store can't be had, as a sentence
+/// ("libsecret isn't installed (libsecret-1-0)."); nil when it is, or
+/// none was asked for (a memory store of the tests').
+@property (nonatomic, readonly, copy, nullable) NSString *unavailableReason;
 
 /// @a account's password for @a service; nil when it keeps none.
 - (nullable NSString *)passwordForService:(NSString *)service account:(NSString *)account;

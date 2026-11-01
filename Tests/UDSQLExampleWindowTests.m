@@ -10,7 +10,7 @@
 //  it, its database remembered), by the window's Save (its JSON on disk),
 //  undone; shown as text, its text edited (read back); the same
 //  file asked of another database (staging) and of one without its table;
-//  Copy SQL.
+//  Copy SQL (as by hand); a row and a table removed.
 //
 
 #import <XCTest/XCTest.h>
@@ -154,7 +154,7 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects(editor.document.languageMode.identifier, @"qbe");
     XCTAssertEqualObjects(editor.document.languageMode.displayName, @"Query by Example");
     XCTAssertNil(editor.document.fileURL, @"no file asked for yet");
-    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Untitled");
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"customers", @"named for its table, till saved");
     XCTAssertEqual(editor.database, shop, @"asked of the database it was made from");
     XCTAssertEqualObjects(editor.databaseButton.titleOfSelectedItem, @"shop.sqlite");
     XCTAssertEqual(editor.skeletons.count, 1u);
@@ -164,9 +164,14 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects([[editor.skeletons[0].operatorMenu itemAtIndex:0] title], @"Print (P.)");
     XCTAssertFalse(controller.editorTabs.selectedItem.dirty);
 
-    // a table added: joined along its key by elements of its own
+    // a table added (the list's +): joined along its key by elements of
+    // its own, and selected
+    XCTAssertEqualObjects(editor.addTableButton.title, @"+");
+    XCTAssertEqual(editor.removeTableButton.action, @selector(removeTable:));
     [editor addTableChosen:[editor.addTableButton.menu itemWithTitle:@"orders"]];
     XCTAssertEqual(editor.skeletons.count, 2u);
+    XCTAssertEqual(editor.selectedSkeleton, 1);
+    XCTAssertTrue([editor.skeletons[1].view isKindOfClass:UDPluginClass(@"UDSQLSkeletonView")]);
     XCTAssertEqualObjects(editor.file.skeletons[0].rows[0].entries[@"id"], @"_customers");
     XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"customer"], @"_customers");
     XCTAssertTrue(controller.editorTabs.selectedItem.dirty, @"its document changed: its tab's dot");
@@ -243,8 +248,31 @@ static Class UDPluginClass(NSString *name) {
     [editor chooseDatabase:nil];
     [editor copySQL:nil];
     XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString],
-                          @"SELECT \"customers\".\"name\", \"orders\".\"total\" FROM \"customers\" "
-                           "JOIN \"orders\" ON \"orders\".\"customer\" = \"customers\".\"id\" WHERE \"orders\".\"total\" > 10");
+                          @"SELECT \"customers\".\"name\", \"orders\".\"total\"\nFROM \"customers\"\n"
+                           "JOIN \"orders\" ON \"orders\".\"customer\" = \"customers\".\"id\"\nWHERE \"orders\".\"total\" > 10",
+                          @"as written by hand: a clause a line");
+
+    // a row added, the selected one removed (Remove Row); the selected
+    // table removed (the list's −); each an event's edit
+    [undo beginUndoGrouping];
+    [editor.skeletons[1] addRow:nil];
+    XCTAssertEqual(editor.file.skeletons[1].rows.count, 2u);
+    [editor.skeletons[1].rowsView selectRowIndexes:[NSIndexSet indexSetWithIndex:1] byExtendingSelection:NO];
+    [editor.skeletons[1] removeRow:nil];
+    XCTAssertEqual(editor.file.skeletons[1].rows.count, 1u);
+    XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.> 10", @"the selected row went, not the other");
+    [undo endUndoGrouping];
+    [editor skeletonWantsToBeSelected:editor.skeletons[0]];
+    XCTAssertEqual(editor.selectedSkeleton, 0);
+    XCTAssertTrue(editor.skeletons[0].selected);
+    XCTAssertFalse(editor.skeletons[1].selected);
+    [editor skeletonWantsToBeSelected:editor.skeletons[1]];
+    [undo beginUndoGrouping];
+    [editor removeTable:nil];
+    [undo endUndoGrouping];
+    XCTAssertEqualObjects([editor.file.skeletons valueForKey:@"table"], @[ @"customers" ]);
+    XCTAssertEqual(editor.selectedSkeleton, 0, @"the one left selected");
+    XCTAssertTrue(editor.removeTableButton.isEnabled);
     [controller.editorTabs selectItem:controller.editorTabs.items[tabs - 1]];
     [controller saveDocument:nil];
     [controller close];

@@ -14,6 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// The system's store; nil where it has none.
 + (nullable instancetype)systemStore;
+/// Why +systemStore is nil, as a sentence; nil where it isn't.
++ (nullable NSString *)unavailableReason;
 
 @end
 

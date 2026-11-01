@@ -265,6 +265,10 @@ static NSString *UDOperator(UDSQLComparison op) {
     NSUInteger _offset, _limit;
 }
 
++ (NSString *)prettyPrinted:(NSString *)sql {
+    return UDSQLPrettyPrinted(sql);
+}
+
 static UDSQLRelation *UDRelation(UDRelationKind kind, UDSQLRelation *input) {
     UDSQLRelation *relation = [[UDSQLRelation alloc] init];
     relation->_kind = kind;
@@ -454,3 +458,96 @@ static UDSQLRelation *UDRelation(UDRelationKind kind, UDSQLRelation *input) {
 }
 
 @end
+
+// ---------------------------------------------------------------------------
+// MARK: - Its SQL, as written by hand
+// ---------------------------------------------------------------------------
+
+/// What starts a line of its own, longest first (LEFT JOIN before JOIN).
+static NSArray<NSString *> *UDClauses(void) {
+    return @[ @"LEFT JOIN ", @"ORDER BY ", @"GROUP BY ", @"FROM ", @"JOIN ", @"WHERE ", @"LIMIT ", @"UNION ", @"HAVING " ];
+}
+
+static BOOL UDStartsWith(NSString *sql, NSUInteger at, NSString *word) {
+    return at + word.length <= sql.length && [sql compare:word options:NSLiteralSearch range:NSMakeRange(at, word.length)] == NSOrderedSame;
+}
+
+NSString *UDSQLPrettyPrinted(NSString *sql) {
+    NSMutableString *out = [NSMutableString string];
+    // each "(" open: whether a subquery's (its lines indented), and whether
+    // its clause is a WHERE (its ANDs a line each), BETWEEN's AND aside
+    NSMutableArray<NSNumber *> *subqueries = [NSMutableArray array];
+    BOOL inWhere = NO;
+    NSUInteger betweens = 0;
+    NSMutableArray<NSArray *> *saved = [NSMutableArray array];     // [inWhere, betweens] of the "(" around
+    __block NSUInteger depth = 0;   // subqueries open
+    unichar quote = 0;
+    NSString *(^indent)(void) = ^NSString *{
+        return [@"" stringByPaddingToLength:depth * 2 withString:@" " startingAtIndex:0];
+    };
+    for (NSUInteger i = 0; i < sql.length; i++) {
+        unichar c = [sql characterAtIndex:i];
+        if (quote) {
+            [out appendFormat:@"%C", c];
+            if (c == quote) quote = 0;      // a doubled one opens again at once
+            continue;
+        }
+        if (c == '\'' || c == '"' || c == '`') {
+            quote = c;
+            [out appendFormat:@"%C", c];
+            continue;
+        }
+        if (c == '(') {
+            BOOL subquery = UDStartsWith(sql, i + 1, @"SELECT ");
+            [subqueries addObject:@(subquery)];
+            [saved addObject:@[ @(inWhere), @(betweens) ]];
+            [out appendString:@"("];
+            if (subquery) {
+                depth++;
+                [out appendFormat:@"\n%@", indent()];
+                inWhere = NO;
+                betweens = 0;
+            } else {
+                inWhere = NO;   // a plain expression's: its ANDs inline
+            }
+            continue;
+        }
+        if (c == ')' && subqueries.count) {
+            BOOL subquery = subqueries.lastObject.boolValue;
+            [subqueries removeLastObject];
+            NSArray *was = saved.lastObject;
+            [saved removeLastObject];
+            inWhere = [was[0] boolValue];
+            betweens = [was[1] unsignedIntegerValue];
+            if (subquery) {
+                depth--;
+                [out appendFormat:@"\n%@)", indent()];
+            } else {
+                [out appendString:@")"];
+            }
+            continue;
+        }
+        if (c == ' ') {
+            NSString *clause = nil;
+            for (NSString *word in UDClauses()) if (UDStartsWith(sql, i + 1, word)) { clause = word; break; }
+            if (clause) {
+                inWhere = [clause isEqualToString:@"WHERE "];
+                betweens = 0;
+                // the clause's words at once (LEFT JOIN's JOIN not again)
+                [out appendFormat:@"\n%@%@", indent(), [clause substringToIndex:clause.length - 1]];
+                i += clause.length - 1;
+                continue;
+            }
+            if (UDStartsWith(sql, i + 1, @"BETWEEN ")) betweens++;
+            if (UDStartsWith(sql, i + 1, @"AND ")) {
+                if (betweens) betweens--;
+                else if (inWhere) {
+                    [out appendFormat:@"\n%@  ", indent()];
+                    continue;
+                }
+            }
+        }
+        [out appendFormat:@"%C", c];
+    }
+    return out;
+}

@@ -268,6 +268,25 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqual(editor.file.skeletons[0].rows.count, 1u);
     XCTAssertNil([customers partsOfColumn:@"name" row:1]);
     XCTAssertEqualObjects(entry(@"name"), @"P.", @"the other row as it was");
+    // a table added: its first row there, its form's Row 1 typed in at once
+    [editor addTableChosen:[editor.addTableButton.menu itemWithTitle:@"orders"]];
+    XCTAssertEqual(editor.skeletons.count, 2u);
+    XCTAssertEqual(editor.file.skeletons[1].rows.count, 1u, @"a row of its own, Add Row not needed");
+    UDSQLFormParts *totals = [editor.skeletons[1] partsOfColumn:@"total" row:0];
+    XCTAssertNotNil(totals);
+    totals.showButton.state = NSControlStateValueOn;
+    [totals changed:totals.showButton];
+    XCTAssertEqualObjects(editor.file.skeletons[1].rows[0].entries[@"total"], @"P.");
+    // an empty query (a database's Browse): its first table added, its Row 1 typed in at once
+    [databases newExampleQueryOfDatabase:shop table:nil];
+    UDSQLExampleViewController *empty = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertEqual(empty.skeletons.count, 0u);
+    [empty addTableChosen:[empty.addTableButton.menu itemWithTitle:@"customers"]];
+    XCTAssertEqual(empty.file.skeletons.firstObject.rows.count, 1u, @"a row of its own");
+    UDSQLFormParts *firstNames = [empty.skeletons[0] partsOfColumn:@"name" row:0];
+    firstNames.valueField.stringValue = @"Ann";
+    [firstNames changed:firstNames.valueField];
+    XCTAssertEqualObjects(empty.file.skeletons[0].rows[0].entries[@"name"], @"Ann");
     [controller close];
     [workspace close];
 }
@@ -327,6 +346,10 @@ static Class UDPluginClass(NSString *name) {
     UDRunUntil(!editor.running && editor.result != nil, 10.0);
     XCTAssertEqualObjects(editor.result.rows, (@[ @[ @"Ann", @20 ], @[ @"Bob", @7 ] ]), @"%@", editor.statusLabel.stringValue);
     XCTAssertEqual(editor.resultsView.numberOfRows, 2);
+    // its answer in the bottom area's Results, not in its tab
+    XCTAssertFalse([editor.resultsView isDescendantOf:editor.view]);
+    XCTAssertTrue([editor.resultsView isDescendantOf:controller.window.contentView]);
+    XCTAssertTrue([(id<UDWorkbench>)controller isBottomAreaShowingExtension:databases.extension]);
     XCTAssertEqualObjects(editor.statusLabel.stringValue, @"Rows 1–2 of 2 (shop.sqlite)");
 
     // a page at a time: ◀ ▶, how many told

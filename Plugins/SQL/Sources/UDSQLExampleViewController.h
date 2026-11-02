@@ -12,7 +12,7 @@
  *  its condition box between (Zloof's: a condition a line),
  *  asked of the connection chosen (the document's, as a SQL document's: the
  *  same file of staging or production): Run shows its answer a page at a
- *  time (◀ ▶), Export… all of it (CSV, JSON), a column's menu copies or
+ *  time (◀ ▶) in the bottom area's Results, Export… all of it (CSV, JSON), a column's menu copies or
  *  sorts by it; Show SQL and Copy SQL its plain SQL, for an app to run.
  *--------------------------------------------------------------------------------------------*/
 
@@ -90,6 +90,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)chooseDatabase:(nullable id)sender;
 - (IBAction)addTableChosen:(nullable id)sender;
 - (IBAction)removeTable:(nullable id)sender;
+/// Its answer (its rows, its columns' menus) in the bottom area's Results,
+/// beside the debugger and the terminal: shown as it runs, and as its tab
+/// is chosen again.
+- (void)showAnswer;
 /// Its first page.
 - (IBAction)run:(nullable id)sender;
 - (IBAction)previousPage:(nullable id)sender;

@@ -50,6 +50,7 @@ static const NSUInteger UDMaxExported = 10000000;
 @property (nonatomic, strong) IBOutlet NSMenu *headerMenu;
 @property (nonatomic, strong) IBOutlet NSTextView *conditionsView;
 @property (nonatomic, strong) IBOutlet NSView *valueContent;
+@property (nonatomic, strong) IBOutlet NSView *answerView;
 @property (nonatomic, weak) IBOutlet NSTextView *valueView;
 @property (nonatomic, strong) NSPopover *valuePopover;
 @property (nonatomic, strong) IBOutlet NSView *exportAccessory;
@@ -67,6 +68,7 @@ static const NSUInteger UDMaxExported = 10000000;
     BOOL _writing;                      // its own edit of its document's text, under way
     BOOL _waitsForConnection, _runsWhenConnected;
     NSInteger _selected;                // its selected skeleton's index; -1: none
+    NSViewController *_answerController;    // its answer's, in the bottom area
     NSUInteger _offset, _count;         // its page's first row; how many it has (NSNotFound: not yet known)
     NSInteger _menuColumn;              // the result's column a menu is of; -1: none
     NSArray<UDSQLStatement *> *_exporting;
@@ -86,6 +88,7 @@ static const NSUInteger UDMaxExported = 10000000;
         _count = NSNotFound;
         _menuColumn = -1;
         [self _readDocument];
+        [databases registerExampleEditor:self];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
                                                      name:UDTextModelDidChangeNotification object:document.textModel];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_databasesDidChange:)
@@ -551,6 +554,7 @@ static const NSUInteger UDMaxExported = 10000000;
     }
     _pending = @[ statement, count ];
     _running = YES;
+    [self showAnswer];
     [self _updatePager];
     [self _showStatus:@"Running…" error:NO];
     [database.runner run:_pending maxRows:_pageSize target:self action:@selector(_didRun:)];
@@ -576,6 +580,19 @@ static const NSUInteger UDMaxExported = 10000000;
         : [NSString stringWithFormat:@"Rows %@–%@", [numbers stringFromNumber:@(_offset + 1)], [numbers stringFromNumber:@(_offset + _result.rows.count)]];
     if (_count != NSNotFound && _result.rows.count) shown = [shown stringByAppendingFormat:@" of %@", [numbers stringFromNumber:@(_count)]];
     [self _showStatus:[NSString stringWithFormat:@"%@ (%@)", shown, self.database.name] error:NO];
+}
+
+/// Its answer in the bottom area's Results, beside the debugger and the
+/// terminal (in place of another document's).
+- (void)showAnswer {
+    if (!_answerView) return;
+    if (!_answerController) {
+        _answerController = [[NSViewController alloc] init];
+        _answerController.view = _answerView;
+    }
+    UDSQLDatabases *databases = _databases;
+    id<UDExtension> extension = databases.extension;
+    if (extension) [databases.workbench showBottomAreaViewController:_answerController title:@"Results" extension:extension];
 }
 
 /// ◀ and ▶: a page before this one, after it.

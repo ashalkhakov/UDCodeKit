@@ -7,6 +7,7 @@
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLResultsViewController.h"
 #import "UDSQLExampleFile.h"
+#import "UDSQLExampleViewController.h"
 #import "UDSQLSheets.h"
 
 NSNotificationName const UDSQLDatabasesDidChangeNotification = @"UDSQLDatabasesDidChange";
@@ -63,7 +64,8 @@ static const NSUInteger UDSQLMaxRows = 1000;
     NSMapTable<UDCodeDocument *, NSString *> *_documentDatabases;     // untitled documents'
     NSMapTable<UDCodeDocument *, NSDictionary *> *_parameterValues;   // the last given, a document's
     NSMapTable<NSString *, UDCodeDocument *> *_browsed;   // by database, table and entity: what browses it
-    NSHashTable<UDCodeDocument *> *_runWhenShown;          // browsed: run once their editors have their database
+    NSHashTable<UDCodeDocument *> *_runWhenShown;
+    NSMapTable<UDCodeDocument *, UDSQLExampleViewController *> *_exampleEditors;  // a query by example's, by its document          // browsed: run once their editors have their database
 }
 
 - (instancetype)initWithWorkbench:(id<UDWorkbench>)workbench {
@@ -391,12 +393,22 @@ static BOOL UDWantsPassword(NSError *error) {
     return results;
 }
 
+- (void)registerExampleEditor:(UDSQLExampleViewController *)editor {
+    if (!_exampleEditors) _exampleEditors = [NSMapTable weakToWeakObjectsMapTable];
+    [_exampleEditors setObject:editor forKey:editor.document];
+}
+
 /// Another tab chosen: Results, in front, shows its document's (a SQL
-/// document's that has some).
+/// document's that has some, a query by example's answer).
 - (void)_selectionDidChange:(NSNotification *)note {
     id<UDWorkbench> workbench = _workbench;
     id<UDExtension> extension = _extension;
     if (note.object != workbench || !extension || ![workbench isBottomAreaShowingExtension:extension]) return;
+    UDSQLExampleViewController *example = [_exampleEditors objectForKey:workbench.selectedDocument];
+    if (example.result) {
+        [example showAnswer];
+        return;
+    }
     UDSQLResultsViewController *results = [_results objectForKey:workbench.selectedDocument];
     if (results && [workbench bottomAreaViewControllerOfExtension:extension] != results) {
         [workbench showBottomAreaViewController:results title:@"Results" extension:extension];

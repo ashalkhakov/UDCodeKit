@@ -192,8 +192,9 @@ Example language mode: JSON).
 The query isn't tied to a connection: the database it is asked of is
 chosen at its top (and remembered for the file, as a SQL document's), so
 the same file is asked of staging and production; its tables are found by
-name there (one missing is said). **Run** shows its answer, 100 rows a
-page: ◀ and ▶ turn them, and how many there are is told (Rows 101–200 of
+name there (one missing is said). **Run** shows its answer in the bottom
+area's **Results** (as a SQL document's results; its tab chosen again,
+its answer there again), 100 rows a page: ◀ and ▶ turn them, and how many there are is told (Rows 101–200 of
 2,345). A column's name clicked sorts by it (again: the other way); its
 menu (a right-click) copies the column — its values one a line, the
 selected rows' or all, Copy Column with Name its name first — or sorts.

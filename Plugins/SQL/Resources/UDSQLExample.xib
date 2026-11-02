@@ -16,6 +16,7 @@
                 <outlet property="headerMenu" destination="QE-hmenu" id="QE-o-hmenu"/>
                 <outlet property="conditionsView" destination="QE-conditions" id="QE-o-conditions"/>
                 <outlet property="valueContent" destination="QE-value" id="QE-o-valuecontent"/>
+                <outlet property="answerView" destination="QE-answer" id="QE-o-answer"/>
                 <outlet property="valueView" destination="QE-value-text" id="QE-o-valuetext"/>
                 <outlet property="exportAccessory" destination="QE-export" id="QE-o-export"/>
                 <outlet property="exportFormatButton" destination="QE-export-format" id="QE-o-exportformat"/>
@@ -88,6 +89,62 @@
                 <outlet property="delegate" destination="-2" id="QE-hmenu-o-delegate"/>
             </connections>
         </menu>
+        <customView id="QE-answer" userLabel="Its Answer (the bottom area's Results)">
+            <rect key="frame" x="0.0" y="0.0" width="900" height="247"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" usesPredominantAxisScrolling="NO" id="QE-results-scroll" userLabel="Its Answer">
+                    <rect key="frame" x="0.0" y="0.0" width="900.0" height="247.0"/>
+                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                    <clipView key="contentView" id="QE-results-clip">
+                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="247.0"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <tableView verticalHuggingPriority="750" allowsExpansionToolTips="YES" columnAutoresizingStyle="none" multipleSelection="YES" autosaveColumns="NO" rowHeight="18" rowSizeStyle="small" headerView="QE-results-header" id="QE-results" userLabel="Its Answer's Rows">
+                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="224.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <size key="intercellSpacing" width="3" height="0.0"/>
+                                <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
+                                <tableViewGridLines key="gridStyleMask" vertical="YES"/>
+                                <tableColumns>
+                                    <tableColumn identifier="resultTemplate" editable="NO" width="120" minWidth="30" maxWidth="2000" id="QE-result-col" userLabel="Each Column Is Made Like It">
+                                        <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Column">
+                                            <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
+                                        </tableHeaderCell>
+                                        <textFieldCell key="dataCell" lineBreakMode="truncatingTail" selectable="YES" title="Text Cell" id="QE-result-cell">
+                                            <font key="font" metaFont="smallSystem"/>
+                                            <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
+                                            <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        </textFieldCell>
+                                        <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
+                                    </tableColumn>
+                                </tableColumns>
+                                <connections>
+                                    <outlet property="dataSource" destination="-2" id="QE-results-o-source"/>
+                                    <outlet property="delegate" destination="-2" id="QE-results-o-delegate"/>
+                                    <outlet property="menu" destination="QE-rmenu" id="QE-results-o-menu"/>
+                                    <action trigger="doubleAction" selector="showValue:" target="-2" id="QE-results-a-double"/>
+                                </connections>
+                            </tableView>
+                        </subviews>
+                    </clipView>
+                    <scroller key="horizontalScroller" verticalHuggingPriority="750" horizontal="YES" id="QE-results-h">
+                        <rect key="frame" x="0.0" y="231.0" width="900.0" height="16.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-results-v">
+                        <rect key="frame" x="884.0" y="0.0" width="16.0" height="247.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </scroller>
+                    <tableHeaderView key="headerView" id="QE-results-header">
+                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="23.0"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </tableHeaderView>
+                </scrollView>
+            </subviews>
+        </customView>
         <customView id="QE-value" userLabel="A Cell's Whole Value (a double-click's popover)">
             <rect key="frame" x="0.0" y="0.0" width="420" height="200"/>
             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -255,165 +312,105 @@
                         <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                     </textFieldCell>
                 </textField>
-                <splitView dividerStyle="thin" id="QE-split" userLabel="Skeletons over the Answer">
+                <customView id="QE-tables" userLabel="Its Tables, over Their + and −">
                     <rect key="frame" x="0.0" y="0.0" width="900.0" height="568.0"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                     <subviews>
-                        <customView id="QE-tables" userLabel="Its Tables, over Their + and −">
-                            <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
+                        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="QE-stack-scroll" userLabel="Its Skeletons">
+                            <rect key="frame" x="0.0" y="96.0" width="900.0" height="472.0"/>
                             <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                            <subviews>
-                                <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" usesPredominantAxisScrolling="NO" id="QE-stack-scroll" userLabel="Its Skeletons">
-                                    <rect key="frame" x="0.0" y="96.0" width="900.0" height="224.0"/>
-                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                    <clipView key="contentView" drawsBackground="NO" id="QE-stack-clip">
-                                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                        <subviews>
-                                            <customView id="QE-stack" customClass="UDSQLExampleStackView" userLabel="Skeletons, One under Another">
-                                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
-                                                <autoresizingMask key="autoresizingMask" widthSizable="YES"/>
-                                            </customView>
-                                        </subviews>
-                                    </clipView>
-                                    <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="QE-stack-h">
-                                        <rect key="frame" x="-100" y="-100" width="225" height="15"/>
-                                        <autoresizingMask key="autoresizingMask"/>
-                                    </scroller>
-                                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-stack-v">
-                                        <rect key="frame" x="884.0" y="0.0" width="16.0" height="224.0"/>
-                                        <autoresizingMask key="autoresizingMask"/>
-                                    </scroller>
-                                </scrollView>
-                                <box verticalHuggingPriority="750" boxType="separator" id="QE-conditions-separator" userLabel="Separator">
-                                    <rect key="frame" x="0.0" y="93.0" width="900.0" height="5.0"/>
-                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
-                                </box>
-                                <textField toolTip="What no column can say, of example elements: a condition a line (_s &gt; _b * 2; _c = 'Oslo' OR _c = 'Rome'; CNT.ALL._e &gt; 5, a group's)" verticalHuggingPriority="750" id="QE-conditions-label" userLabel="Conditions">
-                                    <rect key="frame" x="6.0" y="72.0" width="76.0" height="16.0"/>
-                                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                    <textFieldCell key="cell" lineBreakMode="clipping" title="Conditions" id="QE-conditions-label-cell">
-                                        <font key="font" metaFont="smallSystemBold"/>
-                                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                    </textFieldCell>
-                                </textField>
-                                <scrollView borderType="bezel" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="QE-conditions-scroll" userLabel="Its Condition Box">
-                                    <rect key="frame" x="88.0" y="29.0" width="806.0" height="62.0"/>
-                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
-                                    <clipView key="contentView" id="QE-conditions-clip">
-                                        <rect key="frame" x="1.0" y="1.0" width="789.0" height="60.0"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                        <subviews>
-                                            <textView importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" id="QE-conditions" customClass="UDSQLConditionBoxView" userLabel="Its Conditions, a Line Each">
-                                                <rect key="frame" x="0.0" y="0.0" width="789.0" height="60.0"/>
-                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                                <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
-                                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                                <size key="minSize" width="0.0" height="0.0"/>
-                                                <size key="maxSize" width="10000000" height="10000000"/>
-                                                <connections>
-                                                    <outlet property="delegate" destination="-2" id="QE-conditions-o-delegate"/>
-                                                </connections>
-                                            </textView>
-                                        </subviews>
-                                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                    </clipView>
-                                    <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="QE-conditions-h">
-                                        <rect key="frame" x="-100" y="-100" width="225" height="15"/>
-                                        <autoresizingMask key="autoresizingMask"/>
-                                    </scroller>
-                                    <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-conditions-v">
-                                        <rect key="frame" x="790.0" y="1.0" width="15.0" height="60.0"/>
-                                        <autoresizingMask key="autoresizingMask"/>
-                                    </scroller>
-                                </scrollView>
-                                <box verticalHuggingPriority="750" boxType="separator" id="QE-tables-separator" userLabel="Separator">
-                                    <rect key="frame" x="0.0" y="24.0" width="900.0" height="5.0"/>
-                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
-                                </box>
-                                <popUpButton toolTip="Add a table: joined to those in the query along their foreign keys (example elements filled in)" verticalHuggingPriority="750" id="QE-add" userLabel="Add Table">
-                                    <rect key="frame" x="4.0" y="2.0" width="30.0" height="20.0"/>
-                                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                    <popUpButtonCell key="cell" type="smallSquare" title="+" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" pullsDown="YES" arrowPosition="noArrow" id="QE-add-cell">
-                                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
-                                        <font key="font" metaFont="system"/>
-                                        <menu key="menu" id="QE-add-menu">
-                                            <items>
-                                                <menuItem title="+" hidden="YES" id="QE-add-title"/>
-                                            </items>
-                                        </menu>
-                                    </popUpButtonCell>
-                                </popUpButton>
-                                <button toolTip="Remove the selected table from the query" verticalHuggingPriority="750" id="QE-remove" userLabel="Remove Table">
-                                    <rect key="frame" x="35.0" y="2.0" width="22.0" height="20.0"/>
-                                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                    <buttonCell key="cell" type="smallSquare" title="−" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-remove-cell">
-                                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
-                                        <font key="font" metaFont="system"/>
-                                    </buttonCell>
-                                    <connections>
-                                        <action selector="removeTable:" target="-2" id="QE-remove-a"/>
-                                    </connections>
-                                </button>
-                            </subviews>
-                        </customView>
-                        <scrollView borderType="none" autohidesScrollers="YES" horizontalLineScroll="18" horizontalPageScroll="10" verticalLineScroll="18" verticalPageScroll="10" usesPredominantAxisScrolling="NO" id="QE-results-scroll" userLabel="Its Answer">
-                            <rect key="frame" x="0.0" y="321.0" width="900.0" height="247.0"/>
-                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                            <clipView key="contentView" id="QE-results-clip">
-                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="247.0"/>
+                            <clipView key="contentView" drawsBackground="NO" id="QE-stack-clip">
+                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                 <subviews>
-                                    <tableView verticalHuggingPriority="750" allowsExpansionToolTips="YES" columnAutoresizingStyle="none" multipleSelection="YES" autosaveColumns="NO" rowHeight="18" rowSizeStyle="small" headerView="QE-results-header" id="QE-results" userLabel="Its Answer's Rows">
-                                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="224.0"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                        <size key="intercellSpacing" width="3" height="0.0"/>
-                                        <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        <color key="gridColor" name="gridColor" catalog="System" colorSpace="catalog"/>
-                                        <tableViewGridLines key="gridStyleMask" vertical="YES"/>
-                                        <tableColumns>
-                                            <tableColumn identifier="resultTemplate" editable="NO" width="120" minWidth="30" maxWidth="2000" id="QE-result-col" userLabel="Each Column Is Made Like It">
-                                                <tableHeaderCell key="headerCell" lineBreakMode="truncatingTail" borderStyle="border" title="Column">
-                                                    <color key="textColor" name="headerTextColor" catalog="System" colorSpace="catalog"/>
-                                                    <color key="backgroundColor" name="headerColor" catalog="System" colorSpace="catalog"/>
-                                                </tableHeaderCell>
-                                                <textFieldCell key="dataCell" lineBreakMode="truncatingTail" selectable="YES" title="Text Cell" id="QE-result-cell">
-                                                    <font key="font" metaFont="smallSystem"/>
-                                                    <color key="textColor" name="controlTextColor" catalog="System" colorSpace="catalog"/>
-                                                    <color key="backgroundColor" name="controlBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                                </textFieldCell>
-                                                <tableColumnResizingMask key="resizingMask" userResizable="YES"/>
-                                            </tableColumn>
-                                        </tableColumns>
-                                        <connections>
-                                            <outlet property="dataSource" destination="-2" id="QE-results-o-source"/>
-                                            <outlet property="delegate" destination="-2" id="QE-results-o-delegate"/>
-                                            <outlet property="menu" destination="QE-rmenu" id="QE-results-o-menu"/>
-                                            <action trigger="doubleAction" selector="showValue:" target="-2" id="QE-results-a-double"/>
-                                        </connections>
-                                    </tableView>
+                                    <customView id="QE-stack" customClass="UDSQLExampleStackView" userLabel="Skeletons, One under Another">
+                                        <rect key="frame" x="0.0" y="0.0" width="900.0" height="320.0"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES"/>
+                                    </customView>
                                 </subviews>
                             </clipView>
-                            <scroller key="horizontalScroller" verticalHuggingPriority="750" horizontal="YES" id="QE-results-h">
-                                <rect key="frame" x="0.0" y="231.0" width="900.0" height="16.0"/>
+                            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="QE-stack-h">
+                                <rect key="frame" x="-100" y="-100" width="225" height="15"/>
                                 <autoresizingMask key="autoresizingMask"/>
                             </scroller>
-                            <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-results-v">
-                                <rect key="frame" x="884.0" y="0.0" width="16.0" height="247.0"/>
+                            <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-stack-v">
+                                <rect key="frame" x="884.0" y="0.0" width="16.0" height="472.0"/>
                                 <autoresizingMask key="autoresizingMask"/>
                             </scroller>
-                            <tableHeaderView key="headerView" id="QE-results-header">
-                                <rect key="frame" x="0.0" y="0.0" width="900.0" height="23.0"/>
-                                <autoresizingMask key="autoresizingMask"/>
-                            </tableHeaderView>
                         </scrollView>
+                        <box verticalHuggingPriority="750" boxType="separator" id="QE-conditions-separator" userLabel="Separator">
+                            <rect key="frame" x="0.0" y="93.0" width="900.0" height="5.0"/>
+                            <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
+                        </box>
+                        <textField toolTip="What no column can say, of example elements: a condition a line (_s &gt; _b * 2; _c = 'Oslo' OR _c = 'Rome'; CNT.ALL._e &gt; 5, a group's)" verticalHuggingPriority="750" id="QE-conditions-label" userLabel="Conditions">
+                            <rect key="frame" x="6.0" y="72.0" width="76.0" height="16.0"/>
+                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                            <textFieldCell key="cell" lineBreakMode="clipping" title="Conditions" id="QE-conditions-label-cell">
+                                <font key="font" metaFont="smallSystemBold"/>
+                                <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                            </textFieldCell>
+                        </textField>
+                        <scrollView borderType="bezel" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasHorizontalScroller="NO" id="QE-conditions-scroll" userLabel="Its Condition Box">
+                            <rect key="frame" x="88.0" y="29.0" width="806.0" height="62.0"/>
+                            <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
+                            <clipView key="contentView" id="QE-conditions-clip">
+                                <rect key="frame" x="1.0" y="1.0" width="789.0" height="60.0"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <subviews>
+                                    <textView importsGraphics="NO" richText="NO" verticallyResizable="YES" allowsUndo="NO" id="QE-conditions" customClass="UDSQLConditionBoxView" userLabel="Its Conditions, a Line Each">
+                                        <rect key="frame" x="0.0" y="0.0" width="789.0" height="60.0"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                        <color key="textColor" name="textColor" catalog="System" colorSpace="catalog"/>
+                                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                        <size key="minSize" width="0.0" height="0.0"/>
+                                        <size key="maxSize" width="10000000" height="10000000"/>
+                                        <connections>
+                                            <outlet property="delegate" destination="-2" id="QE-conditions-o-delegate"/>
+                                        </connections>
+                                    </textView>
+                                </subviews>
+                                <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                            </clipView>
+                            <scroller key="horizontalScroller" hidden="YES" verticalHuggingPriority="750" horizontal="YES" id="QE-conditions-h">
+                                <rect key="frame" x="-100" y="-100" width="225" height="15"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </scroller>
+                            <scroller key="verticalScroller" verticalHuggingPriority="750" horizontal="NO" id="QE-conditions-v">
+                                <rect key="frame" x="790.0" y="1.0" width="15.0" height="60.0"/>
+                                <autoresizingMask key="autoresizingMask"/>
+                            </scroller>
+                        </scrollView>
+                        <box verticalHuggingPriority="750" boxType="separator" id="QE-tables-separator" userLabel="Separator">
+                            <rect key="frame" x="0.0" y="24.0" width="900.0" height="5.0"/>
+                            <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMaxY="YES"/>
+                        </box>
+                        <popUpButton toolTip="Add a table: joined to those in the query along their foreign keys (example elements filled in)" verticalHuggingPriority="750" id="QE-add" userLabel="Add Table">
+                            <rect key="frame" x="4.0" y="2.0" width="30.0" height="20.0"/>
+                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                            <popUpButtonCell key="cell" type="smallSquare" title="+" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" pullsDown="YES" arrowPosition="noArrow" id="QE-add-cell">
+                                <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                <font key="font" metaFont="system"/>
+                                <menu key="menu" id="QE-add-menu">
+                                    <items>
+                                        <menuItem title="+" hidden="YES" id="QE-add-title"/>
+                                    </items>
+                                </menu>
+                            </popUpButtonCell>
+                        </popUpButton>
+                        <button toolTip="Remove the selected table from the query" verticalHuggingPriority="750" id="QE-remove" userLabel="Remove Table">
+                            <rect key="frame" x="35.0" y="2.0" width="22.0" height="20.0"/>
+                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                            <buttonCell key="cell" type="smallSquare" title="−" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" inset="2" id="QE-remove-cell">
+                                <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                <font key="font" metaFont="system"/>
+                            </buttonCell>
+                            <connections>
+                                <action selector="removeTable:" target="-2" id="QE-remove-a"/>
+                            </connections>
+                        </button>
                     </subviews>
-                    <holdingPriorities>
-                        <real value="250"/>
-                        <real value="260"/>
-                    </holdingPriorities>
-                </splitView>
+                </customView>
             </subviews>
             <point key="canvasLocation" x="200" y="200"/>
         </customView>

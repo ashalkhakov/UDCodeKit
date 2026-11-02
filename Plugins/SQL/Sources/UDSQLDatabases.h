@@ -16,7 +16,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class UDSQLDatabases, UDSQLNavigatorViewController, UDSQLResultsViewController;
+@class UDSQLDatabases, UDSQLNavigatorViewController, UDSQLResultsViewController, UDSQLExampleViewController;
 
 FOUNDATION_EXPORT NSNotificationName const UDSQLDatabasesDidChangeNotification;
 /// A document's database chosen (-setDatabase:ofDocument:); object = the
@@ -47,6 +47,9 @@ FOUNDATION_EXPORT NSNotificationName const UDSQLDocumentDatabaseDidChangeNotific
 /// A SQL document's results (shown in the bottom area's Results, beside the
 /// debugger and the terminal); nil before it is first run.
 - (nullable UDSQLResultsViewController *)resultsOfDocument:(UDCodeDocument *)document;
+/// A query by example's editor, known: its tab chosen, its answer shown in
+/// Results.
+- (void)registerExampleEditor:(UDSQLExampleViewController *)editor;
 @property (nonatomic, readonly) UDSQLNavigatorViewController *navigator;
 
 @property (nonatomic, readonly, copy) NSArray<UDSQLDatabase *> *databases;

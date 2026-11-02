@@ -226,6 +226,11 @@ static NSString * const UDLinkURLKey = @"url";
 - (nullable NSViewController *)navigatorViewControllerForWorkbench:(id<UDWorkbench>)workbench;
 /// The navigator's segment's image (16 points square); nil: a generic one.
 - (nullable NSImage *)navigatorImage;
+/// Its segment's image in the bottom area's switch, beside the debugger's
+/// and the terminal's (16 points square), for what it shows there
+/// (-[UDWorkbench showBottomAreaViewController:title:extension:]); nil: a
+/// generic one.
+- (nullable NSImage *)bottomAreaImage;
 
 /// Its items in the Editor menu (Run Statement…), for @a workbench's window:
 /// asked again when the window becomes key. Each validates itself (its

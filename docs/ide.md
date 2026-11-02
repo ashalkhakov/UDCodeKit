@@ -173,8 +173,8 @@ in the file, the places it is assigned to in a warmer colour.
 ## The terminal
 
 View › Terminal (⌃`) opens a shell in the bottom area: the switch at the
-right of its bar goes between the debugger's variables and console, and the
-terminal. The shell is your login shell (`$SHELL`), in the project's folder;
+right of its bar goes between the debugger's variables and console, the
+terminal, and what extensions show there (a SQL document's results). The shell is your login shell (`$SHELL`), in the project's folder;
 on GNUstep it gets the build's environment (GNUstep.sh's), so `make` there
 works as Build does. It is xterm's terminal, as libvterm reads it (Neovim's
 terminal library, compiled in, fetched at the commit `scripts/grammars.lock`

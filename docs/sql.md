@@ -7,9 +7,9 @@ settings, query plans) is left to each database's own tools.
 
 Xcode has no SQL, so this keeps its spirit on new ground: what a database
 holds is a navigator, a query is a document like any other, and its results
-are under it, as a playground's are under its code. It works as VS Code's SQL
-extensions do: connections kept as settings, a document run against one of
-them, its results beside it.
+are in the bottom area, beside the debugger and the terminal. It works as VS
+Code's SQL extensions do: connections kept as settings, a document run
+against one of them, its results in a panel of their own.
 
 ## Connections
 
@@ -221,7 +221,10 @@ written in — for an app to run.
 ## Running a query
 
 A `.sql` document is run against a database: the one chosen at the top of
-its results (the window's only one, if there is just one).
+its results (the window's only one, if there is just one). Its results are
+the bottom area's **Results** (its switch's third segment, beside the
+debugger's and the terminal's); another SQL document's tab chosen, they
+are that document's.
 
 | | |
 |---|---|
@@ -238,7 +241,7 @@ values offered again. A value that reads as a number is a number; write
 `'0042'` for text that looks like one; NULL is a checkbox. Each database gets
 them its own way: `$1, $2…` for PostgreSQL, `?` for SQLite and MySQL.
 
-**Results** are under the query: each statement's — its first thousand rows
+**Results** are in the bottom area: each statement's — its first thousand rows
 in a grid, or the rows it changed — and **Messages**, what ran, how long it
 took and what failed (with the server's SQLSTATE). NULL is set apart from
 text, a blob shows its size. Copy (or Copy with Column Names) copies the rows
@@ -288,7 +291,8 @@ The drawing, layout, routing and canvas are
 
 The SQL extension (`Plugins/SQL`, SQL.bundle) brings all of it; UDCodeKit
 only offers what any extension may use: a navigator of its own, items in the
-Editor menu, an area under an editor and a tab of its own (`UDWorkbench`). The SQL mode itself
+Editor menu, a segment of the bottom area's switch and a tab of its own
+(`UDWorkbench`). The SQL mode itself
 — highlighting, the jump bar's outline — is the `tree-sitter-sql` bundle's.
 
 | | |

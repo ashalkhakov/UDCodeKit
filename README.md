@@ -64,7 +64,7 @@ pinned commits the first time):
   across tables (Zloof's and Paradox's: skeletons joined by example
   elements; saved as .qbe files, asked of any connection, their plain SQL
   copied for an app), queries run with
-  their parameters, results under the query; a Core Data store's tables named by their entities, its dates and
+  their parameters, results in the bottom area's Results; a Core Data store's tables named by their entities, its dates and
   entities shown as such; ER diagrams (crow's feet, a Core Data store's
   links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's
   client libraries (libpq, MariaDB Connector/C) come with the app, nothing

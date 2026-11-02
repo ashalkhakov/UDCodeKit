@@ -15,6 +15,16 @@ NS_ASSUME_NONNULL_BEGIN
 @class UDProject, UDCodeDocument, UDCodeEditorViewController;
 @protocol UDExtension;
 
+/* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
+   imported everywhere else, as FOUNDATION_EXPORT. */
+#ifndef UDCODEKIT_EXPORT
+#define UDCODEKIT_EXPORT FOUNDATION_EXPORT
+#endif
+
+/// Posted when the window's selected tab changes (another document, or
+/// none); object = the workbench.
+UDCODEKIT_EXPORT NSNotificationName const UDWorkbenchSelectionDidChangeNotification;
+
 @protocol UDWorkbench <NSObject>
 
 @property (nonatomic, readonly, nullable) NSWindow *window;
@@ -46,6 +56,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showDocumentAsText:(UDCodeDocument *)document;
 /// The navigator @a extension contributed, shown.
 - (void)showNavigatorOfExtension:(id<UDExtension>)extension;
+/// @a viewController in the bottom area (beside the debugger and the
+/// terminal: a query's results), under @a extension's segment of its
+/// switch (added the first time: its bottomAreaImage, @a title its tip),
+/// in place of what it showed before; that segment chosen, the area shown.
+- (void)showBottomAreaViewController:(NSViewController *)viewController title:(NSString *)title
+                           extension:(id<UDExtension>)extension;
+/// What @a extension's segment shows (nil: nothing yet), and whether it is
+/// in front (its segment chosen, the area shown).
+- (nullable NSViewController *)bottomAreaViewControllerOfExtension:(id<UDExtension>)extension;
+- (BOOL)isBottomAreaShowingExtension:(id<UDExtension>)extension;
 /// The editors of @a document (its tabs').
 - (NSArray<UDCodeEditorViewController *> *)editorsOfDocument:(UDCodeDocument *)document;
 

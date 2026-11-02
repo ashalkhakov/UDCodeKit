@@ -142,7 +142,8 @@ static void UDWrite(NSString *text, NSString *path) {
     [databases performSelector:@selector(_run:values:) withObject:@{
         @"statements": @[ [editor.textView.string componentsSeparatedByString:@";"].firstObject ],
         @"database": databases.databases.firstObject, @"document": controller.editorTabs.selectedItem.representedObject,
-        @"results": editor.accessoryViewController } withObject:@{ @":before": @(-2500000000) }];
+        @"results": [databases resultsOfDocument:controller.editorTabs.selectedItem.representedObject] }
+                                                                    withObject:@{ @":before": @(-2500000000) }];
     UDRunUntil(NO, 2.0);
     UDShoot(controller.window, output, @"sql");
     [controller close];

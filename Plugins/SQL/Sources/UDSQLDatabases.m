@@ -80,6 +80,8 @@ static const NSUInteger UDSQLMaxRows = 1000;
         _navigator = [[UDSQLNavigatorViewController alloc] initWithDatabases:self];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_documentSaved:)
                                                      name:UDCodeDocumentFileURLDidChangeNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_selectionDidChange:)
+                                                     name:UDWorkbenchSelectionDidChangeNotification object:nil];
     }
     return self;
 }
@@ -364,23 +366,41 @@ static BOOL UDWantsPassword(NSError *error) {
     UDCodeDocument *document = workbench.selectedDocument;
     UDCodeEditorViewController *editor = workbench.selectedEditor;
     if (![document.languageMode.identifier isEqualToString:@"sql"] || !editor) return NO;
-    // the editor's (its text, or its results) in front: not a field elsewhere
+    // the editor's (its text) or its results in front: not a field elsewhere
     NSResponder *responder = workbench.window.firstResponder;
-    return [responder isKindOfClass:[NSView class]] && [(NSView *)responder isDescendantOf:editor.view];
+    if (![responder isKindOfClass:[NSView class]]) return NO;
+    UDSQLResultsViewController *results = [_results objectForKey:document];
+    return [(NSView *)responder isDescendantOf:editor.view] || (results.isViewLoaded && [(NSView *)responder isDescendantOf:results.view]);
 }
 
+- (UDSQLResultsViewController *)resultsOfDocument:(UDCodeDocument *)document {
+    return [_results objectForKey:document];
+}
+
+/// @a document's results, in the bottom area's Results (beside the
+/// debugger and the terminal), not on top of it under the editor.
 - (UDSQLResultsViewController *)_showResultsOf:(UDCodeDocument *)document inEditor:(UDCodeEditorViewController *)editor {
     UDSQLResultsViewController *results = [_results objectForKey:document];
     if (!results) {
         results = [[UDSQLResultsViewController alloc] initWithDatabases:self document:document];
         [_results setObject:results forKey:document];
     }
-    // shown under this editor (taken from another of the document's)
-    for (UDCodeEditorViewController *other in [_workbench editorsOfDocument:document]) {
-        if (other != editor && other.accessoryViewController == results) other.accessoryViewController = nil;
-    }
-    editor.accessoryViewController = results;
+    id<UDExtension> extension = _extension;
+    id<UDWorkbench> workbench = _workbench;
+    if (extension) [workbench showBottomAreaViewController:results title:@"Results" extension:extension];
     return results;
+}
+
+/// Another tab chosen: Results, in front, shows its document's (a SQL
+/// document's that has some).
+- (void)_selectionDidChange:(NSNotification *)note {
+    id<UDWorkbench> workbench = _workbench;
+    id<UDExtension> extension = _extension;
+    if (note.object != workbench || !extension || ![workbench isBottomAreaShowingExtension:extension]) return;
+    UDSQLResultsViewController *results = [_results objectForKey:workbench.selectedDocument];
+    if (results && [workbench bottomAreaViewControllerOfExtension:extension] != results) {
+        [workbench showBottomAreaViewController:results title:@"Results" extension:extension];
+    }
 }
 
 - (IBAction)runStatement:(id)sender {

@@ -34,6 +34,7 @@ static Class UDPluginClass(NSString *name) {
 @interface UDDocumentWindowController (SQLTesting)
 @property (nonatomic, strong) UDEditorTabsController *editorTabs;
 @property (nonatomic, weak) NSSegmentedControl *navigatorControl;
+@property (nonatomic, weak) NSSegmentedControl *bottomAreaControl;
 - (void)_rebuildEditorMenu;
 @end
 
@@ -247,8 +248,33 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertTrue([databases canRun]);
     [editor.textView setSelectedRange:NSMakeRange(3, 0)];
     [databases runStatement:nil];
-    UDSQLResultsViewController *results = (UDSQLResultsViewController *)editor.accessoryViewController;
-    XCTAssertTrue([results isKindOfClass:UDPluginClass(@"UDSQLResultsViewController")], @"the results under its text");
+    // its results in the bottom area's Results, beside the debugger and
+    // the terminal (not on top of them, under its text)
+    UDSQLResultsViewController *results = [databases resultsOfDocument:controller.editorTabs.selectedItem.representedObject];
+    XCTAssertTrue([results isKindOfClass:UDPluginClass(@"UDSQLResultsViewController")]);
+    XCTAssertNil(editor.accessoryViewController);
+    XCTAssertEqual([(id<UDWorkbench>)controller bottomAreaViewControllerOfExtension:databases.extension], (id)results);
+    XCTAssertTrue([(id<UDWorkbench>)controller isBottomAreaShowingExtension:databases.extension]);
+    XCTAssertEqual(controller.bottomAreaControl.segmentCount, 3, @"Debug | Terminal | Results");
+    XCTAssertEqual(controller.bottomAreaControl.selectedSegment, 2);
+    XCTAssertTrue([results.view isDescendantOf:controller.window.contentView]);
+    XCTAssertEqualObjects([controller.bottomAreaControl.cell toolTipForSegment:2], @"Results");
+    // the terminal chosen, then Results again: its view put back
+    [controller.bottomAreaControl setSelectedSegment:0];
+    [controller bottomAreaChanged:nil];
+    XCTAssertFalse([(id<UDWorkbench>)controller isBottomAreaShowingExtension:databases.extension]);
+    [controller.bottomAreaControl setSelectedSegment:2];
+    [controller bottomAreaChanged:nil];
+    XCTAssertTrue([results.view isDescendantOf:controller.window.contentView]);
+    // another SQL document run: Results its; back to this one's tab: this one's
+    UDTabBarItem *first = controller.editorTabs.selectedItem;
+    [databases openQuery:@"SELECT 1 AS one;" database:store run:YES];
+    UDSQLResultsViewController *other = [databases resultsOfDocument:controller.editorTabs.selectedItem.representedObject];
+    XCTAssertNotNil(other);
+    XCTAssertEqual([(id<UDWorkbench>)controller bottomAreaViewControllerOfExtension:databases.extension], (id)other);
+    [controller.editorTabs selectItem:first];
+    XCTAssertEqual([(id<UDWorkbench>)controller bottomAreaViewControllerOfExtension:databases.extension], (id)results, @"its tab's");
+    [controller.window makeFirstResponder:editor.textView];
     UDRunUntil(results.results.count == 1, 10.0);
     UDSQLResult *rows = results.shownResult;
     XCTAssertEqualObjects([rows.columns valueForKey:@"name"], (@[ @"ZNAME", @"ZBORN", @"Z_ENT" ]));

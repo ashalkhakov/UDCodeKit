@@ -86,6 +86,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, strong, readwrite, nullable) UDProject *project;
 /// The extensions' navigators: each its view controller and segment.
 @property (nonatomic, strong, nullable) NSMapTable<id, NSArray *> *extensionNavigators;
+/// The bottom area's extensions': [extension, its view controller], their
+/// segments after the debugger's and the terminal's.
+@property (nonatomic, strong, nullable) NSMutableArray<NSArray *> *bottomExtensions;
 @property (nonatomic, strong, readwrite, nullable) UDFileNavigatorViewController *fileNavigator;
 /// The project's language servers, one per command, which its documents share
 /// (one clangd for the project, as VS Code has it).
@@ -108,6 +111,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, weak) IBOutlet NSView             *debugBarHost;
 @property (nonatomic, weak) IBOutlet NSView             *debugAreaHost;
 @property (nonatomic, weak) IBOutlet NSView             *terminalHost;
+@property (nonatomic, weak) IBOutlet NSView *extensionHost;
 @property (nonatomic, weak) IBOutlet NSSegmentedControl *bottomAreaControl;
 /// Source | Preview, at the tab bar's right: the selected tab's, for a mode
 /// that renders its text (Markdown's).
@@ -1306,23 +1310,70 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     NSRect area = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - bar);
     _debugAreaHost.frame = area;
     _terminalHost.frame = area;
+    _extensionHost.frame = area;
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - The terminal, in the bottom area
 // ---------------------------------------------------------------------------
 
-/// The bottom area's switch: the debugger's (0) or the terminal (1).
+/// The bottom area's switch: the debugger's (0), the terminal (1), then
+/// the extensions' (a query's results).
 - (IBAction)bottomAreaChanged:(nullable id)sender {
     if (_bottomAreaControl.selectedSegment == 1) [self showTerminal:sender];
-    else [self _showBottomArea:0];
+    else [self _showBottomArea:_bottomAreaControl.selectedSegment];
 }
 
 - (void)_showBottomArea:(NSInteger)which {
     [_bottomAreaControl setSelectedSegment:which];
     [_debugAreaHost setHidden:which != 0];
     [_terminalHost setHidden:which != 1];
+    // an extension's: its view in the one host
+    NSViewController *shown = which >= 2 && which - 2 < (NSInteger)_bottomExtensions.count ? _bottomExtensions[(NSUInteger)which - 2][1] : nil;
+    for (NSView *view in [_extensionHost.subviews copy]) if (view != shown.view) [view removeFromSuperview];
+    if (shown && shown.view.superview != _extensionHost) [self _putView:shown.view inHost:_extensionHost];
+    [_extensionHost setHidden:!shown];
     [_debugSplit setPane:UDDebugAreaPane visible:YES];
+}
+
+/// @a extension's entry in the bottom area's switch: [extension, its view
+/// controller]; its segment, the switch's after the window's two.
+- (NSUInteger)_bottomIndexOfExtension:(id<UDExtension>)extension {
+    for (NSUInteger i = 0; i < _bottomExtensions.count; i++) if (_bottomExtensions[i][0] == extension) return i;
+    return NSNotFound;
+}
+
+- (void)showBottomAreaViewController:(NSViewController *)viewController title:(NSString *)title extension:(id<UDExtension>)extension {
+    if (!_bottomExtensions) _bottomExtensions = [NSMutableArray array];
+    NSUInteger index = [self _bottomIndexOfExtension:extension];
+    if (index == NSNotFound) {
+        // its segment, added: its image, its title its tip
+        index = _bottomExtensions.count;
+        [_bottomExtensions addObject:@[ extension, viewController ]];
+        NSInteger segment = _bottomAreaControl.segmentCount;
+        _bottomAreaControl.segmentCount = segment + 1;
+        NSImage *image = [extension respondsToSelector:@selector(bottomAreaImage)] ? [extension bottomAreaImage] : nil;
+        if (image) [_bottomAreaControl setImage:image forSegment:segment];
+        else [_bottomAreaControl setLabel:@"•" forSegment:segment];
+        [_bottomAreaControl setWidth:30 forSegment:segment];
+        [_bottomAreaControl.cell setToolTip:title forSegment:segment];
+        [_bottomAreaControl.cell setTag:segment forSegment:segment];
+        [_bottomAreaControl sizeToFit];
+    } else {
+        _bottomExtensions[index] = @[ extension, viewController ];
+    }
+    [self _showBottomArea:(NSInteger)index + 2];
+    [self _layoutDebugPane];
+}
+
+- (NSViewController *)bottomAreaViewControllerOfExtension:(id<UDExtension>)extension {
+    NSUInteger index = [self _bottomIndexOfExtension:extension];
+    return index == NSNotFound ? nil : _bottomExtensions[index][1];
+}
+
+- (BOOL)isBottomAreaShowingExtension:(id<UDExtension>)extension {
+    NSUInteger index = [self _bottomIndexOfExtension:extension];
+    return index != NSNotFound && _bottomAreaControl.selectedSegment == (NSInteger)index + 2 && [_debugSplit isPaneVisible:UDDebugAreaPane];
 }
 
 /// The terminal's folder: the project's, else the selected file's, else home.
@@ -1925,6 +1976,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [self _updatePreviewControl];
     UDCodeEditorViewController *editor = [self _selectedEditor];
     if (editor) [self.window makeFirstResponder:editor.showsPreview ? editor.previewTextView : editor.textView];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDWorkbenchSelectionDidChangeNotification object:self];
 }
 
 // ---------------------------------------------------------------------------

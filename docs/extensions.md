@@ -179,7 +179,8 @@ the front:
   segment after the debugger's, the terminal's and the extensions' own,
   with `-imageForBottomAreaViewController:` as its image. When another tab
   comes to the front they go away, and the debugger is shown in their
-  place.
+  place. The workbench's `-showEditorBottomPane:` brings one
+  to the front.
 - **`-libraryViewController`**: what can be put in its document, shown in
   a popover by **View > Show Library** (⇧⌘L), as Xcode's Library. The
   workbench's `-closeLibrary` closes it once something is chosen.

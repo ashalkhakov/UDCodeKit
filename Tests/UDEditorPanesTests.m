@@ -156,6 +156,13 @@ static NSViewController *UDTestPane(NSString *title) {
     XCTAssertNotNil(editor.panes[0].view.superview, @"shown in the bottom area");
     XCTAssertFalse(editor.panes[0].view.superview.isHidden);
 
+    // shown when the editor asks
+    [_controller.bottomAreaControl setSelectedSegment:0];
+    [_controller bottomAreaChanged:_controller.bottomAreaControl];
+    XCTAssertTrue([(id<UDWorkbench>)_controller showEditorBottomPane:editor.panes[0]]);
+    XCTAssertEqual(_controller.bottomAreaControl.selectedSegment, segment);
+    XCTAssertFalse([(id<UDWorkbench>)_controller showEditorBottomPane:UDTestPane(@"Not the editor's")]);
+
     [_controller.editorTabs selectItem:text];
     XCTAssertEqual(_controller.bottomAreaControl.segmentCount, before, @"gone with its tab");
     XCTAssertNil(editor.panes[0].view.superview);

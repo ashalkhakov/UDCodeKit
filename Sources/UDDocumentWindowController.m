@@ -2252,6 +2252,16 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
     [_libraryPopover close];
 }
 
+- (BOOL)showEditorBottomPane:(NSViewController *)pane {
+    for (NSUInteger i = [self _extensionBottomCount]; i < _bottomExtensions.count; i++) {
+        if (_bottomExtensions[i][1] != pane) continue;
+        [self _showBottomArea:2 + (NSInteger)i];
+        [self _layoutDebugPane];
+        return YES;
+    }
+    return NO;
+}
+
 // ---------------------------------------------------------------------------
 // MARK: - Changes
 // ---------------------------------------------------------------------------

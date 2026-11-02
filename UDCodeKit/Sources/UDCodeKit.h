@@ -28,6 +28,7 @@
 #import <UDCodeKit/UDDiagnosticStore.h>
 #import <UDCodeKit/UDLanguageKeyHandler.h>
 #import <UDCodeKit/UDExtension.h>
+#import <UDCodeKit/UDEditorPanes.h>
 #import <UDCodeKit/UDInstalledExtensions.h>
 #import <UDCodeKit/UDExtensionsWindowController.h>
 #import <UDCodeKit/UDWorkbench.h>

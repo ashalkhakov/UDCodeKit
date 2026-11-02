@@ -471,6 +471,14 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     return extensions;
 }
 
+- (void)registerExtension:(id<UDExtension>)extension {
+    NSBundle *bundle = [NSBundle mainBundle];
+    dispatch_sync(_queue, ^{
+        [self->_loadedExtensions addObject:[[UDExtensionRecord alloc] initWithExtension:extension bundle:bundle]];
+    });
+    [extension extensionDidLoad:bundle];
+}
+
 - (void)unloadAllExtensions {
     // Notify extensions in reverse load order (last loaded → first unloaded).
     NSArray<UDExtensionRecord *> *reversed =

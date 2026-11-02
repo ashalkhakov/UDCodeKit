@@ -86,9 +86,16 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, strong, readwrite, nullable) UDProject *project;
 /// The extensions' navigators: each its view controller and segment.
 @property (nonatomic, strong, nullable) NSMapTable<id, NSArray *> *extensionNavigators;
-/// The bottom area's extensions': [extension, its view controller], their
-/// segments after the debugger's and the terminal's.
+/// The bottom area's panes: [owner, its view controller, title, image or
+/// NSNull], the extensions' then the front editor's, their segments after
+/// the debugger's and the terminal's.
 @property (nonatomic, strong, nullable) NSMutableArray<NSArray *> *bottomExtensions;
+// The front editor whose panes are shown (UDEditorPanes), its inspectors,
+// the inspector tab chosen for each editor, and the Library's popover.
+@property (nonatomic, weak, nullable) id<UDEditorPanes> panesEditor;
+@property (nonatomic, copy) NSArray<NSViewController *> *editorInspectors;
+@property (nonatomic, strong, nullable) NSMapTable<id, NSNumber *> *chosenInspectors;
+@property (nonatomic, strong, nullable) NSPopover *libraryPopover;
 @property (nonatomic, strong, readwrite, nullable) UDFileNavigatorViewController *fileNavigator;
 /// The project's language servers, one per command, which its documents share
 /// (one clangd for the project, as VS Code has it).
@@ -123,6 +130,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorLanguage;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorLines;
 @property (nonatomic, weak) IBOutlet NSTextField *inspectorLineEndings;
+// Xcode's inspector tabs: File, then the front editor's (UDEditorPanes).
+@property (nonatomic, weak) IBOutlet NSSegmentedControl *inspectorSwitch;
+@property (nonatomic, weak) IBOutlet NSView *fileInspector;
+@property (nonatomic, weak) IBOutlet NSView *inspectorHost;
 
 @property (nonatomic, strong) UDErrorsViewController *errorsViewController;
 @property (nonatomic, strong) UDHoverViewController  *hover;
@@ -1346,23 +1357,51 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 - (void)showBottomAreaViewController:(NSViewController *)viewController title:(NSString *)title extension:(id<UDExtension>)extension {
     if (!_bottomExtensions) _bottomExtensions = [NSMutableArray array];
     NSUInteger index = [self _bottomIndexOfExtension:extension];
+    NSImage *image = [extension respondsToSelector:@selector(bottomAreaImage)] ? [extension bottomAreaImage] : nil;
+    NSArray *entry = @[ extension, viewController, title ?: @"", image ?: (id)[NSNull null] ];
     if (index == NSNotFound) {
-        // its segment, added: its image, its title its tip
-        index = _bottomExtensions.count;
-        [_bottomExtensions addObject:@[ extension, viewController ]];
-        NSInteger segment = _bottomAreaControl.segmentCount;
-        _bottomAreaControl.segmentCount = segment + 1;
-        NSImage *image = [extension respondsToSelector:@selector(bottomAreaImage)] ? [extension bottomAreaImage] : nil;
-        if (image) [_bottomAreaControl setImage:image forSegment:segment];
-        else [_bottomAreaControl setLabel:@"•" forSegment:segment];
+        // after the extensions' before it, before the front editor's panes
+        index = [self _extensionBottomCount];
+        [_bottomExtensions insertObject:entry atIndex:index];
+    } else {
+        _bottomExtensions[index] = entry;
+    }
+    [self _rebuildBottomAreaControl];
+    [self _showBottomArea:(NSInteger)index + 2];
+    [self _layoutDebugPane];
+}
+
+/// The extensions' entries: those before the front editor's panes.
+- (NSUInteger)_extensionBottomCount {
+    NSUInteger count = 0;
+    for (NSArray *entry in _bottomExtensions) count += [entry[0] conformsToProtocol:@protocol(UDExtension)];
+    return count;
+}
+
+/// The bottom area's switch: the debugger's, the terminal's, then a segment
+/// for each entry of _bottomExtensions (an extension's, then the front
+/// editor's panes): its image, its title its tip.
+- (void)_rebuildBottomAreaControl {
+    NSInteger selected = _bottomAreaControl.selectedSegment;
+    UDSetSegmentCount(_bottomAreaControl, 2 + (NSInteger)_bottomExtensions.count);
+    for (NSUInteger i = 0; i < _bottomExtensions.count; i++) {
+        NSArray *entry = _bottomExtensions[i];
+        NSInteger segment = 2 + (NSInteger)i;
+        NSImage *image = entry[3] == [NSNull null] ? nil : entry[3];
+        NSString *title = entry[2];
+        if (image) {
+            [_bottomAreaControl setImage:image forSegment:segment];
+            [_bottomAreaControl setLabel:@"" forSegment:segment];
+        } else {
+            [_bottomAreaControl setImage:nil forSegment:segment];
+            [_bottomAreaControl setLabel:title.length ? [title substringToIndex:1] : @"•" forSegment:segment];
+        }
         [_bottomAreaControl setWidth:30 forSegment:segment];
         [_bottomAreaControl.cell setToolTip:title forSegment:segment];
         [_bottomAreaControl.cell setTag:segment forSegment:segment];
-        [_bottomAreaControl sizeToFit];
-    } else {
-        _bottomExtensions[index] = @[ extension, viewController ];
     }
-    [self _showBottomArea:(NSInteger)index + 2];
+    [_bottomAreaControl sizeToFit];
+    if (selected >= 0 && selected < _bottomAreaControl.segmentCount) [_bottomAreaControl setSelectedSegment:selected];
     [self _layoutDebugPane];
 }
 
@@ -1477,6 +1516,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     // sel_isEqual: a menu item's selector, from its XIB, is untyped on
     // GNUstep's runtime, and not the same pointer as a typed @selector.
     SEL action = item.action;
+    if (sel_isEqual(action, @selector(showLibrary:))) {
+        id<UDEditorPanes> editor = [self _paneEditor];
+        return [editor respondsToSelector:@selector(libraryViewController)];
+    }
     if (sel_isEqual(action, @selector(build:)) || sel_isEqual(action, @selector(clean:))) {
         return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(runWithoutDebugging:))) {
@@ -1973,6 +2016,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         [_filesTable deselectAll:nil];
     }
     [self _updateInspector];
+    [self _updateEditorPanes];
     [self _updatePreviewControl];
     UDCodeEditorViewController *editor = [self _selectedEditor];
     if (editor) [self.window makeFirstResponder:editor.showsPreview ? editor.previewTextView : editor.textView];
@@ -2103,6 +2147,112 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 }
 
 // ---------------------------------------------------------------------------
+// MARK: - The front editor's own panes (UDEditorPanes)
+// ---------------------------------------------------------------------------
+
+/// A switch's segments, @a count of them: its selection moved back first
+/// when it would go (gnustep-gui keeps a selection past the end, and reads
+/// it laying the control out).
+static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
+    if (control.selectedSegment >= count) [control setSelectedSegment:count > 0 ? 0 : -1];
+    control.segmentCount = count;
+}
+
+/// The selected tab's custom editor, when it adds panes of its own.
+- (nullable id<UDEditorPanes>)_paneEditor {
+    id controller = _editorTabs.selectedItem ? [_editorTabs viewControllerForItem:_editorTabs.selectedItem] : nil;
+    return [controller conformsToProtocol:@protocol(UDEditorPanes)] ? controller : nil;
+}
+
+/// Its inspectors as tabs after File, and its bottom panes as segments
+/// after the extensions': the last editor's taken away. The inspector tab
+/// chosen stays chosen while the editor is in front; the bottom pane shown,
+/// when it was the last editor's, becomes the new one's at the same place.
+- (void)_updateEditorPanes {
+    id<UDEditorPanes> editor = [self _paneEditor];
+    if (editor == _panesEditor && editor) return;
+    _panesEditor = editor;
+
+    // the inspector's tabs
+    NSArray *inspectors = [editor respondsToSelector:@selector(inspectorViewControllers)] ? [editor inspectorViewControllers] : @[];
+    _editorInspectors = inspectors ?: @[];
+    UDSetSegmentCount(_inspectorSwitch, 1 + (NSInteger)_editorInspectors.count);
+    for (NSUInteger i = 0; i < _editorInspectors.count; i++) {
+        NSViewController *inspector = _editorInspectors[i];
+        [_inspectorSwitch setLabel:inspector.title.length ? inspector.title : @"Inspector" forSegment:(NSInteger)i + 1];
+    }
+    // the tabs spread across the pane, as Xcode's are
+    CGFloat width = floor((NSWidth(_inspectorSwitch.frame) - 4) / _inspectorSwitch.segmentCount);
+    for (NSInteger i = 0; i < _inspectorSwitch.segmentCount; i++) [_inspectorSwitch setWidth:width forSegment:i];
+    NSNumber *chosen = editor ? [_chosenInspectors objectForKey:editor] : nil;
+    NSInteger tab = chosen.integerValue < _inspectorSwitch.segmentCount ? chosen.integerValue : 0;
+    [self _showInspector:tab];
+
+    // the bottom area's panes
+    NSInteger shown = _bottomAreaControl.selectedSegment - 2 - (NSInteger)[self _extensionBottomCount];
+    BOOL showedEditors = shown >= 0 && [_debugSplit isPaneVisible:UDDebugAreaPane];
+    if (!_bottomExtensions) _bottomExtensions = [NSMutableArray array];
+    NSUInteger extensions = [self _extensionBottomCount];
+    [_bottomExtensions removeObjectsInRange:NSMakeRange(extensions, _bottomExtensions.count - extensions)];
+    NSArray *panes = [editor respondsToSelector:@selector(bottomAreaViewControllers)] ? [editor bottomAreaViewControllers] : @[];
+    for (NSViewController *pane in panes) {
+        NSImage *image = [editor respondsToSelector:@selector(imageForBottomAreaViewController:)] ? [editor imageForBottomAreaViewController:pane] : nil;
+        [_bottomExtensions addObject:@[ editor, pane, pane.title ?: @"", image ?: (id)[NSNull null] ]];
+    }
+    [self _rebuildBottomAreaControl];
+    if (showedEditors) {
+        if (shown < (NSInteger)panes.count) [self _showBottomArea:2 + (NSInteger)extensions + shown];
+        else [self _showBottomArea:0];
+    } else if (_bottomAreaControl.selectedSegment >= _bottomAreaControl.segmentCount) {
+        [self _showBottomArea:0];
+    }
+}
+
+/// The inspector pane's tab: File (0), or the front editor's.
+- (void)_showInspector:(NSInteger)tab {
+    [_inspectorSwitch setSelectedSegment:tab];
+    NSViewController *inspector = tab > 0 && tab - 1 < (NSInteger)_editorInspectors.count ? _editorInspectors[(NSUInteger)tab - 1] : nil;
+    for (NSView *view in [_inspectorHost.subviews copy]) if (view != inspector.view) [view removeFromSuperview];
+    if (inspector && inspector.view.superview != _inspectorHost) [self _putView:inspector.view inHost:_inspectorHost];
+    [_inspectorHost setHidden:!inspector];
+    [_fileInspector setHidden:inspector != nil];
+}
+
+- (IBAction)inspectorChanged:(nullable id)sender {
+    NSInteger tab = _inspectorSwitch.selectedSegment;
+    if (_panesEditor) {
+        if (!_chosenInspectors) _chosenInspectors = [NSMapTable weakToStrongObjectsMapTable];
+        [_chosenInspectors setObject:@(tab) forKey:_panesEditor];
+    }
+    [self _showInspector:tab];
+    [_paneSplit setPane:UDInspectorPane visible:YES];
+}
+
+/// View > Show Library (⇧⌘L): the front editor's, in a popover over it.
+- (IBAction)showLibrary:(nullable id)sender {
+    id<UDEditorPanes> editor = [self _paneEditor];
+    NSViewController *library = [editor respondsToSelector:@selector(libraryViewController)] ? [editor libraryViewController] : nil;
+    NSView *over = [(NSViewController *)editor view];
+    if (!library || !over.window) {
+        NSBeep();
+        return;
+    }
+    [_libraryPopover close];
+    _libraryPopover = [[NSPopover alloc] init];
+    _libraryPopover.behavior = NSPopoverBehaviorTransient;
+    _libraryPopover.contentViewController = library;
+    _libraryPopover.contentSize = library.view.frame.size;
+    NSRect bounds = over.bounds;
+    NSRect anchor = NSMakeRect(NSMaxX(bounds) - 60, [over isFlipped] ? 0 : NSMaxY(bounds) - 2, 40, 2);
+    [_libraryPopover showRelativeToRect:anchor ofView:over preferredEdge:[over isFlipped] ? NSMaxYEdge : NSMinYEdge];
+}
+
+/// The Library while its popover is shown: closed (its item taken).
+- (void)closeLibrary {
+    [_libraryPopover close];
+}
+
+// ---------------------------------------------------------------------------
 // MARK: - Changes
 // ---------------------------------------------------------------------------
 
@@ -2158,6 +2308,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDTabBarItem *item = doc ? [self _itemsForDocument:doc].firstObject : nil;
     if (!item) return;
     [_editorTabs selectItem:item];
+    // a custom editor's document: the editor shows it (UDEditorPanes)
+    id custom = [_editorTabs viewControllerForItem:item];
+    if ([custom conformsToProtocol:@protocol(UDEditorPanes)] && [custom respondsToSelector:@selector(revealDiagnostic:)]) {
+        [custom revealDiagnostic:diagnostic];
+        return;
+    }
     UDCodeEditorViewController *editor = [self _editorOfItem:item];
     UDTextModel *model = doc.textModel;
     // The diagnostic's column is 0-based; the model's 1-based.

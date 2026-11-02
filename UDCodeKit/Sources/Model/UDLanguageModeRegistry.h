@@ -54,6 +54,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// most recently registered one takes precedence.
 - (void)registerMode:(UDLanguageMode *)mode;
 
+/// An extension the app makes itself, not a bundle's (an editor of its own
+/// for a mode it registers): among -extensions from now on, after those
+/// loaded. Its -extensionDidLoad: is given the main bundle.
+- (void)registerExtension:(id<UDExtension>)extension;
+
 // ---------------------------------------------------------------------------
 // MARK: - Lookup
 // ---------------------------------------------------------------------------

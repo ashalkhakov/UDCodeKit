@@ -68,6 +68,9 @@ UDCODEKIT_EXPORT NSNotificationName const UDWorkbenchSelectionDidChangeNotificat
 - (BOOL)isBottomAreaShowingExtension:(id<UDExtension>)extension;
 /// The editors of @a document (its tabs').
 - (NSArray<UDCodeEditorViewController *> *)editorsOfDocument:(UDCodeDocument *)document;
+/// The Library's popover (View > Show Library, UDEditorPanes'
+/// -libraryViewController) closed: what was chosen in it taken.
+- (void)closeLibrary;
 
 @end
 

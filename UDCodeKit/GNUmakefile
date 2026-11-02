@@ -22,66 +22,54 @@ UD_HEADER_LINKS := $(shell mkdir -p $(UD_INCLUDE)/UDCodeKit && \
     for h in `find $(CURDIR)/Sources -name '*.h'`; do $(UD_HEADER_LINK) $$h $(UD_INCLUDE)/UDCodeKit/; done)
 UDCodeKit_HEADER_FILES_DIR = $(UD_INCLUDE)/UDCodeKit
 UDCodeKit_HEADER_FILES = \
-    UDCredentialStore.h \
-    UDDebugger.h \
-    UDTestRunner.h \
-    UDCommandTestRunner.h \
-    UDBuildSystem.h \
-    UDTestNavigatorViewController.h \
-    UDTests.h \
-    UDSemanticTokensHighlighter.h \
-    UDTerminalViewController.h \
-    UDTerminalView.h \
-    UDPseudoTerminal.h \
-    UDShell.h \
-    UDPaths.h \
-    UDIssuePopupController.h \
-    UDLinkedEditing.h \
-    UDOpenQuicklyController.h \
-    UDOccurrencesHighlighter.h \
-    UDSearchResultsViewController.h \
-    UDWorkspaceEdit.h \
-    UDTasks.h \
-    UDFileWatcher.h \
-    UDProjectSettingsController.h \
-    UDPreferencesController.h \
-    UDBuildLogViewController.h \
-    UDBuildRunner.h \
-    UDFileNavigatorViewController.h \
-    UDToolLocator.h \
-    UDProject.h \
     TreeSitterTheme.h \
+    UDAuthorsView.h \
     UDAutoIndenter.h \
+    UDBadgeTextFieldCell.h \
     UDBracketMatchHighlighter.h \
     UDBreakpointEditorViewController.h \
     UDBreakpointNavigatorViewController.h \
     UDBreakpointStore.h \
+    UDBuildLogViewController.h \
+    UDBuildRunner.h \
+    UDBuildSystem.h \
     UDCodeDocument.h \
     UDCodeEditorLayoutManager.h \
     UDCodeEditorViewController.h \
     UDCodeKit.h \
+    UDCommandTestRunner.h \
+    UDCompletionListController.h \
+    UDCredentialStore.h \
     UDDebugAreaViewController.h \
     UDDebugBarViewController.h \
     UDDebugHoverViewController.h \
     UDDebugNavigatorViewController.h \
     UDDebugSession.h \
+    UDDebugger.h \
     UDDecorationHighlighter.h \
     UDDecorationLayerRegistry.h \
     UDDiagnosticItem.h \
     UDDiagnosticStore.h \
     UDDiagnosticTextView.h \
+    UDDiffEditorViewController.h \
+    UDDocumentSymbol.h \
     UDEditorSession.h \
-    UDErrorsViewController.h \
     UDEditorTabsController.h \
+    UDErrorsViewController.h \
     UDExtension.h \
-    UDInstalledExtensions.h \
     UDExtensionsWindowController.h \
+    UDFileNavigatorViewController.h \
+    UDFileWatcher.h \
     UDFindBarViewController.h \
     UDFindModel.h \
     UDFindResultsGutterView.h \
     UDFoldingController.h \
-    UDCompletionListController.h \
+    UDHistoryViewController.h \
     UDHoverViewController.h \
+    UDInstalledExtensions.h \
+    UDIssuePopupController.h \
+    UDJumpBarController.h \
+    UDJumpBarView.h \
     UDLSPCoordinator.h \
     UDLSPDiagnosticHighlighter.h \
     UDLanguageConfiguration.h \
@@ -89,17 +77,42 @@ UDCodeKit_HEADER_FILES = \
     UDLanguageMode.h \
     UDLanguageModeRegistry.h \
     UDLineNumberGutterView.h \
+    UDLinkComputer.h \
+    UDLinkDetector.h \
+    UDLinkedEditing.h \
+    UDOccurrencesHighlighter.h \
+    UDOpenQuicklyController.h \
     UDPaneSplitController.h \
+    UDPaths.h \
     UDPlaceholderHighlighter.h \
+    UDPreferencesController.h \
+    UDProject.h \
+    UDProjectSettingsController.h \
+    UDPseudoTerminal.h \
+    UDSearchResultsViewController.h \
+    UDSemanticTokensHighlighter.h \
+    UDShell.h \
+    UDSourceControl.h \
+    UDSourceControlNavigatorViewController.h \
     UDStructuredNavigator.h \
     UDSyntaxHighlighter.h \
     UDTabBarView.h \
     UDTabItemView.h \
+    UDTasks.h \
+    UDTerminalView.h \
+    UDTerminalViewController.h \
+    UDTestNavigatorViewController.h \
+    UDTestRunner.h \
+    UDTests.h \
     UDTextModel+LSPTextBuffer.h \
     UDTextModelString.h \
     UDTextModelTextStorage.h \
+    UDToolLocator.h \
     UDTreeSitterHighlighter.h \
-    UDTreeSitterTypes.h
+    UDTreeSitterOutline.h \
+    UDTreeSitterTypes.h \
+    UDWorkbench.h \
+    UDWorkspaceEdit.h
 
 UDCodeKit_RESOURCE_FILES = $(shell find Sources -name '*.xib' | sort)
 

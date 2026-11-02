@@ -150,7 +150,9 @@ inside the bundle:
 On macOS, sign the bundle and notarize it as you would an app's plug-in. The
 released UDCode runs under the hardened runtime with library validation on,
 so it loads only code signed by its own team: an extension must be signed
-with UDCode's Developer ID (team V2D8AKM5BB), as the kits' releases are.
+with the same Developer ID as UDCode's release, as the kits' releases are.
+A UDCode you build yourself (version 0.0.0) loads extensions signed with
+the identity you built it with.
 Extensions signed by other developers can't be loaded unless UDCode turns
 library validation off (`com.apple.security.cs.disable-library-validation`),
 and it doesn't.

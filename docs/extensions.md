@@ -145,7 +145,7 @@ inside the bundle:
 |---|---|---|
 | macOS | `ORMKit.bundle/Contents/Frameworks/` | the bundle's binary links with `@loader_path/../Frameworks` in its rpath |
 | Linux | `ORMKit.bundle/` (beside its binary) or a `lib/` in it | the binary's `RUNPATH` is `$ORIGIN` (or `$ORIGIN/lib`) |
-| Windows | `ORMKit.bundle/`, beside its DLL | UDCode loads an installed extension's DLL with `LOAD_WITH_ALTERED_SEARCH_PATH`, so Windows looks for its DLLs in that folder first |
+| Windows | `ORMKit.bundle/`, beside its DLL | while UDCode loads an installed extension, its DLL's folder is a DLL search folder (`SetDllDirectoryW`) |
 
 On macOS, sign the bundle and notarize it as you would an app's plug-in. The
 released UDCode runs under the hardened runtime with library validation on,

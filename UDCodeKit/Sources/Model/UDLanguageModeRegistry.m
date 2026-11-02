@@ -183,16 +183,21 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     }
 #ifdef _WIN32
     // an installed one's libraries are beside its DLL, in its bundle, where
-    // Windows doesn't look (only beside UDCode.exe, and on PATH): its DLL
-    // loaded first so (as the SQL extension loads its clients), NSBundle's
-    // load then finds it loaded
+    // Windows doesn't look (only beside UDCode.exe, and on PATH): that folder
+    // searched too while NSBundle loads it. NSBundle must load it itself, not
+    // find it loaded: it learns a bundle's classes as it loads its code, and
+    // +bundleForClass: (its XIBs) answers from them.
     NSString *executable = [NSBundle bundleWithPath:info.bundlePath].executablePath;
+    BOOL searched = NO;
     if (info.location == UDExtensionLocationInstalled && executable) {
-        NSString *file = [executable stringByReplacingOccurrencesOfString:@"/" withString:@"\\"];
-        LoadLibraryExW((const wchar_t *)[file cStringUsingEncoding:NSUTF16LittleEndianStringEncoding], NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+        NSString *folder = [[executable stringByDeletingLastPathComponent] stringByReplacingOccurrencesOfString:@"/" withString:@"\\"];
+        searched = SetDllDirectoryW((const wchar_t *)[folder cStringUsingEncoding:NSUTF16LittleEndianStringEncoding]);
     }
 #endif
     info.problem = [self _loadBundleAtPath:info.bundlePath];
+#ifdef _WIN32
+    if (searched) SetDllDirectoryW(NULL);
+#endif
     info.loaded = info.problem == nil;
 }
 

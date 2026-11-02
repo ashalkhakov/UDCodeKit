@@ -8,6 +8,15 @@
 #import "UDPaths.h"
 #ifdef _WIN32
 #include <windows.h>
+
+/// @a text as Windows' wide string, its two-byte terminator included:
+/// -cStringUsingEncoding: with UTF-16 ends it with one zero byte on
+/// GNUstep, and Windows reads on past the end.
+static NSData *UDWideString(NSString *text) {
+    NSMutableData *wide = [[text dataUsingEncoding:NSUTF16LittleEndianStringEncoding] mutableCopy] ?: [NSMutableData data];
+    [wide appendBytes:"\0\0" length:2];
+    return wide;
+}
 #endif
 
 // ---------------------------------------------------------------------------
@@ -191,7 +200,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     BOOL searched = NO;
     if (info.location == UDExtensionLocationInstalled && executable) {
         NSString *folder = [[executable stringByDeletingLastPathComponent] stringByReplacingOccurrencesOfString:@"/" withString:@"\\"];
-        searched = SetDllDirectoryW((const wchar_t *)[folder cStringUsingEncoding:NSUTF16LittleEndianStringEncoding]);
+        searched = SetDllDirectoryW((const wchar_t *)UDWideString(folder).bytes);
     }
 #endif
     info.problem = [self _loadBundleAtPath:info.bundlePath];

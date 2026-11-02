@@ -9,6 +9,17 @@
 #include <dlfcn.h>
 #endif
 
+#ifdef _WIN32
+/// @a text as Windows' wide string, its two-byte terminator included:
+/// -cStringUsingEncoding: with UTF-16 ends it with one zero byte on
+/// GNUstep, and Windows reads on past the end.
+static NSData *UDWideString(NSString *text) {
+    NSMutableData *wide = [[text dataUsingEncoding:NSUTF16LittleEndianStringEncoding] mutableCopy] ?: [NSMutableData data];
+    [wide appendBytes:"\0\0" length:2];
+    return wide;
+}
+#endif
+
 NSErrorDomain const UDSQLErrorDomain = @"UDSQLErrorDomain";
 NSString *const UDSQLStateErrorKey = @"UDSQLState";
 
@@ -154,7 +165,7 @@ NSError *UDSQLError(NSInteger code, NSString *message, NSString *state) {
             // a library's own libraries looked for beside it first (UDCode's
             // copies), then where Windows looks; which wants backslashes
             NSString *file = [name stringByReplacingOccurrencesOfString:@"/" withString:@"\\"];
-            void *handle = (void *)LoadLibraryExW((const wchar_t *)[file cStringUsingEncoding:NSUTF16LittleEndianStringEncoding], NULL,
+            void *handle = (void *)LoadLibraryExW((const wchar_t *)UDWideString(file).bytes, NULL,
                                                   [name isAbsolutePath] ? LOAD_WITH_ALTERED_SEARCH_PATH : 0);
 #else
             void *handle = dlopen(name.fileSystemRepresentation, RTLD_NOW | RTLD_LOCAL);

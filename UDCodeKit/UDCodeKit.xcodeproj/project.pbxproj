@@ -63,6 +63,7 @@
 				Diagnostics/UDDiagnosticStore.h,
 				Diff/UDDiffEditorViewController.h,
 				Extensions/UDDiagnosticItem.h,
+				Extensions/UDEditorPanes.h,
 				Extensions/UDExtension.h,
 				Extensions/UDExtensionsWindowController.h,
 				Extensions/UDInstalledExtensions.h,

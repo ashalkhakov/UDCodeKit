@@ -157,6 +157,42 @@ Extensions signed by other developers can't be loaded unless UDCode turns
 library validation off (`com.apple.security.cs.disable-library-validation`),
 and it doesn't.
 
+## An editor of its own, and its panes
+
+An extension can open its mode's documents in an editor of its own instead
+of as text (`-workbench:editorForDocument:` in `UDExtension.h`), as VS
+Code's custom editors do. The document stays the model: the editor makes
+its changes as edits of the document's text, so undo, saving and the tab's
+dot are the document's, and a tab of the text (`-showDocumentAsText:`)
+shows the same document. The SQL extension's query by example works this
+way, and so does ORMKit's ORM2.
+
+As in Xcode, the editor needn't hold everything in its tab. Its view
+controller can adopt `UDEditorPanes` (`UDEditorPanes.h`). Every method is
+optional, and the window asks again each time the editor's tab comes to
+the front:
+
+- **`-inspectorViewControllers`**: inspectors of its own, shown as tabs of
+  the inspector pane after File, like Interface Builder's Attributes and
+  Size. The tab chosen stays chosen while the editor is in front.
+- **`-bottomAreaViewControllers`**: panes in the bottom area, each a
+  segment after the debugger's, the terminal's and the extensions' own,
+  with `-imageForBottomAreaViewController:` as its image. When another tab
+  comes to the front they go away, and the debugger is shown in their
+  place. The workbench's `-showEditorBottomPane:` brings one
+  to the front.
+- **`-libraryViewController`**: what can be put in its document, shown in
+  a popover by **View > Show Library** (⇧⌘L), as Xcode's Library. The
+  workbench's `-closeLibrary` closes it once something is chosen.
+- **`-revealDiagnostic:`**: an issue of its document chosen in the Issues
+  navigator. The editor shows it, for example by selecting the element the
+  issue is about, instead of the window going to a line of text. The issues
+  themselves are the document's diagnostics (`diagnosticStore`), which the
+  Issues navigator lists with every other document's.
+
+An app that embeds UDCodeKit can register an extension it makes itself,
+with no bundle, using `-[UDLanguageModeRegistry registerExtension:]`.
+
 ## Licences
 
 UDCode is MIT, and so are UDCodeKit, LSPKit and UDPieceTable. An extension

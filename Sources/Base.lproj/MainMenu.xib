@@ -735,6 +735,11 @@
                                     <action selector="toggleInspector:" target="-1" id="UDM-inspector-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Show Library" keyEquivalent="L" id="UDM-library">
+                                <connections>
+                                    <action selector="showLibrary:" target="-1" id="UDM-library-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem title="Show Preview" keyEquivalent="&#xd;" id="UDM-preview">
                                 <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                 <connections>

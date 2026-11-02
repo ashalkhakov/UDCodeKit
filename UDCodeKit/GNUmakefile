@@ -56,6 +56,7 @@ UDCodeKit_HEADER_FILES = \
     UDEditorSession.h \
     UDEditorTabsController.h \
     UDErrorsViewController.h \
+    UDEditorPanes.h \
     UDExtension.h \
     UDExtensionsWindowController.h \
     UDFileNavigatorViewController.h \

@@ -30,6 +30,9 @@
                 <outlet property="previewControl" destination="WS-preview-control" id="WS-o-preview-control"/>
                 <outlet property="reviewButton" destination="WS-review-button" id="WS-o-review-button"/>
                 <outlet property="inspectorName" destination="WS-insp-name" id="WS-o-insp-name"/>
+                <outlet property="inspectorSwitch" destination="WS-insp-switch" id="WS-o-insp-switch"/>
+                <outlet property="fileInspector" destination="WS-insp-file" id="WS-o-insp-file"/>
+                <outlet property="inspectorHost" destination="WS-insp-host" id="WS-o-insp-host"/>
                 <outlet property="inspectorPath" destination="WS-insp-path" id="WS-o-insp-path"/>
                 <outlet property="inspectorLanguage" destination="WS-insp-language" id="WS-o-insp-language"/>
                 <outlet property="inspectorLines" destination="WS-insp-lines" id="WS-o-insp-lines"/>
@@ -333,105 +336,130 @@
                                 <rect key="frame" x="940" y="0.0" width="260" height="760"/>
                                 <autoresizingMask key="autoresizingMask" heightSizable="YES"/>
                                 <subviews>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-title">
-                                        <rect key="frame" x="10" y="730" width="240" height="17"/>
+                                    <!-- Xcode's inspector tabs: File (the document's), then the
+                                         front editor's own (UDEditorPanes), filled in from code -->
+                                    <segmentedControl verticalHuggingPriority="750" id="WS-insp-switch">
+                                        <rect key="frame" x="8" y="728" width="244" height="24"/>
                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" title="Document" id="WS-insp-title-cell">
-                                            <font key="font" metaFont="systemBold"/>
-                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-name-label">
-                                        <rect key="frame" x="10" y="700" width="80" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Name" id="WS-insp-name-label-cell">
+                                        <segmentedCell key="cell" borderStyle="border" alignment="left" style="rounded" trackingMode="selectOne" id="WS-insp-switch-cell">
                                             <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-name">
-                                        <rect key="frame" x="96" y="700" width="154" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingMiddle" selectable="YES" title="" id="WS-insp-name-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-path-label">
-                                        <rect key="frame" x="10" y="676" width="80" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Path" id="WS-insp-path-label-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-path">
-                                        <rect key="frame" x="96" y="676" width="154" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingHead" selectable="YES" title="" id="WS-insp-path-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-language-label">
-                                        <rect key="frame" x="10" y="652" width="80" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Language" id="WS-insp-language-label-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-language">
-                                        <rect key="frame" x="96" y="652" width="154" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-language-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-lines-label">
-                                        <rect key="frame" x="10" y="628" width="80" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Lines" id="WS-insp-lines-label-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-lines">
-                                        <rect key="frame" x="96" y="628" width="154" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-lines-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-eol-label">
-                                        <rect key="frame" x="10" y="604" width="80" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Line Endings" id="WS-insp-eol-label-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
-                                    <textField verticalHuggingPriority="750" id="WS-insp-eol">
-                                        <rect key="frame" x="96" y="604" width="154" height="16"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                        <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-eol-cell">
-                                            <font key="font" metaFont="smallSystem"/>
-                                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
-                                            <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
-                                        </textFieldCell>
-                                    </textField>
+                                            <segments>
+                                                <segment label="File" selected="YES"/>
+                                            </segments>
+                                        </segmentedCell>
+                                        <connections>
+                                            <action selector="inspectorChanged:" target="-2" id="WS-a-insp-switch"/>
+                                        </connections>
+                                    </segmentedControl>
+                                    <customView id="WS-insp-file" userLabel="File Inspector">
+                                        <rect key="frame" x="0.0" y="0.0" width="260" height="722"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                        <subviews>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-title">
+                                                <rect key="frame" x="10" y="700" width="240" height="17"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" title="Document" id="WS-insp-title-cell">
+                                                    <font key="font" metaFont="systemBold"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-name-label">
+                                                <rect key="frame" x="10" y="670" width="80" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Name" id="WS-insp-name-label-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-name">
+                                                <rect key="frame" x="96" y="670" width="154" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingMiddle" selectable="YES" title="" id="WS-insp-name-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-path-label">
+                                                <rect key="frame" x="10" y="646" width="80" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Path" id="WS-insp-path-label-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-path">
+                                                <rect key="frame" x="96" y="646" width="154" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingHead" selectable="YES" title="" id="WS-insp-path-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-language-label">
+                                                <rect key="frame" x="10" y="622" width="80" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Language" id="WS-insp-language-label-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-language">
+                                                <rect key="frame" x="96" y="622" width="154" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-language-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-lines-label">
+                                                <rect key="frame" x="10" y="598" width="80" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Lines" id="WS-insp-lines-label-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-lines">
+                                                <rect key="frame" x="96" y="598" width="154" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-lines-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-eol-label">
+                                                <rect key="frame" x="10" y="574" width="80" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" alignment="right" title="Line Endings" id="WS-insp-eol-label-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <textField verticalHuggingPriority="750" id="WS-insp-eol">
+                                                <rect key="frame" x="96" y="574" width="154" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="truncatingTail" selectable="YES" title="" id="WS-insp-eol-cell">
+                                                    <font key="font" metaFont="smallSystem"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+        </subviews>
+                                    </customView>
+                                    <customView hidden="YES" id="WS-insp-host" userLabel="Editor's Inspector">
+                                        <rect key="frame" x="0.0" y="0.0" width="260" height="722"/>
+                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                    </customView>
                                 </subviews>
                             </customView>
                         </subviews>

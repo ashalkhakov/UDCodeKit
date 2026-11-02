@@ -23,8 +23,13 @@
 /// Read back by getenv (_wgetenv on Windows), as UDInstalledExtensions reads it.
 static void UDSetEnvironment(NSString *name, NSString *_Nullable value) {
 #if defined(_WIN32)
-    _wputenv_s((const wchar_t *)[name cStringUsingEncoding:NSUTF16LittleEndianStringEncoding],
-               (const wchar_t *)[value ?: @"" cStringUsingEncoding:NSUTF16LittleEndianStringEncoding]);
+    // its terminator two zero bytes: -cStringUsingEncoding:'s ends UTF-16
+    // with one on GNUstep
+    NSMutableData *wideName = [[name dataUsingEncoding:NSUTF16LittleEndianStringEncoding] mutableCopy];
+    NSMutableData *wideValue = [[(value ?: @"") dataUsingEncoding:NSUTF16LittleEndianStringEncoding] mutableCopy] ?: [NSMutableData data];
+    [wideName appendBytes:"\0\0" length:2];
+    [wideValue appendBytes:"\0\0" length:2];
+    _wputenv_s((const wchar_t *)wideName.bytes, (const wchar_t *)wideValue.bytes);
 #else
     if (value) setenv(name.UTF8String, value.UTF8String, 1);
     else unsetenv(name.UTF8String);

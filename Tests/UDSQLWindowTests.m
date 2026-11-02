@@ -24,6 +24,7 @@
 #import "UDSQLSheets.h"
 #import "UDSQLDiagramViewController.h"
 #import "UDSQLExampleViewController.h"
+#import "UDSQLSkeletonViewController.h"
 
 static Class UDPluginClass(NSString *name) {
     (void)[UDLanguageModeRegistry sharedRegistry];
@@ -208,6 +209,12 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertNil(browser.document.fileURL, @"untitled: saved only if asked");
     XCTAssertEqual(browser.database, store);
     XCTAssertEqualObjects(browser.file.skeletons.firstObject.table, @"ZPERSON");
+    // its form at its box's top, its lines in order under its rows' heads
+    UDSQLSkeletonViewController *personForm = browser.skeletons[0];
+    XCTAssertEqual(NSMinY(personForm.rowHeads[0].view.frame), 0.0, @"its rows' heads first");
+    XCTAssertEqual(NSMinY(personForm.lines[0].view.frame), NSMaxY(personForm.rowHeads[0].view.frame));
+    XCTAssertEqual(NSMaxY(personForm.lines.lastObject.view.frame), NSHeight(personForm.formView.frame), @"its last line, its last");
+    XCTAssertTrue(personForm.formView.superview.isFlipped, @"a form shorter than its box at its top");
     UDRunUntil(!browser.running && browser.result.rows.count == 2, 10.0);
     XCTAssertEqual(browser.result.rows.count, 2u, @"run at once: %@", browser.statusLabel.stringValue);
     NSUInteger entityColumn = [[browser.result.columns valueForKey:@"name"] indexOfObject:@"Z_ENT"];

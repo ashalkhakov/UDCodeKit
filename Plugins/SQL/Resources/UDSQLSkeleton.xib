@@ -68,7 +68,7 @@
                 <scrollView toolTip="A line each column: Show it, Total (Group, Sum…), an operator and a value (or an example element, _c: the same one in two rows joins them)" borderType="bezel" autohidesScrollers="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" hasVerticalScroller="NO" usesPredominantAxisScrolling="NO" id="SK-scroll">
                     <rect key="frame" x="0.0" y="0.0" width="880.0" height="110.0"/>
                     <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                    <clipView key="contentView" id="SK-clip">
+                    <clipView key="contentView" id="SK-clip" customClass="UDSQLFormClipView">
                         <rect key="frame" x="1.0" y="1.0" width="878.0" height="108.0"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>

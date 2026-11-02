@@ -49,6 +49,14 @@ static NSArray<NSString *> *UDAggregatePrefixes(void) {
 
 @end
 
+@implementation UDSQLFormClipView
+
+- (BOOL)isFlipped {
+    return YES;
+}
+
+@end
+
 /// A form's piece's view, from its XIB, its owner @a owner; nil when it
 /// can't be read.
 static NSView *UDLoad(NSString *name, id owner) {
@@ -166,6 +174,9 @@ static const CGFloat UDLineHeight = 24, UDHeadHeight = 42;
 /// Its form, made: its rows' heads across its top, then a line each column
 /// (its head, then each row's parts across), from their XIBs.
 - (void)_makeForm {
+    // its pieces placed here, top down: not moved again as it is sized (in a
+    // flipped view their XIBs' flexible bottom margin is a top one)
+    _formView.autoresizesSubviews = NO;
     for (NSView *view in [_formView.subviews copy]) [view removeFromSuperview];
     [_lines removeAllObjects];
     [_heads removeAllObjects];

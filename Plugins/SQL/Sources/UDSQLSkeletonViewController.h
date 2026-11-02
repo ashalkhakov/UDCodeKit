@@ -24,6 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 @interface UDSQLFormView : NSView
 @end
 
+/// Its form's clip view: flipped, so a form shorter than it is at its top
+/// (an unflipped one puts it at its bottom).
+@interface UDSQLFormClipView : NSClipView
+@end
+
 /// A line's head (UDSQLFormLine.xib's owner): its column's name, its Sort.
 @interface UDSQLFormLine : NSObject
 @property (nonatomic, strong) IBOutlet NSView *view;

@@ -26,6 +26,7 @@
 #define UDMY(name) __typeof__(&name) name
 static struct {
     UDMY(mysql_init);
+    UDMY(mysql_options);
     UDMY(mysql_real_connect);
     UDMY(mysql_error);
     UDMY(mysql_errno);
@@ -47,6 +48,10 @@ static struct {
     UDMY(mysql_next_result);
 } MY;
 #undef UDMY
+/// Where the authentication plug-ins are (caching_sha2_password, MySQL 8's
+/// default, among them) when the library is UDCode's own copy; else the
+/// library's own idea of it.
+static NSString *UDPluginDirectory;
 #endif
 
 static BOOL UDLoadClient(NSError **error) {
@@ -82,6 +87,7 @@ static BOOL UDLoadClient(NSError **error) {
     if (!library) return NO;
 #define UDFIND(name) MY.name = (__typeof__(MY.name))[library function:#name]; if (!MY.name) goto missing;
     UDFIND(mysql_init)
+    UDFIND(mysql_options)
     UDFIND(mysql_real_connect)
     UDFIND(mysql_error)
     UDFIND(mysql_errno)
@@ -102,6 +108,11 @@ static BOOL UDLoadClient(NSError **error) {
     UDFIND(mysql_get_server_info)
     UDFIND(mysql_next_result)
 #undef UDFIND
+    if (library.own) {
+        NSString *plugins = [[library.path stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"mariadb/plugin"];
+        BOOL directory = NO;
+        if ([[NSFileManager defaultManager] fileExistsAtPath:plugins isDirectory:&directory] && directory) UDPluginDirectory = plugins;
+    }
     loaded = YES;
     return YES;
 missing:
@@ -158,6 +169,12 @@ static MYSQL *UDConnect(NSString *host, NSString *user, NSString *password, NSSt
         if (error) *error = UDSQLError(0, @"The MySQL client library couldn't start a connection.", nil);
         return NULL;
     }
+#ifdef _WIN32
+    // (GNUstep's file system representation is UTF-16 there)
+    if (UDPluginDirectory) MY.mysql_options(connection, MYSQL_PLUGIN_DIR, UDPluginDirectory.UTF8String);
+#else
+    if (UDPluginDirectory) MY.mysql_options(connection, MYSQL_PLUGIN_DIR, UDPluginDirectory.fileSystemRepresentation);
+#endif
     if (!MY.mysql_real_connect(connection, host.UTF8String, user.UTF8String, password.UTF8String, database.length ? database.UTF8String : NULL,
                          port, socket.length ? socket.UTF8String : NULL, 0)) {
         if (error) *error = UDSQLError(MY.mysql_errno(connection), @(MY.mysql_error(connection)), @(MY.mysql_sqlstate(connection)));

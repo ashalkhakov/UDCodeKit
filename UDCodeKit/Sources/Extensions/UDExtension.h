@@ -56,7 +56,7 @@
 #endif
 
 // Forward declarations for types used in optional factory methods.
-@class UDDiagnosticStore, UDProject, UDTestRunner, NSMenuItem, NSViewController, NSImage;
+@class UDDiagnosticStore, UDProject, UDTestRunner, UDCodeDocument, NSMenuItem, NSViewController, NSImage;
 @protocol UDSourceControl, UDSourceControlHost, UDWorkbench;
 
 /// Posted by an extension when a language server that was previously unavailable
@@ -226,6 +226,11 @@ static NSString * const UDLinkURLKey = @"url";
 - (nullable NSViewController *)navigatorViewControllerForWorkbench:(id<UDWorkbench>)workbench;
 /// The navigator's segment's image (16 points square); nil: a generic one.
 - (nullable NSImage *)navigatorImage;
+/// Its segment's image in the bottom area's switch, beside the debugger's
+/// and the terminal's (16 points square), for what it shows there
+/// (-[UDWorkbench showBottomAreaViewController:title:extension:]); nil: a
+/// generic one.
+- (nullable NSImage *)bottomAreaImage;
 
 /// Its items in the Editor menu (Run Statement…), for @a workbench's window:
 /// asked again when the window becomes key. Each validates itself (its
@@ -235,5 +240,13 @@ static NSString * const UDLinkURLKey = @"url";
 /// Whether it opens @a url itself (a database file, say) rather than the
 /// window as text: asked before a file is opened in a tab.
 - (BOOL)workbench:(id<UDWorkbench>)workbench openURL:(NSURL *)url;
+
+/// @a document's own editor, in place of its text's, as VS Code's custom
+/// text editors are (a query by example's file): the document is its model,
+/// its changes edits of its text (its text model's -applyEdits:), so undo,
+/// saving and its tab's dot are the document's, and a tab of its text
+/// (-showDocumentAsText:) shows it as it is. Asked as a document opens in a tab;
+/// nil: its text.
+- (nullable NSViewController *)workbench:(id<UDWorkbench>)workbench editorForDocument:(UDCodeDocument *)document;
 
 @end

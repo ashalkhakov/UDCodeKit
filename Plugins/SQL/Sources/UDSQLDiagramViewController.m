@@ -39,7 +39,7 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     [self reload];
-    if (!_database.schema && !_database.connecting) [_databases connect:_database];
+    if (!_database.schema) [_databases connectIfWanted:_database];
 }
 
 - (UDSQLDiagram *)diagram {
@@ -151,6 +151,10 @@
 }
 
 - (void)canvas:(DKCanvasView *)canvas doubleClickedItem:(id)item {
+    if ([item isKindOfClass:[NSString class]]) {
+        [self _browse:item];
+        return;
+    }
     NSString *sql = item ? [self selectQueryOfItem:item] : nil;
     if (sql) [_databases openQuery:sql database:_database run:YES];
 }
@@ -265,6 +269,7 @@
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     SEL action = item.action;
+    if (sel_isEqual(action, @selector(browseRows:))) return [[self _actedOn:item] isKindOfClass:[NSString class]];
     if (sel_isEqual(action, @selector(selectRows:)) || sel_isEqual(action, @selector(newQuery:)) ||
         sel_isEqual(action, @selector(copyName:))) return [self _actedOn:item] != nil;
     if (sel_isEqual(action, @selector(arrange:)) || sel_isEqual(action, @selector(exportPDF:)) ||
@@ -276,6 +281,16 @@
 - (nullable id)_actedOn:(id)sender {
     if ([sender isKindOfClass:[NSMenuItem class]] && _menuItem) return _menuItem;
     return _canvas.selection.count == 1 ? _canvas.selection.anyObject : nil;
+}
+
+- (void)_browse:(NSString *)identifier {
+    UDSQLTable *table = [_diagram tableWithIdentifier:identifier].table;
+    if (table) [_databases browseTable:table entity:nil database:_database];
+}
+
+- (IBAction)browseRows:(id)sender {
+    id item = [self _actedOn:sender];
+    if ([item isKindOfClass:[NSString class]]) [self _browse:item];
 }
 
 - (IBAction)selectRows:(id)sender {

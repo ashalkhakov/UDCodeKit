@@ -140,6 +140,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     UDLanguageMode           *_plaintextFallback;
     // Extension records in load order — used for deterministic reverse-order unload.
     NSMutableArray<UDExtensionRecord *> *_loadedExtensions;
+    // Modes borrowing another's grammar, till every bundle is loaded: [info, bundle, extension].
+    NSMutableArray<NSArray *> *_borrowers;
 }
 
 + (instancetype)sharedRegistry {
@@ -225,89 +227,105 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     [ext extensionDidLoad:bundle];
 
     // ── Step 3: Register each language mode declared in the plist ─────────
+    // (a mode borrowing another's grammar once every bundle is loaded)
     for (NSDictionary *modeInfo in languageModes) {
         if (![modeInfo isKindOfClass:[NSDictionary class]]) continue;
-
-        NSString *identifier  = modeInfo[@"identifier"];
-        NSString *displayName = modeInfo[@"displayName"];
-        NSArray  *extensions  = modeInfo[@"fileExtensions"];
-        NSString *lspID       = modeInfo[@"lspLanguageID"];
-
-        if (!identifier.length || !displayName.length) {
-            NSLog(@"UDLanguageModeRegistry: mode entry in %@ missing identifier/displayName",
-                  bundlePath.lastPathComponent);
+        if ([modeInfo[@"grammarOf"] length]) {
+            [_borrowers addObject:@[ modeInfo, bundle, ext ]];
             continue;
         }
-
-        // Load .scm query files from the bundle's Resources directory.
-        NSString *highlightsQuery = nil;
-        NSString *indentsQuery    = nil;
-
-        NSString *hiFile = modeInfo[@"highlightsQueryFile"];
-        NSString *inFile = modeInfo[@"indentsQueryFile"];
-
-        if (hiFile.length) {
-            NSString *qpath = [bundle pathForResource:hiFile.stringByDeletingPathExtension
-                                               ofType:hiFile.pathExtension];
-            if (qpath) {
-                highlightsQuery = [NSString stringWithContentsOfFile:qpath
-                                                            encoding:NSUTF8StringEncoding
-                                                               error:nil];
-            }
-        }
-        if (inFile.length) {
-            NSString *qpath = [bundle pathForResource:inFile.stringByDeletingPathExtension
-                                               ofType:inFile.pathExtension];
-            if (qpath) {
-                indentsQuery = [NSString stringWithContentsOfFile:qpath
-                                                         encoding:NSUTF8StringEncoding
-                                                            error:nil];
-            }
-        }
-
-        // Ask the extension for the grammar C function.
-        LanguageFunc langFunc = (LanguageFunc)[ext languageFuncForIdentifier:identifier];
-
-        // Ask the extension for the language server command (optional method).
-        NSArray<NSString *> *serverCmd = nil;
-        if ([ext respondsToSelector:@selector(languageServerCommandForIdentifier:)]) {
-            serverCmd = [(id<UDExtension>)ext languageServerCommandForIdentifier:identifier];
-        }
-
-        // Ask the extension for a language-specific key handler (optional method).
-        id<UDLanguageKeyHandler> keyHandler = nil;
-        if ([ext respondsToSelector:@selector(keyHandlerForIdentifier:)]) {
-            keyHandler = [(id<UDExtension>)ext keyHandlerForIdentifier:identifier];
-        }
-
-        // Load language configuration from the mode entry dict.
-        UDLanguageConfiguration *config =
-            [UDLanguageConfiguration configurationFromDictionary:modeInfo];
-
-        NSString *defaultText = sDefaultTexts()[identifier] ?: @"";
-
-        UDLanguageMode *mode = [[UDLanguageMode alloc]
-            initWithIdentifier:identifier
-                   displayName:displayName
-                fileExtensions:extensions ?: @[]
-                  languageFunc:langFunc
-               highlightsQuery:highlightsQuery
-                  indentsQuery:indentsQuery
-                 lspLanguageID:lspID
-         languageServerCommand:serverCmd
-        defaultNewDocumentText:defaultText
-            languageConfiguration:config
-                     keyHandler:keyHandler
-                      extension:ext];
-        mode.reportsParseErrors = [modeInfo[@"reportsParseErrors"] boolValue];
-        mode.fileNames = [modeInfo[@"fileNames"] isKindOfClass:[NSArray class]] ? modeInfo[@"fileNames"] : @[];
-        NSString *outlineFile = modeInfo[@"outlineQueryFile"];
-        NSString *outlinePath = outlineFile.length ? [bundle pathForResource:outlineFile.stringByDeletingPathExtension
-                                                                      ofType:outlineFile.pathExtension] : nil;
-        if (outlinePath) mode.outlineQuery = [NSString stringWithContentsOfFile:outlinePath encoding:NSUTF8StringEncoding error:nil];
-
-        [self _registerModeUnsafe:mode];
+        [self _registerModeOf:modeInfo bundle:bundle extension:ext lender:nil];
     }
+}
+
+/// The mode @a modeInfo declares, of @a bundle's extension @a ext: its
+/// grammar its extension's, or @a lender's (a mode's "grammarOf"), with
+/// the lender's queries where it has none of its own.
+- (void)_registerModeOf:(NSDictionary *)modeInfo bundle:(NSBundle *)bundle extension:(id)ext lender:(nullable UDLanguageMode *)lender {
+    NSString *identifier  = modeInfo[@"identifier"];
+    NSString *displayName = modeInfo[@"displayName"];
+    NSArray  *extensions  = modeInfo[@"fileExtensions"];
+    NSString *lspID       = modeInfo[@"lspLanguageID"];
+
+    if (!identifier.length || !displayName.length) {
+        NSLog(@"UDLanguageModeRegistry: mode entry in %@ missing identifier/displayName",
+              bundle.bundlePath.lastPathComponent);
+        return;
+    }
+
+    // Load .scm query files from the bundle's Resources directory.
+    NSString *highlightsQuery = nil;
+    NSString *indentsQuery    = nil;
+
+    NSString *hiFile = modeInfo[@"highlightsQueryFile"];
+    NSString *inFile = modeInfo[@"indentsQueryFile"];
+
+    if (hiFile.length) {
+        NSString *qpath = [bundle pathForResource:hiFile.stringByDeletingPathExtension
+                                           ofType:hiFile.pathExtension];
+        if (qpath) {
+            highlightsQuery = [NSString stringWithContentsOfFile:qpath
+                                                        encoding:NSUTF8StringEncoding
+                                                           error:nil];
+        }
+    }
+    if (inFile.length) {
+        NSString *qpath = [bundle pathForResource:inFile.stringByDeletingPathExtension
+                                           ofType:inFile.pathExtension];
+        if (qpath) {
+            indentsQuery = [NSString stringWithContentsOfFile:qpath
+                                                     encoding:NSUTF8StringEncoding
+                                                        error:nil];
+        }
+    }
+
+    // Ask the extension for the grammar C function: the lender's, borrowed.
+    LanguageFunc langFunc = lender ? lender.languageFunc : (LanguageFunc)[ext languageFuncForIdentifier:identifier];
+    if (lender) {
+        highlightsQuery = highlightsQuery ?: lender.highlightsQuery;
+        indentsQuery = indentsQuery ?: lender.indentsQuery;
+    }
+
+    // Ask the extension for the language server command (optional method).
+    NSArray<NSString *> *serverCmd = nil;
+    if ([ext respondsToSelector:@selector(languageServerCommandForIdentifier:)]) {
+        serverCmd = [(id<UDExtension>)ext languageServerCommandForIdentifier:identifier];
+    }
+
+    // Ask the extension for a language-specific key handler (optional method).
+    id<UDLanguageKeyHandler> keyHandler = nil;
+    if ([ext respondsToSelector:@selector(keyHandlerForIdentifier:)]) {
+        keyHandler = [(id<UDExtension>)ext keyHandlerForIdentifier:identifier];
+    }
+
+    // Load language configuration from the mode entry dict.
+    UDLanguageConfiguration *config =
+        [UDLanguageConfiguration configurationFromDictionary:modeInfo];
+
+    NSString *defaultText = sDefaultTexts()[identifier] ?: @"";
+
+    UDLanguageMode *mode = [[UDLanguageMode alloc]
+        initWithIdentifier:identifier
+               displayName:displayName
+            fileExtensions:extensions ?: @[]
+              languageFunc:langFunc
+           highlightsQuery:highlightsQuery
+              indentsQuery:indentsQuery
+             lspLanguageID:lspID
+     languageServerCommand:serverCmd
+    defaultNewDocumentText:defaultText
+        languageConfiguration:config
+                 keyHandler:keyHandler
+                  extension:ext];
+    mode.reportsParseErrors = [modeInfo[@"reportsParseErrors"] boolValue];
+    mode.fileNames = [modeInfo[@"fileNames"] isKindOfClass:[NSArray class]] ? modeInfo[@"fileNames"] : @[];
+    NSString *outlineFile = modeInfo[@"outlineQueryFile"];
+    NSString *outlinePath = outlineFile.length ? [bundle pathForResource:outlineFile.stringByDeletingPathExtension
+                                                                  ofType:outlineFile.pathExtension] : nil;
+    if (outlinePath) mode.outlineQuery = [NSString stringWithContentsOfFile:outlinePath encoding:NSUTF8StringEncoding error:nil];
+    else if (lender) mode.outlineQuery = lender.outlineQuery;
+
+    [self _registerModeUnsafe:mode];
 }
 
 - (instancetype)_initWithBuiltins {
@@ -321,6 +339,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     _byExtension       = [NSMutableDictionary dictionary];
     _byFileName        = [NSMutableDictionary dictionary];
     _loadedExtensions  = [NSMutableArray array];
+    _borrowers         = [NSMutableArray array];
 
     // Plain text — the universal fallback, registered first.
     _plaintextFallback = [[UDLanguageMode alloc]
@@ -355,6 +374,14 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
             [self _loadBundleAtPath:[plugInsPath stringByAppendingPathComponent:name]];
         }
     }
+    // the modes borrowing another's grammar ("grammarOf"): every bundle's loaded
+    for (NSArray *borrower in _borrowers) {
+        UDLanguageMode *lender = _byIdentifier[borrower[0][@"grammarOf"]];
+        if (!lender) NSLog(@"UDLanguageModeRegistry: %@ borrows the grammar of %@, which no bundle has", borrower[0][@"identifier"],
+                           borrower[0][@"grammarOf"]);
+        [self _registerModeOf:borrower[0] bundle:borrower[1] extension:borrower[2] lender:lender];
+    }
+    [_borrowers removeAllObjects];
 
     return self;
 }

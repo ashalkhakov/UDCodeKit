@@ -16,9 +16,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class UDSQLDatabases, UDSQLNavigatorViewController;
+@class UDSQLDatabases, UDSQLNavigatorViewController, UDSQLResultsViewController, UDSQLExampleViewController;
 
 FOUNDATION_EXPORT NSNotificationName const UDSQLDatabasesDidChangeNotification;
+/// A document's database chosen (-setDatabase:ofDocument:); object = the
+/// UDCodeDocument.
+FOUNDATION_EXPORT NSNotificationName const UDSQLDocumentDatabaseDidChangeNotification;
 
 /// A connection the window knows, and how it is.
 @interface UDSQLDatabase : NSObject
@@ -39,6 +42,14 @@ FOUNDATION_EXPORT NSNotificationName const UDSQLDatabasesDidChangeNotification;
 
 - (instancetype)initWithWorkbench:(id<UDWorkbench>)workbench;
 @property (nonatomic, weak, readonly) id<UDWorkbench> workbench;
+/// The extension it is of (its Results' segment in the bottom area).
+@property (nonatomic, weak, nullable) id<UDExtension> extension;
+/// A SQL document's results (shown in the bottom area's Results, beside the
+/// debugger and the terminal); nil before it is first run.
+- (nullable UDSQLResultsViewController *)resultsOfDocument:(UDCodeDocument *)document;
+/// A query by example's editor, known: its tab chosen, its answer shown in
+/// Results.
+- (void)registerExampleEditor:(UDSQLExampleViewController *)editor;
 @property (nonatomic, readonly) UDSQLNavigatorViewController *navigator;
 
 @property (nonatomic, readonly, copy) NSArray<UDSQLDatabase *> *databases;
@@ -50,6 +61,10 @@ FOUNDATION_EXPORT NSNotificationName const UDSQLDatabasesDidChangeNotification;
 /// Connected and its schema read (a password asked for when wanted); told
 /// by UDSQLDatabasesDidChangeNotification.
 - (void)connect:(UDSQLDatabase *)database;
+/// Connected as a view showing it wants it (a row expanded, a tab of it):
+/// unless it is, or is connecting, or failed last (its password not given,
+/// asked again only by Refresh or Run).
+- (void)connectIfWanted:(UDSQLDatabase *)database;
 - (void)refresh:(UDSQLDatabase *)database;
 - (void)disconnect:(UDSQLDatabase *)database;
 
@@ -60,6 +75,17 @@ FOUNDATION_EXPORT NSNotificationName const UDSQLDatabasesDidChangeNotification;
 
 /// A new SQL document against @a database, with @a text; run when @a run.
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run;
+/// @a table's rows browsed: a query by example of it (an entity's: its own
+/// and its subentities', by Z_ENT), untitled, named for it, run (the one
+/// still browsing it, untitled, shown again).
+- (void)browseTable:(UDSQLTable *)table entity:(nullable NSNumber *)entity database:(UDSQLDatabase *)database;
+/// Whether @a document's editor runs it once it has its database (it was
+/// browsed): YES once.
+- (BOOL)takeRunWhenShown:(UDCodeDocument *)document;
+/// A new query by example, of @a database (@a table's skeleton in it, given),
+/// opened untitled (its QbE editor; asked of @a database), where it is kept
+/// asked on its first save.
+- (void)newExampleQueryOfDatabase:(UDSQLDatabase *)database table:(nullable UDSQLTable *)table;
 
 /// The selected SQL document's statement at the caret (its selection,
 /// when it has one) run; all of its statements; the run stopped.

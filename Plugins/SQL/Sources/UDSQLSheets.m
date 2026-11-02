@@ -5,20 +5,76 @@
 #import "UDSQLSheets.h"
 #import "UDSQLDatabases.h"
 #import "UDSQLRunner.h"
+#import <UDCodeKit/UDCodeKit.h>
 
+static NSString *const UDPasswordService = @"UDCode database";
+
+/// This session's passwords, by account (the store's may outlive it).
 static NSMutableDictionary<NSString *, NSString *> *UDPasswords(void) {
     static NSMutableDictionary *passwords;
     if (!passwords) passwords = [NSMutableDictionary dictionary];
     return passwords;
 }
 
-NSString *UDSQLPasswordOfURL(NSURL *url) {
-    return UDPasswords()[url.absoluteString];
+@implementation UDSQLPasswords
+
++ (NSString *)accountOfURL:(NSURL *)url {
+    NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+    components.password = nil;
+    return components.string ?: url.absoluteString;
 }
 
-void UDSQLRememberPassword(NSURL *url, NSString *password) {
-    if (password.length) UDPasswords()[url.absoluteString] = password;
-    else [UDPasswords() removeObjectForKey:url.absoluteString];
++ (NSString *)passwordOfURL:(NSURL *)url {
+    NSString *account = [self accountOfURL:url];
+    NSString *password = UDPasswords()[account];
+    if (password) return password;
+    password = [[UDCredentialStore sharedStore] passwordForService:UDPasswordService account:account];
+    if (password) UDPasswords()[account] = password;
+    return password;
+}
+
++ (BOOL)isKeptForURL:(NSURL *)url {
+    UDCredentialStore *store = [UDCredentialStore sharedStore];
+    return store.persistent && [store passwordForService:UDPasswordService account:[self accountOfURL:url]] != nil;
+}
+
++ (NSError *)rememberPassword:(NSString *)password ofURL:(NSURL *)url keep:(BOOL)keep {
+    NSString *account = [self accountOfURL:url];
+    UDCredentialStore *store = [UDCredentialStore sharedStore];
+    NSError *error = nil;
+    if (password.length) {
+        UDPasswords()[account] = password;
+        if (keep) [store setPassword:password forService:UDPasswordService account:account error:&error];
+        else [store removePasswordForService:UDPasswordService account:account error:&error];
+    } else {
+        [UDPasswords() removeObjectForKey:account];
+        [store removePasswordForService:UDPasswordService account:account error:&error];
+    }
+    return error;
+}
+
++ (void)forgetPasswordOfURL:(NSURL *)url {
+    NSString *account = [self accountOfURL:url];
+    [UDPasswords() removeObjectForKey:account];
+    [[UDCredentialStore sharedStore] removePasswordForService:UDPasswordService account:account error:NULL];
+}
+
+@end
+
+/// The Remember checkbox: on as it was, off (and why) where nothing is kept.
+static void UDSetUpKeep(NSButton *button, BOOL keep) {
+    UDCredentialStore *store = [UDCredentialStore sharedStore];
+    button.enabled = store.persistent;
+    button.state = store.persistent && keep ? NSControlStateValueOn : NSControlStateValueOff;
+    button.toolTip = store.persistent ? [NSString stringWithFormat:@"Kept in %@, for when UDCode connects again", store.name]
+                                      : [NSString stringWithFormat:@"%@ It is kept until UDCode quits.",
+                                         store.unavailableReason ?: @"This system keeps no passwords."];
+    // why it can't be: said where it is seen, not in its tip alone, where
+    // there is room (the password's sheet; the server's has its tip)
+    if (button.autoresizingMask & NSViewWidthSizable) {
+        NSString *title = [button.title componentsSeparatedByString:@" (can't"].firstObject;
+        button.title = store.persistent ? title : [title stringByAppendingString:@" (can't: no keyring answers)"];
+    }
 }
 
 /// The sheets up: each kept till it ends.
@@ -30,7 +86,9 @@ static NSMutableSet *UDSheetsUp(void) {
 
 @interface UDSQLSheets ()
 // the password's accessory
+@property (nonatomic, strong) IBOutlet NSView *passwordBox;
 @property (nonatomic, strong) IBOutlet NSSecureTextField *passwordField;
+@property (nonatomic, strong) IBOutlet NSButton *keepPasswordButton;
 // the parameters' sheet
 @property (nonatomic, strong) IBOutlet NSPanel *parametersPanel;
 @property (nonatomic, strong) IBOutlet NSTableView *parametersTable;
@@ -46,6 +104,7 @@ static NSMutableSet *UDSheetsUp(void) {
 @property (nonatomic, strong) IBOutlet NSTextField *databaseField;
 @property (nonatomic, strong) IBOutlet NSTextField *userField;
 @property (nonatomic, strong) IBOutlet NSSecureTextField *serverPasswordField;
+@property (nonatomic, strong) IBOutlet NSButton *keepServerPasswordButton;
 @property (nonatomic, strong) IBOutlet NSTextField *optionsField;
 @property (nonatomic, strong) IBOutlet NSPopUpButton *keptButton;
 @property (nonatomic, strong) IBOutlet NSTextField *testLabel;
@@ -105,16 +164,19 @@ static NSMutableSet *UDSheetsUp(void) {
 // MARK: - A password
 // ---------------------------------------------------------------------------
 
-+ (NSString *)askPasswordOfDatabase:(NSString *)name message:(NSString *)message window:(NSWindow *)window {
++ (NSString *)askPasswordOfDatabase:(NSString *)name message:(NSString *)message keep:(BOOL *)keep window:(NSWindow *)window {
     UDSQLSheets *sheets = [self _loaded];
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = [NSString stringWithFormat:@"The password of “%@”", name];
-    alert.informativeText = [NSString stringWithFormat:@"%@\n\nIt is kept until UDCode quits, never written.", message];
+    alert.informativeText = message;
     [alert addButtonWithTitle:@"Connect"];
     [alert addButtonWithTitle:@"Cancel"];
-    alert.accessoryView = sheets.passwordField;
+    sheets.passwordField.stringValue = @"";
+    UDSetUpKeep(sheets.keepPasswordButton, *keep);
+    alert.accessoryView = sheets.passwordBox;
     [alert.window setInitialFirstResponder:sheets.passwordField];
     if ([alert runModal] != NSAlertFirstButtonReturn) return nil;
+    *keep = sheets.keepPasswordButton.state == NSControlStateValueOn;
     return sheets.passwordField.stringValue;
 }
 
@@ -222,6 +284,8 @@ static NSString *UDTextOfValue(id value) {
         sheets.okButton.title = @"Save";
     } else {
         [sheets.kindButton selectItemWithTag:dialect];
+        sheets.serverPasswordField.stringValue = @"";
+        UDSetUpKeep(sheets.keepServerPasswordButton, YES);
     }
     [sheets kindChanged:nil];
     [sheets _begin:sheets.connectionPanel window:window];
@@ -241,7 +305,8 @@ static NSString *UDTextOfValue(id value) {
     _databaseField.stringValue = [components.path stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"/"]] ?: @"";
     _userField.stringValue = components.user.stringByRemovingPercentEncoding ?: @"";
     _optionsField.stringValue = components.query ?: @"";
-    _serverPasswordField.stringValue = UDSQLPasswordOfURL(url) ?: @"";
+    _serverPasswordField.stringValue = [UDSQLPasswords passwordOfURL:url] ?: @"";
+    UDSetUpKeep(_keepServerPasswordButton, [UDSQLPasswords isKeptForURL:url]);
 }
 
 - (UDSQLDialect)_dialect {
@@ -313,9 +378,17 @@ static NSString *UDTextOfValue(id value) {
     UDSQLDatabase *database = _editing ?: [[UDSQLDatabase alloc] init];
     NSString *name = [_nameField.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
     database.name = name.length ? name : ([self _dialect] == UDSQLDialectSQLite ? url.lastPathComponent : url.host ?: @"Database");
-    database.URL = url;
     database.inProject = _keptButton.selectedTag == 1;
-    if ([self _dialect] != UDSQLDialectSQLite) UDSQLRememberPassword(url, _serverPasswordField.stringValue);
+    // its password: for the session, and kept if asked; a URL changed: the old one's forgotten
+    NSURL *before = _editing ? database.URL : nil;
+    if (before && ![[UDSQLPasswords accountOfURL:before] isEqualToString:[UDSQLPasswords accountOfURL:url]]) {
+        [UDSQLPasswords forgetPasswordOfURL:before];
+    }
+    NSError *error = [self _dialect] == UDSQLDialectSQLite ? nil
+        : [UDSQLPasswords rememberPassword:_serverPasswordField.stringValue ofURL:url
+                                      keep:_keepServerPasswordButton.state == NSControlStateValueOn];
+    if (error) NSLog(@"%@", error.localizedDescription);
+    database.URL = url;
     [self _end:_connectionPanel];
     [self _send:database];
 }

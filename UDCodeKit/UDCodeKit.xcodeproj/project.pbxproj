@@ -41,6 +41,8 @@
 		C0DEC0DE0000000000000006 /* Exceptions for "Sources" folder in "UDCodeKit" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Credentials/linux/UDSystemCredentialStore.m,
+				Credentials/windows/UDSystemCredentialStore.m,
 				Terminal/windows/UDPseudoTerminal.m,
 				Terminal/windows/UDShell.m,
 				Project/windows/UDPaths.m,
@@ -48,6 +50,7 @@
 				Project/windows/UDFileWatcherSystem.m,
 			);
 			publicHeaders = (
+				Credentials/UDCredentialStore.h,
 				Debug/UDDebugger.h,
 				Project/UDTestRunner.h,
 				Project/UDCommandTestRunner.h,
@@ -399,6 +402,10 @@
 		C0DEC0DE000000000000000F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				OTHER_LDFLAGS = (
+					"-framework",
+					Security,
+				);
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -429,6 +436,10 @@
 		C0DEC0DE0000000000000010 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				OTHER_LDFLAGS = (
+					"-framework",
+					Security,
+				);
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;

@@ -6,9 +6,12 @@
 #import "UDSQLText.h"
 #import "UDSQLNavigatorViewController.h"
 #import "UDSQLResultsViewController.h"
+#import "UDSQLExampleFile.h"
+#import "UDSQLExampleViewController.h"
 #import "UDSQLSheets.h"
 
 NSNotificationName const UDSQLDatabasesDidChangeNotification = @"UDSQLDatabasesDidChange";
+NSNotificationName const UDSQLDocumentDatabaseDidChangeNotification = @"UDSQLDocumentDatabaseDidChange";
 
 /// The project's settings key, and the user's defaults key, of the connections.
 static NSString *const UDSQLSettingsKey = @"databases";
@@ -60,6 +63,9 @@ static const NSUInteger UDSQLMaxRows = 1000;
     NSMapTable<UDCodeDocument *, UDSQLResultsViewController *> *_results;
     NSMapTable<UDCodeDocument *, NSString *> *_documentDatabases;     // untitled documents'
     NSMapTable<UDCodeDocument *, NSDictionary *> *_parameterValues;   // the last given, a document's
+    NSMapTable<NSString *, UDCodeDocument *> *_browsed;   // by database, table and entity: what browses it
+    NSHashTable<UDCodeDocument *> *_runWhenShown;
+    NSMapTable<UDCodeDocument *, UDSQLExampleViewController *> *_exampleEditors;  // a query by example's, by its document          // browsed: run once their editors have their database
 }
 
 - (instancetype)initWithWorkbench:(id<UDWorkbench>)workbench {
@@ -70,14 +76,28 @@ static const NSUInteger UDSQLMaxRows = 1000;
         _results = [NSMapTable weakToStrongObjectsMapTable];
         _documentDatabases = [NSMapTable weakToStrongObjectsMapTable];
         _parameterValues = [NSMapTable weakToStrongObjectsMapTable];
+        _runWhenShown = [NSHashTable weakObjectsHashTable];
         _calls = [NSMutableSet set];
         [self _load];
         _navigator = [[UDSQLNavigatorViewController alloc] initWithDatabases:self];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_documentSaved:)
+                                                     name:UDCodeDocumentFileURLDidChangeNotification object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_selectionDidChange:)
+                                                     name:UDWorkbenchSelectionDidChangeNotification object:nil];
     }
     return self;
 }
 
+/// An untitled document saved as a file: its database kept for the file.
+- (void)_documentSaved:(NSNotification *)note {
+    UDCodeDocument *document = note.object;
+    NSString *name = [_documentDatabases objectForKey:document];
+    UDSQLDatabase *database = name ? [self databaseNamed:name] : nil;
+    if (database) [self setDatabase:database ofDocument:document];
+}
+
 - (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     for (UDSQLDatabase *database in _databases) [database.runner close];
 }
 
@@ -152,6 +172,12 @@ static const NSUInteger UDSQLMaxRows = 1000;
 - (void)removeDatabase:(UDSQLDatabase *)database {
     [database.runner close];
     [_databases removeObjectIdenticalTo:database];
+    // its password forgotten, unless another connection is to the same
+    BOOL shared = NO;
+    for (UDSQLDatabase *other in _databases) {
+        if ([[UDSQLPasswords accountOfURL:other.URL] isEqualToString:[UDSQLPasswords accountOfURL:database.URL]]) shared = YES;
+    }
+    if (!shared && database.dialect != UDSQLDialectSQLite) [UDSQLPasswords forgetPasswordOfURL:database.URL];
     [self _save];
     [self _changed];
 }
@@ -162,7 +188,7 @@ static const NSUInteger UDSQLMaxRows = 1000;
 
 - (UDSQLRunner *)_runnerOf:(UDSQLDatabase *)database {
     if (!database.runner) {
-        database.runner = [[UDSQLRunner alloc] initWithURL:database.URL password:UDSQLPasswordOfURL(database.URL)];
+        database.runner = [[UDSQLRunner alloc] initWithURL:database.URL password:[UDSQLPasswords passwordOfURL:database.URL]];
     }
     return database.runner;
 }
@@ -189,10 +215,13 @@ static BOOL UDWantsPassword(NSError *error) {
 /// (its runner then made again, with it).
 - (BOOL)_askPasswordOf:(UDSQLDatabase *)database after:(NSError *)error {
     if (database.dialect == UDSQLDialectSQLite || !UDWantsPassword(error)) return NO;
-    NSString *password = [UDSQLSheets askPasswordOfDatabase:database.name message:error.localizedDescription
+    // asked again: a kept password that failed, forgotten for the session
+    BOOL keep = [UDSQLPasswords isKeptForURL:database.URL] || [UDSQLPasswords passwordOfURL:database.URL] == nil;
+    NSString *password = [UDSQLSheets askPasswordOfDatabase:database.name message:error.localizedDescription keep:&keep
                                                      window:_workbench.window];
     if (!password) return NO;
-    UDSQLRememberPassword(database.URL, password);
+    NSError *failure = [UDSQLPasswords rememberPassword:password ofURL:database.URL keep:keep];
+    if (failure) NSLog(@"%@", failure.localizedDescription);
     [database.runner close];
     database.runner = nil;
     return YES;
@@ -205,6 +234,10 @@ static BOOL UDWantsPassword(NSError *error) {
     [self _changed];
     UDSQLCall *call = [self _callFor:database context:nil forward:@selector(_call:readSchema:)];
     [[self _runnerOf:database] readSchemaWithTarget:call action:@selector(reply:)];
+}
+
+- (void)connectIfWanted:(UDSQLDatabase *)database {
+    if (!database.connected && !database.connecting && !database.error) [self connect:database];
 }
 
 - (void)refresh:(UDSQLDatabase *)database {
@@ -263,6 +296,55 @@ static BOOL UDWantsPassword(NSError *error) {
         [[NSUserDefaults standardUserDefaults] setObject:saved forKey:UDSQLDocumentsDefaultsKey];
     }
     [[_results objectForKey:document] reloadDatabases];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDSQLDocumentDatabaseDidChangeNotification object:document];
+}
+
+- (void)browseTable:(UDSQLTable *)table entity:(NSNumber *)entity database:(UDSQLDatabase *)database {
+    // the one browsing it still open, untitled: shown again
+    if (!_browsed) _browsed = [NSMapTable strongToWeakObjectsMapTable];
+    NSString *key = [@[ database.name, table.schema ?: @"", table.name, entity ?: @"" ] componentsJoinedByString:@"\t"];
+    UDCodeDocument *open = [_browsed objectForKey:key];
+    id<UDWorkbench> workbench = _workbench;
+    if (open && !open.fileURL && [workbench showDocument:open]) return;
+    UDSQLExampleFileSkeleton *skeleton = [UDSQLExampleFileSkeleton skeletonOfTable:table.name schema:table.schema];
+    UDSQLSchema *schema = database.schema;
+    if (entity && schema.coreDataStore) {
+        // an entity's rows: its own and its subentities', by Z_ENT
+        NSMutableArray *entities = [NSMutableArray arrayWithObject:entity];
+        for (NSUInteger i = 0; i < entities.count; i++) [entities addObjectsFromArray:[schema coreDataSubentitiesOf:entities[i]]];
+        skeleton.rows = @[ [UDSQLExampleRow rowWithEntries:@{ @"Z_ENT": [[entities valueForKey:@"stringValue"] componentsJoinedByString:@", "] }] ];
+    }
+    NSString *name = entity ? schema.coreDataEntities[entity] ?: table.name : table.name;
+    UDCodeDocument *document = [self _openExampleQuery:skeleton database:database name:name];
+    if (!document) return;
+    [_browsed setObject:document forKey:key];
+    [_runWhenShown addObject:document];
+    [self setDatabase:database ofDocument:document];
+}
+
+- (void)newExampleQueryOfDatabase:(UDSQLDatabase *)database table:(UDSQLTable *)table {
+    UDSQLExampleFileSkeleton *skeleton = table ? [UDSQLExampleFileSkeleton skeletonOfTable:table.name schema:table.schema] : nil;
+    UDCodeDocument *document = [self _openExampleQuery:skeleton database:database name:table.name];
+    // asked of the database it was made from
+    if (document) [self setDatabase:database ofDocument:document];
+}
+
+/// An untitled query by example of @a skeleton's table (none: of nothing
+/// yet), named @a name, opened in its editor.
+- (nullable UDCodeDocument *)_openExampleQuery:(nullable UDSQLExampleFileSkeleton *)skeleton database:(UDSQLDatabase *)database
+                                          name:(nullable NSString *)name {
+    UDSQLExampleFile *file = [[UDSQLExampleFile alloc] init];
+    if (skeleton) file.skeletons = @[ skeleton ];
+    id<UDWorkbench> workbench = _workbench;
+    [workbench openUntitledDocumentWithText:[[NSString alloc] initWithData:[file data] encoding:NSUTF8StringEncoding]
+                               languageMode:@"qbe" name:name];
+    return workbench.selectedDocument;
+}
+
+- (BOOL)takeRunWhenShown:(UDCodeDocument *)document {
+    if (![_runWhenShown containsObject:document]) return NO;
+    [_runWhenShown removeObject:document];
+    return YES;
 }
 
 - (void)openQuery:(NSString *)text database:(UDSQLDatabase *)database run:(BOOL)run {
@@ -286,23 +368,51 @@ static BOOL UDWantsPassword(NSError *error) {
     UDCodeDocument *document = workbench.selectedDocument;
     UDCodeEditorViewController *editor = workbench.selectedEditor;
     if (![document.languageMode.identifier isEqualToString:@"sql"] || !editor) return NO;
-    // the editor's (its text, or its results) in front: not a field elsewhere
+    // the editor's (its text) or its results in front: not a field elsewhere
     NSResponder *responder = workbench.window.firstResponder;
-    return [responder isKindOfClass:[NSView class]] && [(NSView *)responder isDescendantOf:editor.view];
+    if (![responder isKindOfClass:[NSView class]]) return NO;
+    UDSQLResultsViewController *results = [_results objectForKey:document];
+    return [(NSView *)responder isDescendantOf:editor.view] || (results.isViewLoaded && [(NSView *)responder isDescendantOf:results.view]);
 }
 
+- (UDSQLResultsViewController *)resultsOfDocument:(UDCodeDocument *)document {
+    return [_results objectForKey:document];
+}
+
+/// @a document's results, in the bottom area's Results (beside the
+/// debugger and the terminal), not on top of it under the editor.
 - (UDSQLResultsViewController *)_showResultsOf:(UDCodeDocument *)document inEditor:(UDCodeEditorViewController *)editor {
     UDSQLResultsViewController *results = [_results objectForKey:document];
     if (!results) {
         results = [[UDSQLResultsViewController alloc] initWithDatabases:self document:document];
         [_results setObject:results forKey:document];
     }
-    // shown under this editor (taken from another of the document's)
-    for (UDCodeEditorViewController *other in [_workbench editorsOfDocument:document]) {
-        if (other != editor && other.accessoryViewController == results) other.accessoryViewController = nil;
-    }
-    editor.accessoryViewController = results;
+    id<UDExtension> extension = _extension;
+    id<UDWorkbench> workbench = _workbench;
+    if (extension) [workbench showBottomAreaViewController:results title:@"Results" extension:extension];
     return results;
+}
+
+- (void)registerExampleEditor:(UDSQLExampleViewController *)editor {
+    if (!_exampleEditors) _exampleEditors = [NSMapTable weakToWeakObjectsMapTable];
+    [_exampleEditors setObject:editor forKey:editor.document];
+}
+
+/// Another tab chosen: Results, in front, shows its document's (a SQL
+/// document's that has some, a query by example's answer).
+- (void)_selectionDidChange:(NSNotification *)note {
+    id<UDWorkbench> workbench = _workbench;
+    id<UDExtension> extension = _extension;
+    if (note.object != workbench || !extension || ![workbench isBottomAreaShowingExtension:extension]) return;
+    UDSQLExampleViewController *example = [_exampleEditors objectForKey:workbench.selectedDocument];
+    if (example.result) {
+        [example showAnswer];
+        return;
+    }
+    UDSQLResultsViewController *results = [_results objectForKey:workbench.selectedDocument];
+    if (results && [workbench bottomAreaViewControllerOfExtension:extension] != results) {
+        [workbench showBottomAreaViewController:results title:@"Results" extension:extension];
+    }
 }
 
 - (IBAction)runStatement:(id)sender {

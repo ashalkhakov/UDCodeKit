@@ -5,6 +5,7 @@
 #import "UDSQLPlugin.h"
 #import "UDSQLDatabases.h"
 #import "UDSQLNavigatorViewController.h"
+#import "UDSQLExampleViewController.h"
 
 @implementation UDSQLPlugin {
     /// Each window's databases.
@@ -28,6 +29,7 @@
     UDSQLDatabases *databases = [_windows objectForKey:workbench];
     if (!databases) {
         databases = [[UDSQLDatabases alloc] initWithWorkbench:workbench];
+        databases.extension = self;
         [_windows setObject:databases forKey:workbench];
     }
     return databases;
@@ -38,6 +40,25 @@
 }
 
 /// A database's cylinder, as the navigator's segment shows it.
+/// The bottom area's Results: a grid.
+- (NSImage *)bottomAreaImage {
+    NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
+    [image lockFocus];
+    [[NSColor colorWithCalibratedWhite:0.3 alpha:1] setStroke];
+    NSBezierPath *grid = [NSBezierPath bezierPathWithRect:NSMakeRect(2.5, 3.5, 11, 9)];
+    for (CGFloat y = 6.5; y < 12; y += 3) {
+        [grid moveToPoint:NSMakePoint(2.5, y)];
+        [grid lineToPoint:NSMakePoint(13.5, y)];
+    }
+    [grid moveToPoint:NSMakePoint(6.5, 3.5)];
+    [grid lineToPoint:NSMakePoint(6.5, 12.5)];
+    grid.lineWidth = 1;
+    [grid stroke];
+    [image unlockFocus];
+    image.template = YES;
+    return image;
+}
+
 - (NSImage *)navigatorImage {
     NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
     [image lockFocus];
@@ -76,6 +97,13 @@
     if (head.length < 16 || memcmp(head.bytes, "SQLite format 3\0", 16) != 0) return NO;
     [[self _databasesOf:workbench] openDatabaseFile:url];
     return YES;
+}
+
+/// A query by example's document (its mode's): edited in the QbE editor, as
+/// VS Code's custom text editors are; its text still shown as text.
+- (NSViewController *)workbench:(id<UDWorkbench>)workbench editorForDocument:(UDCodeDocument *)document {
+    if (![document.languageMode.identifier isEqualToString:@"qbe"]) return nil;
+    return [[UDSQLExampleViewController alloc] initWithDatabases:[self _databasesOf:workbench] document:document];
 }
 
 @end

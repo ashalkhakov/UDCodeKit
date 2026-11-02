@@ -45,17 +45,34 @@ static NSString * const UDBadgeColorKey = @"color";
     return badge.length ? ceil([badge sizeWithAttributes:[self _badgeAttributes]].width) + 10.0 : 0.0;
 }
 
-- (void)drawInteriorWithFrame:(NSRect)cellFrame inView:(NSView *)controlView {
+/// A badge this wide or less is always shown (a source-control letter); a
+/// wider one is what the text leaves of the row, cut short, or none.
+static const CGFloat UDShortBadgeWidth = 36.0;
+
+/// The badge's width in @a cellFrame: the text first, unless it is short.
+- (CGFloat)_badgeWidthIn:(NSRect)cellFrame {
     CGFloat width = [self _badgeWidth];
+    if (width <= UDShortBadgeWidth) return width;
+    CGFloat text = ceil(self.attributedStringValue.size.width) + 8.0;
+    CGFloat left = NSWidth(cellFrame) - text;
+    if (left >= width) return width;
+    return left >= UDShortBadgeWidth ? left : 0.0;
+}
+
+- (void)drawInteriorWithFrame:(NSRect)cellFrame inView:(NSView *)controlView {
+    CGFloat width = [self _badgeWidthIn:cellFrame];
     NSRect text = cellFrame;
     text.size.width = MAX(0.0, NSWidth(cellFrame) - width);
     [super drawInteriorWithFrame:text inView:controlView];
     if (!width) return;
-    NSDictionary *attributes = [self _badgeAttributes];
+    NSMutableDictionary *attributes = [[self _badgeAttributes] mutableCopy];
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    style.lineBreakMode = NSLineBreakByTruncatingTail;
+    attributes[NSParagraphStyleAttributeName] = style;
     NSString *badge = self.badge;
     NSSize size = [badge sizeWithAttributes:attributes];
-    NSPoint at = NSMakePoint(NSMaxX(cellFrame) - width + 4.0, NSMidY(cellFrame) - size.height / 2.0);
-    [badge drawAtPoint:at withAttributes:attributes];
+    NSRect at = NSMakeRect(NSMaxX(cellFrame) - width + 4.0, NSMidY(cellFrame) - size.height / 2.0, width - 6.0, size.height);
+    [badge drawInRect:at withAttributes:attributes];
 }
 
 @end

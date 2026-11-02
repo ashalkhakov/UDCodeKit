@@ -146,12 +146,11 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
         UDSQLNode *node = [UDSQLNode nodeOfKind:UDSQLNodeEntity title:schema.coreDataEntities[entity] object:entity];
         NSNumber *rows = schema.coreDataRowCounts[entity];
         NSString *table = schema.coreDataTables[entity].name;
-        // its table named once, at its root (a subentity's rows are there too)
-        NSString *count = [NSString stringWithFormat:@"%@ row%@", rows ?: @0, [rows isEqual:@1] ? @"" : @"s"];
-        BOOL root = schema.coreDataSuperentities[entity] == nil;
-        node.badge = table && root ? [NSString stringWithFormat:@"%@ · %@", table, count] : count;
-        node.toolTip = [NSString stringWithFormat:@"In %@, Z_ENT %@: its own rows%@", table ?: @"no table", entity,
-                        [schema coreDataSubentitiesOf:entity].count ? @" (its subentities' are theirs)" : @""];
+        // its rows' count (the sidebar is narrow); its table, in its tool tip
+        node.badge = [NSString stringWithFormat:@"%@", rows ?: @0];
+        node.toolTip = [NSString stringWithFormat:@"%@ row%@ in %@, Z_ENT %@%@", rows ?: @0, [rows isEqual:@1] ? @"" : @"s",
+                        table ?: @"no table", entity,
+                        [schema coreDataSubentitiesOf:entity].count ? @" (its own: its subentities' are theirs)" : @""];
         node.children = [self _nodesOfEntities:[schema coreDataSubentitiesOf:entity] schema:schema];
         [nodes addObject:node];
     }
@@ -298,18 +297,27 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
 
 - (NSString *)outlineView:(NSOutlineView *)outlineView toolTipForCell:(NSCell *)cell rect:(NSRectPointer)rect
               tableColumn:(NSTableColumn *)column item:(id)item mouseLocation:(NSPoint)location {
-    return [item toolTip];
+    // a badge cut short: all of it
+    UDSQLNode *node = item;
+    return node.toolTip ?: (node.badge ? [NSString stringWithFormat:@"%@ — %@", node.title, node.badge] : nil);
 }
 
 - (void)outlineViewItemWillExpand:(NSNotification *)note {
     // a database opened: connected
     UDSQLNode *node = note.userInfo[@"NSObject"];
     UDSQLDatabase *database = node.kind == UDSQLNodeDatabase ? node.object : nil;
-    UDSQLDatabases *databases = _databases;
     // connected once the outline is done expanding: its rows are made again then
     if (database && !database.connected && !database.connecting) {
-        [databases performSelector:@selector(connect:) withObject:database afterDelay:0];
+        [self performSelector:@selector(_connectExpanded:) withObject:database afterDelay:0];
     }
+}
+
+/// An expanded database connected, unless it has been since (opened as a
+/// file: connected again, its rows would be made anew, collapsed) or failed
+/// (its rows, made again, expand it again: its password asked again, and
+/// again).
+- (void)_connectExpanded:(UDSQLDatabase *)database {
+    [_databases connectIfWanted:database];
 }
 
 - (nullable UDSQLNode *)_clickedNode {
@@ -438,6 +446,13 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     [_databases openQuery:text database:database run:NO];
 }
 
+- (IBAction)newExampleQuery:(id)sender {
+    UDSQLNode *node = [self _actedOn:sender];
+    UDSQLDatabase *database = [self _databaseOf:node];
+    if (!database) return;
+    [_databases newExampleQueryOfDatabase:database table:[self _tableOf:node]];
+}
+
 - (IBAction)showDiagram:(id)sender {
     UDSQLDatabase *database = [self _databaseOf:[self _actedOn:sender]];
     if (!database) return;
@@ -462,17 +477,12 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
     return nil;
 }
 
-- (IBAction)selectRows:(id)sender {
+- (IBAction)browseRows:(id)sender {
     UDSQLNode *node = [self _actedOn:sender];
     UDSQLDatabase *database = [self _databaseOf:node];
-    NSString *sql = nil;
-    if (node.kind == UDSQLNodeTable) {
-        sql = [NSString stringWithFormat:@"SELECT * FROM %@ LIMIT 100", [node.object qualifiedNameFor:[self _quoter:database]]];
-    } else if (node.kind == UDSQLNodeEntity && [self _tableOf:node]) {
-        // an entity's rows: its own and its subentities', in its table
-        sql = [database.schema coreDataRowsOfEntity:node.object connection:[self _quoter:database] limit:100];
-    }
-    if (sql) [_databases openQuery:sql database:database run:YES];
+    UDSQLTable *table = [self _tableOf:node];
+    // an entity's rows: its own and its subentities', in its table
+    if (table) [_databases browseTable:table entity:node.kind == UDSQLNodeEntity ? node.object : nil database:database];
 }
 
 - (IBAction)copyName:(id)sender {
@@ -485,7 +495,7 @@ static NSString *UDColumnBadge(UDSQLColumnInfo *column, UDSQLTable *table) {
 
 - (IBAction)openItem:(id)sender {
     UDSQLNode *node = [self _clickedNode];
-    if (node.kind == UDSQLNodeTable || node.kind == UDSQLNodeEntity) [self selectRows:nil];
+    if (node.kind == UDSQLNodeTable || node.kind == UDSQLNodeEntity) [self browseRows:nil];
     else if (node.kind == UDSQLNodeDatabase) {
         if ([_outlineView isItemExpanded:node]) [_outlineView collapseItem:node];
         else [_outlineView expandItem:node];

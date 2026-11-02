@@ -6,7 +6,8 @@
 //  driver's style); SQLite's connection, a statement's columns and rows,
 //  parameters, errors; the schema (tables, views, columns, keys, indexes);
 //  a Core Data store read as one; a run of statements, stopping at its first
-//  failure. PostgreSQL, MySQL and MariaDB against a server when
+//  failure; the client libraries UDCode carries looked for before the
+//  system's, and loaded when it carries them. PostgreSQL, MySQL and MariaDB against a server when
 //  UD_TEST_POSTGRES_URL, UD_TEST_MYSQL_URL or UD_TEST_MARIADB_URL names one
 //  (or the CI's POSTGRES_URL, MYSQL_URL, MARIADB_URL), skipped else.
 //
@@ -15,6 +16,7 @@
 #import "UDCodeTestCase.h"
 #import <UDCodeKit/UDCodeKit.h>
 #import "UDSQLConnection.h"
+#import "UDSQLDrivers.h"
 #import "UDSQLText.h"
 #import "UDSQLSchema.h"
 #import "UDSQLRunner.h"
@@ -196,6 +198,50 @@ static Class UDPluginClass(NSString *name) {
     UDSQLRun *count = [runner runAndWait:@[ [[statement alloc] initWithText:@"count" SQL:@"SELECT count(*), x FROM t" parameters:@[]] ] maxRows:10];
     XCTAssertEqualObjects(count.results[0].rows[0], (@[ @1, @42 ]), @"the run before it stopped before the DELETE");
     [runner close];
+}
+
+/// A client library's file name, in UDCode's own directory first, then as
+/// the driver gives it; a path only as it is.
+- (void)testOwnLibrariesFirst {
+    Class library = UDPluginClass(@"UDSQLLibrary");
+    NSString *own = [library ownDirectory];
+#if defined(__APPLE__) || defined(_WIN32)
+    XCTAssertNotNil(own, @"the app's Frameworks, or gnustep-base's folder");
+#endif
+#ifdef _WIN32
+    // gnustep-base's folder (the installed runtime's bin), not the
+    // executable's: there they'd stand in for the runtime's DLLs
+    BOOL beside = NO;
+    for (NSString *name in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:own error:NULL]) {
+        if ([name.lowercaseString hasPrefix:@"gnustep-base"] && [name.lowercaseString hasSuffix:@".dll"]) beside = YES;
+    }
+    XCTAssertTrue(beside, @"%@", own);
+#endif
+    if (!own) return;   // Linux, not in an AppImage
+    NSArray *candidates = [library candidatesForNames:@[ @"libpq.5.dylib", @"/opt/homebrew/opt/libpq/lib/libpq.5.dylib" ]];
+    XCTAssertEqualObjects(candidates, (@[ [own stringByAppendingPathComponent:@"libpq.5.dylib"], @"libpq.5.dylib",
+                                          @"/opt/homebrew/opt/libpq/lib/libpq.5.dylib" ]));
+}
+
+/// A UDCode that carries the client libraries (as installed) loads its own.
+- (void)testOwnLibrariesLoaded {
+    Class library = UDPluginClass(@"UDSQLLibrary");
+    NSString *own = [library ownDirectory];
+#if defined(__APPLE__)
+    NSArray *names = @[ @"libpq.5.dylib", @"libmariadb.3.dylib" ];
+#elif defined(_WIN32)
+    NSArray *names = @[ @"libpq.dll", @"libmariadb.dll" ];
+#else
+    NSArray *names = @[ @"libpq.so.5", @"libmariadb.so.3" ];
+#endif
+    for (NSString *name in names) {
+        if (!own || ![[NSFileManager defaultManager] fileExistsAtPath:[own stringByAppendingPathComponent:name]]) continue;
+        NSError *error = nil;
+        UDSQLLibrary *loaded = [library libraryForKey:[@"UDSQLTests " stringByAppendingString:name] names:@[ name ] install:@"" error:&error];
+        XCTAssertNotNil(loaded, @"%@", error);
+        XCTAssertTrue(loaded.own, @"%@ loaded from %@", name, loaded.path);
+        XCTAssertEqualObjects(loaded.path, [own stringByAppendingPathComponent:name]);
+    }
 }
 
 /// A server's: its connection and schema, and a run (when a URL names one).

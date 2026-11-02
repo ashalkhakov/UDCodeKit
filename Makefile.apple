@@ -6,14 +6,18 @@
 #                                     and the frameworks as XCFrameworks
 #   make -f Makefile.apple check      the tests: the text model's and the
 #                                     editor's (which drive UDCode's windows)
-#   make -f Makefile.apple install DESTDIR=<dir>       UDCode.app, and
+#   make -f Makefile.apple install DESTDIR=<dir>       UDCode.app (carrying
+#                                     the SQL extension's client libraries,
+#                                     scripts/sql-clients.sh), and
 #                                     UDPieceTable, LSPKit and UDCodeKit
 #                                     .xcframework for what builds on them,
 #                                     with the grammar bundles in PlugIns/ for
 #                                     the apps that embed UDCodeKit (CFamily,
 #                                     Git and SQL are UDCode's own)
 #   make -f Makefile.apple installcheck DESTDIR=<dir>  its signature holds,
-#                                     and it starts and stays up, in a fresh home
+#                                     the client libraries it carries link
+#                                     nothing outside it and the system, and
+#                                     it starts and stays up, in a fresh home
 #
 # The tree-sitter runtime and the grammars are fetched at their pinned
 # commits (scripts/grammars.lock) when missing; Sparkle's and DiagramKit's
@@ -38,9 +42,11 @@ all: fetched clients
 	  xcodebuild -create-xcframework -framework "$$framework" -output $(BUILD)/$$f.xcframework || exit 1; \
 	done
 
-# The SQL extension's client libraries' headers (it loads the libraries when
-# a connection needs them): Homebrew's libpq and MariaDB Connector/C, installed
-# in CI. Without them it builds, and says it can't reach those databases.
+# The SQL extension's client libraries (it loads them when a connection
+# needs them): Homebrew's libpq and MariaDB Connector/C, installed in CI,
+# their headers built against and the libraries copied into the installed
+# UDCode.app. Without them it builds, and says it can't reach those
+# databases.
 clients:
 	@if [ -n "$$CI" ]; then brew install libpq mariadb-connector-c; fi
 
@@ -57,6 +63,7 @@ install: all
 	@test -n "$(DESTDIR)" || { echo "install: give DESTDIR"; exit 1; }
 	mkdir -p $(DESTDIR)
 	rm -rf $(DESTDIR)/UDCode.app && ditto $(RELEASE)/UDCode.app $(DESTDIR)/UDCode.app
+	bash scripts/sql-clients.sh macos $(DESTDIR)/UDCode.app
 	for f in $(FRAMEWORKS); do \
 	  rm -rf $(DESTDIR)/$$f.xcframework && ditto $(BUILD)/$$f.xcframework $(DESTDIR)/$$f.xcframework || exit 1; \
 	done
@@ -65,8 +72,21 @@ install: all
 	  ditto $$b $(DESTDIR)/PlugIns/$$(basename $$b) || exit 1; \
 	done
 
+# The client libraries' references, each to one beside it or the system's:
+# nothing of Homebrew's left (when it carries them).
 installcheck:
 	codesign --verify --deep --strict $(DESTDIR)/UDCode.app
+	@fw=$(DESTDIR)/UDCode.app/Contents/Frameworks; \
+	if [ -f $$fw/libpq.5.dylib ]; then \
+	  for f in libpq.5.dylib libmariadb.3.dylib mariadb/plugin/caching_sha2_password.so; do \
+	    test -f $$fw/$$f || { echo "UDCode.app carries libpq but not $$f"; exit 1; }; \
+	  done; \
+	  test -f $(DESTDIR)/UDCode.app/Contents/Resources/Licenses/README.txt || { echo "UDCode.app carries no Licenses/README.txt"; exit 1; }; \
+	  bad=$$(for f in $$fw/*.dylib $$fw/mariadb/plugin/*.so; do otool -L $$f | tail -n +2 | awk '{print $$1}'; done \
+	    | grep -v '^/usr/lib/\|^/System/\|^@loader_path/\|^@rpath/' | sort -u); \
+	  [ -z "$$bad" ] || { echo "the client libraries link outside the app: $$bad"; exit 1; }; \
+	  echo "UDCode: carries $$(cd $$fw && ls *.dylib mariadb/plugin/*.so | wc -l | tr -d ' ') client library files"; \
+	else echo "UDCode: carries no client libraries"; fi
 	home=$$(mktemp -d); log=$$(mktemp); \
 	HOME=$$home CFFIXED_USER_HOME=$$home $(DESTDIR)/UDCode.app/Contents/MacOS/UDCode > $$log 2>&1 & pid=$$!; \
 	sleep 10; \

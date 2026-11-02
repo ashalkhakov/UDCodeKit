@@ -14,15 +14,29 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class UDSQLDatabase;
 
-/// The password given for @a url this session (kept till UDCode quits, never
-/// written), and remembered.
-FOUNDATION_EXPORT NSString *_Nullable UDSQLPasswordOfURL(NSURL *url);
-FOUNDATION_EXPORT void UDSQLRememberPassword(NSURL *url, NSString *_Nullable password);
+/// Connections' passwords: the one given this session, else the one kept
+/// for it (UDCredentialStore's: the Keychain, the Secret Service,
+/// Credential Manager; never settings or a project's files).
+@interface UDSQLPasswords : NSObject
+/// @a url's; nil: none.
++ (nullable NSString *)passwordOfURL:(NSURL *)url;
+/// @a password given for @a url: for this session, and kept by the store
+/// when @a keep (forgotten there when not); the store's error, if it won't.
++ (nullable NSError *)rememberPassword:(nullable NSString *)password ofURL:(NSURL *)url keep:(BOOL)keep;
+/// Whether one is kept for @a url (beyond this session).
++ (BOOL)isKeptForURL:(NSURL *)url;
+/// @a url's forgotten: this session's and the store's.
++ (void)forgetPasswordOfURL:(NSURL *)url;
+/// What a connection's password is kept by: its URL without a password.
++ (NSString *)accountOfURL:(NSURL *)url;
+@end
 
 @interface UDSQLSheets : NSObject <NSTableViewDataSource, NSTableViewDelegate>
 
-/// A server's password, asked in an alert after @a message; nil: cancelled.
-+ (nullable NSString *)askPasswordOfDatabase:(NSString *)name message:(NSString *)message window:(nullable NSWindow *)window;
+/// A server's password, asked in an alert after @a message, and whether to
+/// remember it (@a keep: as it was, and as chosen); nil: cancelled.
++ (nullable NSString *)askPasswordOfDatabase:(NSString *)name message:(NSString *)message keep:(BOOL *)keep
+                                      window:(nullable NSWindow *)window;
 
 /// @a names' values asked for in a sheet on @a window, @a previous offered;
 /// @a action gets @[ the values (a dictionary by name), or NSNull when

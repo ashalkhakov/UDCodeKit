@@ -2,7 +2,9 @@
  *  UDBadgeTextFieldCell.h
  *
  *  A navigator row's text with a badge at its right: Xcode's source-control
- *  letter (M, A, ?, ...), small and grey, the text cut short before it.
+ *  letter (M, A, ?, ...), small and grey, the text cut short before it. A
+ *  longer badge (a table's entities) yields to the text: what the row has
+ *  left, cut short with an ellipsis, or none.
  *--------------------------------------------------------------------------------------------*/
 
 #import <AppKit/AppKit.h>

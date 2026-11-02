@@ -28,6 +28,11 @@
                         <action selector="newQuery:" target="-2" id="DB-m-new-a"/>
                     </connections>
                 </menuItem>
+                <menuItem title="Browse" id="DB-m-example">
+                    <connections>
+                        <action selector="newExampleQuery:" target="-2" id="DB-m-example-a"/>
+                    </connections>
+                </menuItem>
                 <menuItem title="Show ER Diagram" id="DB-m-diagram">
                     <connections>
                         <action selector="showDiagram:" target="-2" id="DB-m-diagram-a"/>
@@ -58,9 +63,9 @@
         </menu>
         <menu title="Table" autoenablesItems="YES" id="DB-menu-table" userLabel="A Table's">
             <items>
-                <menuItem title="Select Rows" id="DB-t-rows">
+                <menuItem title="Browse" id="DB-t-rows">
                     <connections>
-                        <action selector="selectRows:" target="-2" id="DB-t-rows-a"/>
+                        <action selector="browseRows:" target="-2" id="DB-t-rows-a"/>
                     </connections>
                 </menuItem>
                 <menuItem title="New Query" id="DB-t-new">

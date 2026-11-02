@@ -6,6 +6,9 @@
 //
 
 #import "UDExtension.h"
+#import "UDWorkbench.h"
+
+NSNotificationName const UDWorkbenchSelectionDidChangeNotification = @"UDWorkbenchSelectionDidChangeNotification";
 
 NSNotificationName const UDExtensionLanguageServerDidBecomeReadyNotification =
     @"UDExtensionLanguageServerDidBecomeReadyNotification";

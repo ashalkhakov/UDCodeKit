@@ -86,6 +86,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, strong, readwrite, nullable) UDProject *project;
 /// The extensions' navigators: each its view controller and segment.
 @property (nonatomic, strong, nullable) NSMapTable<id, NSArray *> *extensionNavigators;
+/// The bottom area's extensions': [extension, its view controller], their
+/// segments after the debugger's and the terminal's.
+@property (nonatomic, strong, nullable) NSMutableArray<NSArray *> *bottomExtensions;
 @property (nonatomic, strong, readwrite, nullable) UDFileNavigatorViewController *fileNavigator;
 /// The project's language servers, one per command, which its documents share
 /// (one clangd for the project, as VS Code has it).
@@ -108,6 +111,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, weak) IBOutlet NSView             *debugBarHost;
 @property (nonatomic, weak) IBOutlet NSView             *debugAreaHost;
 @property (nonatomic, weak) IBOutlet NSView             *terminalHost;
+@property (nonatomic, weak) IBOutlet NSView *extensionHost;
 @property (nonatomic, weak) IBOutlet NSSegmentedControl *bottomAreaControl;
 /// Source | Preview, at the tab bar's right: the selected tab's, for a mode
 /// that renders its text (Markdown's).
@@ -339,8 +343,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 // MARK: - Saving, building
 // ---------------------------------------------------------------------------
 
-/// A project's tabs are files of its own, each saved as itself; a window of
-/// files alone saves as its document does.
+/// A project's tabs are files of its own, each saved as itself (an untitled
+/// one's first save asks where, as VS Code's); a window of files alone saves
+/// as its document does.
 - (IBAction)saveDocument:(nullable id)sender {
     UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
     if (!_project) {
@@ -348,6 +353,38 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return;
     }
     if (document.fileURL) [self _save:document];
+    else if (document) [self _saveUntitled:document];
+}
+
+/// Where @a document is saved, asked: a file of its mode's, in the project.
+- (void)_saveUntitled:(UDCodeDocument *)document {
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    NSString *extension = document.languageMode.fileExtensions.firstObject;
+    if (extension.length) panel.allowedFileTypes = @[ extension ];
+    panel.nameFieldStringValue = extension.length ? [document.displayName stringByAppendingPathExtension:extension] : document.displayName;
+    if (_project.folderURL) panel.directoryURL = _project.folderURL;
+    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
+        if (response == NSModalResponseOK && panel.URL) [self _save:document asURL:panel.URL];
+    }];
+}
+
+/// @a document saved as @a url, of it from then on: its tabs named for it.
+- (void)_save:(UDCodeDocument *)document asURL:(NSURL *)url {
+    // as the workspace finds files: its folder's real path
+    if (url.isFileURL) url = [NSURL fileURLWithPath:[UDRealPath(url.path.stringByDeletingLastPathComponent)
+                                                       stringByAppendingPathComponent:url.lastPathComponent]];
+    NSError *error = nil;
+    if (![document saveAsURL:url error:&error]) {
+        if (error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
+        return;
+    }
+    for (UDTabBarItem *item in [self _itemsForDocument:document]) {
+        item.title = document.displayName;
+        item.toolTip = url.path;
+        item.dirty = document.isModified;
+    }
+    [_fileNavigator reload];
+    [self _documentsChanged];
 }
 
 - (IBAction)saveAllDocuments:(nullable id)sender {
@@ -363,6 +400,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     BOOL saved = [document saveToURL:document.fileURL error:&error];
     [session.lspCoordinator documentDidSave];
     if (saved) [self _refreshSavedCopiesOfURL:document.fileURL];
+    // saved: its tabs' dots go
+    for (UDTabBarItem *item in [self _itemsForDocument:document]) item.dirty = document.isModified;
     if (!saved && error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
     [self _documentsChanged];
 }
@@ -1271,23 +1310,70 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     NSRect area = NSMakeRect(0, 0, NSWidth(bounds), NSHeight(bounds) - bar);
     _debugAreaHost.frame = area;
     _terminalHost.frame = area;
+    _extensionHost.frame = area;
 }
 
 // ---------------------------------------------------------------------------
 // MARK: - The terminal, in the bottom area
 // ---------------------------------------------------------------------------
 
-/// The bottom area's switch: the debugger's (0) or the terminal (1).
+/// The bottom area's switch: the debugger's (0), the terminal (1), then
+/// the extensions' (a query's results).
 - (IBAction)bottomAreaChanged:(nullable id)sender {
     if (_bottomAreaControl.selectedSegment == 1) [self showTerminal:sender];
-    else [self _showBottomArea:0];
+    else [self _showBottomArea:_bottomAreaControl.selectedSegment];
 }
 
 - (void)_showBottomArea:(NSInteger)which {
     [_bottomAreaControl setSelectedSegment:which];
     [_debugAreaHost setHidden:which != 0];
     [_terminalHost setHidden:which != 1];
+    // an extension's: its view in the one host
+    NSViewController *shown = which >= 2 && which - 2 < (NSInteger)_bottomExtensions.count ? _bottomExtensions[(NSUInteger)which - 2][1] : nil;
+    for (NSView *view in [_extensionHost.subviews copy]) if (view != shown.view) [view removeFromSuperview];
+    if (shown && shown.view.superview != _extensionHost) [self _putView:shown.view inHost:_extensionHost];
+    [_extensionHost setHidden:!shown];
     [_debugSplit setPane:UDDebugAreaPane visible:YES];
+}
+
+/// @a extension's entry in the bottom area's switch: [extension, its view
+/// controller]; its segment, the switch's after the window's two.
+- (NSUInteger)_bottomIndexOfExtension:(id<UDExtension>)extension {
+    for (NSUInteger i = 0; i < _bottomExtensions.count; i++) if (_bottomExtensions[i][0] == extension) return i;
+    return NSNotFound;
+}
+
+- (void)showBottomAreaViewController:(NSViewController *)viewController title:(NSString *)title extension:(id<UDExtension>)extension {
+    if (!_bottomExtensions) _bottomExtensions = [NSMutableArray array];
+    NSUInteger index = [self _bottomIndexOfExtension:extension];
+    if (index == NSNotFound) {
+        // its segment, added: its image, its title its tip
+        index = _bottomExtensions.count;
+        [_bottomExtensions addObject:@[ extension, viewController ]];
+        NSInteger segment = _bottomAreaControl.segmentCount;
+        _bottomAreaControl.segmentCount = segment + 1;
+        NSImage *image = [extension respondsToSelector:@selector(bottomAreaImage)] ? [extension bottomAreaImage] : nil;
+        if (image) [_bottomAreaControl setImage:image forSegment:segment];
+        else [_bottomAreaControl setLabel:@"•" forSegment:segment];
+        [_bottomAreaControl setWidth:30 forSegment:segment];
+        [_bottomAreaControl.cell setToolTip:title forSegment:segment];
+        [_bottomAreaControl.cell setTag:segment forSegment:segment];
+        [_bottomAreaControl sizeToFit];
+    } else {
+        _bottomExtensions[index] = @[ extension, viewController ];
+    }
+    [self _showBottomArea:(NSInteger)index + 2];
+    [self _layoutDebugPane];
+}
+
+- (NSViewController *)bottomAreaViewControllerOfExtension:(id<UDExtension>)extension {
+    NSUInteger index = [self _bottomIndexOfExtension:extension];
+    return index == NSNotFound ? nil : _bottomExtensions[index][1];
+}
+
+- (BOOL)isBottomAreaShowingExtension:(id<UDExtension>)extension {
+    NSUInteger index = [self _bottomIndexOfExtension:extension];
+    return index != NSNotFound && _bottomAreaControl.selectedSegment == (NSInteger)index + 2 && [_debugSplit isPaneVisible:UDDebugAreaPane];
 }
 
 /// The terminal's folder: the project's, else the selected file's, else home.
@@ -1406,6 +1492,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return _project != nil && !_projectSettings;
     } else if (sel_isEqual(action, @selector(saveAllDocuments:))) {
         return _project != nil;
+
     } else if (sel_isEqual(action, @selector(startDebugging:)) && _project) {
         return !_buildRunner.running && (!_debugSession || _debugSession.state == UDDebugSessionStateEnded);
     } else if (sel_isEqual(action, @selector(startDebugging:))) {
@@ -1549,6 +1636,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
                                                  name:UDDiagnosticsDidChangeNotification
                                                object:document.diagnosticStore];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UDTextModelDidChangeNotification object:document.textModel];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
                                                  name:UDTextModelDidChangeNotification
                                                object:document.textModel];
@@ -1567,6 +1655,27 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// A tab for @a document: its session (made with its first tab), and an
 /// editor of its own.
 - (void)_openTabForDocument:(UDCodeDocument *)document {
+    [self _openTabForDocument:document asText:NO];
+}
+
+/// A tab for @a document: an extension's editor of it (VS Code's custom
+/// text editors), else, or @a asText, its text's.
+- (void)_openTabForDocument:(UDCodeDocument *)document asText:(BOOL)asText {
+    for (id<UDExtension> extension in asText ? @[] : [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if (![extension respondsToSelector:@selector(workbench:editorForDocument:)]) continue;
+        NSViewController *custom = [extension workbench:self editorForDocument:document];
+        if (!custom) continue;
+        [self _documentsChanged];
+        UDTabBarItem *item = [_editorTabs addItemWithTitle:document.displayName representedObject:document viewController:custom];
+        item.toolTip = document.fileURL.path;
+        item.dirty = document.isModified;
+        // its changes: its tab's dot (a text tab's session would, else)
+        [[NSNotificationCenter defaultCenter] removeObserver:self name:UDTextModelDidChangeNotification object:document.textModel];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
+                                                     name:UDTextModelDidChangeNotification
+                                                   object:document.textModel];
+        return;
+    }
     BOOL first = NO;
     UDEditorSession *session = [self _sessionOpeningDocument:document first:&first];
 
@@ -1867,6 +1976,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [self _updatePreviewControl];
     UDCodeEditorViewController *editor = [self _selectedEditor];
     if (editor) [self.window makeFirstResponder:editor.showsPreview ? editor.previewTextView : editor.textView];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDWorkbenchSelectionDidChangeNotification object:self];
 }
 
 // ---------------------------------------------------------------------------
@@ -2250,10 +2360,32 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     [self _showFile:url.path];
 }
 
+- (void)showDocumentAsText:(UDCodeDocument *)document {
+    for (UDTabBarItem *item in [self _itemsForDocument:document]) {
+        if ([[_editorTabs viewControllerForItem:item] isKindOfClass:[UDCodeEditorViewController class]]) {
+            [_editorTabs selectItem:item];
+            return;
+        }
+    }
+    [self _openTabForDocument:document asText:YES];
+}
+
 - (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier {
+    [self openUntitledDocumentWithText:text languageMode:identifier name:nil];
+}
+
+- (void)openUntitledDocumentWithText:(NSString *)text languageMode:(NSString *)identifier name:(nullable NSString *)name {
     UDLanguageMode *mode = [[UDLanguageModeRegistry sharedRegistry] modeForIdentifier:identifier];
     UDCodeDocument *document = [_workspaceModel addDocumentWithText:text fileURL:nil languageMode:mode];
+    if (name.length) document.displayName = name;
     [self _openTabForDocument:document];
+}
+
+- (BOOL)showDocument:(UDCodeDocument *)document {
+    UDTabBarItem *item = [self _itemsForDocument:document].firstObject;
+    if (!item) return NO;
+    [_editorTabs selectItem:item];
+    return YES;
 }
 
 - (NSArray<UDCodeEditorViewController *> *)editorsOfDocument:(UDCodeDocument *)document {

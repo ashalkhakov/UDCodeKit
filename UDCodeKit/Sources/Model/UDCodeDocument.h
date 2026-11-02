@@ -32,6 +32,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// object = the UDCodeDocument that changed.
 UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentTextDidChangeNotification;
 
+/// Posted when an untitled document is saved as a file (-saveAsURL:error:).
+/// object = the UDCodeDocument, now of its fileURL.
+UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotification;
+
 /// Pure-Foundation model for a single open text document.
 @interface UDCodeDocument : NSObject
 
@@ -39,8 +43,9 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentTextDidChangeNotificatio
 @property (nonatomic, copy, readonly, nullable) NSURL *fileURL;
 
 /// Human-readable display name derived from fileURL.lastPathComponent,
-/// or "Untitled" for unsaved scratch buffers.
-@property (nonatomic, copy, readonly) NSString *displayName;
+/// or "Untitled" for unsaved scratch buffers; an untitled one's may be
+/// named (a table browsed: its table's), until it is saved.
+@property (nonatomic, copy) NSString *displayName;
 
 /// Piece-table text model.  Mirrors VS Code's ITextModel.
 @property (nonatomic, strong, readonly) UDTextModel *textModel;
@@ -92,6 +97,11 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentTextDidChangeNotificatio
 /// Write the document's current text to url.
 /// Clears the modified flag on success.
 - (BOOL)saveToURL:(NSURL *)url error:(NSError *__autoreleasing *)outError;
+
+/// Write the document's text to url, which it is of from then on (its
+/// fileURL and displayName; its language mode stays): an untitled
+/// document's first save.
+- (BOOL)saveAsURL:(NSURL *)url error:(NSError *__autoreleasing *)outError;
 
 /// The file changed on disk (another program wrote it): its text read again,
 /// when the document has no changes of its own. One edit, of the part that

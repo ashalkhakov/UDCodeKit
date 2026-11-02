@@ -7,7 +7,8 @@
 //  against it (its results under its text, each statement's; its
 //  parameters asked for in a sheet; a store's dates and entities shown as
 //  such); the Editor menu's Run Statement and Run All; the store's ER
-//  diagram, in a tab of its own (its XIB's views and menu connected).
+//  diagram, in a tab of its own (its XIB's views and menu connected); a
+//  table's rows and an entity's browsed (a query by example of each, run).
 //
 
 #import <XCTest/XCTest.h>
@@ -22,6 +23,8 @@
 #import "UDSQLResultsViewController.h"
 #import "UDSQLSheets.h"
 #import "UDSQLDiagramViewController.h"
+#import "UDSQLExampleViewController.h"
+#import "UDSQLSkeletonViewController.h"
 
 static Class UDPluginClass(NSString *name) {
     (void)[UDLanguageModeRegistry sharedRegistry];
@@ -32,6 +35,7 @@ static Class UDPluginClass(NSString *name) {
 @interface UDDocumentWindowController (SQLTesting)
 @property (nonatomic, strong) UDEditorTabsController *editorTabs;
 @property (nonatomic, weak) NSSegmentedControl *navigatorControl;
+@property (nonatomic, weak) NSSegmentedControl *bottomAreaControl;
 - (void)_rebuildEditorMenu;
 @end
 
@@ -140,7 +144,7 @@ static Class UDPluginClass(NSString *name) {
     NSString *person = @"ZPERSON";
     NSRect box = [diagram.diagram tableWithIdentifier:person].frame;
     NSMenu *tableMenu = [diagram canvas:diagram.canvas menuForItem:person];
-    XCTAssertEqualObjects([tableMenu.itemArray valueForKey:@"title"], (@[ @"Select Rows", @"New Query", @"Copy Name" ]));
+    XCTAssertEqualObjects([tableMenu.itemArray valueForKey:@"title"], (@[ @"Browse", @"New Query", @"Copy Name" ]));
     XCTAssertEqual([tableMenu itemAtIndex:0].target, (id)diagram);
     [[tableMenu itemWithTitle:@"Copy Name"].target performSelector:@selector(copyName:) withObject:[tableMenu itemWithTitle:@"Copy Name"]];
     XCTAssertEqualObjects([[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString], person);
@@ -192,6 +196,58 @@ static Class UDPluginClass(NSString *name) {
     [databases.navigator showDiagram:nil];
     XCTAssertEqual(controller.editorTabs.items.count, tabs + 1, @"its tab again, not another");
 
+    // a table's rows, browsed: a query by example of it, untitled, named for
+    // it, run; a condition typed, run again; its SQL shown, as by hand
+    titles = [databases.navigator visibleTitles];
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:[titles indexOfObject:@"    ZPERSON"]] byExtendingSelection:NO];
+    tabs = controller.editorTabs.items.count;
+    [databases.navigator browseRows:nil];
+    XCTAssertEqual(controller.editorTabs.items.count, tabs + 1);
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"ZPERSON");
+    UDSQLExampleViewController *browser = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertTrue([browser isKindOfClass:UDPluginClass(@"UDSQLExampleViewController")], @"%@", browser);
+    XCTAssertNil(browser.document.fileURL, @"untitled: saved only if asked");
+    XCTAssertEqual(browser.database, store);
+    XCTAssertEqualObjects(browser.file.skeletons.firstObject.table, @"ZPERSON");
+    // its form at its box's top, its lines in order under its rows' heads
+    UDSQLSkeletonViewController *personForm = browser.skeletons[0];
+    XCTAssertEqual(NSMinY(personForm.rowHeads[0].view.frame), 0.0, @"its rows' heads first");
+    XCTAssertEqual(NSMinY(personForm.lines[0].view.frame), NSMaxY(personForm.rowHeads[0].view.frame));
+    XCTAssertEqual(NSMaxY(personForm.lines.lastObject.view.frame), NSHeight(personForm.formView.frame), @"its last line, its last");
+    XCTAssertTrue(personForm.formView.superview.isFlipped, @"a form shorter than its box at its top");
+    UDRunUntil(!browser.running && browser.result.rows.count == 2, 10.0);
+    XCTAssertEqual(browser.result.rows.count, 2u, @"run at once: %@", browser.statusLabel.stringValue);
+    NSUInteger entityColumn = [[browser.result.columns valueForKey:@"name"] indexOfObject:@"Z_ENT"];
+    XCTAssertEqualObjects([browser tableView:browser.resultsView
+                           objectValueForTableColumn:[browser.resultsView tableColumnWithIdentifier:[@(entityColumn) stringValue]] row:1],
+                          @"2 · Employee", @"a store's values, as the results show them");
+    [browser.skeletons[0] setEntry:@"b*" column:@"ZNAME" row:0];
+    [browser run:nil];
+    UDRunUntil(!browser.running && browser.result.rows.count == 1, 10.0);
+    XCTAssertEqualObjects(browser.result.rows.firstObject[3], @"Bob");
+    NSUInteger tabsBefore = controller.editorTabs.items.count;
+    [browser showSQL:nil];
+    XCTAssertEqual(controller.editorTabs.items.count, tabsBefore + 1);
+    UDCodeEditorViewController *shown = (UDCodeEditorViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertTrue([shown.textView.string hasPrefix:@"SELECT *\nFROM \"ZPERSON\"\nWHERE \"ZNAME\" LIKE 'b%'"], @"%@", shown.textView.string);
+
+    // an entity's rows: its own (Employee: Bob), by Z_ENT, in its table's
+    // skeleton; the table browsed again: its tab again, not another
+    titles = [databases.navigator visibleTitles];
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:[titles indexOfObject:@"      Employee"]] byExtendingSelection:NO];
+    [databases.navigator browseRows:nil];
+    UDSQLExampleViewController *employees = (UDSQLExampleViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Employee");
+    XCTAssertEqualObjects(employees.file.skeletons.firstObject.rows.firstObject.entries[@"Z_ENT"], @"2");
+    UDRunUntil(!employees.running && employees.result.rows.count == 1, 10.0);
+    XCTAssertEqualObjects(employees.result.rows.firstObject[3], @"Bob");
+    tabsBefore = controller.editorTabs.items.count;
+    titles = [databases.navigator visibleTitles];
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:[titles indexOfObject:@"    ZPERSON"]] byExtendingSelection:NO];
+    [databases.navigator browseRows:nil];
+    XCTAssertEqual(controller.editorTabs.items.count, tabsBefore, @"its tab again, not another");
+    XCTAssertEqual([controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem], (id)browser);
+
     // the query: run against it (its only database), every statement
     [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"query.sql"]]];
     UDCodeEditorViewController *editor = (UDCodeEditorViewController *)[controller.editorTabs viewControllerForItem:controller.editorTabs.selectedItem];
@@ -199,8 +255,33 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertTrue([databases canRun]);
     [editor.textView setSelectedRange:NSMakeRange(3, 0)];
     [databases runStatement:nil];
-    UDSQLResultsViewController *results = (UDSQLResultsViewController *)editor.accessoryViewController;
-    XCTAssertTrue([results isKindOfClass:UDPluginClass(@"UDSQLResultsViewController")], @"the results under its text");
+    // its results in the bottom area's Results, beside the debugger and
+    // the terminal (not on top of them, under its text)
+    UDSQLResultsViewController *results = [databases resultsOfDocument:controller.editorTabs.selectedItem.representedObject];
+    XCTAssertTrue([results isKindOfClass:UDPluginClass(@"UDSQLResultsViewController")]);
+    XCTAssertNil(editor.accessoryViewController);
+    XCTAssertEqual([(id<UDWorkbench>)controller bottomAreaViewControllerOfExtension:databases.extension], (id)results);
+    XCTAssertTrue([(id<UDWorkbench>)controller isBottomAreaShowingExtension:databases.extension]);
+    XCTAssertEqual(controller.bottomAreaControl.segmentCount, 3, @"Debug | Terminal | Results");
+    XCTAssertEqual(controller.bottomAreaControl.selectedSegment, 2);
+    XCTAssertTrue([results.view isDescendantOf:controller.window.contentView]);
+    XCTAssertEqualObjects([controller.bottomAreaControl.cell toolTipForSegment:2], @"Results");
+    // the terminal chosen, then Results again: its view put back
+    [controller.bottomAreaControl setSelectedSegment:0];
+    [controller bottomAreaChanged:nil];
+    XCTAssertFalse([(id<UDWorkbench>)controller isBottomAreaShowingExtension:databases.extension]);
+    [controller.bottomAreaControl setSelectedSegment:2];
+    [controller bottomAreaChanged:nil];
+    XCTAssertTrue([results.view isDescendantOf:controller.window.contentView]);
+    // another SQL document run: Results its; back to this one's tab: this one's
+    UDTabBarItem *first = controller.editorTabs.selectedItem;
+    [databases openQuery:@"SELECT 1 AS one;" database:store run:YES];
+    UDSQLResultsViewController *other = [databases resultsOfDocument:controller.editorTabs.selectedItem.representedObject];
+    XCTAssertNotNil(other);
+    XCTAssertEqual([(id<UDWorkbench>)controller bottomAreaViewControllerOfExtension:databases.extension], (id)other);
+    [controller.editorTabs selectItem:first];
+    XCTAssertEqual([(id<UDWorkbench>)controller bottomAreaViewControllerOfExtension:databases.extension], (id)results, @"its tab's");
+    [controller.window makeFirstResponder:editor.textView];
     UDRunUntil(results.results.count == 1, 10.0);
     UDSQLResult *rows = results.shownResult;
     XCTAssertEqualObjects([rows.columns valueForKey:@"name"], (@[ @"ZNAME", @"ZBORN", @"Z_ENT" ]));

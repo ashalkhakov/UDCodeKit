@@ -25,6 +25,7 @@
                 <outlet property="debugBarHost" destination="WS-debug-bar-host" id="WS-o-debug-bar"/>
                 <outlet property="debugAreaHost" destination="WS-debug-area-host" id="WS-o-debug-area"/>
                 <outlet property="terminalHost" destination="WS-terminal-host" id="WS-o-terminal-host"/>
+                <outlet property="extensionHost" destination="WS-extension-host" id="WS-o-extension-host"/>
                 <outlet property="bottomAreaControl" destination="WS-bottom-control" id="WS-o-bottom-control"/>
                 <outlet property="previewControl" destination="WS-preview-control" id="WS-o-preview-control"/>
                 <outlet property="reviewButton" destination="WS-review-button" id="WS-o-review-button"/>
@@ -297,6 +298,10 @@
                                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                     </customView>
                                                     <customView hidden="YES" id="WS-terminal-host" userLabel="Terminal Host">
+                                                        <rect key="frame" x="0.0" y="0.0" width="698" height="214"/>
+                                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    </customView>
+                                                    <customView hidden="YES" id="WS-extension-host" userLabel="An Extension's Host (its segment's: a query's results)">
                                                         <rect key="frame" x="0.0" y="0.0" width="698" height="214"/>
                                                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                     </customView>

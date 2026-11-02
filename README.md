@@ -59,12 +59,16 @@ pinned commits the first time):
   gutter, Code Review, Authors (blame), history, branches, tags, stashes,
   remotes, push and pull.
 - **Databases**: SQLite, PostgreSQL, MySQL and MariaDB — connections, their
-  tables and keys, queries run with their parameters, results under the
-  query; a Core Data store's tables named by their entities, its dates and
+  tables and keys, their rows browsed with query by example (conditions
+  typed under the columns, sorted, a page at a time), queries by example
+  across tables (Zloof's and Paradox's: skeletons joined by example
+  elements; saved as .qbe files, asked of any connection, their plain SQL
+  copied for an app), queries run with
+  their parameters, results in the bottom area's Results; a Core Data store's tables named by their entities, its dates and
   entities shown as such; ER diagrams (crow's feet, a Core Data store's
-  links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's client libraries are
-  yours to install (`brew install libpq mariadb-connector-c`, say:
-  [databases](docs/sql.md)).
+  links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's
+  client libraries (libpq, MariaDB Connector/C) come with the app, nothing
+  to install ([databases](docs/sql.md)).
 - **More**: Code Review and comparing files side by side (VS Code's diff
   editor); a terminal; the Issues, Find, Test, Debug and Breakpoint
   navigators; Open Quickly.
@@ -78,8 +82,8 @@ pinned commits the first time):
 - **Settings**: a project's own (`.udcode/settings.json`, `tasks.json`,
   `launch.json`); no user or workspace settings layer yet
   ([#30](https://github.com/ashalkhakov/UDCodeKit/issues/30)).
-- **Databases**: everyday work only — browsing, editing rows and a query
-  builder are on their way
+- **Databases**: everyday work only — editing rows and a query builder are
+  on their way
   ([#54](https://github.com/ashalkhakov/UDCodeKit/issues/54)); administration
   is left to each database's own tools.
 - **Extensions** are bundles built with UDCodeKit, loaded into the app; there
@@ -132,4 +136,7 @@ a XIB, compiled by Xcode and read as it is by GNUstep.
 
 MIT ([LICENSE.md](LICENSE.md)): the ported VS Code code is Microsoft's, under
 MIT. LSPKit, the tree-sitter runtime and the upstream grammars are MIT as
-well.
+well. The packages also carry the database client libraries, each a shared
+library under its own licence (libpq: PostgreSQL; MariaDB Connector/C: LGPL
+2.1; OpenSSL: Apache 2.0; on macOS MIT Kerberos), its text in the app's
+`Resources/Licenses` ([databases](docs/sql.md)).

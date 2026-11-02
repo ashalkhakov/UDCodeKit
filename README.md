@@ -69,6 +69,10 @@ pinned commits the first time):
   links inferred; exported as PDF, PNG or SVG); PostgreSQL's and MySQL's
   client libraries (libpq, MariaDB Connector/C) come with the app, nothing
   to install ([databases](docs/sql.md)).
+- **Extensions**: modes from the projects that own them (ORM2, XForms,
+  RDL…), installed into your home folder as VS Code's are: `.udcx`
+  packages, `UDCode --install-extension`, UDCode > Extensions…
+  ([extensions](docs/extensions.md)).
 - **More**: Code Review and comparing files side by side (VS Code's diff
   editor); a terminal; the Issues, Find, Test, Debug and Breakpoint
   navigators; Open Quickly.
@@ -130,7 +134,7 @@ a XIB, compiled by Xcode and read as it is by GNUstep.
 
 - [UDCode as an IDE](docs/ide.md) · [Debugging](docs/debugging.md) · [Databases](docs/sql.md)
 - [UDCodeKit and VS Code, side by side](docs/architecture.md)
-- [Grammar bundles](docs/grammar-bundles.md)
+- [Grammar bundles](docs/grammar-bundles.md) · [Extensions](docs/extensions.md): installing them, and making one
 
 ## License
 

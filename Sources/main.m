@@ -8,6 +8,7 @@
 #import <Cocoa/Cocoa.h>
 #import "UDDemoDebugAdapter.h"
 #import "UDAskpass.h"
+#import <UDCodeKit/UDCodeKit.h>
 
 int main(int argc, const char * argv[]) {
     // Started as the demo's debug adapter (Debug > Run starts UDCode so):
@@ -25,6 +26,14 @@ int main(int argc, const char * argv[]) {
         @autoreleasepool {
             return UDAskpassMain(argc > 1 ? [NSString stringWithUTF8String:argv[1]] : @"");
         }
+    }
+    // Asked to install, uninstall or list extensions (VS Code's command
+    // line): done, no window.
+    @autoreleasepool {
+        NSMutableArray *arguments = [NSMutableArray array];
+        for (int i = 1; i < argc; i++) [arguments addObject:[NSString stringWithUTF8String:argv[i]]];
+        int status = [UDInstalledExtensions runCommandLine:arguments];
+        if (status >= 0) return status;
     }
     return NSApplicationMain(argc, argv);
 }

@@ -39,6 +39,11 @@
                                     <action selector="showPreferences:" target="-1" id="UDM-preferences-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Extensions…" keyEquivalent="X" id="UDM-extensions">
+                                <connections>
+                                    <action selector="showExtensions:" target="-1" id="UDM-extensions-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
                             <menuItem title="Services" id="NMo-om-nkz">
                                 <modifierMask key="keyEquivalentModifierMask"/>

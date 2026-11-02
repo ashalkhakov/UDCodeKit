@@ -74,6 +74,8 @@ UDCodeKit_HEADER_FILES = \
     UDErrorsViewController.h \
     UDEditorTabsController.h \
     UDExtension.h \
+    UDInstalledExtensions.h \
+    UDExtensionsWindowController.h \
     UDFindBarViewController.h \
     UDFindModel.h \
     UDFindResultsGutterView.h \

@@ -20,12 +20,14 @@
     NSString *_work;
 }
 
-static void UDSetEnvironment(const char *name, const char *value) {
+/// Read back by getenv (_wgetenv on Windows), as UDInstalledExtensions reads it.
+static void UDSetEnvironment(NSString *name, NSString *_Nullable value) {
 #if defined(_WIN32)
-    _putenv_s(name, value ?: "");
+    _wputenv_s((const wchar_t *)[name cStringUsingEncoding:NSUTF16LittleEndianStringEncoding],
+               (const wchar_t *)[value ?: @"" cStringUsingEncoding:NSUTF16LittleEndianStringEncoding]);
 #else
-    if (value) setenv(name, value, 1);
-    else unsetenv(name);
+    if (value) setenv(name.UTF8String, value.UTF8String, 1);
+    else unsetenv(name.UTF8String);
 #endif
 }
 
@@ -35,11 +37,11 @@ static void UDSetEnvironment(const char *name, const char *value) {
     _folder = [root stringByAppendingPathComponent:@"extensions"];
     _work = [root stringByAppendingPathComponent:@"work"];
     [[NSFileManager defaultManager] createDirectoryAtPath:_work withIntermediateDirectories:YES attributes:nil error:NULL];
-    UDSetEnvironment("UD_EXTENSIONS_PATH", _folder.fileSystemRepresentation);
+    UDSetEnvironment(@"UD_EXTENSIONS_PATH", _folder);
 }
 
 - (void)tearDown {
-    UDSetEnvironment("UD_EXTENSIONS_PATH", NULL);
+    UDSetEnvironment(@"UD_EXTENSIONS_PATH", nil);
     [[NSFileManager defaultManager] removeItemAtPath:_folder.stringByDeletingLastPathComponent error:NULL];
     [UDInstalledExtensions setDisabled:NO identifier:@"test.orm"];
     [super tearDown];

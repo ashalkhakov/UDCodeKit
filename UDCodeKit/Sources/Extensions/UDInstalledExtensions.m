@@ -46,8 +46,13 @@ static NSError *UDExtensionError(NSString *message) {
 + (NSString *)folder {
     // getenv, not NSProcessInfo: GNUstep's keeps the environment it started
     // with, and a test sets its own folder
+#if defined(_WIN32)
+    const wchar_t *override = _wgetenv(L"UD_EXTENSIONS_PATH");
+    if (override && *override) return [NSString stringWithCharacters:(const unichar *)override length:wcslen(override)];
+#else
     const char *override = getenv("UD_EXTENSIONS_PATH");
-    if (override && *override) return [[NSFileManager defaultManager] stringWithFileSystemRepresentation:override length:strlen(override)];
+    if (override && *override) return [NSString stringWithUTF8String:override];
+#endif
     return [NSHomeDirectory() stringByAppendingPathComponent:@".udcode/extensions"];
 }
 

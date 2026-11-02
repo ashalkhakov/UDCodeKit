@@ -58,6 +58,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak) IBOutlet NSPopUpButton *opButton;
 @property (nonatomic, weak) IBOutlet NSTextField *valueField;
 @property (nonatomic, weak) IBOutlet NSTextField *toField;
+/// Its value's ▾: an example element, an operator, the row removed.
+@property (nonatomic, weak) IBOutlet NSPopUpButton *menuButton;
 @property (nonatomic, copy) NSString *column;
 @property (nonatomic) NSUInteger row;
 @property (nonatomic, weak, nullable) UDSQLSkeletonViewController *controller;

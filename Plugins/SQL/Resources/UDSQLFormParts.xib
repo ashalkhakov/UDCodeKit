@@ -13,6 +13,7 @@
                 <outlet property="opButton" destination="FP-op" id="FP-op-o"/>
                 <outlet property="valueField" destination="FP-value" id="FP-value-o"/>
                 <outlet property="toField" destination="FP-to" id="FP-to-o"/>
+                <outlet property="menuButton" destination="FP-menu" id="FP-menu-o"/>
             </connections>
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
@@ -84,7 +85,7 @@
                     </connections>
                 </popUpButton>
                 <textField toolTip="Its value, or an example element (_c: the same one in another row's column joins them)" verticalHuggingPriority="750" id="FP-value" userLabel="Value">
-                    <rect key="frame" x="252" y="3" width="170" height="19"/>
+                    <rect key="frame" x="252" y="3" width="148" height="19"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" drawsBackground="YES" usesSingleLineMode="YES" id="FP-value-cell" customClass="UDSQLConditionCell">
                         <font key="font" metaFont="smallSystem"/>
@@ -95,6 +96,19 @@
                         <action selector="changed:" target="-2" id="FP-value-a"/>
                     </connections>
                 </textField>
+                <popUpButton toolTip="What the value can be: an example element, an operator (=, &gt;, between, like…), the row removed" verticalHuggingPriority="750" id="FP-menu" userLabel="Its Value's ▾">
+                    <rect key="frame" x="401" y="2" width="22" height="20"/>
+                    <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                    <popUpButtonCell key="cell" type="smallSquare" title="▾" bezelStyle="smallSquare" alignment="center" lineBreakMode="truncatingTail" borderStyle="border" imageScaling="proportionallyDown" inset="2" pullsDown="YES" arrowPosition="noArrow" id="FP-menu-cell">
+                        <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                        <font key="font" metaFont="smallSystem"/>
+                        <menu key="menu" id="FP-menu-menu">
+                            <items>
+                                <menuItem title="▾" hidden="YES" id="FP-menu-title"/>
+                            </items>
+                        </menu>
+                    </popUpButtonCell>
+                </popUpButton>
                 <textField toolTip="A range's end: from the value to it, both included (between)" verticalHuggingPriority="750" id="FP-to" userLabel="To">
                     <rect key="frame" x="426" y="3" width="100" height="19"/>
                     <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>

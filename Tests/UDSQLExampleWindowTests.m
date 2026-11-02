@@ -239,6 +239,40 @@ static Class UDPluginClass(NSString *name) {
     type(cities, cities.valueField, @"Oslo");
     XCTAssertEqualObjects(entry(@"city"), @"Oslo");
     XCTAssertFalse(cities.toField.isEnabled, @"To: between's alone");
+    // a value's ▾: shortcuts to an operator, an element
+    NSMenu *menu = ids.menuButton.menu;
+    XCTAssertTrue(ids.menuButton.pullsDown);
+    [customers menuNeedsUpdate:menu];
+    NSArray *titles = [menu.itemArray valueForKey:@"title"];
+    for (NSString *title in @[ @"New Example Element", @"Greater Than (>)", @"Between… (1..10)", @"Is NULL", @"Remove This Row" ]) {
+        XCTAssertTrue([titles containsObject:title], @"%@ in %@", title, titles);
+    }
+    [customers applyOperator:[menu itemWithTitle:@"Greater Than (>)"]];
+    XCTAssertEqual(ids.opButton.indexOfSelectedItem, (NSInteger)UDSQLExampleOperatorGreater, @"its operator set");
+    XCTAssertNotNil(ids.valueField.currentEditor, @"its value to type, at once");
+    ids.valueField.stringValue = @"1";
+    [controller.window makeFirstResponder:nil];
+    [ids changed:ids.valueField];
+    XCTAssertEqualObjects(entry(@"id"), @"> 1");
+    [customers menuNeedsUpdate:menu];
+    [customers applyOperator:[menu itemWithTitle:@"Is NULL"]];
+    XCTAssertEqualObjects(entry(@"id"), @"NULL", @"its value gone");
+    [customers menuNeedsUpdate:menu];
+    [customers applyOperator:[menu itemWithTitle:@"New Example Element"]];
+    XCTAssertTrue([entry(@"id") hasPrefix:@"_"], @"%@", entry(@"id"));
+    NSString *element = entry(@"id");
+    NSMenu *cityMenu = cities.menuButton.menu;
+    [customers menuNeedsUpdate:cityMenu];
+    XCTAssertNotNil([cityMenu itemWithTitle:element], @"the query's elements offered");
+    [customers menuNeedsUpdate:menu];
+    [customers applyOperator:[menu itemWithTitle:@"Is NULL"]];
+    [customers menuNeedsUpdate:menu];
+    [customers applyOperator:[menu itemWithTitle:@"Is NULL"]];
+    ids.valueField.stringValue = @"";
+    [ids changed:ids.valueField];
+    [ids.opButton selectItemAtIndex:0];
+    [ids changed:ids.opButton];
+    XCTAssertNil(entry(@"id"));
     // Sort: the answer's order, shown as it is
     [customers.lines[1].sortButton selectItemAtIndex:2];
     [customers.lines[1] sortChanged:nil];

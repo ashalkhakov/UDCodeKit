@@ -130,10 +130,13 @@ Example language mode: JSON).
   parts across, after the first's), **Remove Row** the one last edited in.
 - **A value is typed in its field** (Tab: the next). What is typed is a
   value, never SQL: each becomes a parameter. An example element (`_c`)
-  as a value is one: the same one in two rows' columns joins them; a
-  value's right-click offers the query's elements and a new one. A whole
-  condition typed with no operator (`> 5`, `Ann*`, `1..10`) is read so,
-  its operator shown.
+  as a value is one: the same one in two rows' columns joins them. A
+  value's **▾** (or its right-click) is a shortcut: an example element
+  (new, or one in the query: the value, its operator =), an operator (its
+  Op set; one wanting a value, its field to type in: between, like, one
+  of, not), Is NULL or Is Not NULL (the value cleared), Remove This Row.
+  A whole condition typed with no operator (`> 5`, `Ann*`, `1..10`) is
+  read so, its operator shown.
 
   What the form sets is kept as Zloof's text, which a value may hold too
   (Show as Text shows it), and which the condition box's lines are like:

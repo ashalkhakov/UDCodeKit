@@ -10,6 +10,8 @@
 
 /// The menu's own items (the XIB's tags): P., a new element, the row removed;
 /// the elements in the query from UDElementTag on.
+/// UDOperatorTag + a UDSQLExampleOperator: the value menu's operators.
+enum { UDOperatorTag = 300 };
 enum { UDPrintTag = 100, UDNewElementTag = 101, UDRemoveRowTag = 102, UDGroupTag = 103, UDAggregateTag = 110, UDAscendingTag = 120,
        UDDescendingTag = 121, UDElementTag = 200 };
 
@@ -120,7 +122,8 @@ static const CGFloat UDLineHeight = 24, UDHeadHeight = 42;
     NSMutableArray<UDSQLFormLine *> *_lines;
     NSMutableArray<UDSQLFormRow *> *_heads;
     NSMutableDictionary<NSString *, UDSQLFormParts *> *_parts;     // by "row column"
-    UDSQLFormParts *_menuParts;         // the value right-clicked
+    UDSQLFormParts *_menuParts;         // the value whose menu is open
+    NSMapTable<NSMenu *, UDSQLFormParts *> *_menuOwners;   // each ▾'s menu, its value's
     NSUInteger _currentRow;             // the row (tuple) last edited in: Remove Row's
     NSMutableDictionary<NSString *, NSNumber *> *_pendingOps;   // an operator chosen before its value ("row column"): the text has none yet
 }
@@ -202,6 +205,13 @@ static const CGFloat UDLineHeight = 24, UDHeadHeight = 42;
             parts.valueField.delegate = parts;
             parts.toField.delegate = parts;
             parts.valueField.menu = _operatorMenu;
+            // its ▾: the same menu, of this value (its title, then the items)
+            NSMenu *menu = parts.menuButton.menu;
+            while (menu.numberOfItems > 1) [menu removeItemAtIndex:1];
+            for (NSMenuItem *item in _operatorMenu.itemArray) [menu addItem:[item copy]];
+            menu.delegate = self;
+            if (!_menuOwners) _menuOwners = [NSMapTable weakToWeakObjectsMapTable];
+            [_menuOwners setObject:parts forKey:menu];
             [(NSTextFieldCell *)parts.valueField.cell setPlaceholderString:info ? [UDSQLQbE exampleForColumn:info schema:_schema] : @""];
             partsWidth = NSWidth(parts.view.frame);
             _parts[[NSString stringWithFormat:@"%lu %@", (unsigned long)row, column]] = parts;
@@ -406,16 +416,16 @@ static const CGFloat UDLineHeight = 24, UDHeadHeight = 42;
 
 /// The elements in the query, as items of their own.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
-    // the value right-clicked: under the pointer
-    _menuParts = nil;
+    // a ▾'s: its value; else the value right-clicked, under the pointer
+    _menuParts = [_menuOwners objectForKey:menu];
     NSEvent *event = [NSApp currentEvent];
-    if (event) {
+    if (!_menuParts && event) {
         NSPoint point = [_formView convertPoint:event.locationInWindow fromView:nil];
         for (UDSQLFormParts *parts in _parts.allValues) {
             if (NSPointInRect([parts.valueField convertPoint:point fromView:_formView], parts.valueField.bounds)) _menuParts = parts;
         }
     }
-    for (NSMenuItem *item in [menu.itemArray copy]) if (item.tag >= UDElementTag) [menu removeItem:item];
+    for (NSMenuItem *item in [menu.itemArray copy]) if (item.tag == UDElementTag) [menu removeItem:item];
     NSUInteger index = [menu indexOfItemWithTag:UDNewElementTag] + 1;
     for (NSString *element in [_delegate exampleElementsForSkeleton:self]) {
         NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:element action:@selector(applyOperator:) keyEquivalent:@""];
@@ -490,12 +500,30 @@ static const CGFloat UDLineHeight = 24, UDHeadHeight = 42;
         return;
     }
     if (!parts) return;
+    if ([sender tag] > UDOperatorTag && [sender tag] <= UDOperatorTag + UDSQLExampleOperatorIsNotNull) {
+        [self _setOperator:[sender tag] - UDOperatorTag of:parts];
+        return;
+    }
     // an element: the value, its operator =
     UDSQLExampleEntry *entry = [self _entryOfColumn:parts.column row:parts.row];
     entry.op = UDSQLExampleOperatorEqual;
     entry.value = [sender tag] == UDNewElementTag ? [_delegate newExampleElementForSkeleton:self] : [sender representedObject] ?: @"";
     [self setEntry:entry.text column:parts.column row:parts.row];
     [self _showEntries];
+}
+
+/// An operator chosen from a value's menu: the form's Op so; one wanting a
+/// value (between, like…) and having none, its value field to type in.
+- (void)_setOperator:(UDSQLExampleOperator)op of:(UDSQLFormParts *)parts {
+    UDSQLExampleEntry *entry = [self _entryOfColumn:parts.column row:parts.row];
+    BOOL valueless = op == UDSQLExampleOperatorIsNull || op == UDSQLExampleOperatorIsNotNull;
+    [parts.opButton selectItemAtIndex:op];
+    [self _partsChanged:parts sender:parts.opButton];
+    if (valueless && entry.value.length) {
+        parts.valueField.stringValue = @"";
+        [self _partsChanged:parts sender:parts.valueField];
+    }
+    if (!valueless && !entry.value.length) [self.view.window makeFirstResponder:parts.valueField];
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {

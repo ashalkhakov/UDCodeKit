@@ -15,7 +15,7 @@
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
-        <menu title="Entry" autoenablesItems="YES" id="SK-cmenu" userLabel="A Value's (its right-click): an example element, the row removed">
+        <menu title="Entry" autoenablesItems="YES" id="SK-cmenu" userLabel="A Value's (its ▾, its right-click): an example element, an operator, the row removed">
             <items>
                 <menuItem title="New Example Element" tag="101" id="SK-c-element">
                     <connections>
@@ -23,6 +23,67 @@
                     </connections>
                 </menuItem>
                 <menuItem isSeparatorItem="YES" id="SK-c-sep0"/>
+                <menuItem title="Equal To (=)" tag="301" toolTip="Its value equal to what is typed (or an example element: _c)" id="SK-c-op1">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op1-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Not Equal To (≠)" tag="302" toolTip="Not equal to it" id="SK-c-op2">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op2-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Greater Than (&gt;)" tag="303" toolTip="Greater than it" id="SK-c-op3">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op3-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="At Least (≥)" tag="304" toolTip="At least it" id="SK-c-op4">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op4-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Less Than (&lt;)" tag="305" toolTip="Less than it" id="SK-c-op5">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op5-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="At Most (≤)" tag="306" toolTip="At most it" id="SK-c-op6">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op6-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Between… (1..10)" tag="307" toolTip="From the value to To, both included" id="SK-c-op7">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op7-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Like… (Ann*)" tag="308" toolTip="Like it: * any text, case aside" id="SK-c-op8">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op8-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="One Of… (a, b, c)" tag="309" toolTip="One of them" id="SK-c-op9">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op9-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Not…" tag="310" toolTip="Not so" id="SK-c-op10">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op10-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Is NULL" tag="311" toolTip="NULL" id="SK-c-op11">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op11-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem title="Is Not NULL" tag="312" toolTip="Not NULL" id="SK-c-op12">
+                    <connections>
+                        <action selector="applyOperator:" target="-2" id="SK-c-op12-a"/>
+                    </connections>
+                </menuItem>
+                <menuItem isSeparatorItem="YES" id="SK-c-sep1"/>
                 <menuItem title="Remove This Row" tag="102" id="SK-c-removerow">
                     <connections>
                         <action selector="applyOperator:" target="-2" id="SK-c-removerow-a"/>

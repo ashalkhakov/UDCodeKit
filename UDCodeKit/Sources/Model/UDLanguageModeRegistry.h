@@ -2,7 +2,8 @@
  *  UDLanguageModeRegistry.h  —  Global registry of known language modes.
  *
  *  The registry ships one built-in language mode (Plain Text) and loads the
- *  others from the grammar bundles in the app's PlugIns directory; the
+ *  others from the grammar bundles in the app's PlugIns directory, then
+ *  from the extensions installed outside it (UDInstalledExtensions); the
  *  application can register more.
  *
  *  Built-in modes are registered automatically when the shared registry is first accessed.
@@ -25,6 +26,7 @@
 
 #import <Foundation/Foundation.h>
 #import "UDLanguageMode.h"
+#import "UDInstalledExtensions.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -77,6 +79,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// The extensions the bundles loaded, in load order: what is asked for
 /// what they contribute besides language modes (UDExtension's projects part).
 @property (nonatomic, readonly, copy) NSArray<id<UDExtension>> *extensions;
+
+/// Every extension found — built in (the app's PlugIns), then installed
+/// (~/.udcode/extensions, UDInstalledExtensions) — loaded, or why not (for
+/// another UDCode or platform, disabled, its place taken by one installed…).
+@property (nonatomic, readonly, copy) NSArray<UDExtensionInfo *> *extensionInfos;
 
 // ---------------------------------------------------------------------------
 // MARK: - Lifecycle

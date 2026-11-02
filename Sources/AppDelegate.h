@@ -13,6 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// UDCode > Preferences…: the window of what the user chooses for every project.
 - (IBAction)showPreferences:(nullable id)sender;
+/// UDCode > Extensions…: those built in and installed (VS Code's Extensions view).
+- (IBAction)showExtensions:(nullable id)sender;
 /// File > Open Folder…: a folder opened as a project.
 - (IBAction)openFolder:(nullable id)sender;
 /// The project window of the folder at @a url (opened, or the one it has).

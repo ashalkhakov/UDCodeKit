@@ -4,7 +4,11 @@
 
 #import "UDLanguageModeRegistry.h"
 #import "UDExtension.h"
+#import "UDInstalledExtensions.h"
 #import "UDPaths.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // ---------------------------------------------------------------------------
 // MARK: - Default new-document text (app-level UX, not grammar metadata)
@@ -142,6 +146,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     NSMutableArray<UDExtensionRecord *> *_loadedExtensions;
     // Modes borrowing another's grammar, till every bundle is loaded: [info, bundle, extension].
     NSMutableArray<NSArray *> *_borrowers;
+    // Every extension found, built in and installed: loaded, or why not.
+    NSMutableArray<UDExtensionInfo *> *_extensionInfos;
 }
 
 + (instancetype)sharedRegistry {
@@ -157,6 +163,47 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 // MARK: - Bundle loading
 // ---------------------------------------------------------------------------
 
+/// An extension found (built in, or installed): loaded, unless it can't be
+/// (its problem said already), it is disabled, or the same bundle is loaded
+/// already; what came of it kept (-extensionInfos).
+- (void)_loadExtension:(UDExtensionInfo *)info {
+    [_extensionInfos addObject:info];
+    if (info.problem) {
+        NSLog(@"UDLanguageModeRegistry: %@ not loaded: %@", info.identifier, info.problem);
+        return;
+    }
+    if (info.disabled) return;
+    NSString *bundleID = [NSBundle bundleWithPath:info.bundlePath].bundleIdentifier;
+    for (UDExtensionInfo *other in _extensionInfos) {
+        if (other == info || !other.loaded || !bundleID) continue;
+        if ([[NSBundle bundleWithPath:other.bundlePath].bundleIdentifier isEqualToString:bundleID]) {
+            info.problem = [NSString stringWithFormat:@"The same bundle (%@) is loaded from %@.", bundleID, other.bundlePath];
+            return;
+        }
+    }
+#ifdef _WIN32
+    // an installed one's libraries are beside its DLL, in its bundle, where
+    // Windows doesn't look (only beside UDCode.exe, and on PATH): its DLL
+    // loaded first so (as the SQL extension loads its clients), NSBundle's
+    // load then finds it loaded
+    NSString *executable = [NSBundle bundleWithPath:info.bundlePath].executablePath;
+    if (info.location == UDExtensionLocationInstalled && executable) {
+        NSString *file = [executable stringByReplacingOccurrencesOfString:@"/" withString:@"\\"];
+        LoadLibraryExW((const wchar_t *)[file cStringUsingEncoding:NSUTF16LittleEndianStringEncoding], NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+    }
+#endif
+    info.problem = [self _loadBundleAtPath:info.bundlePath];
+    info.loaded = info.problem == nil;
+}
+
+- (NSArray<UDExtensionInfo *> *)extensionInfos {
+    __block NSArray *infos;
+    dispatch_sync(_queue, ^{
+        infos = [self->_extensionInfos copy];
+    });
+    return infos;
+}
+
 /// Loads one grammar bundle and registers all language modes it declares.
 ///
 /// The bundle's LanguageInfo.plist must contain a "languageModes" array.  Each
@@ -166,11 +213,11 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 ///
 /// Extensions that provide zero language modes (e.g. theme bundles) are still
 /// loaded and their lifecycle methods are called, but no modes are registered.
-- (void)_loadBundleAtPath:(NSString *)bundlePath {
+- (nullable NSString *)_loadBundleAtPath:(NSString *)bundlePath {
     NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
     if (!bundle) {
         NSLog(@"UDLanguageModeRegistry: bundle not found: %@", bundlePath);
-        return;
+        return @"It isn't a bundle.";
     }
 
     // ── Step 1: Read LanguageInfo.plist without loading executable ────────
@@ -178,20 +225,20 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     if (!plistPath) {
         NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist missing in %@",
               bundlePath.lastPathComponent);
-        return;
+        return @"It has no LanguageInfo.plist.";
     }
     NSDictionary *rootInfo = [NSDictionary dictionaryWithContentsOfFile:plistPath];
     if (!rootInfo) {
         NSLog(@"UDLanguageModeRegistry: failed to parse LanguageInfo.plist in %@",
               bundlePath.lastPathComponent);
-        return;
+        return @"Its LanguageInfo.plist can't be read.";
     }
 
     NSArray *languageModes = rootInfo[@"languageModes"];
     if (![languageModes isKindOfClass:[NSArray class]]) {
         NSLog(@"UDLanguageModeRegistry: LanguageInfo.plist in %@ missing 'languageModes' array",
               bundlePath.lastPathComponent);
-        return;
+        return @"Its LanguageInfo.plist has no languageModes.";
     }
 
     // ── Step 2: Load bundle executable and get extension instance ─────────
@@ -199,26 +246,27 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     if (![bundle loadAndReturnError:&loadError]) {
         NSLog(@"UDLanguageModeRegistry: failed to load %@: %@",
               bundlePath.lastPathComponent, loadError);
-        return;
+        return [NSString stringWithFormat:@"Its code couldn't be loaded (built for another platform, or a library it needs is missing): %@",
+                                          loadError.localizedDescription ?: @"no reason given"];
     }
 
     Class principalClass = bundle.principalClass;
     if (!principalClass) {
         NSLog(@"UDLanguageModeRegistry: no principal class in %@",
               bundlePath.lastPathComponent);
-        return;
+        return @"It has no principal class.";
     }
     if (![principalClass conformsToProtocol:@protocol(UDExtension)]) {
         NSLog(@"UDLanguageModeRegistry: principal class %@ in %@ does not conform to UDExtension",
               NSStringFromClass(principalClass), bundlePath.lastPathComponent);
-        return;
+        return @"Its principal class isn't a UDExtension.";
     }
 
     id<UDExtension> ext = [[principalClass alloc] init];
     if (!ext) {
         NSLog(@"UDLanguageModeRegistry: failed to init principal class in %@",
               bundlePath.lastPathComponent);
-        return;
+        return @"Its principal class couldn't be made.";
     }
 
     // Retain the extension and call the load lifecycle hook.
@@ -236,6 +284,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
         }
         [self _registerModeOf:modeInfo bundle:bundle extension:ext lender:nil];
     }
+    return nil;
 }
 
 /// The mode @a modeInfo declares, of @a bundle's extension @a ext: its
@@ -340,6 +389,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     _byFileName        = [NSMutableDictionary dictionary];
     _loadedExtensions  = [NSMutableArray array];
     _borrowers         = [NSMutableArray array];
+    _extensionInfos    = [NSMutableArray array];
 
     // Plain text — the universal fallback, registered first.
     _plaintextFallback = [[UDLanguageMode alloc]
@@ -365,15 +415,33 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     // any bundle code runs.
     NSString *searchPath = [[NSProcessInfo processInfo] environment][@"UD_PLUGINS_PATH"]
         ?: [[NSBundle mainBundle] builtInPlugInsPath];
+    NSMutableArray<UDExtensionInfo *> *found = [NSMutableArray array];
     for (NSString *plugInsPath in [searchPath componentsSeparatedByString:UDPathListSeparator()]) {
         if (plugInsPath.length == 0) continue;
         NSArray<NSString *> *names = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:plugInsPath error:NULL]
             sortedArrayUsingSelector:@selector(compare:)];
         for (NSString *name in names) {
             if (![name.pathExtension isEqualToString:@"bundle"]) continue;
-            [self _loadBundleAtPath:[plugInsPath stringByAppendingPathComponent:name]];
+            [found addObject:[UDInstalledExtensions builtInAtPath:[plugInsPath stringByAppendingPathComponent:name]]];
         }
     }
+    // then those installed (~/.udcode/extensions), as VS Code's: one with a
+    // built in one's id, or its bundle's, takes its place; those uninstalled
+    // removed first
+    [UDInstalledExtensions removeUninstalled];
+    for (UDExtensionInfo *installed in [UDInstalledExtensions installed]) {
+        NSString *bundleID = [NSBundle bundleWithPath:installed.bundlePath].bundleIdentifier.lowercaseString;
+        for (UDExtensionInfo *builtIn in [found copy]) {
+            if (builtIn.location != UDExtensionLocationBuiltIn || installed.problem) continue;
+            if ([builtIn.identifier isEqualToString:installed.identifier] || (bundleID && [builtIn.identifier isEqualToString:bundleID])) {
+                builtIn.problem = [NSString stringWithFormat:@"%@ (installed) takes its place.", installed.identifier];
+                [_extensionInfos addObject:builtIn];
+                [found removeObject:builtIn];
+            }
+        }
+        [found addObject:installed];
+    }
+    for (UDExtensionInfo *info in found) [self _loadExtension:info];
     // the modes borrowing another's grammar ("grammarOf"): every bundle's loaded
     for (NSArray *borrower in _borrowers) {
         UDLanguageMode *lender = _byIdentifier[borrower[0][@"grammarOf"]];

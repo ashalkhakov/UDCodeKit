@@ -17,6 +17,7 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
 @interface AppDelegate ()
 @property (nonatomic, strong) UDUpdater *updater;
 @property (nonatomic, strong, nullable) UDPreferencesController *preferences;
+@property (nonatomic, strong, nullable) UDExtensionsWindowController *extensionsWindow;
 @end
 
 @implementation AppDelegate
@@ -41,6 +42,11 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
 - (IBAction)showPreferences:(id)sender {
     if (!self.preferences) self.preferences = [[UDPreferencesController alloc] init];
     [self.preferences showWindow:sender];
+}
+
+- (IBAction)showExtensions:(id)sender {
+    if (!self.extensionsWindow) self.extensionsWindow = [[UDExtensionsWindowController alloc] init];
+    [self.extensionsWindow showWindow:sender];
 }
 
 /// File > Open Folder…: the folder as a project, in a window of its own (the

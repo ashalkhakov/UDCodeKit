@@ -44,8 +44,8 @@ jobs:
       # MariaDB Connector/C's headers, for the SQL extension, and libsecret's,
       # for UDCodeKit's passwords (those three loaded when there, not linked;
       # libpq's and libmariadb's libraries go into the AppImage: appimage.conf's
-      # PREPARE)
-      extra-packages: lldb libsqlite3-dev libpq-dev libmariadb-dev libsecret-1-dev
+      # PREPARE); zip and unzip, the extensions' tests' packages
+      extra-packages: lldb libsqlite3-dev libpq-dev libmariadb-dev libsecret-1-dev zip unzip
       # the SQL extension's tests run against these too (POSTGRES_URL, MYSQL_URL, MARIADB_URL)
       databases: postgres mysql mariadb
 

@@ -43,49 +43,31 @@
 			membershipExceptions = (
 				Credentials/linux/UDSystemCredentialStore.m,
 				Credentials/windows/UDSystemCredentialStore.m,
-				Terminal/windows/UDPseudoTerminal.m,
-				Terminal/windows/UDShell.m,
-				Project/windows/UDPaths.m,
 				Project/linux/UDFileWatcherSystem.m,
 				Project/windows/UDFileWatcherSystem.m,
+				Project/windows/UDPaths.m,
+				Terminal/windows/UDPseudoTerminal.m,
+				Terminal/windows/UDShell.m,
 			);
 			publicHeaders = (
 				Credentials/UDCredentialStore.h,
-				Debug/UDDebugger.h,
-				Project/UDTestRunner.h,
-				Project/UDCommandTestRunner.h,
-				Project/UDBuildSystem.h,
-				Project/UDTestNavigatorViewController.h,
-				Project/UDTests.h,
-				Outline/UDDocumentSymbol.h,
-				Outline/UDTreeSitterOutline.h,
-				SourceControl/UDAuthorsView.h,
-				SourceControl/UDHistoryViewController.h,
-				SourceControl/UDSourceControl.h,
-				SourceControl/UDSourceControlNavigatorViewController.h,
-				Highlighters/UDSemanticTokensHighlighter.h,
-				Terminal/UDTerminalViewController.h,
-				Terminal/UDTerminalView.h,
-				Terminal/UDPseudoTerminal.h,
-				Terminal/UDShell.h,
-				Project/UDPaths.h,
 				Debug/UDBreakpointEditorViewController.h,
 				Debug/UDBreakpointNavigatorViewController.h,
 				Debug/UDBreakpointStore.h,
 				Debug/UDDebugAreaViewController.h,
 				Debug/UDDebugBarViewController.h,
+				Debug/UDDebugger.h,
 				Debug/UDDebugHoverViewController.h,
 				Debug/UDDebugNavigatorViewController.h,
 				Debug/UDDebugSession.h,
 				Diagnostics/UDDiagnosticStore.h,
 				Diff/UDDiffEditorViewController.h,
-				Workbench/UDBadgeTextFieldCell.h,
-				Workbench/UDJumpBarController.h,
-				Workbench/UDJumpBarView.h,
 				Extensions/UDDiagnosticItem.h,
 				Extensions/UDExtension.h,
-				Extensions/UDWorkbench.h,
+				Extensions/UDExtensionsWindowController.h,
+				Extensions/UDInstalledExtensions.h,
 				Extensions/UDLanguageKeyHandler.h,
+				Extensions/UDWorkbench.h,
 				Find/UDFindBarViewController.h,
 				Find/UDFindModel.h,
 				Highlighters/UDBracketMatchHighlighter.h,
@@ -96,6 +78,7 @@
 				Highlighters/UDLSPDiagnosticHighlighter.h,
 				Highlighters/UDOccurrencesHighlighter.h,
 				Highlighters/UDPlaceholderHighlighter.h,
+				Highlighters/UDSemanticTokensHighlighter.h,
 				Highlighters/UDSyntaxHighlighter.h,
 				Highlighters/UDTreeSitterHighlighter.h,
 				LSP/UDLSPCoordinator.h,
@@ -106,19 +89,35 @@
 				Model/UDLanguageMode.h,
 				Model/UDLanguageModeRegistry.h,
 				Model/UDLinkComputer.h,
+				Outline/UDDocumentSymbol.h,
+				Outline/UDTreeSitterOutline.h,
 				Project/UDBuildLogViewController.h,
 				Project/UDBuildRunner.h,
+				Project/UDBuildSystem.h,
+				Project/UDCommandTestRunner.h,
 				Project/UDFileNavigatorViewController.h,
 				Project/UDFileWatcher.h,
 				Project/UDOpenQuicklyController.h,
+				Project/UDPaths.h,
+				Project/UDPreferencesController.h,
 				Project/UDProject.h,
 				Project/UDProjectSettingsController.h,
-				Project/UDPreferencesController.h,
 				Project/UDSearchResultsViewController.h,
 				Project/UDTasks.h,
+				Project/UDTestNavigatorViewController.h,
+				Project/UDTestRunner.h,
+				Project/UDTests.h,
 				Project/UDToolLocator.h,
+				SourceControl/UDAuthorsView.h,
+				SourceControl/UDHistoryViewController.h,
+				SourceControl/UDSourceControl.h,
+				SourceControl/UDSourceControlNavigatorViewController.h,
 				Tabs/UDTabBarView.h,
 				Tabs/UDTabItemView.h,
+				Terminal/UDPseudoTerminal.h,
+				Terminal/UDShell.h,
+				Terminal/UDTerminalView.h,
+				Terminal/UDTerminalViewController.h,
 				TextModel/UDTextModelString.h,
 				TextModel/UDTextModelTextStorage.h,
 				TreeSitter/TreeSitterTheme.h,
@@ -133,11 +132,14 @@
 				UDFoldingController.h,
 				UDLineNumberGutterView.h,
 				UDStructuredNavigator.h,
+				Workbench/UDBadgeTextFieldCell.h,
 				Workbench/UDCompletionListController.h,
 				Workbench/UDEditorTabsController.h,
 				Workbench/UDErrorsViewController.h,
 				Workbench/UDHoverViewController.h,
 				Workbench/UDIssuePopupController.h,
+				Workbench/UDJumpBarController.h,
+				Workbench/UDJumpBarView.h,
 				Workbench/UDPaneSplitController.h,
 			);
 			target = C0DEC0DE0000000000000004 /* UDCodeKit */;
@@ -402,10 +404,6 @@
 		C0DEC0DE000000000000000F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				OTHER_LDFLAGS = (
-					"-framework",
-					Security,
-				);
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -427,6 +425,10 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					Security,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.UDCodeKit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
@@ -436,10 +438,6 @@
 		C0DEC0DE0000000000000010 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				OTHER_LDFLAGS = (
-					"-framework",
-					Security,
-				);
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -461,6 +459,10 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					Security,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = org.underivable.UDCodeKit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;

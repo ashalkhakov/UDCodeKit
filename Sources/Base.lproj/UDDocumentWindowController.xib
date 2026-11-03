@@ -338,13 +338,13 @@
                                 <subviews>
                                     <!-- Xcode's inspector tabs: File (the document's), then the
                                          front editor's own (UDEditorPanes), filled in from code -->
-                                    <segmentedControl verticalHuggingPriority="750" id="WS-insp-switch">
-                                        <rect key="frame" x="8" y="728" width="244" height="24"/>
-                                        <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
-                                        <segmentedCell key="cell" borderStyle="border" alignment="left" style="rounded" trackingMode="selectOne" id="WS-insp-switch-cell">
+                                    <segmentedControl verticalHuggingPriority="750" id="WS-insp-switch" userLabel="Inspector Selector">
+                                        <rect key="frame" x="115" y="728" width="30" height="24"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                        <segmentedCell key="cell" borderStyle="border" alignment="left" style="texturedSquare" trackingMode="selectOne" id="WS-insp-switch-cell">
                                             <font key="font" metaFont="smallSystem"/>
                                             <segments>
-                                                <segment label="File" selected="YES"/>
+                                                <segment toolTip="File inspector" image="doc" catalog="system" width="29" selected="YES"/>
                                             </segments>
                                         </segmentedCell>
                                         <connections>

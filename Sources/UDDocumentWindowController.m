@@ -2177,13 +2177,24 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
     NSArray *inspectors = [editor respondsToSelector:@selector(inspectorViewControllers)] ? [editor inspectorViewControllers] : @[];
     _editorInspectors = inspectors ?: @[];
     UDSetSegmentCount(_inspectorSwitch, 1 + (NSInteger)_editorInspectors.count);
+    [_inspectorSwitch setWidth:29 forSegment:0]; // the XIB's, which gnustep-gui's XIB loading drops
     for (NSUInteger i = 0; i < _editorInspectors.count; i++) {
         NSViewController *inspector = _editorInspectors[i];
-        [_inspectorSwitch setLabel:inspector.title.length ? inspector.title : @"Inspector" forSegment:(NSInteger)i + 1];
+        NSString *title = inspector.title.length ? inspector.title : @"Inspector";
+        NSImage *image = [editor respondsToSelector:@selector(imageForInspectorViewController:)] ? [editor imageForInspectorViewController:inspector] : nil;
+        NSInteger segment = (NSInteger)i + 1;
+        [_inspectorSwitch setImage:image forSegment:segment];
+        [_inspectorSwitch setLabel:image ? @"" : title forSegment:segment];
+        CGFloat width = image ? 29 : ceil([title sizeWithAttributes:@{ NSFontAttributeName: _inspectorSwitch.font }].width) + 16;
+        [_inspectorSwitch setWidth:width forSegment:segment];
+        [_inspectorSwitch.cell setToolTip:[title stringByAppendingString:@" inspector"] forSegment:segment];
     }
-    // the tabs spread across the pane, as Xcode's are
-    CGFloat width = floor((NSWidth(_inspectorSwitch.frame) - 4) / _inspectorSwitch.segmentCount);
-    for (NSInteger i = 0; i < _inspectorSwitch.segmentCount; i++) [_inspectorSwitch setWidth:width forSegment:i];
+    // the tabs side by side in the middle of the pane, as Xcode's are
+    NSRect frame = _inspectorSwitch.frame;
+    frame.size.width = 1;
+    for (NSInteger i = 0; i < _inspectorSwitch.segmentCount; i++) frame.size.width += [_inspectorSwitch widthForSegment:i];
+    frame.origin.x = floor((NSWidth(_inspectorSwitch.superview.bounds) - NSWidth(frame)) / 2);
+    _inspectorSwitch.frame = frame;
     NSNumber *chosen = editor ? [_chosenInspectors objectForKey:editor] : nil;
     NSInteger tab = chosen.integerValue < _inspectorSwitch.segmentCount ? chosen.integerValue : 0;
     [self _showInspector:tab];

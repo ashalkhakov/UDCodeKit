@@ -42,8 +42,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// View > Open as Text: the front tab's document, shown by an extension's
 /// editor, in a text tab.
 - (IBAction)openAsText:(nullable id)sender;
-/// Editor > Run (⌘↩) and Run All (⇧⌘↩): the front text tab's document run
-/// by the extension whose it is (UDExtension's -workbench:runDocument:…).
+/// Editor > Run (⌘↩) and Run All (⇧⌘↩): the front tab's document, as text or
+/// in its own editor, run by the extension whose it is (UDExtension's
+/// -workbench:runDocument:…).
 - (IBAction)runDocument:(nullable id)sender;
 - (IBAction)runAllOfDocument:(nullable id)sender;
 

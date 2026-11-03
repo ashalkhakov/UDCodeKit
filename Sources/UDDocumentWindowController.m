@@ -2283,12 +2283,12 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
     else NSBeep();
 }
 
-/// The extension that runs the front text tab's document now: the first that
-/// says it can (a SQL statement's, an OData request's); nil: none, or no
-/// text tab in front.
+/// The extension that runs the front tab's document now, as text or in its
+/// own editor: the first that says it can (a SQL statement's, an OData
+/// request's or query's); nil: none, or no document in front.
 - (nullable id<UDExtension>)_runnerOfSelectedDocument {
     UDCodeDocument *document = [self selectedDocument];
-    if (!document || ![self selectedEditor]) return nil;
+    if (!document) return nil;
     for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
         if (![extension respondsToSelector:@selector(workbench:canRunDocument:)] ||
             ![extension respondsToSelector:@selector(workbench:runDocument:selection:all:)]) continue;
@@ -2303,7 +2303,9 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
         NSBeep();
         return;
     }
-    [extension workbench:self runDocument:[self selectedDocument] selection:[self selectedEditor].textView.selectedRange all:all];
+    UDCodeEditorViewController *text = [self selectedEditor];
+    NSRange selection = text ? text.textView.selectedRange : NSMakeRange(NSNotFound, 0);
+    [extension workbench:self runDocument:[self selectedDocument] selection:selection all:all];
 }
 
 - (IBAction)runDocument:(nullable id)sender {

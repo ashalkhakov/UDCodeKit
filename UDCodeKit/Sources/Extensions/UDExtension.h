@@ -240,11 +240,13 @@ static NSString * const UDLinkURLKey = @"url";
 - (NSArray<NSMenuItem *> *)editorMenuItemsForWorkbench:(id<UDWorkbench>)workbench;
 
 /// Editor > Run (⌘↩) and Run All (⇧⌘↩): whether @a document, in front as
-/// text, is the extension's to run now (a SQL statement, an OData request);
-/// the first extension that says so runs it.
+/// text or in the extension's own editor, is the extension's to run now (a
+/// SQL statement, an OData request or query); the first extension that says
+/// so runs it.
 - (BOOL)workbench:(id<UDWorkbench>)workbench canRunDocument:(UDCodeDocument *)document;
 /// What it runs: the one at @a selection (the text's selection, or its
-/// caret) or, with @a all, every one, in order.
+/// caret; {NSNotFound, 0} in an editor of the extension's own) or, with
+/// @a all, every one, in order.
 - (void)workbench:(id<UDWorkbench>)workbench runDocument:(UDCodeDocument *)document selection:(NSRange)selection all:(BOOL)all;
 
 /// Whether it opens @a url itself (a database file, say) rather than the

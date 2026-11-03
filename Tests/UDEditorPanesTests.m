@@ -252,7 +252,12 @@ static NSMutableArray<NSArray *> *UDPanesTestRuns;
     XCTAssertFalse([_controller validateMenuItem:run], @"a text tab no extension runs");
     [self openTestDocument];
     UDCodeDocument *document = _controller.editorTabs.selectedItem.representedObject;
-    XCTAssertFalse([_controller validateMenuItem:run], @"its own editor in front, not its text");
+    // its own editor in front: run with no selection
+    XCTAssertTrue([_controller validateMenuItem:run], @"its own editor in front: the extension's to run");
+    UDPanesTestRuns = [NSMutableArray array];
+    [_controller runDocument:nil];
+    XCTAssertEqual(UDPanesTestRuns.count, 1u);
+    XCTAssertEqual([UDPanesTestRuns[0][1] rangeValue].location, (NSUInteger)NSNotFound, @"no text: no selection");
     [_controller openAsText:nil];
     XCTAssertTrue([_controller validateMenuItem:run], @"its text in front: the extension's to run");
     [[(id<UDWorkbench>)_controller selectedEditor].textView setSelectedRange:NSMakeRange(2, 0)];

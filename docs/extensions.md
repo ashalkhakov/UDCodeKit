@@ -190,6 +190,23 @@ the front:
   themselves are the document's diagnostics (`diagnosticStore`), which the
   Issues navigator lists with every other document's.
 
+## Running a document
+
+**Editor > Run** (⌘↩) and **Run All** (⇧⌘↩) are UDCode's, and run the text
+tab in front, whichever extension's document it is: the SQL mode's
+statements, the OData Workbench's requests. An extension that runs its
+mode's documents answers two methods of `UDExtension`:
+
+- **`-workbench:canRunDocument:`**: whether it runs this document now. The
+  first extension that says yes runs it, and the items are enabled.
+- **`-workbench:runDocument:selection:all:`**: run the statement or request
+  at the selection (or the caret), or with `all`, every one in order.
+
+An extension's own items in the Editor menu (`-editorMenuItemsForWorkbench:`)
+come after UDCode's, and shouldn't take ⌘↩ or ⇧⌘↩: in a menu, the first
+item with a key equivalent takes the key, even while it is disabled, so two
+extensions' ⌘↩ items would leave one of them unreachable from the keyboard.
+
 An app that embeds UDCodeKit can register an extension it makes itself,
 with no bundle, using `-[UDLanguageModeRegistry registerExtension:]`.
 

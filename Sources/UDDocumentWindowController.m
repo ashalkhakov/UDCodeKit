@@ -1521,6 +1521,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         return [editor respondsToSelector:@selector(libraryViewController)];
     }
     if (sel_isEqual(action, @selector(openAsText:))) return [self _customEditorDocument] != nil;
+    if (sel_isEqual(action, @selector(runDocument:)) || sel_isEqual(action, @selector(runAllOfDocument:))) {
+        return [self _runnerOfSelectedDocument] != nil;
+    }
     if (sel_isEqual(action, @selector(build:)) || sel_isEqual(action, @selector(clean:))) {
         return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(runWithoutDebugging:))) {
@@ -2278,6 +2281,37 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
     UDCodeDocument *document = [self _customEditorDocument];
     if (document) [self showDocumentAsText:document];
     else NSBeep();
+}
+
+/// The extension that runs the front text tab's document now: the first that
+/// says it can (a SQL statement's, an OData request's); nil: none, or no
+/// text tab in front.
+- (nullable id<UDExtension>)_runnerOfSelectedDocument {
+    UDCodeDocument *document = [self selectedDocument];
+    if (!document || ![self selectedEditor]) return nil;
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if (![extension respondsToSelector:@selector(workbench:canRunDocument:)] ||
+            ![extension respondsToSelector:@selector(workbench:runDocument:selection:all:)]) continue;
+        if ([extension workbench:self canRunDocument:document]) return extension;
+    }
+    return nil;
+}
+
+- (void)_runSelectedDocument:(BOOL)all {
+    id<UDExtension> extension = [self _runnerOfSelectedDocument];
+    if (!extension) {
+        NSBeep();
+        return;
+    }
+    [extension workbench:self runDocument:[self selectedDocument] selection:[self selectedEditor].textView.selectedRange all:all];
+}
+
+- (IBAction)runDocument:(nullable id)sender {
+    [self _runSelectedDocument:NO];
+}
+
+- (IBAction)runAllOfDocument:(nullable id)sender {
+    [self _runSelectedDocument:YES];
 }
 
 /// The Library while its popover is shown: closed (its item taken).

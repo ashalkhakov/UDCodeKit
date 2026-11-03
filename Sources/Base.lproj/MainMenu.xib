@@ -693,6 +693,18 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Editor" id="UDM-editor-menu">
                         <items>
+                            <menuItem title="Run" keyEquivalent="&#xd;" id="UDM-run-document">
+                                <connections>
+                                    <action selector="runDocument:" target="-1" id="UDM-run-document-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem title="Run All" keyEquivalent="&#xd;" id="UDM-run-all">
+                                <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
+                                <connections>
+                                    <action selector="runAllOfDocument:" target="-1" id="UDM-run-all-a"/>
+                                </connections>
+                            </menuItem>
+                            <menuItem isSeparatorItem="YES" id="UDM-run-separator"/>
                             <menuItem title="Rename Symbol…" keyEquivalent="e" id="UDM-rename">
                                 <modifierMask key="keyEquivalentModifierMask" control="YES" command="YES"/>
                                 <connections>

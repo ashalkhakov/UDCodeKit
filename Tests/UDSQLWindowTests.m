@@ -6,7 +6,7 @@
 //  claimed, read as one: its entities, its metadata); a SQL document run
 //  against it (its results under its text, each statement's; its
 //  parameters asked for in a sheet; a store's dates and entities shown as
-//  such); the Editor menu's Run Statement and Run All; the store's ER
+//  such); UDCode's Editor > Run, which the SQL mode answers; the store's ER
 //  diagram, in a tab of its own (its XIB's views and menu connected); a
 //  table's rows and an entity's browsed (a query by example of each, run).
 //
@@ -254,7 +254,10 @@ static Class UDPluginClass(NSString *name) {
     [controller.window makeFirstResponder:editor.textView];
     XCTAssertTrue([databases canRun]);
     [editor.textView setSelectedRange:NSMakeRange(3, 0)];
-    [databases runStatement:nil];
+    // UDCode's Editor > Run (⌘↩), the SQL mode's to answer
+    NSMenuItem *runItem = [[NSMenuItem alloc] initWithTitle:@"Run" action:@selector(runDocument:) keyEquivalent:@"\r"];
+    XCTAssertTrue([controller validateMenuItem:runItem], @"a SQL document's to run");
+    [controller runDocument:nil];
     // its results in the bottom area's Results, beside the debugger and
     // the terminal (not on top of them, under its text)
     UDSQLResultsViewController *results = [databases resultsOfDocument:controller.editorTabs.selectedItem.representedObject];
@@ -309,9 +312,12 @@ static Class UDPluginClass(NSString *name) {
     NSMenu *before = NSApp.mainMenu;
     NSApp.mainMenu = menu;
     [controller _rebuildEditorMenu];
-    NSMenuItem *run = [editorItem.submenu itemWithTitle:@"Run Statement"];
-    XCTAssertEqualObjects(run.keyEquivalent, @"\r", @"⌘↩");
-    XCTAssertNotNil([editorItem.submenu itemWithTitle:@"Run All"]);
+    XCTAssertNotNil([editorItem.submenu itemWithTitle:@"Stop Running"]);
+    // ⌘↩ and ⇧⌘↩ are UDCode's Run and Run All, not the mode's: the first item
+    // with a key takes it, enabled or not
+    for (NSMenuItem *item in editorItem.submenu.itemArray) {
+        XCTAssertFalse([item.keyEquivalent isEqualToString:@"\r"], @"%@ takes ⌘↩", item.title);
+    }
     NSApp.mainMenu = before;
     [controller close];
     [workspace close];

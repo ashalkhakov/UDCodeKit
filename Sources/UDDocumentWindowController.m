@@ -1520,6 +1520,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         id<UDEditorPanes> editor = [self _paneEditor];
         return [editor respondsToSelector:@selector(libraryViewController)];
     }
+    if (sel_isEqual(action, @selector(openAsText:))) return [self _customEditorDocument] != nil;
     if (sel_isEqual(action, @selector(build:)) || sel_isEqual(action, @selector(clean:))) {
         return _buildRunner != nil && !_buildRunner.running;
     } else if (sel_isEqual(action, @selector(runWithoutDebugging:))) {
@@ -2260,6 +2261,23 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
     NSRect bounds = over.bounds;
     NSRect anchor = NSMakeRect(NSMaxX(bounds) - 60, [over isFlipped] ? 0 : NSMaxY(bounds) - 2, 40, 2);
     [_libraryPopover showRelativeToRect:anchor ofView:over preferredEdge:[over isFlipped] ? NSMaxYEdge : NSMinYEdge];
+}
+
+/// The front tab's document while an extension's editor shows it (an RDL
+/// report's designer, an ORM model's diagram); nil for a text tab.
+- (nullable UDCodeDocument *)_customEditorDocument {
+    UDCodeDocument *document = [self selectedDocument];
+    id controller = _editorTabs.selectedItem ? [_editorTabs viewControllerForItem:_editorTabs.selectedItem] : nil;
+    return document && controller && ![controller isKindOfClass:[UDCodeEditorViewController class]] ? document : nil;
+}
+
+/// View > Open as Text: the document an extension's editor shows, in a text
+/// tab of its own (its mode's grammar: an RDL report's is XML), as Xcode's
+/// Open As > Source Code. A text tab of it already open comes forward.
+- (IBAction)openAsText:(nullable id)sender {
+    UDCodeDocument *document = [self _customEditorDocument];
+    if (document) [self showDocumentAsText:document];
+    else NSBeep();
 }
 
 /// The Library while its popover is shown: closed (its item taken).

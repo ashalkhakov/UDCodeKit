@@ -217,6 +217,27 @@ static NSViewController *UDTestPane(NSString *title) {
     [(id<UDWorkbench>)_controller closeLibrary];
 }
 
+- (void)testItsDocumentOpensAsText {
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@"Open as Text" action:@selector(openAsText:) keyEquivalent:@""];
+    XCTAssertFalse([_controller validateMenuItem:item], @"a text tab is text already");
+    [self openTestDocument];
+    UDTabBarItem *designer = _controller.editorTabs.selectedItem;
+    UDCodeDocument *document = designer.representedObject;
+    XCTAssertTrue([_controller validateMenuItem:item]);
+    [_controller openAsText:nil];
+    UDTabBarItem *text = _controller.editorTabs.selectedItem;
+    XCTAssertNotEqual(text, designer, @"a tab of its own");
+    XCTAssertEqual(text.representedObject, document, @"the same document");
+    XCTAssertTrue([[_controller.editorTabs viewControllerForItem:text] isKindOfClass:[UDCodeEditorViewController class]]);
+    XCTAssertFalse([_controller validateMenuItem:item]);
+    // again from the editor's tab: the text tab comes forward, no other is opened
+    NSUInteger tabs = _controller.editorTabs.items.count;
+    [_controller.editorTabs selectItem:designer];
+    [_controller openAsText:nil];
+    XCTAssertEqual(_controller.editorTabs.selectedItem, text);
+    XCTAssertEqual(_controller.editorTabs.items.count, tabs);
+}
+
 - (void)testAnIssueOfItsDocumentIsShownInTheEditor {
     UDPanesTestEditor *editor = [self openTestDocument];
     UDCodeDocument *document = _controller.editorTabs.selectedItem.representedObject;

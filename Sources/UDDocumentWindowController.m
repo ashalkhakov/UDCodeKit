@@ -2229,13 +2229,17 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
     [_fileInspector setHidden:inspector != nil];
 }
 
-- (IBAction)inspectorChanged:(nullable id)sender {
-    NSInteger tab = _inspectorSwitch.selectedSegment;
+/// The inspector tab chosen, and kept chosen while its editor is in front.
+- (void)_chooseInspector:(NSInteger)tab {
     if (_panesEditor) {
         if (!_chosenInspectors) _chosenInspectors = [NSMapTable weakToStrongObjectsMapTable];
         [_chosenInspectors setObject:@(tab) forKey:_panesEditor];
     }
     [self _showInspector:tab];
+}
+
+- (IBAction)inspectorChanged:(nullable id)sender {
+    [self _chooseInspector:_inspectorSwitch.selectedSegment];
     [_paneSplit setPane:UDInspectorPane visible:YES];
 }
 
@@ -2261,6 +2265,20 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
 /// The Library while its popover is shown: closed (its item taken).
 - (void)closeLibrary {
     [_libraryPopover close];
+}
+
+- (BOOL)showEditorInspector:(NSViewController *)inspector {
+    NSUInteger index = [_editorInspectors indexOfObjectIdenticalTo:inspector];
+    if (index == NSNotFound) return NO;
+    [self _chooseInspector:(NSInteger)index + 1];
+    return YES;
+}
+
+/// A text field in the front editor's views: its field editor, when it has
+/// one of its own (UDEditorPanes).
+- (nullable id)windowWillReturnFieldEditor:(NSWindow *)sender toObject:(nullable id)client {
+    id<UDEditorPanes> editor = [self _paneEditor];
+    return client && [editor respondsToSelector:@selector(fieldEditorForClient:)] ? [editor fieldEditorForClient:client] : nil;
 }
 
 - (BOOL)showEditorBottomPane:(NSViewController *)pane {

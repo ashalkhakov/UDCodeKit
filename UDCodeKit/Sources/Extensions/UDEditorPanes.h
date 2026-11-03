@@ -41,6 +41,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// popover over the editor. nil: it has none (the item is dimmed).
 - (nullable NSViewController *)libraryViewController;
 
+/// The field editor of a text field inside its views (the window's
+/// -windowWillReturnFieldEditor:toObject:), for one that completes or undoes
+/// in its own way; nil: the window's own.
+- (nullable id)fieldEditorForClient:(id)client;
+
 /// An issue of its document chosen in the Issues navigator: shown (the
 /// element it is about selected, say). A text editor's tab would have gone
 /// to its line.

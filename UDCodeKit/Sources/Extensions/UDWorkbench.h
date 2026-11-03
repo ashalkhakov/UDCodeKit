@@ -75,6 +75,12 @@ UDCODEKIT_EXPORT NSNotificationName const UDWorkbenchSelectionDidChangeNotificat
 /// -bottomAreaViewControllers) shown, the bottom area opened for it: NO
 /// when the front editor has no such pane.
 - (BOOL)showEditorBottomPane:(NSViewController *)pane;
+/// One of the front editor's inspectors (UDEditorPanes'
+/// -inspectorViewControllers) the inspector pane's chosen tab, as choosing
+/// its tab would: what an editor does when what it shows calls for another
+/// inspector. The pane itself is left shown or hidden. NO when the front
+/// editor has no such inspector.
+- (BOOL)showEditorInspector:(NSViewController *)inspector;
 
 @end
 

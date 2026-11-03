@@ -2177,6 +2177,7 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
     NSArray *inspectors = [editor respondsToSelector:@selector(inspectorViewControllers)] ? [editor inspectorViewControllers] : @[];
     _editorInspectors = inspectors ?: @[];
     UDSetSegmentCount(_inspectorSwitch, 1 + (NSInteger)_editorInspectors.count);
+    [_inspectorSwitch setWidth:29 forSegment:0]; // the XIB's, which gnustep-gui's XIB loading drops
     for (NSUInteger i = 0; i < _editorInspectors.count; i++) {
         NSViewController *inspector = _editorInspectors[i];
         NSString *title = inspector.title.length ? inspector.title : @"Inspector";

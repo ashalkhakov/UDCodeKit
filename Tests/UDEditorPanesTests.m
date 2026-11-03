@@ -125,6 +125,8 @@ static NSViewController *UDTestPane(NSString *title) {
     XCTAssertNotNil(_controller.inspectorHost);
     UDTabBarItem *text = _controller.editorTabs.selectedItem;
     XCTAssertEqual(_controller.inspectorSwitch.segmentCount, 1, @"a text tab: File only");
+    XCTAssertGreaterThan([_controller.inspectorSwitch widthForSegment:0], 20, @"File's tab an icon's width");
+    XCTAssertGreaterThan(NSWidth(_controller.inspectorSwitch.frame), 20);
 
     UDPanesTestEditor *editor = [self openTestDocument];
     XCTAssertEqual(_controller.inspectorSwitch.segmentCount, 3);

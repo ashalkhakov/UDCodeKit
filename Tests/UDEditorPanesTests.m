@@ -129,7 +129,8 @@ static NSViewController *UDTestPane(NSString *title) {
     UDPanesTestEditor *editor = [self openTestDocument];
     XCTAssertEqual(_controller.inspectorSwitch.segmentCount, 3);
     XCTAssertEqualObjects([_controller.inspectorSwitch labelForSegment:1], @"Attributes");
-    XCTAssertNotNil([_controller.inspectorSwitch imageForSegment:0], @"File's tab an image, as Xcode's");
+    // File's tab an image, as Xcode's (on GNUstep the app's doc.png, which xctest's bundle hasn't)
+    if ([NSImage imageNamed:@"doc"]) XCTAssertNotNil([_controller.inspectorSwitch imageForSegment:0]);
     XCTAssertEqualObjects([_controller.inspectorSwitch labelForSegment:2], @"", @"Size's tab its image");
     XCTAssertEqual([_controller.inspectorSwitch imageForSegment:2], editor.sizeImage);
     XCTAssertEqualObjects([_controller.inspectorSwitch.cell toolTipForSegment:2], @"Size inspector");

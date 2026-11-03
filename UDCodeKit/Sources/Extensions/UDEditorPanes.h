@@ -25,6 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// its view controller's title. The same ones each time it is asked: the
 /// tab chosen stays chosen while the editor is in front.
 - (NSArray<NSViewController *> *)inspectorViewControllers;
+/// An inspector's tab's image (16 points square), its title the tab's tool
+/// tip, as Xcode's are; nil: its title.
+- (nullable NSImage *)imageForInspectorViewController:(NSViewController *)viewController;
 
 /// Its panes in the bottom area, each a segment of its switch after the
 /// debugger's, the terminal's and the extensions' own, its title the

@@ -35,12 +35,13 @@ static NSViewController *UDTestPane(NSString *title) {
     return pane;
 }
 
-/// The test mode's editor: two inspectors, a bottom pane, a Library, and
-/// what was revealed in it.
+/// The test mode's editor: two inspectors (Size's tab an image), a bottom
+/// pane, a Library, and what was revealed in it.
 @interface UDPanesTestEditor : NSViewController <UDEditorPanes>
 @property (nonatomic, copy) NSArray<NSViewController *> *inspectors;
 @property (nonatomic, copy) NSArray<NSViewController *> *panes;
 @property (nonatomic, strong) NSViewController *library;
+@property (nonatomic, strong) NSImage *sizeImage;
 @property (nonatomic, strong, nullable) UDDiagnosticItem *revealed;
 @end
 
@@ -50,8 +51,12 @@ static NSViewController *UDTestPane(NSString *title) {
     _inspectors = @[ UDTestPane(@"Attributes"), UDTestPane(@"Size") ];
     _panes = @[ UDTestPane(@"Verbalization") ];
     _library = UDTestPane(@"Library");
+    _sizeImage = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
 }
 - (NSArray<NSViewController *> *)inspectorViewControllers { [self view]; return _inspectors; }
+- (NSImage *)imageForInspectorViewController:(NSViewController *)viewController {
+    return viewController == _inspectors[1] ? _sizeImage : nil;
+}
 - (NSArray<NSViewController *> *)bottomAreaViewControllers { [self view]; return _panes; }
 - (NSViewController *)libraryViewController { [self view]; return _library; }
 - (void)revealDiagnostic:(UDDiagnosticItem *)diagnostic { _revealed = diagnostic; }
@@ -124,7 +129,10 @@ static NSViewController *UDTestPane(NSString *title) {
     UDPanesTestEditor *editor = [self openTestDocument];
     XCTAssertEqual(_controller.inspectorSwitch.segmentCount, 3);
     XCTAssertEqualObjects([_controller.inspectorSwitch labelForSegment:1], @"Attributes");
-    XCTAssertEqualObjects([_controller.inspectorSwitch labelForSegment:2], @"Size");
+    XCTAssertNotNil([_controller.inspectorSwitch imageForSegment:0], @"File's tab an image, as Xcode's");
+    XCTAssertEqualObjects([_controller.inspectorSwitch labelForSegment:2], @"", @"Size's tab its image");
+    XCTAssertEqual([_controller.inspectorSwitch imageForSegment:2], editor.sizeImage);
+    XCTAssertEqualObjects([_controller.inspectorSwitch.cell toolTipForSegment:2], @"Size inspector");
     XCTAssertFalse(_controller.fileInspector.isHidden, @"File chosen first");
 
     [_controller.inspectorSwitch setSelectedSegment:2];

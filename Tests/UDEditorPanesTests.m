@@ -42,6 +42,8 @@ static NSViewController *UDTestPane(NSString *title) {
 @property (nonatomic, copy) NSArray<NSViewController *> *panes;
 @property (nonatomic, strong) NSViewController *library;
 @property (nonatomic, strong) NSImage *sizeImage;
+@property (nonatomic, strong) NSTextField *field;
+@property (nonatomic, strong) NSTextView *fieldEditor;
 @property (nonatomic, strong, nullable) UDDiagnosticItem *revealed;
 @end
 
@@ -52,6 +54,13 @@ static NSViewController *UDTestPane(NSString *title) {
     _panes = @[ UDTestPane(@"Verbalization") ];
     _library = UDTestPane(@"Library");
     _sizeImage = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
+    _field = [[NSTextField alloc] initWithFrame:NSMakeRect(10, 10, 100, 22)];
+    [self.view addSubview:_field];
+    _fieldEditor = [[NSTextView alloc] initWithFrame:NSZeroRect];
+    [_fieldEditor setFieldEditor:YES];
+}
+- (id)fieldEditorForClient:(id)client {
+    return [client isKindOfClass:[NSView class]] && [(NSView *)client isDescendantOf:self.view] ? _fieldEditor : nil;
 }
 - (NSArray<NSViewController *> *)inspectorViewControllers { [self view]; return _inspectors; }
 - (NSImage *)imageForInspectorViewController:(NSViewController *)viewController {
@@ -153,6 +162,23 @@ static NSViewController *UDTestPane(NSString *title) {
     XCTAssertEqual(_controller.inspectorSwitch.segmentCount, 3);
     XCTAssertEqual(_controller.inspectorSwitch.selectedSegment, 2);
     XCTAssertEqual(editor.inspectors[1].view.superview, _controller.inspectorHost);
+
+    // chosen when the editor asks, and kept chosen
+    XCTAssertTrue([(id<UDWorkbench>)_controller showEditorInspector:editor.inspectors[0]]);
+    XCTAssertEqual(_controller.inspectorSwitch.selectedSegment, 1);
+    XCTAssertEqual(editor.inspectors[0].view.superview, _controller.inspectorHost);
+    XCTAssertFalse([(id<UDWorkbench>)_controller showEditorInspector:UDTestPane(@"Not the editor's")]);
+    [_controller.editorTabs selectItem:text];
+    [_controller.editorTabs selectItem:[_controller.editorTabs.items lastObject]];
+    XCTAssertEqual(_controller.inspectorSwitch.selectedSegment, 1);
+}
+
+- (void)testATextFieldOfTheEditorsHasItsFieldEditor {
+    UDPanesTestEditor *editor = [self openTestDocument];
+    NSWindow *window = _controller.window;
+    XCTAssertEqual([window.delegate windowWillReturnFieldEditor:window toObject:editor.field], editor.fieldEditor);
+    NSTextField *outside = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 10, 10)];
+    XCTAssertNil([window.delegate windowWillReturnFieldEditor:window toObject:outside], @"the window's own");
 }
 
 - (void)testTheBottomAreaHasTheFrontEditorsPanes {

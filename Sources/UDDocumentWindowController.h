@@ -39,6 +39,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Open a new blank editor tab backed by an empty JSON document.
 /// Can be wired from a menu item or toolbar button.
 - (IBAction)addEditorTab:(nullable id)sender;
+/// View > Open as Text: the front tab's document, shown by an extension's
+/// editor, in a text tab.
+- (IBAction)openAsText:(nullable id)sender;
 
 /// Present an NSOpenPanel and open each selected file in a new tab.
 - (IBAction)openFileInNewTab:(nullable id)sender;

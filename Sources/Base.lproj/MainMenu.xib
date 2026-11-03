@@ -740,6 +740,11 @@
                                     <action selector="showLibrary:" target="-1" id="UDM-library-a"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Open as Text" id="UDM-open-as-text">
+                                <connections>
+                                    <action selector="openAsText:" target="-1" id="UDM-open-as-text-a"/>
+                                </connections>
+                            </menuItem>
                             <menuItem title="Show Preview" keyEquivalent="&#xd;" id="UDM-preview">
                                 <modifierMask key="keyEquivalentModifierMask" option="YES" command="YES"/>
                                 <connections>

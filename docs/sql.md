@@ -232,8 +232,8 @@ are that document's.
 
 | | |
 |---|---|
-| **Run Statement** (⌘↩) | the statement at the caret, or the selection's statements |
-| **Run All** (⇧⌘↩) | every statement, in turn, stopping at the first that fails |
+| **Editor > Run** (⌘↩) | the statement at the caret, or the selection's statements |
+| **Editor > Run All** (⇧⌘↩) | every statement, in turn, stopping at the first that fails |
 | **Stop** | the statement running, stopped (libpq's cancel, MySQL's `KILL QUERY`, SQLite's interrupt) |
 
 Statements are split at their semicolons, not inside strings, quoted names,

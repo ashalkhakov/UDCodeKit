@@ -232,10 +232,22 @@ static NSString * const UDLinkURLKey = @"url";
 /// generic one.
 - (nullable NSImage *)bottomAreaImage;
 
-/// Its items in the Editor menu (Run Statement…), for @a workbench's window:
+/// Its items in the Editor menu (Stop Running…), for @a workbench's window:
 /// asked again when the window becomes key. Each validates itself (its
 /// target's -validateMenuItem:), against the workbench's selected document.
+/// They come after UDCode's own, and a key UDCode's take is not theirs: the
+/// first item with a key equivalent takes it, enabled or not.
 - (NSArray<NSMenuItem *> *)editorMenuItemsForWorkbench:(id<UDWorkbench>)workbench;
+
+/// Editor > Run (⌘↩) and Run All (⇧⌘↩): whether @a document, in front as
+/// text or in the extension's own editor, is the extension's to run now (a
+/// SQL statement, an OData request or query); the first extension that says
+/// so runs it.
+- (BOOL)workbench:(id<UDWorkbench>)workbench canRunDocument:(UDCodeDocument *)document;
+/// What it runs: the one at @a selection (the text's selection, or its
+/// caret; {NSNotFound, 0} in an editor of the extension's own) or, with
+/// @a all, every one, in order.
+- (void)workbench:(id<UDWorkbench>)workbench runDocument:(UDCodeDocument *)document selection:(NSRange)selection all:(BOOL)all;
 
 /// Whether it opens @a url itself (a database file, say) rather than the
 /// window as text: asked before a file is opened in a tab.

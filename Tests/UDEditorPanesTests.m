@@ -83,6 +83,15 @@ static NSViewController *UDTestPane(NSString *title) {
 - (NSViewController *)workbench:(id<UDWorkbench>)workbench editorForDocument:(UDCodeDocument *)document {
     return [document.languageMode.identifier isEqualToString:@"panestest"] ? [[UDPanesTestEditor alloc] init] : nil;
 }
+// Editor > Run: its documents, each run noted (its selection, all or not).
+static NSMutableArray<NSArray *> *UDPanesTestRuns;
+- (BOOL)workbench:(id<UDWorkbench>)workbench canRunDocument:(UDCodeDocument *)document {
+    return [document.languageMode.identifier isEqualToString:@"panestest"];
+}
+- (void)workbench:(id<UDWorkbench>)workbench runDocument:(UDCodeDocument *)document selection:(NSRange)selection all:(BOOL)all {
+    if (!UDPanesTestRuns) UDPanesTestRuns = [NSMutableArray array];
+    [UDPanesTestRuns addObject:@[ document, [NSValue valueWithRange:selection], @(all) ]];
+}
 @end
 
 @interface UDEditorPanesTests : UDCodeTestCase
@@ -236,6 +245,30 @@ static NSViewController *UDTestPane(NSString *title) {
     [_controller openAsText:nil];
     XCTAssertEqual(_controller.editorTabs.selectedItem, text);
     XCTAssertEqual(_controller.editorTabs.items.count, tabs);
+}
+
+- (void)testEditorRunIsTheFrontDocumentsExtensions {
+    NSMenuItem *run = [[NSMenuItem alloc] initWithTitle:@"Run" action:@selector(runDocument:) keyEquivalent:@"\r"];
+    XCTAssertFalse([_controller validateMenuItem:run], @"a text tab no extension runs");
+    [self openTestDocument];
+    UDCodeDocument *document = _controller.editorTabs.selectedItem.representedObject;
+    // its own editor in front: run with no selection
+    XCTAssertTrue([_controller validateMenuItem:run], @"its own editor in front: the extension's to run");
+    UDPanesTestRuns = [NSMutableArray array];
+    [_controller runDocument:nil];
+    XCTAssertEqual(UDPanesTestRuns.count, 1u);
+    XCTAssertEqual([UDPanesTestRuns[0][1] rangeValue].location, (NSUInteger)NSNotFound, @"no text: no selection");
+    [_controller openAsText:nil];
+    XCTAssertTrue([_controller validateMenuItem:run], @"its text in front: the extension's to run");
+    [[(id<UDWorkbench>)_controller selectedEditor].textView setSelectedRange:NSMakeRange(2, 0)];
+    UDPanesTestRuns = [NSMutableArray array];
+    [_controller runDocument:nil];
+    [_controller runAllOfDocument:nil];
+    XCTAssertEqual(UDPanesTestRuns.count, 2u);
+    XCTAssertEqual(UDPanesTestRuns[0][0], document);
+    XCTAssertEqual([UDPanesTestRuns[0][1] rangeValue].location, 2u, @"at the caret");
+    XCTAssertFalse([UDPanesTestRuns[0][2] boolValue]);
+    XCTAssertTrue([UDPanesTestRuns[1][2] boolValue], @"Run All: all");
 }
 
 - (void)testAnIssueOfItsDocumentIsShownInTheEditor {

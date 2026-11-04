@@ -80,20 +80,8 @@
                 </menuItem>
             </items>
         </menu>
-        <menu title="Editor" autoenablesItems="YES" id="DB-menu-editor" userLabel="The Editor Menu's (a SQL document's)">
+        <menu title="Editor" autoenablesItems="YES" id="DB-menu-editor" userLabel="The Editor Menu's (a SQL document's; UDCode's Editor > Run and Run All run it)">
             <items>
-                <menuItem title="Run Statement" keyEquivalent="&#xd;" id="DB-e-run">
-                    <modifierMask key="keyEquivalentModifierMask" command="YES"/>
-                    <connections>
-                        <action selector="runStatement:" target="-2" id="DB-e-run-a"/>
-                    </connections>
-                </menuItem>
-                <menuItem title="Run All" keyEquivalent="&#xd;" id="DB-e-all">
-                    <modifierMask key="keyEquivalentModifierMask" shift="YES" command="YES"/>
-                    <connections>
-                        <action selector="runAll:" target="-2" id="DB-e-all-a"/>
-                    </connections>
-                </menuItem>
                 <menuItem title="Stop Running" id="DB-e-stop">
                     <connections>
                         <action selector="stopRunning:" target="-2" id="DB-e-stop-a"/>

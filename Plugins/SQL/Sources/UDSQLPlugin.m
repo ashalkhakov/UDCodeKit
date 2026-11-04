@@ -88,6 +88,18 @@
     return [[self _databasesOf:workbench].navigator editorMenuItems];
 }
 
+/// Editor > Run (⌘↩) and Run All (⇧⌘↩), UDCode's: a SQL document's
+/// statement at the caret (its selection), or all of them.
+- (BOOL)workbench:(id<UDWorkbench>)workbench canRunDocument:(UDCodeDocument *)document {
+    return [document.languageMode.identifier isEqualToString:@"sql"];
+}
+
+- (void)workbench:(id<UDWorkbench>)workbench runDocument:(UDCodeDocument *)document selection:(NSRange)selection all:(BOOL)all {
+    UDSQLDatabases *databases = [self _databasesOf:workbench];
+    if (all) [databases runAll:nil];
+    else [databases runStatement:nil];
+}
+
 /// A SQLite file (a Core Data store's): its database opened, not its bytes.
 - (BOOL)workbench:(id<UDWorkbench>)workbench openURL:(NSURL *)url {
     if (!url.isFileURL) return NO;

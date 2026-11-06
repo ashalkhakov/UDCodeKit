@@ -1647,10 +1647,6 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 }
 
 - (void)openURLInNewTab:(NSURL *)url {
-    // a file an extension opens itself (a database's), not as text
-    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
-        if ([extension respondsToSelector:@selector(workbench:openURL:)] && [extension workbench:self openURL:url]) return;
-    }
     // a file package: the file it stands for; any other folder: a project
     BOOL folder = NO;
     if (url.isFileURL && [[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&folder] && folder) {
@@ -1660,6 +1656,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
             return;
         }
         url = file;
+    }
+    // a file an extension opens itself (a database's), not as text
+    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+        if ([extension respondsToSelector:@selector(workbench:openURL:)] && [extension workbench:self openURL:url]) return;
     }
     // by its real path, as the project's folder is known: a file reached by
     // another (a link, Windows' C:/Users/ARTYOM~1) is still the project's,

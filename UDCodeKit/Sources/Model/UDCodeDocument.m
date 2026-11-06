@@ -24,6 +24,12 @@ NSNotificationName const UDCodeDocumentFileURLDidChangeNotification =
     return [self initWithText:text fileURL:fileURL languageMode:nil];
 }
 
+/// The file's name, or the name of the file package it is the main file of.
++ (NSString *)_displayNameOfURL:(NSURL *)fileURL {
+    NSURL *package = [[UDLanguageModeRegistry sharedRegistry] packageOfFileAtURL:fileURL];
+    return (package ?: fileURL).lastPathComponent;
+}
+
 - (instancetype)initWithText:(NSString *)text fileURL:(NSURL *)fileURL languageMode:(UDLanguageMode *)languageMode {
     self = [super init];
     if (!self) return nil;
@@ -31,7 +37,7 @@ NSNotificationName const UDCodeDocumentFileURLDidChangeNotification =
     _textModel       = [[UDTextModel alloc] initWithText:text ?: @""];
     _diagnosticStore = [[UDDiagnosticStore alloc] init];
     _fileURL         = [fileURL copy];
-    _displayName     = fileURL.lastPathComponent ?: @"Untitled";
+    _displayName     = [UDCodeDocument _displayNameOfURL:fileURL] ?: @"Untitled";
     _languageMode    = languageMode ?: [[UDLanguageModeRegistry sharedRegistry] modeForFileURL:fileURL];
     _savedAlternativeVersionId = _textModel.alternativeVersionId;
 
@@ -88,7 +94,7 @@ NSNotificationName const UDCodeDocumentFileURLDidChangeNotification =
     [self willChangeValueForKey:@"fileURL"];
     [self willChangeValueForKey:@"displayName"];
     _fileURL     = [url copy];
-    _displayName = url.lastPathComponent;
+    _displayName = [UDCodeDocument _displayNameOfURL:url];
     [self didChangeValueForKey:@"displayName"];
     [self didChangeValueForKey:@"fileURL"];
     [[NSNotificationCenter defaultCenter] postNotificationName:UDCodeDocumentFileURLDidChangeNotification object:self];

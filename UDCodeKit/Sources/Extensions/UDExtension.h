@@ -253,6 +253,16 @@ static NSString * const UDLinkURLKey = @"url";
 /// window as text: asked before a file is opened in a tab.
 - (BOOL)workbench:(id<UDWorkbench>)workbench openURL:(NSURL *)url;
 
+/// The file in the folder @a url that the folder stands for, when it is a
+/// file package of this extension's (NeXT's: a folder that is one document
+/// to the user, Core Data's .xcdatamodel, say); nil for any other folder.
+/// The file is what opens, and what is edited and saved; the tab has the
+/// package's name, and the file navigator shows the package as one file,
+/// or, with packages in it (one for each version, say), as a folder that
+/// opens when it is chosen.  Asked of every folder listed, so look at the
+/// name first.
+- (nullable NSURL *)mainFileOfPackageAtURL:(NSURL *)url;
+
 /// @a document's own editor, in place of its text's, as VS Code's custom
 /// text editors are (a query by example's file): the document is its model,
 /// its changes edits of its text (its text model's -applyEdits:), so undo,

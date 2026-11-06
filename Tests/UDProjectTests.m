@@ -55,6 +55,23 @@ static Class UDPluginClass(NSString *name) {
 @end
 
 
+/// Folders named .testpkg stand for their main.txt; .testpkgs, for their last
+/// package's.
+@interface UDPackagesTestExtension : NSObject <UDExtension>
+@end
+
+@implementation UDPackagesTestExtension
+- (void)extensionDidLoad:(NSBundle *)bundle {}
+- (void)extensionWillUnload:(NSBundle *)bundle {}
+- (const void *)languageFuncForIdentifier:(NSString *)identifier { return NULL; }
+- (NSURL *)mainFileOfPackageAtURL:(NSURL *)url {
+    if ([url.pathExtension isEqualToString:@"testpkg"]) return [url URLByAppendingPathComponent:@"main.txt"];
+    if (![url.pathExtension isEqualToString:@"testpkgs"]) return nil;
+    NSArray *names = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:url.path error:NULL] sortedArrayUsingSelector:@selector(compare:)];
+    return names.count ? [[url URLByAppendingPathComponent:names.lastObject] URLByAppendingPathComponent:@"main.txt"] : nil;
+}
+@end
+
 @implementation UDProjectTests
 
 - (void)setUp {
@@ -305,6 +322,71 @@ static Class UDPluginClass(NSString *name) {
     XCTAssertEqualObjects([UDDebugger adapterCommandForDebugger:@[ @"my-adapter" ]], @[ @"my-adapter" ],
                           @"an adapter the project names, as it is");
     XCTAssertNotNil([UDToolLocator pathOfTool:@"sh"], @"found on PATH");
+}
+
+- (void)testAFilePackageIsOneFileThatOpensAsItsMainFile {
+    static BOOL registered;
+    if (!registered) [[UDLanguageModeRegistry sharedRegistry] registerExtension:[[UDPackagesTestExtension alloc] init]];
+    registered = YES;
+    [self write:@"one\n" to:@"Model.testpkg/main.txt"];
+    [self write:@"two\n" to:@"Model.testpkg/more.txt"];
+    [self write:@"first\n" to:@"Set.testpkgs/First.testpkg/main.txt"];
+    [self write:@"second\n" to:@"Set.testpkgs/Second.testpkg/main.txt"];
+    [self write:@"plain\n" to:@"Plain/file.txt"];
+    AppDelegate *delegate = [[AppDelegate alloc] init];
+    UDWorkspace *workspace = [delegate openFolderAtURL:[NSURL fileURLWithPath:_folder]];
+    UDDocumentWindowController *controller = workspace.windowControllers.firstObject;
+    UDFileNavigatorViewController *navigator = controller.fileNavigator;
+    NSOutlineView *outline = navigator.outlineView;
+    id (^item)(NSString *) = ^id(NSString *name) {
+        for (NSInteger row = 0; row < outline.numberOfRows; row++) {
+            if ([[navigator URLOfRow:row].lastPathComponent isEqualToString:name]) return [outline itemAtRow:row];
+        }
+        return nil;
+    };
+
+    XCTAssertFalse([outline isExpandable:item(@"Model.testpkg")], @"one file");
+    XCTAssertTrue([outline isExpandable:item(@"Plain")]);
+    XCTAssertTrue([outline isExpandable:item(@"Set.testpkgs")], @"it has packages in it");
+
+    // chosen: its main file, in a tab with the package's name
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)[outline rowForItem:item(@"Model.testpkg")]] byExtendingSelection:NO];
+    UDCodeDocument *opened = controller.editorTabs.selectedItem.representedObject;
+    XCTAssertEqualObjects(opened.fileURL.lastPathComponent, @"main.txt");
+    XCTAssertEqualObjects(opened.displayName, @"Model.testpkg");
+    XCTAssertEqualObjects(controller.editorTabs.selectedItem.title, @"Model.testpkg");
+
+    // a package with packages: the one it stands for; and it expands to them
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)[outline rowForItem:item(@"Set.testpkgs")]] byExtendingSelection:NO];
+    opened = controller.editorTabs.selectedItem.representedObject;
+    XCTAssertEqualObjects(opened.fileURL.path.stringByDeletingLastPathComponent.lastPathComponent, @"Second.testpkg");
+    XCTAssertEqualObjects(opened.displayName, @"Second.testpkg");
+    [outline expandItem:item(@"Set.testpkgs")];
+    XCTAssertNotNil(item(@"First.testpkg"));
+    XCTAssertFalse([outline isExpandable:item(@"First.testpkg")]);
+
+    // a plain folder opens nothing
+    NSUInteger tabs = controller.editorTabs.items.count;
+    [outline selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)[outline rowForItem:item(@"Plain")]] byExtendingSelection:NO];
+    XCTAssertEqual(controller.editorTabs.items.count, tabs);
+
+    // revealed: the file's package is what is selected
+    NSString *inner = [_folder stringByAppendingPathComponent:@"Model.testpkg/main.txt"];
+    [navigator revealURL:[NSURL fileURLWithPath:inner]];
+    XCTAssertEqualObjects([navigator URLOfRow:outline.selectedRow].lastPathComponent, @"Model.testpkg");
+
+    // opened by its folder's URL, a tab for the file, not a project; the other
+    // file in it has its own name
+    NSString *more = [_folder stringByAppendingPathComponent:@"Model.testpkg/more.txt"];
+    tabs = controller.editorTabs.items.count;
+    [controller openURLInNewTab:[NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"Model.testpkg"] isDirectory:YES]];
+    XCTAssertEqual(controller.editorTabs.items.count, tabs + 1);
+    [controller openURLInNewTab:[NSURL fileURLWithPath:more]];
+    opened = controller.editorTabs.selectedItem.representedObject;
+    XCTAssertEqualObjects(opened.displayName, @"more.txt", @"not what the package stands for");
+
+    [controller close];
+    [workspace close];
 }
 
 - (void)testOpenFolderShowsItsFilesAndOpensOneInATab {

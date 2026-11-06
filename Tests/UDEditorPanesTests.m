@@ -48,6 +48,7 @@ static NSViewController *UDTestPane(NSString *title) {
 @end
 
 @implementation UDPanesTestEditor
+- (IBAction)paneTestCommand:(id)sender {}
 - (void)loadView {
     self.view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 600, 400)];
     _inspectors = @[ UDTestPane(@"Attributes"), UDTestPane(@"Size") ];
@@ -180,6 +181,22 @@ static NSMutableArray<NSArray *> *UDPanesTestRuns;
     [_controller.editorTabs selectItem:text];
     [_controller.editorTabs selectItem:[_controller.editorTabs.items lastObject]];
     XCTAssertEqual(_controller.inspectorSwitch.selectedSegment, 1);
+}
+
+- (void)testTheFrontEditorTakesCommandsWhereverTheFocusIs {
+    SEL command = @selector(paneTestCommand:);
+    XCTAssertNil([_controller supplementalTargetForAction:command sender:nil], @"no tab");
+    UDPanesTestEditor *editor = [self openTestDocument];
+    XCTAssertEqual([_controller supplementalTargetForAction:command sender:nil], editor);
+    XCTAssertNil([_controller supplementalTargetForAction:@selector(notACommandOfTheEditors:) sender:nil]);
+    // the window controller is on the window's chain, so the chain asks it
+    BOOL onTheChain = NO;
+    for (NSResponder *responder = _controller.window; responder; responder = responder.nextResponder) {
+        onTheChain = onTheChain || responder == _controller;
+    }
+    XCTAssertTrue(onTheChain);
+    [_controller openAsText:nil];
+    XCTAssertNil([_controller supplementalTargetForAction:command sender:nil], @"a text tab's commands are its focus's");
 }
 
 - (void)testATextFieldOfTheEditorsHasItsFieldEditor {

@@ -10,6 +10,7 @@
 #import "UDDocument.h"
 #import "UDDocumentWindowController.h"
 #import "UDWorkspaceModel.h"
+#import <UDCodeKit/UDLanguageModeRegistry.h>
 #import <UDPieceTable/UDPieceTable.h>
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,19 @@
 // ---------------------------------------------------------------------------
 // MARK: - Read / write
 // ---------------------------------------------------------------------------
+
+/// A file package opens as the file it stands for, so that is what a save
+/// writes, not the folder.
+- (instancetype)initWithContentsOfURL:(NSURL *)url ofType:(NSString *)typeName error:(NSError **)outError {
+    NSURL *file = [[UDLanguageModeRegistry sharedRegistry] mainFileOfPackageAtURL:url];
+    return [super initWithContentsOfURL:file ?: url ofType:typeName error:outError];
+}
+
+/// The main file of a file package goes by the package's name.
+- (NSString *)displayName {
+    NSURL *package = [[UDLanguageModeRegistry sharedRegistry] packageOfFileAtURL:self.fileURL];
+    return package ? package.lastPathComponent : [super displayName];
+}
 
 - (BOOL)readFromURL:(NSURL *)url
              ofType:(NSString *)typeName

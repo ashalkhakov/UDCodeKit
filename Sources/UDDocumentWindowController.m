@@ -307,7 +307,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     workspace.primaryTextStorage = [self _sessionForDocument:_workspaceModel.documents.firstObject].textStorage;
 
     self.window.title = _project ? _project.name
-                      : workspace.fileURL ? workspace.fileURL.lastPathComponent : @"Untitled Workspace";
+                      : workspace.fileURL ? workspace.displayName : @"Untitled Workspace";
 #ifdef __APPLE__
     if (_project) self.window.representedURL = _project.folderURL;
 #endif
@@ -1512,6 +1512,16 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [_debugSplit setPane:UDDebugAreaPane visible:![_debugSplit isPaneVisible:UDDebugAreaPane]];
 }
 
+/// A command no responder takes, from an extension's items in the Editor
+/// menu, say: the front tab's editor's, if it is an extension's, wherever the
+/// focus is (the file navigator, an inspector).
+- (nullable id)supplementalTargetForAction:(SEL)action sender:(nullable id)sender {
+    id front = _editorTabs.selectedItem ? [_editorTabs viewControllerForItem:_editorTabs.selectedItem] : nil;
+    if (front && ![self _editorOfItem:_editorTabs.selectedItem] && ![front isKindOfClass:[UDDiffEditorViewController class]] &&
+        [front respondsToSelector:action]) return front;
+    return [super supplementalTargetForAction:action sender:sender];
+}
+
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     // sel_isEqual: a menu item's selector, from its XIB, is untyped on
     // GNUstep's runtime, and not the same pointer as a typed @selector.
@@ -1614,7 +1624,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 - (IBAction)openFileInNewTab:(nullable id)sender {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.canChooseFiles          = YES;
-    panel.canChooseDirectories    = NO;
+    panel.canChooseDirectories    = YES;   // a file package, or a folder: a project
     panel.allowsMultipleSelection = YES;
     // The extensions the language modes know (GNUstep has no UTType).
     NSMutableOrderedSet<NSString *> *extensions = [NSMutableOrderedSet orderedSet];
@@ -1627,7 +1637,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         UTType *type = [UTType typeWithFilenameExtension:ext];
         if (type && ![types containsObject:type]) [types addObject:type];
     }
-    panel.allowedContentTypes = types.count ? types : @[UTTypeData];
+    [types addObject:UTTypePackage];
+    panel.allowedContentTypes = types;
 #else
     panel.allowedFileTypes = extensions.count ? extensions.array : nil;
 #endif
@@ -1636,6 +1647,16 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 }
 
 - (void)openURLInNewTab:(NSURL *)url {
+    // a file package: the file it stands for; any other folder: a project
+    BOOL folder = NO;
+    if (url.isFileURL && [[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&folder] && folder) {
+        NSURL *file = [[UDLanguageModeRegistry sharedRegistry] mainFileOfPackageAtURL:url];
+        if (!file) {
+            [(AppDelegate *)NSApp.delegate openFolderAtURL:url];
+            return;
+        }
+        url = file;
+    }
     // a file an extension opens itself (a database's), not as text
     for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
         if ([extension respondsToSelector:@selector(workbench:openURL:)] && [extension workbench:self openURL:url]) return;

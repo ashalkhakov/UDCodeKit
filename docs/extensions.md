@@ -157,6 +157,18 @@ Extensions signed by other developers can't be loaded unless UDCode turns
 library validation off (`com.apple.security.cs.disable-library-validation`),
 and it doesn't.
 
+## File packages
+
+A folder can be one document to the user, as a NeXT file package is:
+`-mainFileOfPackageAtURL:` (`UDExtension.h`) says which file in it the folder
+stands for, or nil for any other folder. Choosing the package, in File >
+Open, the file navigator or on the command line, opens that file: it is what
+is edited, saved and put under source control, and the tab has the package's
+name. The navigator shows the package as one file; a package with packages in
+it (Core Data's `.xcdatamodeld`, with a `.xcdatamodel` for each version)
+expands to them, and choosing it opens the one it stands for. File > Open
+Folder still opens any folder as a project, a package too.
+
 ## An editor of its own, and its panes
 
 An extension can open its mode's documents in an editor of its own instead

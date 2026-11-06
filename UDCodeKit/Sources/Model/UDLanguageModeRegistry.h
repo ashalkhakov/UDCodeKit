@@ -85,6 +85,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// what they contribute besides language modes (UDExtension's projects part).
 @property (nonatomic, readonly, copy) NSArray<id<UDExtension>> *extensions;
 
+/// The file the folder @a url stands for, when an extension takes it for a
+/// file package (-[UDExtension mainFileOfPackageAtURL:]); else nil.
+- (nullable NSURL *)mainFileOfPackageAtURL:(NSURL *)url;
+
+/// The innermost folder over @a fileURL that is a package standing for it;
+/// else nil.
+- (nullable NSURL *)packageOfFileAtURL:(nullable NSURL *)fileURL;
+
 /// Every extension found — built in (the app's PlugIns), then installed
 /// (~/.udcode/extensions, UDInstalledExtensions) — loaded, or why not (for
 /// another UDCode or platform, disabled, its place taken by one installed…).

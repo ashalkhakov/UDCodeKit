@@ -472,6 +472,30 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 // MARK: - Lifecycle
 // ---------------------------------------------------------------------------
 
+- (NSURL *)mainFileOfPackageAtURL:(NSURL *)url {
+    for (id<UDExtension> extension in self.extensions) {
+        if (![extension respondsToSelector:@selector(mainFileOfPackageAtURL:)]) continue;
+        NSURL *file = [extension mainFileOfPackageAtURL:url];
+        if (file) return file;
+    }
+    return nil;
+}
+
+- (NSURL *)packageOfFileAtURL:(NSURL *)fileURL {
+    if (!fileURL.isFileURL) return nil;
+    NSString *path = [fileURL.path stringByStandardizingPath];
+    NSString *folder = [path stringByDeletingLastPathComponent];
+    while (folder.length > 1) {
+        NSURL *package = [NSURL fileURLWithPath:folder isDirectory:YES];
+        NSURL *file = [self mainFileOfPackageAtURL:package];
+        if ([[file.path stringByStandardizingPath] isEqualToString:path]) return package;
+        NSString *up = [folder stringByDeletingLastPathComponent];
+        if ([up isEqualToString:folder]) break;
+        folder = up;
+    }
+    return nil;
+}
+
 - (NSArray<id<UDExtension>> *)extensions {
     __block NSArray *extensions;
     dispatch_sync(_queue, ^{

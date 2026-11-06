@@ -4,11 +4,14 @@
 
 #import "UDFileNavigatorViewController.h"
 #import "UDBadgeTextFieldCell.h"
+#import "UDLanguageModeRegistry.h"
 
 /// A file or folder of the outline; a folder's children listed when first asked for.
 @interface UDFileNode : NSObject
 @property (nonatomic, copy) NSURL *url;
 @property (nonatomic) BOOL directory;
+/// A file package's main file: what choosing the folder opens.
+@property (nonatomic, copy, nullable) NSURL *mainFile;
 @property (nonatomic, copy, nullable) NSArray<UDFileNode *> *children;
 @end
 
@@ -121,6 +124,7 @@
         node.url = [folder URLByAppendingPathComponent:name isDirectory:directory.boolValue];
         // an application or a bundle is a folder too, which a project opens
         node.directory = directory.boolValue;
+        if (node.directory) node.mainFile = [[UDLanguageModeRegistry sharedRegistry] mainFileOfPackageAtURL:node.url];
         [nodes addObject:node];
     }
     [nodes sortUsingComparator:^NSComparisonResult(UDFileNode *a, UDFileNode *b) {
@@ -128,6 +132,18 @@
         return [a.url.lastPathComponent localizedStandardCompare:b.url.lastPathComponent];
     }];
     return nodes;
+}
+
+/// A folder shows its contents; a package only the packages in it (its
+/// versions, say), and without any it is one file.
+- (BOOL)_isExpandable:(UDFileNode *)node {
+    if (!node.directory) return NO;
+    if (!node.mainFile) return YES;
+    if (!node.children) node.children = [self _listFolder:node.url];
+    for (UDFileNode *child in node.children) {
+        if (child.mainFile) return YES;
+    }
+    return NO;
 }
 
 - (NSArray<UDFileNode *> *)_childrenOf:(UDFileNode *)node {
@@ -200,7 +216,10 @@ static NSString *UDResolvedPath(NSURL *url) {
             if ([node.url.lastPathComponent isEqualToString:component]) { found = node; break; }
         }
         if (!found) return;
-        if (!found.directory) break;
+        if (![self _isExpandable:found]) {
+            url = found.url;    // a file, or the package a file is in
+            break;
+        }
         [_outlineView expandItem:found];
         level = [self _childrenOf:found];
     }
@@ -216,12 +235,12 @@ static NSString *UDResolvedPath(NSURL *url) {
     NSInteger row = _outlineView.clickedRow >= 0 ? _outlineView.clickedRow : _outlineView.selectedRow;
     UDFileNode *node = row >= 0 ? [_outlineView itemAtRow:row] : nil;
     if (!node) return;
-    if (node.directory) {
+    if ([self _isExpandable:node]) {
         if ([_outlineView isItemExpanded:node]) [_outlineView collapseItem:node];
         else [_outlineView expandItem:node];
-        return;
+        if (!node.mainFile) return;
     }
-    [_delegate fileNavigator:self openFileAtURL:node.url];
+    if (node.mainFile || !node.directory) [_delegate fileNavigator:self openFileAtURL:node.mainFile ?: node.url];
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +256,7 @@ static NSString *UDResolvedPath(NSURL *url) {
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item {
-    return ((UDFileNode *)item).directory;
+    return [self _isExpandable:item];
 }
 
 // A cell-based outline, as the other navigators'.
@@ -248,7 +267,7 @@ static NSString *UDResolvedPath(NSURL *url) {
 /// A file selected by the keyboard or a click is opened, as VS Code's Explorer does.
 - (void)outlineViewSelectionDidChange:(NSNotification *)notification {
     UDFileNode *node = _outlineView.selectedRow >= 0 ? [_outlineView itemAtRow:_outlineView.selectedRow] : nil;
-    if (node && !node.directory) [_delegate fileNavigator:self openFileAtURL:node.url];
+    if (node && (node.mainFile || !node.directory)) [_delegate fileNavigator:self openFileAtURL:node.mainFile ?: node.url];
 }
 
 @end

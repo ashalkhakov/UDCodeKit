@@ -35,6 +35,12 @@
     return [super initWithContentsOfURL:file ?: url ofType:typeName error:outError];
 }
 
+/// The main file of a file package goes by the package's name.
+- (NSString *)displayName {
+    NSURL *package = [[UDLanguageModeRegistry sharedRegistry] packageOfFileAtURL:self.fileURL];
+    return package ? package.lastPathComponent : [super displayName];
+}
+
 - (BOOL)readFromURL:(NSURL *)url
              ofType:(NSString *)typeName
               error:(NSError **)outError {

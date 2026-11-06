@@ -307,7 +307,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     workspace.primaryTextStorage = [self _sessionForDocument:_workspaceModel.documents.firstObject].textStorage;
 
     self.window.title = _project ? _project.name
-                      : workspace.fileURL ? workspace.fileURL.lastPathComponent : @"Untitled Workspace";
+                      : workspace.fileURL ? workspace.displayName : @"Untitled Workspace";
 #ifdef __APPLE__
     if (_project) self.window.representedURL = _project.folderURL;
 #endif

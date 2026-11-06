@@ -387,6 +387,17 @@ static Class UDPluginClass(NSString *name) {
 
     [controller close];
     [workspace close];
+
+    // as a document, as from the command line: the file, under the package's
+    // name, and what a save writes is not the folder
+    NSError *error = nil;
+    NSURL *package = [NSURL fileURLWithPath:[_folder stringByAppendingPathComponent:@"Model.testpkg"] isDirectory:YES];
+    UDWorkspace *document = [[UDWorkspace alloc] initWithContentsOfURL:package ofType:@"public.folder" error:&error];
+    XCTAssertNotNil(document, @"%@", error);
+    XCTAssertEqualObjects(document.fileURL.lastPathComponent, @"main.txt");
+    XCTAssertEqualObjects(document.displayName, @"Model.testpkg");
+    XCTAssertNil(document.project, @"not a project");
+    [document close];
 }
 
 - (void)testOpenFolderShowsItsFilesAndOpensOneInATab {

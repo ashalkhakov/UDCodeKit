@@ -7,8 +7,10 @@
  *  document of such a URL is a text document as a file's is: its tabs, its
  *  undo, its custom editor (-workbench:editorForDocument:), Open as Text;
  *  Save writes it back through its provider. It has no fileURL, so what is
- *  a file's alone (its language server, source control, breakpoints, the
- *  file watcher) leaves it be.
+ *  a file's alone (source control, the file watcher) leaves it be. Its
+ *  breakpoints are named by its URL (UDLocationOfURL), and it has its mode's
+ *  language server when the mode's server takes its scheme
+ *  (LanguageInfo.plist's languageServerSchemes, as VS Code's documentSelector).
  *
  *  A window asks its active extensions for the provider of a scheme
  *  (-[UDExtension workbench:fileSystemProviderForScheme:]), so each window's
@@ -31,6 +33,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// userInfo's UDFileSystemProviderChangedURLsKey their NSArray<NSURL *>.
 UDCODEKIT_EXPORT NSNotificationName const UDFileSystemProviderDidChangeFilesNotification;
 UDCODEKIT_EXPORT NSString * const UDFileSystemProviderChangedURLsKey;
+
+/// Where something is (a breakpoint, a debug frame, a search result), as one
+/// string: a file's path, or a provider's URL (quarry:/file/script/a.script).
+UDCODEKIT_EXPORT NSString *UDLocationOfURL(NSURL *url);
+/// A location's URL: a file's, or a URL of a scheme (two letters or more
+/// before its ':'; C:/… is a Windows file's path).
+UDCODEKIT_EXPORT NSURL *UDURLOfLocation(NSString *location);
 
 @protocol UDFileSystemProvider <NSObject>
 

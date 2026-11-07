@@ -112,6 +112,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// of the mode object.
 @property (nonatomic, copy, readonly, nullable) NSArray<NSString *> *languageServerCommand;
 
+/// The URL schemes of the documents its language server takes
+/// (LanguageInfo.plist's languageServerSchemes, as VS Code's documentSelector
+/// schemes: "file", and an extension's own, "quarry"): a document of another
+/// scheme (a provider's, UDFileSystemProvider.h) has none. A file's alone,
+/// when it says nothing.
+@property (nonatomic, copy) NSArray<NSString *> *languageServerSchemes;
+
 // ---------------------------------------------------------------------------
 // MARK: - Debugging
 // ---------------------------------------------------------------------------

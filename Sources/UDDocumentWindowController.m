@@ -338,7 +338,12 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 - (BOOL)_startProjectLanguageServerOf:(UDEditorSession *)session document:(UDCodeDocument *)document {
     UDLanguageMode *mode = document.languageMode;
     NSString *folder = [_project.folderURL.path stringByAppendingString:@"/"];
-    if (!_project || !document.fileURL || !mode.lspLanguageID || ![document.fileURL.path hasPrefix:folder]) return NO;
+    // a file of the project's, or a provider's document of a scheme its
+    // server takes (as VS Code's documentSelector)
+    NSURL *url = document.URL;
+    if (!_project || !url || !mode.lspLanguageID) return NO;
+    if (![mode.languageServerSchemes containsObject:url.scheme.lowercaseString]) return NO;
+    if (url.isFileURL && ![url.path hasPrefix:folder]) return NO;
     NSArray<NSString *> *command = [_project languageServerCommandForIdentifier:mode.identifier] ?: mode.languageServerCommand;
     if (!command.count) return NO;
     if (!_projectServers) _projectServers = [NSMutableDictionary dictionary];
@@ -357,7 +362,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
                                         [@[ path ] arrayByAddingObjectsFromArray:[command subarrayWithRange:NSMakeRange(1, command.count - 1)]]];
         _projectServers[command] = client;
     }
-    [session startLanguageServerWithClient:client documentURL:document.fileURL];
+    [session startLanguageServerWithClient:client documentURL:url];
     return YES;
 }
 
@@ -883,8 +888,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     return [self _documentOfFileURL:url].textModel;
 }
 
-/// The open document of the file at @a url, by its path (URLs of one file can differ).
+/// The open document of the file at @a url, by its path (URLs of one file can
+/// differ); of a provider's URL, its own.
 - (nullable UDCodeDocument *)_documentOfFileURL:(NSURL *)url {
+    if (!url.isFileURL) return [_workspaceModel documentForFileURL:url];
     NSString *path = url.path.stringByStandardizingPath;
     for (UDCodeDocument *document in _workspaceModel.documents) {
         if ([document.fileURL.path.stringByStandardizingPath isEqualToString:path]) return document;
@@ -894,7 +901,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
 /// @a url's tab, its LSP range (or a line and column) selected.
 - (void)_showURL:(NSURL *)url line:(NSInteger)line column:(NSInteger)column length:(NSInteger)length {
-    [self _showFile:url.path];
+    [self _showFile:UDLocationOfURL(url)];
     UDCodeDocument *document = [self _documentOfFileURL:url];
     UDCodeEditorViewController *editor = [self _selectedEditor];
     if (!document || !editor) return;
@@ -909,10 +916,16 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [self.window makeFirstResponder:editor.textView];
 }
 
-/// The text of line @a line (1-based) of @a url: an open file's, else on disk.
+/// The text of line @a line (1-based) of @a url: an open file's, else on disk
+/// (a provider's, as its provider reads it).
 - (NSString *)_lineText:(NSInteger)line ofURL:(NSURL *)url {
     UDTextModel *model = [self textModelForFileURL:url];
-    NSString *text = model ? [model getValue] : [UDCodeDocument textOfURL:url error:NULL];
+    NSString *text = model ? [model getValue] : nil;
+    if (!model && url.isFileURL) text = [UDCodeDocument textOfURL:url error:NULL];
+    else if (!model && url.scheme) {
+        NSData *data = [[self _fileSystemProviderForScheme:url.scheme] contentsOfURL:url error:NULL];
+        text = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+    }
     NSArray<NSString *> *lines = [text componentsSeparatedByString:@"\n"];
     return line >= 1 && (NSUInteger)line <= lines.count ? lines[(NSUInteger)line - 1] : @"";
 }
@@ -1738,7 +1751,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 - (void)_startSession:(UDEditorSession *)session ofDocument:(UDCodeDocument *)document {
     [session activateWithTheme:_currentTheme];
     if ([self _isCopy:document]) return;
-    if (![self _startProjectLanguageServerOf:session document:document]) [session startLanguageServer];
+    // a provider's document has the project's server, or none
+    if (![self _startProjectLanguageServerOf:session document:document] && (!document.URL || document.fileURL)) {
+        [session startLanguageServer];
+    }
     session.lspCoordinator.editDocuments = self;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_diagnosticsDidChange:)
                                                  name:UDDiagnosticsDidChangeNotification
@@ -1756,7 +1772,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     editor.sourceControlDelegate = self;
     editor.textView.delegate = self;
     [self _updateQuickDiffOfDocument:document];
-    if (document.fileURL) [editor showBreakpointsOfStore:_breakpoints forFile:document.fileURL.path];
+    // a file's by its path, a provider's document's by its URL
+    if (document.URL) [editor showBreakpointsOfStore:_breakpoints forFile:UDLocationOfURL(document.URL)];
 }
 
 /// A tab for @a document: its session (made with its first tab), and an
@@ -3254,8 +3271,14 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     [[self _selectedEditor] editBreakpointAtLine:breakpoint.line];
 }
 
-/// @a path's tab selected, opened when it has none.
+/// @a path's tab selected, opened when it has none; a provider's URL
+/// (UDLocationOfURL), its document's.
 - (void)_showFile:(NSString *)path {
+    NSURL *url = UDURLOfLocation(path);
+    if (!url.isFileURL) {
+        [self showURL:url];
+        return;
+    }
     NSString *wanted = [path stringByStandardizingPath];
     UDTabBarItem *item = nil;
     for (UDCodeDocument *document in _workspaceModel.documents) {

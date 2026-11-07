@@ -17,6 +17,22 @@ NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
 NSNotificationName const UDCustomDocumentDidChangeNotification =
     @"UDCustomDocumentDidChangeNotification";
 
+NSString *UDLocationOfURL(NSURL *url) {
+    return url.isFileURL ? url.path : url.absoluteString;
+}
+
+NSURL *UDURLOfLocation(NSString *location) {
+    NSRange colon = [location rangeOfString:@":"];
+    if (colon.location != NSNotFound && colon.location >= 2) {
+        NSString *scheme = [location substringToIndex:colon.location];
+        NSCharacterSet *other = [[NSCharacterSet characterSetWithCharactersInString:
+            @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-."] invertedSet];
+        NSURL *url = [scheme rangeOfCharacterFromSet:other].location == NSNotFound ? [NSURL URLWithString:location] : nil;
+        if (url && !url.isFileURL) return url;
+    }
+    return [NSURL fileURLWithPath:location];
+}
+
 @interface UDCodeDocument ()
 @property (nonatomic) NSInteger savedAlternativeVersionId;   // the text model's, when last read or saved
 @end

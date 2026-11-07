@@ -53,10 +53,16 @@ NSNotificationName const UDWorkspaceModelDidChangeNotification =
 
 - (nullable UDCodeDocument *)addDocumentFromURL:(NSURL *)url
                                           error:(NSError *__autoreleasing *)outError {
+    return [self addDocumentFromURL:url fileSystemProvider:nil error:outError];
+}
+
+- (nullable UDCodeDocument *)addDocumentFromURL:(NSURL *)url
+                             fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
+                                          error:(NSError *__autoreleasing *)outError {
     UDCodeDocument *existing = [self documentForFileURL:url];
     if (existing) return existing;
 
-    UDCodeDocument *doc = [UDCodeDocument documentFromURL:url error:outError];
+    UDCodeDocument *doc = [UDCodeDocument documentFromURL:url fileSystemProvider:provider error:outError];
     if (!doc) return nil;
 
     [self _appendDocument:doc];
@@ -73,7 +79,7 @@ NSNotificationName const UDWorkspaceModelDidChangeNotification =
 
 - (nullable UDCodeDocument *)documentForFileURL:(NSURL *)url {
     for (UDCodeDocument *doc in _documents) {
-        if ([doc.fileURL isEqual:url]) return doc;
+        if ([doc.URL isEqual:url]) return doc;
     }
     return nil;
 }

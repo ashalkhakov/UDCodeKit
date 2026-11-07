@@ -32,6 +32,8 @@
 #import <UDCodeKit/UDInstalledExtensions.h>
 #import <UDCodeKit/UDExtensionsWindowController.h>
 #import <UDCodeKit/UDWorkbench.h>
+#import <UDCodeKit/UDFileSystemProvider.h>
+#import <UDCodeKit/UDTreeView.h>
 #import <UDCodeKit/UDCredentialStore.h>
 #import <UDCodeKit/UDLanguageConfiguration.h>
 #import <UDCodeKit/UDLanguageMode.h>

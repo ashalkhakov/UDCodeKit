@@ -86,6 +86,11 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, strong, readwrite, nullable) UDProject *project;
 /// The extensions' navigators: each its view controller and segment.
 @property (nonatomic, strong, nullable) NSMapTable<id, NSArray *> *extensionNavigators;
+/// The extensions active in the window (its folder's activation events):
+/// those it asks for what they bring it.
+@property (nonatomic, copy) NSArray<id<UDExtension>> *activeExtensions;
+/// The providers of URL schemes the window has opened, by scheme.
+@property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, id<UDFileSystemProvider>> *fileSystemProviders;
 /// The bottom area's panes: [owner, its view controller, title, image or
 /// NSNull], the extensions' then the front editor's, their segments after
 /// the debugger's and the terminal's.
@@ -254,6 +259,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
     // A project: its files in the Files tab, instead of the open files' list.
     _project = workspace.project;
+    _activeExtensions = [[UDLanguageModeRegistry sharedRegistry] extensionsActiveInFolder:_project.folderURL];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_providerDidChangeFiles:)
+                                                 name:UDFileSystemProviderDidChangeFilesNotification object:nil];
     if (_project) {
         _fileNavigator = [[UDFileNavigatorViewController alloc] init];
         _fileNavigator.delegate = self;
@@ -363,7 +371,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         [self.document saveDocument:sender];
         return;
     }
-    if (document.fileURL) [self _save:document];
+    if (document.URL) [self _save:document];
     else if (document) [self _saveUntitled:document];
 }
 
@@ -400,7 +408,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 
 - (IBAction)saveAllDocuments:(nullable id)sender {
     for (UDCodeDocument *document in _workspaceModel.documents) {
-        if (document.fileURL && document.isModified) [self _save:document];
+        if (document.URL && document.isModified) [self _save:document];
     }
 }
 
@@ -408,7 +416,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDEditorSession *session = [self _sessionForDocument:document];
     [session.lspCoordinator documentWillSave];
     NSError *error = nil;
-    BOOL saved = [document saveToURL:document.fileURL error:&error];
+    BOOL saved = [document saveToURL:document.URL error:&error];
     [session.lspCoordinator documentDidSave];
     if (saved) [self _refreshSavedCopiesOfURL:document.fileURL];
     // saved: its tabs' dots go
@@ -1647,6 +1655,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 }
 
 - (void)openURLInNewTab:(NSURL *)url {
+    if (!url.isFileURL) {
+        [self _openProviderURL:url];
+        return;
+    }
     // a file package: the file it stands for; any other folder: a project
     BOOL folder = NO;
     if (url.isFileURL && [[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&folder] && folder) {
@@ -1658,7 +1670,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         url = file;
     }
     // a file an extension opens itself (a database's), not as text
-    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+    for (id<UDExtension> extension in _activeExtensions) {
         if ([extension respondsToSelector:@selector(workbench:openURL:)] && [extension workbench:self openURL:url]) return;
     }
     // by its real path, as the project's folder is known: a file reached by
@@ -1729,13 +1741,13 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 /// A tab for @a document: an extension's editor of it (VS Code's custom
 /// text editors), else, or @a asText, its text's.
 - (void)_openTabForDocument:(UDCodeDocument *)document asText:(BOOL)asText {
-    for (id<UDExtension> extension in asText ? @[] : [UDLanguageModeRegistry sharedRegistry].extensions) {
+    for (id<UDExtension> extension in asText ? @[] : _activeExtensions) {
         if (![extension respondsToSelector:@selector(workbench:editorForDocument:)]) continue;
         NSViewController *custom = [extension workbench:self editorForDocument:document];
         if (!custom) continue;
         [self _documentsChanged];
         UDTabBarItem *item = [_editorTabs addItemWithTitle:document.displayName representedObject:document viewController:custom];
-        item.toolTip = document.fileURL.path;
+        item.toolTip = document.fileURL.path ?: document.URL.absoluteString;
         item.dirty = document.isModified;
         // its changes: its tab's dot (a text tab's session would, else)
         [[NSNotificationCenter defaultCenter] removeObserver:self name:UDTextModelDidChangeNotification object:document.textModel];
@@ -1764,7 +1776,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDTabBarItem *item = [_editorTabs addItemWithTitle:document.displayName
                                      representedObject:document
                                         viewController:editor];
-    item.toolTip = document.fileURL.path;
+    item.toolTip = document.fileURL.path ?: document.URL.absoluteString;
     item.dirty = document.isModified;
 }
 
@@ -2165,7 +2177,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDCodeDocument *document = _editorTabs.selectedItem.representedObject;
     UDTextModel *model = document.textModel;
     _inspectorName.stringValue = document.displayName ?: @"";
-    _inspectorPath.stringValue = document.fileURL.path ?: (document ? @"Not saved" : @"");
+    _inspectorPath.stringValue = document.fileURL.path ?: document.URL.absoluteString ?: (document ? @"Not saved" : @"");
     _inspectorLanguage.stringValue = document.languageMode.displayName ?: @"";
     _inspectorLines.stringValue = model ? [NSString stringWithFormat:@"%ld", (long)[model getLineCount]] : @"";
     _inspectorLineEndings.stringValue = !model ? @"" : [[model getEOL] isEqualToString:@"\r\n"] ? @"CRLF" : @"LF";
@@ -2310,7 +2322,7 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
 - (nullable id<UDExtension>)_runnerOfSelectedDocument {
     UDCodeDocument *document = [self selectedDocument];
     if (!document) return nil;
-    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+    for (id<UDExtension> extension in _activeExtensions) {
         if (![extension respondsToSelector:@selector(workbench:canRunDocument:)] ||
             ![extension respondsToSelector:@selector(workbench:runDocument:selection:all:)]) continue;
         if ([extension workbench:self canRunDocument:document]) return extension;
@@ -2493,7 +2505,7 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
 /// The project's source control: the first extension's that has one for its folder.
 - (void)reloadSourceControl {
     id<UDSourceControl> sourceControl = nil;
-    for (id<UDExtension> extension in _project ? [UDLanguageModeRegistry sharedRegistry].extensions : @[]) {
+    for (id<UDExtension> extension in _project ? _activeExtensions : @[]) {
         if (![extension respondsToSelector:@selector(sourceControlForFolder:)]) continue;
         sourceControl = [extension sourceControlForFolder:_project.folderURL.path];
         if (sourceControl) break;
@@ -2545,7 +2557,7 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     NSMutableArray<NSArray<NSMenuItem *> *> *sections = [NSMutableArray array];
     if (_sourceControl) [sections addObject:[_sourceControl integrateMenuItems]];
     NSMutableArray<NSMenuItem *> *global = [NSMutableArray array];
-    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+    for (id<UDExtension> extension in _activeExtensions) {
         if (![extension respondsToSelector:@selector(sourceControlMenuItemsForHost:folder:)]) continue;
         [global addObjectsFromArray:[extension sourceControlMenuItemsForHost:self folder:_project.folderURL.path]];
     }
@@ -2573,7 +2585,7 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
 /// Each extension's navigator: a segment after the window's own, its view in
 /// a tab of the navigator's.
 - (void)_addExtensionNavigators {
-    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+    for (id<UDExtension> extension in _activeExtensions) {
         if (![extension respondsToSelector:@selector(navigatorViewControllerForWorkbench:)]) continue;
         NSViewController *navigator = [extension navigatorViewControllerForWorkbench:self];
         if (!navigator) continue;
@@ -2627,7 +2639,63 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
 }
 
 - (void)showURL:(NSURL *)url {
-    [self _showFile:url.path];
+    if (url.isFileURL) [self _showFile:url.path];
+    else [self _openProviderURL:url];
+}
+
+/// The provider of @a scheme in this window: the first active extension's
+/// that has one, asked once.
+- (nullable id<UDFileSystemProvider>)_fileSystemProviderForScheme:(NSString *)scheme {
+    scheme = scheme.lowercaseString;
+    id<UDFileSystemProvider> provider = _fileSystemProviders[scheme];
+    if (provider) return provider;
+    for (id<UDExtension> extension in _activeExtensions) {
+        if (![extension respondsToSelector:@selector(workbench:fileSystemProviderForScheme:)]) continue;
+        provider = [extension workbench:self fileSystemProviderForScheme:scheme];
+        if (provider) break;
+    }
+    if (!provider) return nil;
+    if (!_fileSystemProviders) _fileSystemProviders = [NSMutableDictionary dictionary];
+    _fileSystemProviders[scheme] = provider;
+    return provider;
+}
+
+/// @a url, of a provider's scheme, in a tab: the one showing it, else a new one.
+- (void)_openProviderURL:(NSURL *)url {
+    UDCodeDocument *document = [_workspaceModel documentForFileURL:url];
+    if (document) {
+        UDTabBarItem *item = [self _itemsForDocument:document].firstObject;
+        if (item) {
+            if (item != _editorTabs.selectedItem) [_editorTabs selectItem:item];
+            return;
+        }
+    } else {
+        id<UDFileSystemProvider> provider = url.scheme ? [self _fileSystemProviderForScheme:url.scheme] : nil;
+        if (!provider) {
+            NSLog(@"[UDDocumentWindowController] No extension opens %@", url);
+            return;
+        }
+        NSError *error = nil;
+        document = [_workspaceModel addDocumentFromURL:url fileSystemProvider:provider error:&error];
+        if (!document) {
+            if (error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
+            return;
+        }
+    }
+    [self _openTabForDocument:document];
+}
+
+/// What is at some of a provider's URLs changed: their documents without
+/// changes of their own read again, as files changed on disk are.
+- (void)_providerDidChangeFiles:(NSNotification *)note {
+    if (![_fileSystemProviders.allValues containsObject:note.object]) return;
+    NSArray<NSURL *> *urls = note.userInfo[UDFileSystemProviderChangedURLsKey];
+    for (UDCodeDocument *document in _workspaceModel.documents) {
+        if (document.fileSystemProvider == note.object && document.URL && [urls containsObject:document.URL]) {
+            [document reloadFromFileIfUnmodified];
+        }
+    }
+    [self _documentsChanged];
 }
 
 - (void)showDocumentAsText:(UDCodeDocument *)document {
@@ -2674,7 +2742,7 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     for (NSMenuItem *item in [menu.itemArray copy]) {
         if (item.tag == UDContributedMenuItemTag) [menu removeItem:item];
     }
-    for (id<UDExtension> extension in [UDLanguageModeRegistry sharedRegistry].extensions) {
+    for (id<UDExtension> extension in _activeExtensions) {
         if (![extension respondsToSelector:@selector(editorMenuItemsForWorkbench:)]) continue;
         NSArray<NSMenuItem *> *items = [extension editorMenuItemsForWorkbench:self];
         if (!items.count) continue;

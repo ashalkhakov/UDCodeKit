@@ -58,6 +58,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// for a mode it registers): among -extensions from now on, after those
 /// loaded. Its -extensionDidLoad: is given the main bundle.
 - (void)registerExtension:(id<UDExtension>)extension;
+/// The same, asked for what it brings a window only on @a events (as a
+/// bundle's LanguageInfo.plist's activationEvents); nil: always.
+- (void)registerExtension:(id<UDExtension>)extension activationEvents:(nullable NSArray<NSString *> *)events;
 
 // ---------------------------------------------------------------------------
 // MARK: - Lookup
@@ -84,6 +87,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// The extensions the bundles loaded, in load order: what is asked for
 /// what they contribute besides language modes (UDExtension's projects part).
 @property (nonatomic, readonly, copy) NSArray<id<UDExtension>> *extensions;
+
+/// Those of -extensions a window of @a folder (nil: a window of files alone)
+/// asks for what they bring it (its navigators, menus, providers, editors,
+/// source control), as VS Code
+/// activates its extensions: each whose LanguageInfo.plist has no
+/// activationEvents, or has "*", or "workspaceContains:<glob>" matching a file
+/// in @a folder ("*.qworkspace": at its top; "**/*.qworkspace": anywhere).
+- (NSArray<id<UDExtension>> *)extensionsActiveInFolder:(nullable NSURL *)folder;
 
 /// The file the folder @a url stands for, when an extension takes it for a
 /// file package (-[UDExtension mainFileOfPackageAtURL:]); else nil.

@@ -20,6 +20,8 @@
 #import "UDDiagnosticStore.h"
 #import "UDLanguageMode.h"
 
+@protocol UDFileSystemProvider;
+
 /* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
    imported everywhere else, as FOUNDATION_EXPORT. */
 #ifndef UDCODEKIT_EXPORT
@@ -39,8 +41,15 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotifica
 /// Pure-Foundation model for a single open text document.
 @interface UDCodeDocument : NSObject
 
-/// File URL this document is editing, or nil for an unsaved scratch buffer.
+/// File URL this document is editing, or nil for an unsaved scratch buffer
+/// (and for a document of another scheme's URL).
 @property (nonatomic, copy, readonly, nullable) NSURL *fileURL;
+
+/// The URL it is of: its file's, or, read and saved by @a fileSystemProvider,
+/// another scheme's (quarry:/material/textures/foo, UDFileSystemProvider.h);
+/// nil when untitled.
+@property (nonatomic, copy, readonly, nullable) NSURL *URL;
+@property (nonatomic, strong, readonly, nullable) id<UDFileSystemProvider> fileSystemProvider;
 
 /// Human-readable display name derived from fileURL.lastPathComponent,
 /// or "Untitled" for unsaved scratch buffers; an untitled one's may be
@@ -69,10 +78,18 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotifica
 // MARK: - Lifecycle
 // ---------------------------------------------------------------------------
 
-/// Designated initialiser. The language mode is @a languageMode, or with
+/// A file's (nil: untitled). The language mode is @a languageMode, or with
 /// nil the one the file's extension names (plain text when untitled).
 - (instancetype)initWithText:(NSString *)text
                      fileURL:(nullable NSURL *)fileURL
+                languageMode:(nullable UDLanguageMode *)languageMode;
+
+/// Designated initialiser: of @a URL, read and saved by @a provider (nil: a file's); its language
+/// mode @a languageMode, else its provider's (-languageModeOfURL:), else the
+/// one its name's extension names.
+- (instancetype)initWithText:(NSString *)text
+                         URL:(nullable NSURL *)URL
+          fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
                 languageMode:(nullable UDLanguageMode *)languageMode NS_DESIGNATED_INITIALIZER;
 
 /// With the language mode the file's extension names.
@@ -94,7 +111,13 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotifica
 + (nullable instancetype)documentFromURL:(NSURL *)url
                                    error:(NSError *__autoreleasing *)outError;
 
-/// Write the document's current text to url.
+/// Read from @a url by @a provider (nil: a file).
++ (nullable instancetype)documentFromURL:(NSURL *)url
+                      fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
+                                   error:(NSError *__autoreleasing *)outError;
+
+/// Write the document's current text to url: its provider's, when it is
+/// its own URL and it has one; else a file.
 /// Clears the modified flag on success.
 - (BOOL)saveToURL:(NSURL *)url error:(NSError *__autoreleasing *)outError;
 
@@ -103,7 +126,8 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotifica
 /// document's first save.
 - (BOOL)saveAsURL:(NSURL *)url error:(NSError *__autoreleasing *)outError;
 
-/// The file changed on disk (another program wrote it): its text read again,
+/// The file changed on disk (another program wrote it), or what is at its
+/// URL changed (its provider said so): its text read again,
 /// when the document has no changes of its own. One edit, of the part that
 /// differs (what is before and after it, and so the caret and decorations
 /// there, stay); the document then is as saved. NO when it has changes of its

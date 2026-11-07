@@ -8,6 +8,8 @@
  *    • UDExtension.h          — this file; extension lifecycle + factory methods
  *    • UDLanguageKeyHandler.h — key-event handling protocol
  *    • UDDiagnosticItem.h     — a diagnostic, for extensions that produce them
+ *    • UDFileSystemProvider.h — documents of a URL scheme of the extension's own
+ *    • UDTreeView.h           — a tree of the extension's own, in a navigator
  *
  *  Extension bundle targets have $(SRCROOT)/../UDCodeKit/Sources/Extensions in their
  *  HEADER_SEARCH_PATHS, making these headers available as #import "...".
@@ -57,7 +59,7 @@
 
 // Forward declarations for types used in optional factory methods.
 @class UDDiagnosticStore, UDProject, UDTestRunner, UDCodeDocument, NSMenuItem, NSViewController, NSImage;
-@protocol UDSourceControl, UDSourceControlHost, UDWorkbench;
+@protocol UDSourceControl, UDSourceControlHost, UDWorkbench, UDFileSystemProvider;
 
 /// Posted by an extension when a language server that was previously unavailable
 /// becomes ready (e.g. after an async download/install). The object is the
@@ -219,10 +221,24 @@ static NSString * const UDLinkURLKey = @"url";
 // The workbench: what VS Code's extensions contribute to its window (a view
 // container in the sidebar, commands in menus, a custom editor's files),
 // each given the window's UDWorkbench.
+//
+// A window asks only the extensions active in it, as VS Code activates its
+// extensions: those whose LanguageInfo.plist has no activationEvents, or "*",
+// or "workspaceContains:<glob>" matching a file in the window's folder (a
+// project system's: "workspaceContains:*.qworkspace", as the C# extension's
+// "workspaceContains:**/*.sln"). See docs/extensions.md, "Project systems".
 // ---------------------------------------------------------------------------
+
+/// The provider of the documents of URLs of @a scheme in @a workbench's
+/// window (VS Code's registerFileSystemProvider): a project system's, its
+/// items' (quarry:/material/textures/foo), read and written by it; nil: not
+/// this extension's scheme. Asked once per window and scheme, when the first
+/// URL of it is opened (-[UDWorkbench showURL:]).
+- (nullable id<UDFileSystemProvider>)workbench:(id<UDWorkbench>)workbench fileSystemProviderForScheme:(NSString *)scheme;
 
 /// A navigator of its own (VS Code's view container): its view controller for
 /// @a workbench, asked once per window; its title is the segment's tool tip.
+/// A project system's tree: a UDTreeViewController (UDTreeView.h).
 - (nullable NSViewController *)navigatorViewControllerForWorkbench:(id<UDWorkbench>)workbench;
 /// The navigator's segment's image (16 points square); nil: a generic one.
 - (nullable NSImage *)navigatorImage;

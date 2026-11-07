@@ -4,36 +4,41 @@
 
 #import "UDBadgeTextFieldCell.h"
 
-// The badge and its colour are the cell's represented object: NSCell copies
-// its own (a table copies its cells), and not a subclass's instance variables.
+// GNUstep has AppKit's older name
+#ifdef __APPLE__
+#define UDCompositeSourceOver NSCompositingOperationSourceOver
+#else
+#define UDCompositeSourceOver NSCompositeSourceOver
+#endif
+
+// The badge, its colour and the image are the cell's represented object:
+// NSCell copies its own (a table copies its cells), and not a subclass's
+// instance variables.
 static NSString * const UDBadgeKey = @"badge";
 static NSString * const UDBadgeColorKey = @"color";
+static NSString * const UDBadgeImageKey = @"image";
 
 @implementation UDBadgeTextFieldCell
 
-- (NSString *)badge {
-    NSDictionary *badge = [self.representedObject isKindOfClass:[NSDictionary class]] ? self.representedObject : nil;
-    return badge[UDBadgeKey];
+- (nullable id)_value:(NSString *)key {
+    NSDictionary *values = [self.representedObject isKindOfClass:[NSDictionary class]] ? self.representedObject : nil;
+    return values[key];
 }
 
-- (void)setBadge:(NSString *)badge {
-    NSMutableDictionary *values = [NSMutableDictionary dictionary];
-    if (badge) values[UDBadgeKey] = [badge copy];
-    if (self.badgeColor) values[UDBadgeColorKey] = self.badgeColor;
+- (void)_setValue:(nullable id)value forKey:(NSString *)key {
+    NSDictionary *old = [self.representedObject isKindOfClass:[NSDictionary class]] ? self.representedObject : nil;
+    NSMutableDictionary *values = old ? [old mutableCopy] : [NSMutableDictionary dictionary];
+    if (value) values[key] = value;
+    else [values removeObjectForKey:key];
     self.representedObject = values;
 }
 
-- (NSColor *)badgeColor {
-    NSDictionary *badge = [self.representedObject isKindOfClass:[NSDictionary class]] ? self.representedObject : nil;
-    return badge[UDBadgeColorKey];
-}
-
-- (void)setBadgeColor:(NSColor *)badgeColor {
-    NSMutableDictionary *values = [NSMutableDictionary dictionary];
-    if (self.badge) values[UDBadgeKey] = self.badge;
-    if (badgeColor) values[UDBadgeColorKey] = badgeColor;
-    self.representedObject = values;
-}
+- (NSString *)badge { return [self _value:UDBadgeKey]; }
+- (void)setBadge:(NSString *)badge { [self _setValue:[badge copy] forKey:UDBadgeKey]; }
+- (NSColor *)badgeColor { return [self _value:UDBadgeColorKey]; }
+- (void)setBadgeColor:(NSColor *)badgeColor { [self _setValue:badgeColor forKey:UDBadgeColorKey]; }
+- (NSImage *)leadingImage { return [self _value:UDBadgeImageKey]; }
+- (void)setLeadingImage:(NSImage *)image { [self _setValue:image forKey:UDBadgeImageKey]; }
 
 - (NSDictionary *)_badgeAttributes {
     return @{ NSFontAttributeName: [NSFont boldSystemFontOfSize:[NSFont smallSystemFontSize]],
@@ -60,6 +65,15 @@ static const CGFloat UDShortBadgeWidth = 36.0;
 }
 
 - (void)drawInteriorWithFrame:(NSRect)cellFrame inView:(NSView *)controlView {
+    NSImage *image = self.leadingImage;
+    if (image) {
+        CGFloat side = MIN(16.0, NSHeight(cellFrame));
+        NSRect at = NSMakeRect(NSMinX(cellFrame) + 1.0, NSMidY(cellFrame) - side / 2.0, side, side);
+        [image drawInRect:at fromRect:NSZeroRect operation:UDCompositeSourceOver fraction:1.0
+           respectFlipped:YES hints:nil];
+        cellFrame.origin.x += side + 4.0;
+        cellFrame.size.width = MAX(0.0, NSWidth(cellFrame) - side - 4.0);
+    }
     CGFloat width = [self _badgeWidthIn:cellFrame];
     NSRect text = cellFrame;
     text.size.width = MAX(0.0, NSWidth(cellFrame) - width);

@@ -33,6 +33,7 @@
 #import <UDCodeKit/UDExtensionsWindowController.h>
 #import <UDCodeKit/UDWorkbench.h>
 #import <UDCodeKit/UDFileSystemProvider.h>
+#import <UDCodeKit/UDCustomDocument.h>
 #import <UDCodeKit/UDTreeView.h>
 #import <UDCodeKit/UDCredentialStore.h>
 #import <UDCodeKit/UDLanguageConfiguration.h>

@@ -91,6 +91,9 @@ static const NSInteger UDAfterBuildDebugTests = 3;
 @property (nonatomic, copy) NSArray<id<UDExtension>> *activeExtensions;
 /// The providers of URL schemes the window has opened, by scheme.
 @property (nonatomic, strong, nullable) NSMutableDictionary<NSString *, id<UDFileSystemProvider>> *fileSystemProviders;
+/// Undo and redo when no custom document's editor is in front (the window
+/// asks its delegate, -windowWillReturnUndoManager:).
+@property (nonatomic, strong, nullable) NSUndoManager *windowUndoManager;
 /// The bottom area's panes: [owner, its view controller, title, image or
 /// NSNull], the extensions' then the front editor's, their segments after
 /// the debugger's and the terminal's.
@@ -302,7 +305,7 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     } else if (workspace.initialTabURLs.count > 0) {
         for (NSURL *url in workspace.initialTabURLs) {
             NSError *err = nil;
-            UDCodeDocument *doc = [_workspaceModel addDocumentFromURL:url error:&err];
+            UDCodeDocument *doc = [self _addDocumentFromURL:url fileSystemProvider:nil error:&err];
             if (!doc) {
                 NSLog(@"[UDDocumentWindowController] Cannot open %@: %@", url.lastPathComponent, err);
                 doc = [_workspaceModel addDocumentWithText:@"" fileURL:url];
@@ -1538,7 +1541,10 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         id<UDEditorPanes> editor = [self _paneEditor];
         return [editor respondsToSelector:@selector(libraryViewController)];
     }
-    if (sel_isEqual(action, @selector(openAsText:))) return [self _customEditorDocument] != nil;
+    if (sel_isEqual(action, @selector(openAsText:))) {
+        UDCodeDocument *document = [self _customEditorDocument];
+        return document && [self _hasText:document];
+    }
     if (sel_isEqual(action, @selector(runDocument:)) || sel_isEqual(action, @selector(runAllOfDocument:))) {
         return [self _runnerOfSelectedDocument] != nil;
     }
@@ -1681,13 +1687,34 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     UDCodeDocument *doc = [_workspaceModel documentForFileURL:url];
     if (!doc) {
         NSError *err = nil;
-        doc = [_workspaceModel addDocumentFromURL:url error:&err];
+        doc = [self _addDocumentFromURL:url fileSystemProvider:nil error:&err];
         if (!doc) {
             NSLog(@"[UDDocumentWindowController] Cannot open %@: %@", url.lastPathComponent, err);
             return;
         }
     }
     [self _openTabForDocument:doc];
+}
+
+/// @a url's document added: an active extension's model of it (a custom
+/// document), else its text, read from the file or by @a provider.
+- (nullable UDCodeDocument *)_addDocumentFromURL:(NSURL *)url fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
+                                           error:(NSError *__autoreleasing *)outError {
+    for (id<UDExtension> extension in _activeExtensions) {
+        if (![extension respondsToSelector:@selector(workbench:openCustomDocumentAtURL:fileSystemProvider:error:)]) continue;
+        NSError *error = nil;
+        id<UDCustomDocument> custom = [extension workbench:self openCustomDocumentAtURL:url fileSystemProvider:provider error:&error];
+        if (custom) {
+            UDCodeDocument *document = [[UDCodeDocument alloc] initWithCustomDocument:custom URL:url
+                                                                    fileSystemProvider:provider languageMode:nil];
+            return [_workspaceModel addDocument:document];
+        }
+        if (error) {
+            if (outError) *outError = error;
+            return nil;
+        }
+    }
+    return [_workspaceModel addDocumentFromURL:url fileSystemProvider:provider error:outError];
 }
 
 - (nullable UDEditorSession *)_sessionForDocument:(nullable UDCodeDocument *)document {
@@ -1749,11 +1776,18 @@ static const NSInteger UDAfterBuildDebugTests = 3;
         UDTabBarItem *item = [_editorTabs addItemWithTitle:document.displayName representedObject:document viewController:custom];
         item.toolTip = document.fileURL.path ?: document.URL.absoluteString;
         item.dirty = document.isModified;
-        // its changes: its tab's dot (a text tab's session would, else)
+        // its changes: its tab's dot (a text tab's session would, else); a
+        // custom document's model's too, though its text is the same (an archive's)
         [[NSNotificationCenter defaultCenter] removeObserver:self name:UDTextModelDidChangeNotification object:document.textModel];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
                                                      name:UDTextModelDidChangeNotification
                                                    object:document.textModel];
+        if (document.customDocument) {
+            [[NSNotificationCenter defaultCenter] removeObserver:self name:UDCodeDocumentTextDidChangeNotification object:document];
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_textDidChange:)
+                                                         name:UDCodeDocumentTextDidChangeNotification
+                                                       object:document];
+        }
         return;
     }
     BOOL first = NO;
@@ -2040,6 +2074,8 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     [_scratchDocuments removeObject:document];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:document.diagnosticStore];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:document.textModel];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:document];
+    if ([document.customDocument respondsToSelector:@selector(closeCustomDocument)]) [document.customDocument closeCustomDocument];
     [_workspaceModel removeDocument:document];
     [self _documentsChanged];
 }
@@ -2387,7 +2423,7 @@ static void UDSetSegmentCount(NSSegmentedControl *control, NSInteger count) {
 - (void)_textDidChange:(NSNotification *)note {
     UDCodeDocument *document = nil;
     for (UDCodeDocument *doc in _workspaceModel.documents) {
-        if (doc.textModel == note.object) { document = doc; break; }
+        if (doc.textModel == note.object || doc == note.object) { document = doc; break; }
     }
     if (!document) return;
     for (UDTabBarItem *item in [self _itemsForDocument:document]) item.dirty = document.isModified;
@@ -2573,6 +2609,16 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     }
 }
 
+/// Undo and redo: a custom document's model's while its editor is in front
+/// (its text's tab has the model's too, through its text model); else the
+/// window's own.
+- (nullable NSUndoManager *)windowWillReturnUndoManager:(NSWindow *)window {
+    UDCodeDocument *document = [self _customEditorDocument];
+    if (document.customDocument) return document.customDocument.undoManager;
+    if (!_windowUndoManager) _windowUndoManager = [[NSUndoManager alloc] init];
+    return _windowUndoManager;
+}
+
 - (void)windowDidBecomeKey:(NSNotification *)note {
     [self _rebuildIntegrateMenu];
     [self _rebuildEditorMenu];
@@ -2676,7 +2722,7 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
             return;
         }
         NSError *error = nil;
-        document = [_workspaceModel addDocumentFromURL:url fileSystemProvider:provider error:&error];
+        document = [self _addDocumentFromURL:url fileSystemProvider:provider error:&error];
         if (!document) {
             if (error) [self presentError:error modalForWindow:self.window delegate:nil didPresentSelector:NULL contextInfo:NULL];
             return;
@@ -2698,7 +2744,15 @@ static const NSInteger UDContributedMenuItemTag = 0x5C;
     [self _documentsChanged];
 }
 
+/// Whether @a document can be shown as text: a custom document only when
+/// its model has a text (a decl's; an archive's has none).
+- (BOOL)_hasText:(UDCodeDocument *)document {
+    id<UDCustomDocument> custom = document.customDocument;
+    return !custom || ([custom respondsToSelector:@selector(textOfDocument)] && [custom textOfDocument] != nil);
+}
+
 - (void)showDocumentAsText:(UDCodeDocument *)document {
+    if (![self _hasText:document]) return;
     for (UDTabBarItem *item in [self _itemsForDocument:document]) {
         if ([[_editorTabs viewControllerForItem:item] isKindOfClass:[UDCodeEditorViewController class]]) {
             [_editorTabs selectItem:item];

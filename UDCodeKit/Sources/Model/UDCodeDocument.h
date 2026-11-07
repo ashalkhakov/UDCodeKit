@@ -20,7 +20,7 @@
 #import "UDDiagnosticStore.h"
 #import "UDLanguageMode.h"
 
-@protocol UDFileSystemProvider;
+@protocol UDFileSystemProvider, UDCustomDocument;
 
 /* UDCodeKit's own: exported where it is built for Windows (its GNUmakefile),
    imported everywhere else, as FOUNDATION_EXPORT. */
@@ -50,6 +50,13 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotifica
 /// nil when untitled.
 @property (nonatomic, copy, readonly, nullable) NSURL *URL;
 @property (nonatomic, strong, readonly, nullable) id<UDFileSystemProvider> fileSystemProvider;
+
+/// The extension's model it is of, when it is one's (UDCustomDocument.h: an
+/// archive, a decl as Core Data objects); nil: its text is its model. Its
+/// text is then the model's (-textOfDocument), kept as the model changes, and
+/// typing in it gives it back to the model; whether it is modified, saving,
+/// reverting and undo are the model's.
+@property (nonatomic, strong, readonly, nullable) id<UDCustomDocument> customDocument;
 
 /// Human-readable display name derived from fileURL.lastPathComponent,
 /// or "Untitled" for unsaved scratch buffers; an untitled one's may be
@@ -91,6 +98,13 @@ UDCODEKIT_EXPORT NSNotificationName const UDCodeDocumentFileURLDidChangeNotifica
                          URL:(nullable NSURL *)URL
           fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
                 languageMode:(nullable UDLanguageMode *)languageMode NS_DESIGNATED_INITIALIZER;
+
+/// Of @a customDocument, an extension's model, at @a URL (a file's, or
+/// @a provider's); its language mode as -initWithText:URL:… finds it.
+- (instancetype)initWithCustomDocument:(id<UDCustomDocument>)customDocument
+                                   URL:(nullable NSURL *)URL
+                    fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
+                          languageMode:(nullable UDLanguageMode *)languageMode;
 
 /// With the language mode the file's extension names.
 - (instancetype)initWithText:(NSString *)text

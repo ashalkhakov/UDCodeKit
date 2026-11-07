@@ -5,6 +5,7 @@
 #import "UDCodeDocument.h"
 #import "UDLanguageModeRegistry.h"
 #import "UDFileSystemProvider.h"
+#import "UDCustomDocument.h"
 
 NSNotificationName const UDCodeDocumentTextDidChangeNotification =
     @"UDCodeDocumentTextDidChangeNotification";
@@ -13,12 +14,19 @@ NSNotificationName const UDCodeDocumentFileURLDidChangeNotification =
 NSNotificationName const UDFileSystemProviderDidChangeFilesNotification =
     @"UDFileSystemProviderDidChangeFilesNotification";
 NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
+NSNotificationName const UDCustomDocumentDidChangeNotification =
+    @"UDCustomDocumentDidChangeNotification";
 
 @interface UDCodeDocument ()
 @property (nonatomic) NSInteger savedAlternativeVersionId;   // the text model's, when last read or saved
 @end
 
-@implementation UDCodeDocument
+@implementation UDCodeDocument {
+    BOOL _mirroring;     // the custom document's text being put in the text model
+    BOOL _applying;      // the text typed being given to the custom document
+    BOOL _textPending;   // text typed that the custom document did not take
+}
+
 
 // ---------------------------------------------------------------------------
 // MARK: - Lifecycle
@@ -67,6 +75,24 @@ NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
                name:UDTextModelDidChangeNotification
              object:_textModel];
 
+    return self;
+}
+
+- (instancetype)initWithCustomDocument:(id<UDCustomDocument>)customDocument URL:(NSURL *)URL
+                    fileSystemProvider:(id<UDFileSystemProvider>)provider languageMode:(UDLanguageMode *)languageMode {
+    NSString *text = [customDocument respondsToSelector:@selector(textOfDocument)] ? [customDocument textOfDocument] : nil;
+    self = [self initWithText:text ?: @"" URL:URL fileSystemProvider:provider languageMode:languageMode];
+    if (!self) return nil;
+    _customDocument = customDocument;
+    // the text's undo the model's: typing there and its edit of the model one step
+    _textModel.undoManager = customDocument.undoManager;
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    [center addObserver:self selector:@selector(_customDocumentDidChange:)
+                   name:UDCustomDocumentDidChangeNotification object:customDocument];
+    [center addObserver:self selector:@selector(_customDocumentDidUndo:)
+                   name:NSUndoManagerDidUndoChangeNotification object:customDocument.undoManager];
+    [center addObserver:self selector:@selector(_customDocumentDidUndo:)
+                   name:NSUndoManagerDidRedoChangeNotification object:customDocument.undoManager];
     return self;
 }
 
@@ -129,6 +155,10 @@ NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
 }
 
 - (BOOL)saveToURL:(NSURL *)url error:(NSError *__autoreleasing *)outError {
+    if (_customDocument && [url isEqual:_URL]) {
+        if (_textPending && ![self _applyTextError:outError]) return NO;
+        return [_customDocument saveCustomDocument:outError];
+    }
     NSString *text = [_textModel getValue];
     BOOL ok;
     // its own URL, its provider's; any other, a file
@@ -142,7 +172,16 @@ NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
 }
 
 - (BOOL)saveAsURL:(NSURL *)url error:(NSError *__autoreleasing *)outError {
-    if (![self saveToURL:url error:outError]) return NO;
+    if (_customDocument) {
+        if (![_customDocument respondsToSelector:@selector(saveCustomDocumentAsURL:error:)]) {
+            if (outError) *outError = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFeatureUnsupportedError
+                                                      userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:
+                                                                  @"“%@” can’t be saved as another file.", _displayName] }];
+            return NO;
+        }
+        if (_textPending && ![self _applyTextError:outError]) return NO;
+        if (![_customDocument saveCustomDocumentAsURL:url error:outError]) return NO;
+    } else if (![self saveToURL:url error:outError]) return NO;
     [self willChangeValueForKey:@"URL"];
     [self willChangeValueForKey:@"displayName"];
     _URL                = [url copy];
@@ -156,9 +195,19 @@ NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
 
 - (BOOL)reloadFromFileIfUnmodified {
     if (!_URL || self.isModified || (!_fileSystemProvider && !_URL.isFileURL)) return NO;
+    // the model's own: read again by it, its text kept as it is
+    if (_customDocument) return [_customDocument revertCustomDocument:NULL];
     NSString *disk = [UDCodeDocument _textOfURL:_URL provider:_fileSystemProvider error:NULL];
+    if (!disk || ![self _replaceTextWith:disk]) return NO;
+    _savedAlternativeVersionId = _textModel.alternativeVersionId;
+    return YES;
+}
+
+/// The text made @a text by one edit of the part that differs; NO when it is
+/// the same.
+- (BOOL)_replaceTextWith:(NSString *)disk {
     NSString *mine = [_textModel getValue];
-    if (!disk || [disk isEqualToString:mine]) return NO;
+    if ([disk isEqualToString:mine]) return NO;
     // what differs: after the common start, before the common end
     NSUInteger start = 0, mineLength = mine.length, diskLength = disk.length;
     while (start < mineLength && start < diskLength && [mine characterAtIndex:start] == [disk characterAtIndex:start]) start++;
@@ -170,7 +219,6 @@ NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
     NSString *replacement = [disk substringWithRange:NSMakeRange(start, diskLength - end - start)];
     [_textModel applyEdits:@[ [[UDTextModelEdit alloc] initWithRange:PTRangeMake(from.line, from.column, to.line, to.column)
                                                                 text:replacement] ]];
-    _savedAlternativeVersionId = _textModel.alternativeVersionId;
     return YES;
 }
 
@@ -179,10 +227,55 @@ NSString * const UDFileSystemProviderChangedURLsKey = @"URLs";
 // ---------------------------------------------------------------------------
 
 - (BOOL)isModified {
+    if (_customDocument) return _customDocument.isEdited || _textPending;
     return _textModel.alternativeVersionId != _savedAlternativeVersionId;
 }
 
+/// The text typed given to the custom document; NO (and the text pending)
+/// when it does not take it.
+- (BOOL)_applyTextError:(NSError *__autoreleasing *)outError {
+    if (![_customDocument respondsToSelector:@selector(applyText:error:)]) return YES;
+    _applying = YES;
+    BOOL ok = [_customDocument applyText:[_textModel getValue] error:outError];
+    _applying = NO;
+    _textPending = !ok;
+    return ok;
+}
+
+/// The custom document's text put in the text model, not as an edit of
+/// its own (its undo is the model's).
+- (void)_mirrorCustomDocument {
+    if (![_customDocument respondsToSelector:@selector(textOfDocument)]) return;
+    NSString *text = [_customDocument textOfDocument];
+    _textPending = NO;
+    if (!text) return;
+    NSUndoManager *undo = _textModel.undoManager;
+    _mirroring = YES;
+    [undo disableUndoRegistration];
+    [self _replaceTextWith:text];
+    [undo enableUndoRegistration];
+    _mirroring = NO;
+}
+
+/// The model changed: its text shown, but for a change of the text's own
+/// (typing there), or while undoing (the text's step, after the model's, is
+/// still to come: then once it is done).
+- (void)_customDocumentDidChange:(NSNotification *)note {
+    NSUndoManager *undo = _customDocument.undoManager;
+    if (!_applying && !undo.isUndoing && !undo.isRedoing) [self _mirrorCustomDocument];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDCodeDocumentTextDidChangeNotification object:self];
+}
+
+- (void)_customDocumentDidUndo:(NSNotification *)note {
+    [self _mirrorCustomDocument];
+    [[NSNotificationCenter defaultCenter] postNotificationName:UDCodeDocumentTextDidChangeNotification object:self];
+}
+
 - (void)_textModelDidChange:(NSNotification *)note {
+    // typed in its text: given to the model (an undo or redo's step is the
+    // model's already)
+    NSUndoManager *undo = _textModel.undoManager;
+    if (_customDocument && !_mirroring && !undo.isUndoing && !undo.isRedoing) [self _applyTextError:NULL];
     [[NSNotificationCenter defaultCenter]
         postNotificationName:UDCodeDocumentTextDidChangeNotification
                       object:self];

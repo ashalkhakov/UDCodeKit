@@ -60,6 +60,7 @@ UDCodeKit_HEADER_FILES = \
     UDExtension.h \
     UDExtensionsWindowController.h \
     UDFileNavigatorViewController.h \
+    UDFileSystemProvider.h \
     UDFileWatcher.h \
     UDFindBarViewController.h \
     UDFindModel.h \
@@ -112,6 +113,7 @@ UDCodeKit_HEADER_FILES = \
     UDTreeSitterHighlighter.h \
     UDTreeSitterOutline.h \
     UDTreeSitterTypes.h \
+    UDTreeView.h \
     UDWorkbench.h \
     UDWorkspaceEdit.h
 

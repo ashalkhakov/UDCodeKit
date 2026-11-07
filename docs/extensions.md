@@ -224,6 +224,76 @@ extensions' ⌘↩ items would leave one of them unreachable from the keyboard.
 An app that embeds UDCodeKit can register an extension it makes itself,
 with no bundle, using `-[UDLanguageModeRegistry registerExtension:]`.
 
+## Project systems
+
+UDCode's file navigator shows a project as its folder's files. A project
+system shows the same project another way: a game's decls by type and name
+(UDQuakeTools' Quarry), or a solution's projects and their items, as VS Code's
+C# Dev Kit shows a `.sln` in its Solution Explorer. VS Code has no single
+project system API, and neither has UDCode. An extension builds one from the
+parts VS Code's extensions use, and the window keeps the file navigator
+beside it:
+
+| VS Code | UDCode |
+|---|---|
+| `activationEvents: ["workspaceContains:**/*.sln"]` | `activationEvents` in the bundle's LanguageInfo.plist |
+| a view container and `createTreeView` | `-navigatorViewControllerForWorkbench:` returning a `UDTreeViewController` |
+| `TreeDataProvider`, `TreeItem` | `UDTreeDataProvider`, `UDTreeItem` (`UDTreeView.h`) |
+| `TreeItem.command`, `vscode.open` | `UDTreeItem`'s `target` and `action`, `-openResource:` |
+| `registerFileSystemProvider("quarry", …)` | `-workbench:fileSystemProviderForScheme:` returning a `UDFileSystemProvider` |
+| `menus` → `view/item/context` | `-treeView:menuForElements:`, a menu from the extension's XIB |
+| task, debug and test providers | `-buildSystemClasses`, `-debuggerClasses`, `-testRunnersForProject:` |
+| custom editors | `-workbench:editorForDocument:` |
+
+**Activation.** An extension whose LanguageInfo.plist has an
+`activationEvents` array is asked for what it brings a window (its
+navigator, its menus, its providers, its editors) only in the windows where
+one of the events holds:
+
+- `"*"`: every window.
+- `"workspaceContains:<glob>"`: the window's folder has a file or folder
+  matching the glob, relative to the folder. `*` and `?` match within a
+  name, and `**` matches any number of folders: `*.qworkspace` is at the
+  folder's top, `**/*.sln` anywhere in it. The search doesn't look in hidden
+  folders, and stops after 10000 entries.
+
+Other events (VS Code's `onLanguage:`, say) are ignored. An extension with no
+`activationEvents` is active in every window, as before. The window looks
+when it opens, so a marker made later takes effect when the folder is opened
+again.
+
+**The tree.** `UDTreeViewController` shows the provider's elements, any
+objects. It asks for an element's children when the element is first
+expanded, never for the whole tree, and shows each element as the
+`UDTreeItem` the provider makes of it: a label, an image, a dimmer detail at
+the right, a tool tip, and whether it has children and starts open. As in VS
+Code, choosing an element (a click, Return) runs its item's command, and
+nothing else: the item's `action`, sent to its `target` with the tree view as
+the sender, whose `chosenElement` is the element meanwhile. With no target
+the action goes to the tree view itself, whose `-openResource:` opens the
+item's `resourceURL` in the window, as VS Code's `vscode.open` does. An item
+with no command opens nothing; a double click opens or closes it. `-refresh` and `-refreshElement:` ask again, keeping what was open
+and selected (by the item's `identifier`, or else its label under its
+parent's). `-revealElement:` opens what an element is under and selects it,
+and needs `-treeView:parentOfElement:`. A provider that implements
+`-treeView:filterDidChange:` gets a filter field under the tree, as Xcode's
+navigators have.
+
+**Documents that are not files.** A provider of a URL scheme reads and writes
+what is at its URLs: `quarry:/material/textures/foo`, a decl in a game's
+paks. A document of such a URL is a text document like a file's. It has
+tabs, undo and the extension's own editor, Open as Text works, and Save
+writes it back through the provider (`-writeContents:toURL:error:`), which
+decides where it goes: Quarry writes into the mod's folder and leaves the
+paks alone. The provider can name the document's language mode and its tab
+(`-languageModeOfURL:`, `-displayNameOfURL:`), and posts
+`UDFileSystemProviderDidChangeFilesNotification` when something changes
+other than by a save, so that open documents without changes of their own
+are read again. Such a document's `URL` is its provider's and its `fileURL`
+is nil, so what only a file has (a language server, source control,
+breakpoints, the file watcher) leaves it alone. Each window asks for its own
+provider, so two windows can have the same scheme for different projects.
+
 ## Licences
 
 UDCode is MIT, and so are UDCodeKit, LSPKit and UDPieceTable. An extension

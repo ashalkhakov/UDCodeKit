@@ -24,7 +24,7 @@ extern NSNotificationName const UDWorkspaceModelDidChangeNotification;
 @interface UDWorkspaceModel : NSObject
 
 /// Ordered, KVO-observable list of open documents.
-/// Never contains two documents with the same non-nil fileURL.
+/// Never contains two documents with the same non-nil URL.
 @property (nonatomic, readonly, copy) NSArray<UDCodeDocument *> *documents;
 
 // ---------------------------------------------------------------------------
@@ -48,10 +48,15 @@ extern NSNotificationName const UDWorkspaceModelDidChangeNotification;
 - (nullable UDCodeDocument *)addDocumentFromURL:(NSURL *)url
                                           error:(NSError *__autoreleasing *)outError;
 
+/// The same, of a URL @a provider reads (UDFileSystemProvider.h; nil: a file).
+- (nullable UDCodeDocument *)addDocumentFromURL:(NSURL *)url
+                             fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
+                                          error:(NSError *__autoreleasing *)outError;
+
 /// Remove document from the workspace.  No-op if not present.
 - (void)removeDocument:(UDCodeDocument *)document;
 
-/// Return the document whose fileURL is equal to url, or nil.
+/// Return the document whose URL (a file's, or a provider's) is equal to url, or nil.
 - (nullable UDCodeDocument *)documentForFileURL:(NSURL *)url;
 
 /// Return the document whose diagnosticStore is identical to store, or nil.

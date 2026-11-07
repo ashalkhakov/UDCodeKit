@@ -127,6 +127,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 @interface UDExtensionRecord : NSObject
 @property (nonatomic, strong, readonly) id<UDExtension> extension;
 @property (nonatomic, strong, readonly) NSBundle        *bundle;
+/// When it is asked for what it brings a window (VS Code's activationEvents); nil: always.
+@property (nonatomic, copy, nullable) NSArray<NSString *> *activationEvents;
 - (instancetype)initWithExtension:(id<UDExtension>)ext bundle:(NSBundle *)bundle;
 @end
 
@@ -285,6 +287,8 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 
     // Retain the extension and call the load lifecycle hook.
     UDExtensionRecord *record = [[UDExtensionRecord alloc] initWithExtension:ext bundle:bundle];
+    NSArray *events = rootInfo[@"activationEvents"];
+    if ([events isKindOfClass:[NSArray class]]) record.activationEvents = events;
     [_loadedExtensions addObject:record];
     [ext extensionDidLoad:bundle];
 
@@ -505,11 +509,72 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
 }
 
 - (void)registerExtension:(id<UDExtension>)extension {
+    [self registerExtension:extension activationEvents:nil];
+}
+
+- (void)registerExtension:(id<UDExtension>)extension activationEvents:(NSArray<NSString *> *)events {
     NSBundle *bundle = [NSBundle mainBundle];
+    UDExtensionRecord *record = [[UDExtensionRecord alloc] initWithExtension:extension bundle:bundle];
+    record.activationEvents = events;
     dispatch_sync(_queue, ^{
-        [self->_loadedExtensions addObject:[[UDExtensionRecord alloc] initWithExtension:extension bundle:bundle]];
+        [self->_loadedExtensions addObject:record];
     });
     [extension extensionDidLoad:bundle];
+}
+
+/// Whether something under @a folder matches @a parts, a glob's names from
+/// @a index on: each name's * and ? within it, "**" any folders between
+/// (none too). Hidden folders are not looked in, and a search stops after
+/// @a budget entries, as VS Code's gives up.
+static BOOL UDFolderMatches(NSString *folder, NSArray<NSString *> *parts, NSUInteger index, NSInteger *budget) {
+    if (index >= parts.count) return NO;
+    NSString *part = parts[index];
+    BOOL last = index + 1 == parts.count;
+    if ([part isEqualToString:@"**"]) {
+        if (UDFolderMatches(folder, parts, index + 1, budget)) return YES;   // no folders between
+    }
+    NSPredicate *matches = [NSPredicate predicateWithFormat:@"SELF LIKE %@", part];
+    for (NSString *entry in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:folder error:NULL]) {
+        if (--*budget < 0) return NO;
+        NSString *path = [folder stringByAppendingPathComponent:entry];
+        BOOL directory = NO;
+        [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&directory];
+        if ([part isEqualToString:@"**"]) {
+            if (directory && ![entry hasPrefix:@"."] && UDFolderMatches(path, parts, index, budget)) return YES;
+            continue;
+        }
+        if (![matches evaluateWithObject:entry]) continue;
+        if (last) return YES;
+        if (directory && UDFolderMatches(path, parts, index + 1, budget)) return YES;
+    }
+    return NO;
+}
+
+/// Whether a file or folder matching @a glob (VS Code's workspaceContains:
+/// "*.qworkspace" at the top, "**/x.json" anywhere) is in @a folder.
+static BOOL UDFolderContains(NSString *folder, NSString *glob) {
+    NSInteger budget = 10000;
+    return UDFolderMatches(folder, [glob componentsSeparatedByString:@"/"], 0, &budget);
+}
+
+- (NSArray<id<UDExtension>> *)extensionsActiveInFolder:(NSURL *)folder {
+    __block NSArray<UDExtensionRecord *> *records;
+    dispatch_sync(_queue, ^{
+        records = [self->_loadedExtensions copy];
+    });
+    NSMutableArray<id<UDExtension>> *active = [NSMutableArray array];
+    for (UDExtensionRecord *record in records) {
+        BOOL activated = record.activationEvents == nil;
+        for (NSString *event in record.activationEvents) {
+            if (activated) break;
+            if ([event isEqualToString:@"*"]) activated = YES;
+            else if ([event hasPrefix:@"workspaceContains:"] && folder.isFileURL) {
+                activated = UDFolderContains(folder.path, [event substringFromIndex:@"workspaceContains:".length]);
+            }
+        }
+        if (activated) [active addObject:record.extension];
+    }
+    return active;
 }
 
 - (void)unloadAllExtensions {

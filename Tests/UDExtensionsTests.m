@@ -4,7 +4,9 @@
  *  Extensions installed as VS Code's are (UDInstalledExtensions): engines'
  *  version ranges, a package (.udcx) installed into a folder of the test's
  *  own ($UD_EXTENSIONS_PATH), another version of it taking its place,
- *  uninstalling (.obsolete), disabling, and what is refused.
+ *  uninstalling (.obsolete), disabling, and what is refused; updates from an
+ *  extension's own feed (UDExtensionUpdates), and the packages UDCode is
+ *  shipped with installed once.
  *--------------------------------------------------------------------------------------------*/
 
 #import <XCTest/XCTest.h>
@@ -49,6 +51,11 @@ static void UDSetEnvironment(NSString *name, NSString *_Nullable value) {
     UDSetEnvironment(@"UD_EXTENSIONS_PATH", nil);
     [[NSFileManager defaultManager] removeItemAtPath:_folder.stringByDeletingLastPathComponent error:NULL];
     [UDInstalledExtensions setDisabled:NO identifier:@"test.orm"];
+    UDExtensionUpdates *updates = [UDExtensionUpdates sharedUpdates];
+    updates.fetch = nil;
+    for (NSString *key in @[ @"UDExtensionsUpdateAutomatically", @"UDExtensionsLastUpdateCheck", @"UDShippedExtensionsInstalled" ]) {
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:key];
+    }
     [super tearDown];
 }
 
@@ -56,13 +63,19 @@ static void UDSetEnvironment(NSString *name, NSString *_Nullable value) {
 /// extension.vsixmanifest (its TargetPlatform, when @a platform), zipped by
 /// this system's own tool; nil if it has none.
 - (NSString *)packageVersion:(NSString *)version engine:(NSString *)engine platform:(NSString *)platform {
+    return [self packageVersion:version engine:engine platform:platform updates:nil];
+}
+
+/// The same, its feed @a updates (package.json's "updates").
+- (NSString *)packageVersion:(NSString *)version engine:(NSString *)engine platform:(NSString *)platform updates:(NSString *)updates {
     NSFileManager *files = [NSFileManager defaultManager];
     NSString *staging = [_work stringByAppendingPathComponent:[[NSUUID UUID] UUIDString]];
     NSString *extension = [staging stringByAppendingPathComponent:@"extension"];
     [files createDirectoryAtPath:[extension stringByAppendingPathComponent:@"ORM.bundle"] withIntermediateDirectories:YES attributes:nil error:NULL];
-    NSDictionary *manifest = @{ @"name": @"orm", @"publisher": @"test", @"version": version, @"displayName": @"ORM2",
-                                @"description": @"Object-role models", @"license": @"LGPL-2.1-only",
-                                @"engines": @{ @"udcode": engine }, @"main": @"./ORM.bundle" };
+    NSMutableDictionary *manifest = [@{ @"name": @"orm", @"publisher": @"test", @"version": version, @"displayName": @"ORM2",
+                                        @"description": @"Object-role models", @"license": @"LGPL-2.1-only",
+                                        @"engines": @{ @"udcode": engine }, @"main": @"./ORM.bundle" } mutableCopy];
+    if (updates) manifest[@"updates"] = updates;
     [[NSJSONSerialization dataWithJSONObject:manifest options:0 error:NULL] writeToFile:[extension stringByAppendingPathComponent:@"package.json"] atomically:YES];
     [@"LGPL" writeToFile:[extension stringByAppendingPathComponent:@"LICENSE"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     NSString *identity = platform ? [NSString stringWithFormat:@" TargetPlatform=\"%@\"", platform] : @"";
@@ -245,6 +258,9 @@ static void UDSetEnvironment(NSString *name, NSString *_Nullable value) {
     // by name: GNUstep's selectors carry their types
     XCTAssertEqualObjects(NSStringFromSelector(controller.uninstallButton.action), @"uninstall:");
     XCTAssertEqualObjects(NSStringFromSelector(controller.disableButton.action), @"toggleDisabled:");
+    XCTAssertEqualObjects(NSStringFromSelector(controller.updateButton.action), @"updateSelected:");
+    XCTAssertEqualObjects(NSStringFromSelector(controller.automaticButton.action), @"toggleAutomaticUpdates:");
+    XCTAssertEqual(controller.automaticButton.state, NSControlStateValueOn, @"updates installed without asking, by default");
     NSUInteger builtIn = controller.rows.count;
     XCTAssertGreaterThan(builtIn, 0u);
 
@@ -274,6 +290,172 @@ static void UDSetEnvironment(NSString *name, NSString *_Nullable value) {
         if (info.location != UDExtensionLocationBuiltIn) continue;
         XCTAssertTrue(info.loaded || info.problem, @"%@", info.identifier);
     }
+}
+
+// ---------------------------------------------------------------------------
+// MARK: - Updates
+// ---------------------------------------------------------------------------
+
+- (void)testSHA256 {
+    NSString *(^sha)(NSString *) = ^(NSString *text) {
+        return [UDExtensionUpdates SHA256OfData:[text dataUsingEncoding:NSUTF8StringEncoding]];
+    };
+    XCTAssertEqualObjects(sha(@""), @"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    XCTAssertEqualObjects(sha(@"abc"), @"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    // 56 bytes: its length in a block of its own
+    XCTAssertEqualObjects(sha(@"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+                          @"248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1");
+    XCTAssertEqualObjects(sha([@"" stringByPaddingToLength:64 withString:@"a" startingAtIndex:0]),
+                          @"ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb");
+}
+
+/// A feed of @a versions, test.orm's.
+- (NSData *)feedOf:(NSArray *)versions {
+    return [NSJSONSerialization dataWithJSONObject:@{ @"name": @"test.orm", @"versions": versions } options:0 error:NULL];
+}
+
+- (NSDictionary *)version:(NSString *)version engine:(NSString *)engine platform:(NSString *)platform
+                      url:(NSString *)url sha256:(NSString *)sha256 {
+    return @{ @"version": version, @"engines": @{ @"udcode": engine },
+              @"packages": @{ platform: @{ @"url": url, @"sha256": sha256 } } };
+}
+
+- (void)testAFeedsUpdateIsItsNewestForThisUDCode {
+    NSString *package = [self packageVersion:@"0.5.0" engine:@"*" platform:nil updates:@"https://example.invalid/orm.json"];
+    if (!package) return;
+    UDExtensionInfo *info = [UDInstalledExtensions installPackageAtPath:package error:NULL];
+    XCTAssertEqualObjects(info.updatesURL.absoluteString, @"https://example.invalid/orm.json");
+    NSString *host = [UDInstalledExtensions hostPlatform], *sha = [@"" stringByPaddingToLength:64 withString:@"0" startingAtIndex:0];
+    NSMutableArray *versions = [NSMutableArray arrayWithObjects:
+        [self version:@"0.7.0" engine:@"*" platform:@"another-platform" url:@"https://example.invalid/0.7.0.udcx" sha256:sha],
+        [self version:@"0.6.0" engine:@"*" platform:host url:@"https://example.invalid/0.6.0.udcx" sha256:sha],
+        [self version:@"0.5.1" engine:@"*" platform:@"universal" url:@"https://example.invalid/0.5.1.udcx" sha256:sha],
+        [self version:@"0.4.0" engine:@"*" platform:host url:@"https://example.invalid/0.4.0.udcx" sha256:sha], nil];
+    // not for this UDCode: passed over (an unreleased UDCode takes any)
+    if (![[UDInstalledExtensions hostVersion] isEqualToString:@"0.0.0"]) {
+        [versions insertObject:[self version:@"0.9.0" engine:@"<0.0.1" platform:host url:@"https://example.invalid/0.9.0.udcx" sha256:sha]
+                       atIndex:0];
+    }
+    NSError *error = nil;
+    UDExtensionUpdate *update = [UDExtensionUpdates updateInFeed:[self feedOf:versions] forExtension:info error:&error];
+    XCTAssertEqualObjects(update.version, @"0.6.0", @"the newest for this platform: %@", error);
+    XCTAssertEqualObjects(update.installedVersion, @"0.5.0");
+    XCTAssertEqualObjects(update.packageURL.absoluteString, @"https://example.invalid/0.6.0.udcx");
+    XCTAssertEqualObjects(update.sha256, sha);
+
+    // none newer: none
+    XCTAssertNil([UDExtensionUpdates updateInFeed:[self feedOf:@[ versions.lastObject ]] forExtension:info error:&error]);
+    // another's feed, or none at all: why
+    NSData *other = [NSJSONSerialization dataWithJSONObject:@{ @"name": @"someone.else", @"versions": versions } options:0 error:NULL];
+    XCTAssertNil([UDExtensionUpdates updateInFeed:other forExtension:info error:&error]);
+    XCTAssertTrue([error.localizedDescription containsString:@"someone.else"], @"%@", error);
+    error = nil;
+    XCTAssertNil([UDExtensionUpdates updateInFeed:[@"<html>" dataUsingEncoding:NSUTF8StringEncoding] forExtension:info error:&error]);
+    XCTAssertNotNil(error);
+}
+
+/// @a block run while the main queue's work is done, until it says it is.
+- (void)waitFor:(void (^)(dispatch_block_t done))block {
+    XCTestExpectation *expectation = [self expectationWithDescription:@"done"];
+    block(^{ [expectation fulfill]; });
+    [self waitForExpectationsWithTimeout:10 handler:nil];
+}
+
+- (void)testAnUpdateIsDownloadedCheckedAndInstalled {
+    NSString *installedPackage = [self packageVersion:@"0.5.0" engine:@"*" platform:nil updates:@"https://example.invalid/orm.json"];
+    NSString *newer = [self packageVersion:@"0.6.0" engine:@"*" platform:nil updates:@"https://example.invalid/orm.json"];
+    if (!installedPackage || !newer) return;
+    XCTAssertNotNil([UDInstalledExtensions installPackageAtPath:installedPackage error:NULL]);
+    __block NSData *bytes = [NSData dataWithContentsOfFile:newer];
+    NSString *host = [UDInstalledExtensions hostPlatform];
+    __block NSData *feed = [self feedOf:@[ [self version:@"0.6.0" engine:@"*" platform:host url:@"https://example.invalid/0.6.0.udcx"
+                                                  sha256:[@"" stringByPaddingToLength:64 withString:@"0" startingAtIndex:0]] ]];
+    NSMutableArray<NSString *> *asked = [NSMutableArray array];
+    UDExtensionUpdates *updates = [UDExtensionUpdates sharedUpdates];
+    updates.fetch = ^(NSURL *url, void (^completion)(NSData *, NSError *)) {
+        [asked addObject:url.absoluteString];
+        dispatch_async(dispatch_get_global_queue(0, 0), ^{
+            if ([url.absoluteString hasSuffix:@"orm.json"]) completion(feed, nil);
+            else if ([url.absoluteString hasSuffix:@"0.6.0.udcx"]) completion(bytes, nil);
+            else completion(nil, [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorFileDoesNotExist userInfo:nil]);
+        });
+    };
+    updates.automaticallyUpdates = NO;
+
+    // found, and only shown
+    __block NSArray<UDExtensionUpdate *> *found = nil;
+    [self waitFor:^(dispatch_block_t done) {
+        [updates checkNowCompletion:^(NSArray<UDExtensionUpdate *> *result) { found = result; done(); }];
+    }];
+    XCTAssertEqual(found.count, 1u);
+    XCTAssertEqualObjects([updates updateForIdentifier:@"test.orm"].version, @"0.6.0");
+    XCTAssertEqualObjects(asked, @[ @"https://example.invalid/orm.json" ], @"its package not downloaded unasked");
+    XCTAssertNotNil(updates.lastCheck);
+
+    // a package that isn't the one the feed names: refused
+    __block UDExtensionInfo *installed = nil;
+    __block NSError *failure = nil;
+    [self waitFor:^(dispatch_block_t done) {
+        [updates installUpdate:found.firstObject completion:^(UDExtensionInfo *info, NSError *error) {
+            installed = info; failure = error; done();
+        }];
+    }];
+    XCTAssertNil(installed);
+    XCTAssertTrue([failure.localizedDescription containsString:@"SHA-256"], @"%@", failure);
+    XCTAssertEqualObjects([UDInstalledExtensions installed].firstObject.version, @"0.5.0");
+
+    // the one it names: installed beside the one running, which it replaces when UDCode starts again
+    feed = [self feedOf:@[ [self version:@"0.6.0" engine:@"*" platform:host url:@"https://example.invalid/0.6.0.udcx"
+                                  sha256:[UDExtensionUpdates SHA256OfData:bytes]] ]];
+    [self waitFor:^(dispatch_block_t done) {
+        [updates checkNowCompletion:^(NSArray<UDExtensionUpdate *> *result) { found = result; done(); }];
+    }];
+    [self waitFor:^(dispatch_block_t done) {
+        [updates installUpdate:found.firstObject completion:^(UDExtensionInfo *info, NSError *error) {
+            installed = info; failure = error; done();
+        }];
+    }];
+    XCTAssertEqualObjects(installed.version, @"0.6.0", @"%@", failure);
+    XCTAssertEqualObjects([UDInstalledExtensions installed].firstObject.version, @"0.6.0");
+    XCTAssertNil([updates updateForIdentifier:@"test.orm"], @"installed: no longer available");
+
+    // installed without asking, when so set
+    updates.automaticallyUpdates = YES;
+    NSString *newest = [self packageVersion:@"0.7.0" engine:@"*" platform:nil updates:@"https://example.invalid/orm.json"];
+    NSData *newestBytes = [NSData dataWithContentsOfFile:newest];
+    feed = [self feedOf:@[ [self version:@"0.7.0" engine:@"*" platform:host url:@"https://example.invalid/0.6.0.udcx"
+                                  sha256:[UDExtensionUpdates SHA256OfData:newestBytes]] ]];
+    bytes = newestBytes;
+    [self waitFor:^(dispatch_block_t done) {
+        __block id observer = [[NSNotificationCenter defaultCenter] addObserverForName:UDExtensionUpdatesDidChangeNotification object:updates
+            queue:nil usingBlock:^(NSNotification *note) {
+                if (![[UDInstalledExtensions installed].firstObject.version isEqualToString:@"0.7.0"]) return;
+                [[NSNotificationCenter defaultCenter] removeObserver:observer];
+                done();
+            }];
+        [updates checkNowCompletion:nil];
+    }];
+    XCTAssertEqualObjects([UDInstalledExtensions installed].firstObject.version, @"0.7.0");
+}
+
+- (void)testPackagesShippedWithUDCodeAreInstalledOnce {
+    NSString *package = [self packageVersion:@"0.5.0" engine:@"*" platform:nil];
+    if (!package) return;
+    NSString *shipped = [_work stringByAppendingPathComponent:@"Extensions"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:shipped withIntermediateDirectories:YES attributes:nil error:NULL];
+    [[NSFileManager defaultManager] copyItemAtPath:package toPath:[shipped stringByAppendingPathComponent:package.lastPathComponent] error:NULL];
+    [@"not a package" writeToFile:[shipped stringByAppendingPathComponent:@"README.txt"] atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+
+    NSArray<UDExtensionInfo *> *installed = [UDExtensionUpdates installShippedPackagesInFolder:shipped];
+    XCTAssertEqual(installed.count, 1u);
+    XCTAssertEqualObjects([UDInstalledExtensions installed].firstObject.identifier, @"test.orm");
+    // uninstalled by the user: left so
+    XCTAssertTrue([UDInstalledExtensions uninstall:@"test.orm" error:NULL]);
+    [UDInstalledExtensions removeUninstalled];
+    XCTAssertEqual([UDExtensionUpdates installShippedPackagesInFolder:shipped].count, 0u);
+    XCTAssertEqual([UDInstalledExtensions installed].count, 0u);
+    // no such folder: nothing
+    XCTAssertEqual([UDExtensionUpdates installShippedPackagesInFolder:[_work stringByAppendingPathComponent:@"none"]].count, 0u);
 }
 
 @end

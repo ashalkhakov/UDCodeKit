@@ -23,6 +23,8 @@ installed one. From there:
 - **Uninstall** removes an installed extension. A built-in one can't be
   uninstalled.
 - **Disable** and **Enable** work on any extension, built-in ones included.
+- **Update** installs the selected extension's update, and **Check for
+  Updates** reads every installed extension's feed now (see Updates below).
 
 Changes apply the next time UDCode starts. UDCode loads extensions once, at
 start, and never unloads them.
@@ -38,6 +40,54 @@ UDCode --list-extensions --show-versions
 On macOS, run `UDCode.app/Contents/MacOS/UDCode`. On Linux, run the AppImage
 itself. On Windows, run `UDCode.exe` from a console; the output goes to that
 console.
+
+## Updates
+
+An installed extension can name a feed of its own (`"updates"` in its
+package.json), and UDCode keeps it up to date from there. This is how VS Code
+keeps extensions up to date from the Marketplace, with each extension's
+releases taking the Marketplace's place. The feed is JSON, usually a
+release's asset reached by GitHub's `releases/latest/download/` URL, and
+lists the extension's versions:
+
+```json
+{
+  "name": "ashalkhakov.udquaketools",
+  "versions": [
+    { "version": "1.2.0", "engines": { "udcode": "^0.22.0" },
+      "packages": {
+        "linux-x64": { "url": "https://github.com/…/udquaketools-1.2.0-linux-x64.udcx",
+                       "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" },
+        "win32-x64": { "url": "…", "sha256": "…" } } } ]
+}
+```
+
+- **Which version:** the newest one that is newer than the installed one,
+  whose `engines.udcode` takes this UDCode, and which has a package for this
+  platform (or for `universal`).
+- **When:** UDCode reads the feeds when it starts, at most once a day, and
+  again from **UDCode > Check for Updates…** and the Extensions window's
+  **Check for Updates**. Check for Updates… also checks UDCode itself, where
+  UDCode has an updater of its own.
+- **Installing:** the package is downloaded, and installed only if its
+  SHA-256 is the one the feed names (on macOS, its signature is also checked
+  when it loads, as for any extension). It goes in beside the version that is
+  running, which it replaces when UDCode starts again.
+- **Without asking:** updates are installed as soon as they're found,
+  unless **Install updates automatically** is turned off in the Extensions
+  window (VS Code's `extensions.autoUpdate`). When it's off, the window shows
+  that an update is available, and **Update** installs it.
+
+A kit writes its feed with each release (gnustep-release-actions'
+`udcode-extension.sh`), beside the packages it lists.
+
+**Shipped with UDCode.** A package of UDCode can carry extensions to install:
+the `.udcx` files in the app's `Resources/Extensions`. UDCode installs each
+one the first time it starts, before it loads any extension. From then on,
+the extension updates from its own feed and UDCode from its own. A package
+installed this way is never installed again, so an extension the user
+uninstalls stays uninstalled. This is how UDQuakeTools ships: UDCode with its
+extension.
 
 ## Where they are
 
@@ -86,8 +136,10 @@ another folder, which is what the tests use.
   development build of UDCode, whose version is 0.0.0, accepts any range.
 - **`main`** is the bundle, relative to the package.json.
 
+- **`updates`**, optional, is the URL of its feed (see Updates).
+
 UDCode reads `name`, `publisher`, `version`, `displayName`, `description`,
-`license`, `engines` and `main`, and ignores everything else.
+`license`, `engines`, `main` and `updates`, and ignores everything else.
 
 ## The package: .udcx
 

@@ -11,9 +11,6 @@
 #import "UDDocument.h"
 #import <UDCodeKit/UDCodeKit.h>
 
-/// Check for Updates… in MainMenu.xib's application menu.
-static const NSInteger UDCheckForUpdatesTag = 7100;
-
 @interface AppDelegate ()
 @property (nonatomic, strong) UDUpdater *updater;
 @property (nonatomic, strong, nullable) UDPreferencesController *preferences;
@@ -29,14 +26,11 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
 
     // Updates, set up before the app finishes launching (as Sparkle asks),
     // and not started under XCTest, which reaches no network. Where there is
-    // no updater, no menu item.
+    // no updater, Check for Updates… checks the extensions alone.
     BOOL testing = [[NSProcessInfo processInfo] environment][@"XCTestConfigurationFilePath"] != nil;
     self.updater = [[UDUpdater alloc] initStarting:!testing];
-    if (!self.updater.available) {
-        NSMenu *appMenu = [[[NSApp mainMenu] itemAtIndex:0] submenu];
-        NSMenuItem *check = [appMenu itemWithTag:UDCheckForUpdatesTag];
-        if (check != nil) [appMenu removeItem:check];
-    }
+    // the extensions' own (their feeds), once a day
+    if (!testing) [[UDExtensionUpdates sharedUpdates] checkAtStart];
 }
 
 - (IBAction)showPreferences:(id)sender {
@@ -115,15 +109,31 @@ static const NSInteger UDCheckForUpdatesTag = 7100;
     updating = NO;
 }
 
+/// UDCode's updater's check (where it has one), and its extensions' feeds
+/// read: what they had said, installed or not.
 - (IBAction)checkForUpdates:(id)sender {
-    [self.updater checkForUpdates:sender];
-}
-
-- (BOOL)validateMenuItem:(NSMenuItem *)item {
-    if ([item action] == @selector(checkForUpdates:)) {
-        return self.updater.canCheckForUpdates;
-    }
-    return YES;
+    if (self.updater.available && self.updater.canCheckForUpdates) [self.updater checkForUpdates:sender];
+    UDExtensionUpdates *updates = [UDExtensionUpdates sharedUpdates];
+    [updates checkNowCompletion:^(NSArray<UDExtensionUpdate *> *found) {
+        if (!found.count) {
+            // with an updater of its own, that says whether UDCode is up to date
+            if (self.updater.available) return;
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"Your extensions are up to date.";
+            [alert runModal];
+            return;
+        }
+        NSMutableArray *lines = [NSMutableArray array];
+        for (UDExtensionUpdate *update in found) {
+            [lines addObject:[NSString stringWithFormat:@"%@ %@ (you have %@)", update.displayName, update.version, update.installedVersion]];
+        }
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = found.count == 1 ? @"An extension has an update." : @"Extensions have updates.";
+        alert.informativeText = [[lines componentsJoinedByString:@"\n"] stringByAppendingString:updates.automaticallyUpdates
+            ? @"\n\nIt is being installed, and is used when UDCode starts again."
+            : @"\n\nUDCode > Extensions… installs it."];
+        [alert runModal];
+    }];
 }
 
 - (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app {

@@ -2,8 +2,9 @@
  *  UDExtensionsWindowController.h
  *
  *  UDCode > Extensions… (⇧⌘X, VS Code's): every extension, built in and
- *  installed (UDInstalledExtensions), whether it is loaded or why not;
- *  a package (.udcx) installed, one uninstalled, disabled or enabled again.
+ *  installed (UDInstalledExtensions), whether it is loaded or why not, and
+ *  whether its feed has an update (UDExtensionUpdates); a package (.udcx)
+ *  installed, one uninstalled, disabled or enabled again, updated.
  *  What changes applies when UDCode starts again, as it says. Laid out in
  *  UDExtensions.xib.
  *--------------------------------------------------------------------------------------------*/
@@ -21,6 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, readonly) IBOutlet NSTextField *detailsField;
 @property (nonatomic, weak, readonly) IBOutlet NSButton *uninstallButton;
 @property (nonatomic, weak, readonly) IBOutlet NSButton *disableButton;
+@property (nonatomic, weak, readonly) IBOutlet NSButton *updateButton;
+@property (nonatomic, weak, readonly) IBOutlet NSButton *automaticButton;
 
 /// What the table shows: those found when UDCode started (the registry's),
 /// then those installed since.
@@ -36,6 +39,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)uninstall:(nullable id)sender;
 /// The selected one disabled, or enabled again.
 - (IBAction)toggleDisabled:(nullable id)sender;
+/// The selected one's update installed.
+- (IBAction)updateSelected:(nullable id)sender;
+/// The installed extensions' feeds read now.
+- (IBAction)checkForUpdates:(nullable id)sender;
+/// Updates installed without asking, or not (the checkbox).
+- (IBAction)toggleAutomaticUpdates:(nullable id)sender;
 
 @end
 

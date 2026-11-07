@@ -60,6 +60,7 @@ UDCodeKit_HEADER_FILES = \
     UDEditorPanes.h \
     UDExtension.h \
     UDExtensionsWindowController.h \
+    UDExtensionUpdates.h \
     UDFileNavigatorViewController.h \
     UDFileSystemProvider.h \
     UDFileWatcher.h \

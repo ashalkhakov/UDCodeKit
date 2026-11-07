@@ -202,6 +202,43 @@ the front:
   themselves are the document's diagnostics (`diagnosticStore`), which the
   Issues navigator lists with every other document's.
 
+## A model of its own: custom documents
+
+Some documents' model isn't text: an archive whose entries are added and
+removed, a game's decl edited as Core Data objects over its decl manager.
+VS Code gives these a `CustomEditorProvider`, whose `CustomDocument` is the
+extension's own object, and so does UDCode. The extension opens the model
+(`-workbench:openCustomDocumentAtURL:fileSystemProvider:error:` in
+`UDExtension.h`), asked before the file, or its provider's URL, is read as
+text; it returns nil for what isn't its. The model adopts `UDCustomDocument`
+(`UDCustomDocument.h`), and the window's `UDCodeDocument` of it has it as its
+`customDocument`:
+
+| VS Code | UDCode |
+|---|---|
+| `openCustomDocument` | `-workbench:openCustomDocumentAtURL:fileSystemProvider:error:` |
+| `resolveCustomEditor` | `-workbench:editorForDocument:` (the document's `customDocument`) |
+| `onDidChangeCustomDocument`, its edits' `undo`/`redo` | `UDCustomDocumentDidChangeNotification`, the model's `undoManager` |
+| `saveCustomDocument`, `saveCustomDocumentAs` | `-saveCustomDocument:`, `-saveCustomDocumentAsURL:error:` |
+| `revertCustomDocument` | `-revertCustomDocument:` |
+| `CustomDocument.dispose` | `-closeCustomDocument` |
+
+- **Undo** is the model's `undoManager` while its editor is in front (the
+  window's `-windowWillReturnUndoManager:`), and the document's tab has a dot
+  while the model `-isEdited`.
+- **Save** and Save All save the model, and so does Save As when it has
+  `-saveCustomDocumentAsURL:error:`. When its file changes on disk, or its
+  provider says so, a model with no changes of its own is reverted.
+- **Its text.** A model with a text (`-textOfDocument`: a decl's) can be
+  shown with Open as Text, kept as the model changes. What is typed there is
+  given back to the model (`-applyText:error:`) as one edit, undone with the
+  typing. Text the model can't take stays as typed, and the document stays
+  edited, until it is text the model takes or the model changes in its
+  editor. A model with no text (an archive's) isn't shown as text.
+
+Only the document's model is the extension's. It still has tabs, the dot,
+closing with changes asked about, and a URL that is a file's or a provider's.
+
 ## Running a document
 
 **Editor > Run** (⌘↩) and **Run All** (⇧⌘↩) are UDCode's, and run the
@@ -243,7 +280,7 @@ beside it:
 | `registerFileSystemProvider("quarry", …)` | `-workbench:fileSystemProviderForScheme:` returning a `UDFileSystemProvider` |
 | `menus` → `view/item/context` | `-treeView:menuForElements:`, a menu from the extension's XIB |
 | task, debug and test providers | `-buildSystemClasses`, `-debuggerClasses`, `-testRunnersForProject:` |
-| custom editors | `-workbench:editorForDocument:` |
+| custom editors | `-workbench:editorForDocument:`, and custom documents (above) |
 
 **Activation.** An extension whose LanguageInfo.plist has an
 `activationEvents` array is asked for what it brings a window (its

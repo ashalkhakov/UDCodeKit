@@ -40,6 +40,7 @@ UDCodeKit_HEADER_FILES = \
     UDCommandTestRunner.h \
     UDCompletionListController.h \
     UDCredentialStore.h \
+    UDCustomDocument.h \
     UDDebugAreaViewController.h \
     UDDebugBarViewController.h \
     UDDebugHoverViewController.h \

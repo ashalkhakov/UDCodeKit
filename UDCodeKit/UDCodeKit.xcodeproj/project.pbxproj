@@ -62,6 +62,7 @@
 				Debug/UDDebugSession.h,
 				Diagnostics/UDDiagnosticStore.h,
 				Diff/UDDiffEditorViewController.h,
+				Extensions/UDCustomDocument.h,
 				Extensions/UDDiagnosticItem.h,
 				Extensions/UDEditorPanes.h,
 				Extensions/UDExtension.h,

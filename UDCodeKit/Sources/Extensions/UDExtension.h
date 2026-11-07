@@ -10,6 +10,7 @@
  *    • UDDiagnosticItem.h     — a diagnostic, for extensions that produce them
  *    • UDFileSystemProvider.h — documents of a URL scheme of the extension's own
  *    • UDTreeView.h           — a tree of the extension's own, in a navigator
+ *    • UDCustomDocument.h     — a document whose model is the extension's, not its text
  *
  *  Extension bundle targets have $(SRCROOT)/../UDCodeKit/Sources/Extensions in their
  *  HEADER_SEARCH_PATHS, making these headers available as #import "...".
@@ -59,7 +60,7 @@
 
 // Forward declarations for types used in optional factory methods.
 @class UDDiagnosticStore, UDProject, UDTestRunner, UDCodeDocument, NSMenuItem, NSViewController, NSImage;
-@protocol UDSourceControl, UDSourceControlHost, UDWorkbench, UDFileSystemProvider;
+@protocol UDSourceControl, UDSourceControlHost, UDWorkbench, UDFileSystemProvider, UDCustomDocument;
 
 /// Posted by an extension when a language server that was previously unavailable
 /// becomes ready (e.g. after an async download/install). The object is the
@@ -279,11 +280,23 @@ static NSString * const UDLinkURLKey = @"url";
 /// name first.
 - (nullable NSURL *)mainFileOfPackageAtURL:(NSURL *)url;
 
+/// The model of what is at @a url (a file, or of @a provider's scheme), when
+/// it is the extension's own and not its text (VS Code's CustomEditorProvider
+/// and its openCustomDocument: an archive, a decl as Core Data objects;
+/// UDCustomDocument.h): asked before it is read as text. nil: its text is its
+/// model, unless *outError is set (it is the extension's, and can't be read).
+- (nullable id<UDCustomDocument>)workbench:(id<UDWorkbench>)workbench
+                 openCustomDocumentAtURL:(NSURL *)url
+                      fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
+                                   error:(NSError *__autoreleasing *)outError;
+
 /// @a document's own editor, in place of its text's, as VS Code's custom
 /// text editors are (a query by example's file): the document is its model,
 /// its changes edits of its text (its text model's -applyEdits:), so undo,
 /// saving and its tab's dot are the document's, and a tab of its text
-/// (-showDocumentAsText:) shows it as it is. Asked as a document opens in a tab;
+/// (-showDocumentAsText:) shows it as it is. Of a custom document's
+/// (-customDocument), the editor of its model: undo is its undoManager's
+/// while the editor is in front. Asked as a document opens in a tab;
 /// nil: its text.
 - (nullable NSViewController *)workbench:(id<UDWorkbench>)workbench editorForDocument:(UDCodeDocument *)document;
 

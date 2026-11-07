@@ -69,6 +69,13 @@ NSNotificationName const UDWorkspaceModelDidChangeNotification =
     return doc;
 }
 
+- (UDCodeDocument *)addDocument:(UDCodeDocument *)document {
+    UDCodeDocument *existing = document.URL ? [self documentForFileURL:document.URL] : nil;
+    if (existing) return existing;
+    [self _appendDocument:document];
+    return document;
+}
+
 - (void)removeDocument:(UDCodeDocument *)document {
     if (![_documents containsObject:document]) return;
     [self willChangeValueForKey:@"documents"];

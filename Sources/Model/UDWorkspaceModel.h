@@ -53,6 +53,10 @@ extern NSNotificationName const UDWorkspaceModelDidChangeNotification;
                              fileSystemProvider:(nullable id<UDFileSystemProvider>)provider
                                           error:(NSError *__autoreleasing *)outError;
 
+/// @a document added (one an extension made: of its custom document); the one
+/// already of its URL when there is one.
+- (UDCodeDocument *)addDocument:(UDCodeDocument *)document;
+
 /// Remove document from the workspace.  No-op if not present.
 - (void)removeDocument:(UDCodeDocument *)document;
 

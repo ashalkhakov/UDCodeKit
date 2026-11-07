@@ -383,9 +383,23 @@ paks alone. The provider can name the document's language mode and its tab
 `UDFileSystemProviderDidChangeFilesNotification` when something changes
 other than by a save, so that open documents without changes of their own
 are read again. Such a document's `URL` is its provider's and its `fileURL`
-is nil, so what only a file has (a language server, source control,
-breakpoints, the file watcher) leaves it alone. Each window asks for its own
-provider, so two windows can have the same scheme for different projects.
+is nil, so what only a file has (source control, the file watcher) leaves it
+alone. Each window asks for its own provider, so two windows can have the
+same scheme for different projects.
+
+**Their language servers and breakpoints.** As VS Code's `documentSelector`
+names the schemes a language server takes, a mode's `languageServerSchemes`
+in LanguageInfo.plist does (`["file", "quarry"]`; files alone when it says
+nothing). A provider's document of such a scheme has the project's server
+for its mode, which is told of it by its own URL
+(`quarry:/file/script/doors.script`) and can answer with locations of that
+scheme: Jump to Definition and Find References open them through the
+provider. A document of a scheme its mode's server doesn't take has no
+server. Breakpoints, debug frames and search results name a file by its path
+and a provider's document by its URL (`UDLocationOfURL`), so its gutter
+takes breakpoints, the debug adapter is given that URL as the breakpoint's
+`source.path`, and a stopped frame whose `source.path` is such a URL shows
+that document.
 
 ## Licences
 

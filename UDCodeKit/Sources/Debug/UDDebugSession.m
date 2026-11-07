@@ -10,6 +10,7 @@
 #import "UDDebugSession.h"
 #import "UDPaths.h"
 #import "UDLanguageMode.h"
+#import "UDFileSystemProvider.h"
 
 NSNotificationName const UDDebugSessionDidChangeStateNotification = @"UDDebugSessionDidChangeStateNotification";
 NSNotificationName const UDDebugSessionDidChangeThreadsNotification = @"UDDebugSessionDidChangeThreadsNotification";
@@ -569,8 +570,10 @@ static NSInteger UDInteger(id value) {
         frame.frameID = UDInteger(item[@"id"]);
         frame.name = UDString(item[@"name"]) ?: @"";
         NSDictionary *source = item[@"source"];
-        // as the editors and the store name files (standardized)
-        frame.path = [[source isKindOfClass:[NSDictionary class]] ? UDString(source[@"path"]) : nil stringByStandardizingPath];
+        // as the editors and the store name files (standardized), or a
+        // provider's document (its URL: UDLocationOfURL)
+        NSString *path = [source isKindOfClass:[NSDictionary class]] ? UDString(source[@"path"]) : nil;
+        frame.path = path && UDURLOfLocation(path).isFileURL ? path.stringByStandardizingPath : path;
         frame.line = UDInteger(item[@"line"]);
         frame.column = UDInteger(item[@"column"]);
         frame.thread = thread;

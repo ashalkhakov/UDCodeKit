@@ -387,6 +387,7 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
                   extension:ext];
     mode.reportsParseErrors = [modeInfo[@"reportsParseErrors"] boolValue];
     mode.fileNames = [modeInfo[@"fileNames"] isKindOfClass:[NSArray class]] ? modeInfo[@"fileNames"] : @[];
+    mode.languageServerSchemes = [modeInfo[@"languageServerSchemes"] isKindOfClass:[NSArray class]] ? modeInfo[@"languageServerSchemes"] : @[ @"file" ];
     NSString *outlineFile = modeInfo[@"outlineQueryFile"];
     NSString *outlinePath = outlineFile.length ? [bundle pathForResource:outlineFile.stringByDeletingPathExtension
                                                                   ofType:outlineFile.pathExtension] : nil;

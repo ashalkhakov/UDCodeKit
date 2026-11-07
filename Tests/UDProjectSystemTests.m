@@ -20,6 +20,7 @@
 @property (nonatomic, weak) NSSegmentedControl *navigatorControl;
 @property (nonatomic, weak) NSTextField *inspectorPath;
 - (IBAction)saveDocument:(id)sender;
+- (void)breakpointNavigator:(UDBreakpointNavigatorViewController *)navigator showBreakpoint:(UDBreakpoint *)breakpoint;
 @end
 
 /// A project system's items: decls by type ("material/a"), each a document
@@ -67,7 +68,8 @@
 }
 
 - (NSString *)languageModeOfURL:(NSURL *)url {
-    return @"json";
+    // a script's: the mode whose server takes udproj: documents
+    return [url.path hasPrefix:@"/script/"] ? @"udprojscript" : @"json";
 }
 
 - (NSString *)displayNameOfURL:(NSURL *)url {
@@ -170,6 +172,17 @@ static UDProjectTestExtension *UDProjectTestExtensionShared;
     UDProjectTestExtensionShared = [[UDProjectTestExtension alloc] init];
     [[UDLanguageModeRegistry sharedRegistry] registerExtension:UDProjectTestExtensionShared
                                               activationEvents:@[ @"workspaceContains:*.udprojtest" ]];
+    // its scripts' mode: a language server (a process that stays up, all a
+    // test needs of one) that takes udproj: documents, as VS Code's documentSelector
+    UDLanguageMode *script = [[UDLanguageMode alloc] initWithIdentifier:@"udprojscript" displayName:@"Test Script"
+                                                         fileExtensions:@[] languageFunc:NULL highlightsQuery:nil indentsQuery:nil
+                                                          lspLanguageID:@"udprojscript"
+                                                  languageServerCommand:@[ @"/bin/sleep", @"60" ]
+                                                 defaultNewDocumentText:@""
+                                                  languageConfiguration:[UDLanguageConfiguration configurationFromDictionary:@{}]
+                                                             keyHandler:nil extension:nil];
+    script.languageServerSchemes = @[ @"file", @"udproj" ];
+    [[UDLanguageModeRegistry sharedRegistry] registerMode:script];
 }
 
 - (void)setUp {
@@ -441,6 +454,57 @@ static UDProjectTestExtension *UDProjectTestExtensionShared;
     XCTAssertEqualObjects(document.URL, document.fileURL);
     XCTAssertNil(document.fileSystemProvider);
     XCTAssertEqual(provider.written.count, 0u);
+}
+
+/// What is where, as one string: a file by its path, a provider's document by its URL.
+- (void)testALocationIsAFilesPathOrAProvidersURL {
+    NSURL *s = [NSURL URLWithString:@"udproj:/script/s"];
+    XCTAssertEqualObjects(UDLocationOfURL(s), @"udproj:/script/s");
+    XCTAssertEqualObjects(UDURLOfLocation(@"udproj:/script/s"), s);
+    NSString *path = [_folder stringByAppendingPathComponent:@"a.c"];
+    XCTAssertEqualObjects(UDLocationOfURL([NSURL fileURLWithPath:path]), path);
+    XCTAssertTrue(UDURLOfLocation(path).isFileURL);
+    XCTAssertTrue(UDURLOfLocation(@"C:/Users/a.c").isFileURL, @"a drive letter is no scheme");
+    XCTAssertTrue(UDURLOfLocation(@"Sources/a.c").isFileURL);
+}
+
+- (void)testAProvidersDocumentsHaveTheServerThatTakesTheirSchemeAndBreakpoints {
+    [self write:@"mod.udprojtest"];
+    [self openWindow];
+    UDProjectTestProvider *provider = UDProjectTestExtensionShared.provider;
+    provider.texts[@"/script/s"] = @"void main() {\n}\n";
+    provider.texts[@"/script/t"] = @"void other() {\n}\n";
+    NSURL *s = [NSURL URLWithString:@"udproj:/script/s"], *t = [NSURL URLWithString:@"udproj:/script/t"];
+    NSMapTable *sessions = [_controller valueForKey:@"sessions"];
+
+    // a document whose mode's server takes files alone (json's): none
+    [(id<UDWorkbench>)_controller showURL:[NSURL URLWithString:@"udproj:/material/a"]];
+    UDCodeDocument *material = [(id<UDWorkbench>)_controller selectedDocument];
+    XCTAssertNil([(UDEditorSession *)[sessions objectForKey:material] lspCoordinator], @"no server for a scheme it doesn't take");
+
+    [(id<UDWorkbench>)_controller showURL:s];
+    UDCodeDocument *script = [(id<UDWorkbench>)_controller selectedDocument];
+    XCTAssertEqualObjects(script.URL, s);
+#if !defined(_WIN32)
+    // the project's server, told of it by its own URL
+    UDLSPCoordinator *lsp = [(UDEditorSession *)[sessions objectForKey:script] lspCoordinator];
+    XCTAssertEqualObjects(lsp.documentURL, s);
+    [(id<UDWorkbench>)_controller showURL:t];
+    UDLSPCoordinator *other = [(UDEditorSession *)[sessions objectForKey:[(id<UDWorkbench>)_controller selectedDocument]] lspCoordinator];
+    XCTAssertEqualObjects(other.documentURL, t);
+    XCTAssertEqual([[_controller valueForKey:@"projectServers"] count], 1u, @"one server for the project's scripts");
+#endif
+
+    // its breakpoints: by its URL, its tab shown from the breakpoint navigator
+    [(id<UDWorkbench>)_controller showURL:s];
+    UDCodeEditorViewController *editor = [(id<UDWorkbench>)_controller selectedEditor];
+    XCTAssertEqualObjects(editor.breakpointFile, @"udproj:/script/s");
+    UDBreakpoint *breakpoint = [_controller.breakpoints addBreakpointAtLine:1 inFile:editor.breakpointFile];
+    XCTAssertEqual([_controller.breakpoints breakpointsInFile:@"udproj:/script/s"].count, 1u);
+    [(id<UDWorkbench>)_controller showDocument:material];
+    [_controller breakpointNavigator:nil showBreakpoint:breakpoint];
+    XCTAssertEqual([(id<UDWorkbench>)_controller selectedDocument], script, @"its document's tab");
+    [_controller.breakpoints removeBreakpoint:breakpoint];
 }
 
 @end

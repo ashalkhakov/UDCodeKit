@@ -24,6 +24,7 @@
 }
 
 @synthesize languageServerCommand = _languageServerCommand;
+@synthesize languageServerSchemes = _languageServerSchemes;
 @synthesize highlightsQuery = _highlightsQuery;
 
 - (instancetype)initWithIdentifier:(NSString *)identifier
@@ -85,6 +86,10 @@
     _inheritanceResolved = YES;
     _highlightsQuery = [query copy];
     return _highlightsQuery;
+}
+
+- (NSArray<NSString *> *)languageServerSchemes {
+    return _languageServerSchemes ?: @[ @"file" ];
 }
 
 - (NSArray<NSString *> *)languageServerCommand {

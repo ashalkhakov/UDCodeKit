@@ -3,8 +3,8 @@
  *
  *  Installed extensions kept up to date from their own feeds, as VS Code
  *  keeps its from the Marketplace: an extension's package.json names its
- *  feed ("updates": a URL, its releases' latest udcode-extension.json),
- *  which lists its versions, newest first —
+ *  feed ("updates": a URL, its releases' latest <id>-{platform}.json, the
+ *  feed of this platform's packages), which lists its versions —
  *
  *    { "name": "ashalkhakov.udquaketools",
  *      "versions": [

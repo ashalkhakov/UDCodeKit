@@ -44,7 +44,9 @@ console.
 ## Updates
 
 An installed extension can name a feed of its own (`"updates"` in its
-package.json), and UDCode keeps it up to date from there. This is how VS Code
+package.json, where `{platform}` stands for this platform's name:
+`https://github.com/ashalkhakov/UDQuakeTools/releases/latest/download/ashalkhakov.udquaketools-{platform}.json`),
+and UDCode keeps it up to date from there. This is how VS Code
 keeps extensions up to date from the Marketplace, with each extension's
 releases taking the Marketplace's place. The feed is JSON, usually a
 release's asset reached by GitHub's `releases/latest/download/` URL, and
@@ -78,8 +80,10 @@ lists the extension's versions:
   window (VS Code's `extensions.autoUpdate`). When it's off, the window shows
   that an update is available, and **Update** installs it.
 
-A kit writes its feed with each release (gnustep-release-actions'
-`udcode-extension.sh`), beside the packages it lists.
+A kit's release writes a feed for each platform it builds, `<id>-<platform>.json`,
+beside the packages (gnustep-release-actions' `udcode-extension.sh`), each
+listing that platform's package; the `{platform}` in `updates` picks this
+platform's.
 
 **Shipped with UDCode.** A package of UDCode can carry extensions to install:
 the `.udcx` files in the app's `Resources/Extensions`. UDCode installs each

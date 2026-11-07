@@ -198,6 +198,8 @@ static NSArray<NSString *> *UDModeNames(NSString *bundlePath) {
     NSString *platform = metadata[@"targetPlatform"];
     info.targetPlatform = [platform isKindOfClass:[NSString class]] && ![platform isEqualToString:@"universal"] ? platform : nil;
     NSString *updates = [manifest[@"updates"] isKindOfClass:[NSString class]] ? manifest[@"updates"] : nil;
+    // a feed of each platform's own: {platform}, this one's
+    updates = [updates stringByReplacingOccurrencesOfString:@"{platform}" withString:[self hostPlatform]];
     info.updatesURL = updates.length ? [NSURL URLWithString:updates] : nil;
     NSString *main = [manifest[@"main"] isKindOfClass:[NSString class]] ? manifest[@"main"] : @"";
     if ([main hasPrefix:@"./"]) main = [main substringFromIndex:2];

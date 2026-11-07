@@ -321,10 +321,11 @@ static void UDSetEnvironment(NSString *name, NSString *_Nullable value) {
 }
 
 - (void)testAFeedsUpdateIsItsNewestForThisUDCode {
-    NSString *package = [self packageVersion:@"0.5.0" engine:@"*" platform:nil updates:@"https://example.invalid/orm.json"];
+    NSString *package = [self packageVersion:@"0.5.0" engine:@"*" platform:nil updates:@"https://example.invalid/orm-{platform}.json"];
     if (!package) return;
     UDExtensionInfo *info = [UDInstalledExtensions installPackageAtPath:package error:NULL];
-    XCTAssertEqualObjects(info.updatesURL.absoluteString, @"https://example.invalid/orm.json");
+    NSString *feedURL = [NSString stringWithFormat:@"https://example.invalid/orm-%@.json", [UDInstalledExtensions hostPlatform]];
+    XCTAssertEqualObjects(info.updatesURL.absoluteString, feedURL, @"this platform's feed");
     NSString *host = [UDInstalledExtensions hostPlatform], *sha = [@"" stringByPaddingToLength:64 withString:@"0" startingAtIndex:0];
     NSMutableArray *versions = [NSMutableArray arrayWithObjects:
         [self version:@"0.7.0" engine:@"*" platform:@"another-platform" url:@"https://example.invalid/0.7.0.udcx" sha256:sha],

@@ -27,6 +27,7 @@ static NSError *UDExtensionError(NSString *message) {
 @property (nonatomic, copy, nullable) NSString *license;
 @property (nonatomic, copy, nullable) NSString *engine;
 @property (nonatomic, copy, nullable) NSString *targetPlatform;
+@property (nonatomic, copy, nullable) NSURL *updatesURL;
 @property (nonatomic, copy) NSString *path;
 @property (nonatomic, copy) NSString *bundlePath;
 @property (nonatomic, copy) NSArray<NSString *> *modeNames;
@@ -96,6 +97,10 @@ static NSComparisonResult UDCompareVersions(NSArray<NSNumber *> *a, NSArray<NSNu
         if (order != NSOrderedSame) return order;
     }
     return NSOrderedSame;
+}
+
++ (NSComparisonResult)compareVersion:(NSString *)version toVersion:(NSString *)other {
+    return UDCompareVersions(UDVersionParts(version), UDVersionParts(other));
 }
 
 + (BOOL)version:(NSString *)version satisfies:(NSString *)range {
@@ -192,6 +197,10 @@ static NSArray<NSString *> *UDModeNames(NSString *bundlePath) {
     NSDictionary *metadata = [manifest[@"__metadata"] isKindOfClass:[NSDictionary class]] ? manifest[@"__metadata"] : nil;
     NSString *platform = metadata[@"targetPlatform"];
     info.targetPlatform = [platform isKindOfClass:[NSString class]] && ![platform isEqualToString:@"universal"] ? platform : nil;
+    NSString *updates = [manifest[@"updates"] isKindOfClass:[NSString class]] ? manifest[@"updates"] : nil;
+    // a feed of each platform's own: {platform}, this one's
+    updates = [updates stringByReplacingOccurrencesOfString:@"{platform}" withString:[self hostPlatform]];
+    info.updatesURL = updates.length ? [NSURL URLWithString:updates] : nil;
     NSString *main = [manifest[@"main"] isKindOfClass:[NSString class]] ? manifest[@"main"] : @"";
     if ([main hasPrefix:@"./"]) main = [main substringFromIndex:2];
     info.bundlePath = [folder stringByAppendingPathComponent:main];

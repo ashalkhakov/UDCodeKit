@@ -30,6 +30,7 @@
 #import <UDCodeKit/UDExtension.h>
 #import <UDCodeKit/UDEditorPanes.h>
 #import <UDCodeKit/UDInstalledExtensions.h>
+#import <UDCodeKit/UDExtensionUpdates.h>
 #import <UDCodeKit/UDExtensionsWindowController.h>
 #import <UDCodeKit/UDWorkbench.h>
 #import <UDCodeKit/UDFileSystemProvider.h>

@@ -5,6 +5,7 @@
 #import "UDLanguageModeRegistry.h"
 #import "UDExtension.h"
 #import "UDInstalledExtensions.h"
+#import "UDExtensionUpdates.h"
 #import "UDPaths.h"
 #ifdef _WIN32
 #include <windows.h>
@@ -445,8 +446,12 @@ static NSDictionary<NSString *, NSString *> *sDefaultTexts(void) {
     }
     // then those installed (~/.udcode/extensions), as VS Code's: one with a
     // built in one's id, or its bundle's, takes its place; those uninstalled
-    // removed first
+    // removed first, the packages UDCode is shipped with (its
+    // Resources/Extensions) installed the first time
     [UDInstalledExtensions removeUninstalled];
+    NSString *shipped = [[NSProcessInfo processInfo] environment][@"UD_SHIPPED_EXTENSIONS_PATH"]
+        ?: [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@"Extensions"];
+    [UDExtensionUpdates installShippedPackagesInFolder:shipped];
     for (UDExtensionInfo *installed in [UDInstalledExtensions installed]) {
         NSString *bundleID = [NSBundle bundleWithPath:installed.bundlePath].bundleIdentifier.lowercaseString;
         for (UDExtensionInfo *builtIn in [found copy]) {

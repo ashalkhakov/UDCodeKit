@@ -4,12 +4,15 @@
 
 #import "UDExtensionsWindowController.h"
 #import "UDLanguageModeRegistry.h"
+#import "UDExtensionUpdates.h"
 
 @interface UDExtensionsWindowController ()
 @property (nonatomic, weak) IBOutlet NSTableView *table;
 @property (nonatomic, weak) IBOutlet NSTextField *detailsField;
 @property (nonatomic, weak) IBOutlet NSButton *uninstallButton;
 @property (nonatomic, weak) IBOutlet NSButton *disableButton;
+@property (nonatomic, weak) IBOutlet NSButton *updateButton;
+@property (nonatomic, weak) IBOutlet NSButton *automaticButton;
 @property (nonatomic, copy) NSArray<UDExtensionInfo *> *rows;
 @end
 
@@ -17,6 +20,8 @@
     // Found when UDCode started, and the folders of those installed now.
     NSSet<UDExtensionInfo *> *_atStart;
     NSSet<NSString *> *_installedPaths;
+    // Each id's version installed now (an update's, since UDCode started).
+    NSDictionary<NSString *, UDExtensionInfo *> *_installedByIdentifier;
 }
 
 /// The XIB is the framework's, not the app's: compiled on macOS, as it is on GNUstep.
@@ -29,6 +34,16 @@
 
 - (void)windowDidLoad {
     [super windowDidLoad];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_updatesDidChange:)
+                                                 name:UDExtensionUpdatesDidChangeNotification object:nil];
+    [self reload];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)_updatesDidChange:(NSNotification *)note {
     [self reload];
 }
 
@@ -42,14 +57,28 @@
     NSArray<UDExtensionInfo *> *installed = [UDInstalledExtensions installed];
     _atStart = [NSSet setWithArray:found];
     _installedPaths = [NSSet setWithArray:[installed valueForKey:@"path"]];
+    _installedByIdentifier = [NSDictionary dictionaryWithObjects:installed forKeys:[installed valueForKey:@"identifier"]];
     NSMutableArray *rows = [found mutableCopy];
     NSSet *foundPaths = [NSSet setWithArray:[found valueForKey:@"path"]];
+    NSSet *foundIdentifiers = [NSSet setWithArray:[found valueForKey:@"identifier"]];
+    // one installed since UDCode started; an update of one running is its row's
     for (UDExtensionInfo *info in installed) {
-        if (![foundPaths containsObject:info.path]) [rows addObject:info];
+        if (![foundPaths containsObject:info.path] && ![foundIdentifiers containsObject:info.identifier]) [rows addObject:info];
     }
+    NSInteger selected = _table.selectedRow;
     self.rows = rows;
     [_table reloadData];
+    if (selected >= 0 && selected < (NSInteger)rows.count) {
+        [_table selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)selected] byExtendingSelection:NO];
+    }
+    _automaticButton.state = [UDExtensionUpdates sharedUpdates].automaticallyUpdates ? NSControlStateValueOn : NSControlStateValueOff;
     [self _selectionChanged];
+}
+
+/// Its update, when it is running, its feed has one, and it isn't installed yet.
+- (nullable UDExtensionUpdate *)_updateOf:(UDExtensionInfo *)info {
+    if (info.location != UDExtensionLocationInstalled || ![_installedPaths containsObject:info.path]) return nil;
+    return [[UDExtensionUpdates sharedUpdates] updateForIdentifier:info.identifier];
 }
 
 - (nullable UDExtensionInfo *)_selected {
@@ -61,12 +90,16 @@
     UDExtensionInfo *info = _rows[row];
     BOOL disabled = [UDInstalledExtensions isDisabled:info.identifier];
     if (info.location == UDExtensionLocationInstalled && ![_installedPaths containsObject:info.path]) {
+        UDExtensionInfo *now = _installedByIdentifier[info.identifier];
+        if (now) return [NSString stringWithFormat:@"Updated to %@: used when UDCode starts again", now.version];
         return @"Uninstalled: removed when UDCode starts again";
     }
     if (![_atStart containsObject:info]) {
         if (info.problem) return [@"Not loadable: " stringByAppendingString:info.problem];
         return disabled ? @"Installed, disabled" : @"Installed: loaded when UDCode starts again";
     }
+    UDExtensionUpdate *update = [self _updateOf:info];
+    if (update && info.loaded && !disabled) return [NSString stringWithFormat:@"Enabled; %@ is available", update.version];
     if (info.loaded) return disabled ? @"Disabled when UDCode starts again" : @"Enabled";
     if (info.problem) return [@"Not loaded: " stringByAppendingString:info.problem];
     return disabled ? @"Disabled" : @"Enabled when UDCode starts again";
@@ -100,6 +133,7 @@
     _uninstallButton.enabled = info && info.location == UDExtensionLocationInstalled && !uninstalled;
     _disableButton.enabled = info && !uninstalled;
     _disableButton.title = info && [UDInstalledExtensions isDisabled:info.identifier] ? @"Enable" : @"Disable";
+    _updateButton.enabled = info && [self _updateOf:info] != nil;
     if (!info) {
         _detailsField.stringValue = @"";
         return;
@@ -115,6 +149,8 @@
     if (info.targetPlatform) [facts addObject:[@"Built for " stringByAppendingString:info.targetPlatform]];
     if (facts.count) [lines addObject:[facts componentsJoinedByString:@" · "]];
     [lines addObject:info.path];
+    UDExtensionUpdate *update = [self _updateOf:info];
+    if (update) [lines addObject:[NSString stringWithFormat:@"Update: %@ (from %@)", update.version, info.updatesURL.absoluteString]];
     if (info.problem) [lines addObject:info.problem];
     _detailsField.stringValue = [lines componentsJoinedByString:@"\n"];
 }
@@ -153,6 +189,27 @@
     if (![UDInstalledExtensions uninstall:info.identifier error:&error]) [self _showError:error];
     [self reload];
     if (row < (NSInteger)_rows.count) [_table selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)row] byExtendingSelection:NO];
+}
+
+- (IBAction)updateSelected:(id)sender {
+    UDExtensionInfo *info = [self _selected];
+    UDExtensionUpdate *update = info ? [self _updateOf:info] : nil;
+    if (!update) return;
+    _updateButton.enabled = NO;
+    [[UDExtensionUpdates sharedUpdates] installUpdate:update completion:^(UDExtensionInfo *installed, NSError *error) {
+        if (!installed && error) [self _showError:error];
+        [self reload];
+    }];
+}
+
+- (IBAction)checkForUpdates:(id)sender {
+    [[UDExtensionUpdates sharedUpdates] checkNowCompletion:^(NSArray<UDExtensionUpdate *> *updates) {
+        [self reload];
+    }];
+}
+
+- (IBAction)toggleAutomaticUpdates:(id)sender {
+    [UDExtensionUpdates sharedUpdates].automaticallyUpdates = _automaticButton.state == NSControlStateValueOn;
 }
 
 - (IBAction)toggleDisabled:(id)sender {

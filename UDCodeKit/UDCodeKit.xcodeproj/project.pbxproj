@@ -67,6 +67,7 @@
 				Extensions/UDEditorPanes.h,
 				Extensions/UDExtension.h,
 				Extensions/UDExtensionsWindowController.h,
+				Extensions/UDExtensionUpdates.h,
 				Extensions/UDFileSystemProvider.h,
 				Extensions/UDInstalledExtensions.h,
 				Extensions/UDLanguageKeyHandler.h,

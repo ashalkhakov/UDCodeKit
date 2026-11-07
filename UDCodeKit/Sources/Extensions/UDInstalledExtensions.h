@@ -55,6 +55,9 @@ typedef NS_ENUM(NSInteger, UDExtensionLocation) {
 @property (nonatomic, readonly, copy, nullable) NSString *engine;
 /// The platform it is built for (darwin-arm64…); nil: any.
 @property (nonatomic, readonly, copy, nullable) NSString *targetPlatform;
+/// Its feed of updates (package.json's "updates", UDExtensionUpdates.h; its
+/// {platform} this one's, hostPlatform); nil: it has none (a built in one's).
+@property (nonatomic, readonly, copy, nullable) NSURL *updatesURL;
 /// Its folder (installed), and its bundle (its main).
 @property (nonatomic, readonly, copy) NSString *path;
 @property (nonatomic, readonly, copy) NSString *bundlePath;
@@ -79,6 +82,8 @@ typedef NS_ENUM(NSInteger, UDExtensionLocation) {
 /// Whether @a version is in @a range (VS Code's engines: "^0.16.0",
 /// "~0.16.1", ">=0.15.0", "0.16.2", "*"); an unreleased UDCode (0.0.0) takes any.
 + (BOOL)version:(NSString *)version satisfies:(NSString *)range;
+/// x.y.z against x.y.z (what follows a '-' aside).
++ (NSComparisonResult)compareVersion:(NSString *)version toVersion:(NSString *)other;
 
 /// The extensions installed: each folder's (newest of an id), but those
 /// uninstalled.

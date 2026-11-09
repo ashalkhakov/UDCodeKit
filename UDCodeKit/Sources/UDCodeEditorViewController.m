@@ -1036,8 +1036,11 @@ static NSArray<NSString *> *UDLinesOfText(NSString *text) {
     UDTextModel *model = _textStorage.textModel;
     line = MAX(1, MIN(line, [model getLineCount]));
     NSLayoutManager *lm = _textView.layoutManager;
-    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange((NSUInteger)[model getOffsetAt:line column:1], 0)
-                                actualCharacterRange:NULL];
+    NSUInteger start = (NSUInteger)[model getOffsetAt:line column:1];
+    // the text up to it laid out: with non-contiguous layout the line's place
+    // is otherwise an estimate, thousands of points out in a long file
+    [lm ensureLayoutForCharacterRange:NSMakeRange(0, MIN(start + 1, _textStorage.length))];
+    NSRange glyphs = [lm glyphRangeForCharacterRange:NSMakeRange(start, 0) actualCharacterRange:NULL];
     NSRect lineRect = [lm lineFragmentRectForGlyphAtIndex:MIN(glyphs.location, MAX([lm numberOfGlyphs], 1) - 1)
                                            effectiveRange:NULL];
     lineRect.origin.y += _textView.textContainerOrigin.y;

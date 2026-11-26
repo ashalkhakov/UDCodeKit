@@ -1618,13 +1618,13 @@ static const NSInteger UDAfterBuildDebugTests = 3;
     } else if (sel_isEqual(action, @selector(toggleDebugArea:))) {
         item.title = [_debugSplit isPaneVisible:UDDebugAreaPane] ? @"Hide Debug Area" : @"Show Debug Area";
     }
-    if (item.action == @selector(toggleNavigator:)) {
+    if (sel_isEqual(item.action, @selector(toggleNavigator:))) {
         item.title = [_paneSplit isPaneVisible:UDNavigatorPane] ? @"Hide Navigator" : @"Show Navigator";
-    } else if (item.action == @selector(toggleInspector:)) {
+    } else if (sel_isEqual(item.action, @selector(toggleInspector:))) {
         item.title = [_paneSplit isPaneVisible:UDInspectorPane] ? @"Hide Inspector" : @"Show Inspector";
-    } else if (item.action == @selector(closeEditorTab:)) {
+    } else if (sel_isEqual(item.action, @selector(closeEditorTab:))) {
         return _editorTabs.selectedItem != nil;
-    } else if (item.action == @selector(selectNextTab:) || item.action == @selector(selectPreviousTab:)) {
+    } else if (sel_isEqual(item.action, @selector(selectNextTab:)) || sel_isEqual(item.action, @selector(selectPreviousTab:))) {
         return _editorTabs.items.count > 1;
     }
     return YES;

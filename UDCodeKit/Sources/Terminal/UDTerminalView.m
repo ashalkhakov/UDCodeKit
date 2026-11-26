@@ -4,6 +4,7 @@
 
 #import "UDTerminalView.h"
 #include <vterm.h>
+#import <objc/runtime.h>
 
 /// The margin around the cells.
 static const CGFloat UDTerminalInset = 4;
@@ -601,8 +602,8 @@ static NSString *UDCellString(const VTermScreenCell *cell) {
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
-    if (item.action == @selector(copy:)) return _hasSelection;
-    if (item.action == @selector(paste:)) return [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString] != nil;
+    if (sel_isEqual(item.action, @selector(copy:))) return _hasSelection;
+    if (sel_isEqual(item.action, @selector(paste:))) return [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString] != nil;
     return YES;
 }
 

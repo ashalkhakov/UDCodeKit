@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 #import "UDFindBarViewController.h"
+#import <objc/runtime.h>
 
 const CGFloat UDFindBarFindHeight    = 30.0;
 const CGFloat UDFindBarReplaceHeight = 56.0;
@@ -85,15 +86,23 @@ const CGFloat UDFindBarReplaceHeight = 56.0;
 }
 
 // Return in the search field finds the next match; Shift-Return the previous.
+// Escape closes the bar: cancelOperation: on macOS, complete: from GNUstep's
+// key bindings (on macOS complete: is Option-Esc, completion). Compared by
+// name: the key bindings' selectors are made from names, and on GNUstep those
+// are not always == @selector().
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    if (control == _findField && command == @selector(insertNewline:)) {
+    if (control == _findField && sel_isEqual(command, @selector(insertNewline:))) {
         [self findNext:nil];
         return YES;
     }
-    if (control == _findField && command == @selector(insertBacktab:)) {
+    if (control == _findField && sel_isEqual(command, @selector(insertBacktab:))) {
         return NO;
     }
-    if (command == @selector(cancelOperation:)) {
+    BOOL escape = sel_isEqual(command, @selector(cancelOperation:));
+#ifdef GNUSTEP
+    escape = escape || sel_isEqual(command, @selector(complete:));
+#endif
+    if (escape) {
         [self done:nil];
         return YES;
     }

@@ -128,6 +128,18 @@
     XCTAssertEqualObjects(view.selectedText, @"first\nsecond");
 }
 
+/// Edit > Copy is enabled by the selection. The item's action is made from
+/// its name, as a XIB's is: on GNUstep not always == @selector(copy:).
+- (void)testCopyIsEnabledWhenThereIsASelection {
+    UDTerminalView *view = [[UDTerminalView alloc] initWithFrame:NSMakeRect(0, 0, 600, 300)];
+    view.delegate = self;
+    NSMenuItem *copy = [[NSMenuItem alloc] initWithTitle:@"Copy" action:NSSelectorFromString(@"copy:") keyEquivalent:@"c"];
+    [self feed:@"first\r\nsecond" to:view];
+    XCTAssertFalse([(id)view validateMenuItem:copy], @"nothing selected");
+    [view selectAll:nil];
+    XCTAssertTrue([(id)view validateMenuItem:copy], @"all selected");
+}
+
 /// A program on a pseudo-terminal of its own: it is told the terminal's
 /// size, what it writes is shown, and its end says how it ended.
 - (void)testAProgramRunsOnATerminalOfItsOwn {

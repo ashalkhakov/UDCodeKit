@@ -75,6 +75,28 @@ static NSString * const UDSavedPanes = @"UDPaneSplit UDCode Workspace";
     XCTAssertEqual(_controller.editorTabs.items.count, 1u, @"a new workspace opens one tab");
 }
 
+// The View and Window items, validated with actions made from their names, as
+// a XIB's are: on GNUstep those are not always == @selector().
+- (void)testThePaneAndTabItemsAreValidatedByName {
+    NSMenuItem *(^item)(NSString *) = ^(NSString *action) {
+        return [[NSMenuItem alloc] initWithTitle:@"" action:NSSelectorFromString(action) keyEquivalent:@""];
+    };
+    NSMenuItem *navigator = item(@"toggleNavigator:");
+    XCTAssertTrue([_controller validateMenuItem:navigator]);
+    XCTAssertEqualObjects(navigator.title, @"Hide Navigator");
+    [_controller toggleNavigator:nil];
+    [_controller validateMenuItem:navigator];
+    XCTAssertEqualObjects(navigator.title, @"Show Navigator");
+    [_controller toggleNavigator:nil];
+    NSMenuItem *inspector = item(@"toggleInspector:");
+    [_controller validateMenuItem:inspector];
+    XCTAssertEqualObjects(inspector.title, @"Hide Inspector");
+    XCTAssertEqual(_controller.editorTabs.items.count, 1u);
+    XCTAssertTrue([_controller validateMenuItem:item(@"closeEditorTab:")], @"a tab to close");
+    XCTAssertFalse([_controller validateMenuItem:item(@"selectNextTab:")], @"one tab: no next");
+    XCTAssertFalse([_controller validateMenuItem:item(@"selectPreviousTab:")], @"one tab: no previous");
+}
+
 - (void)testSidePanesKeepTheirWidthsAndHide {
     XCTAssertEqualWithAccuracy(NSWidth([self pane:0].frame), 240, 1);
     XCTAssertEqualWithAccuracy(NSWidth([self pane:2].frame), 260, 1);

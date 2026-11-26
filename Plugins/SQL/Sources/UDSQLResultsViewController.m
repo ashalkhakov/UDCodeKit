@@ -5,6 +5,7 @@
 #import "UDSQLResultsViewController.h"
 #import "UDSQLValues.h"
 #import "UDSQLDatabases.h"
+#import <objc/runtime.h>
 
 @interface UDSQLResultsViewController ()
 @property (nonatomic, weak) IBOutlet NSPopUpButton *databaseButton;
@@ -298,7 +299,7 @@ static NSString *UDFirstLine(NSString *statement) {
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
-    if (item.action == @selector(copy:) || item.action == @selector(copyWithColumnNames:)) return self.shownResult != nil;
+    if (sel_isEqual(item.action, @selector(copy:)) || sel_isEqual(item.action, @selector(copyWithColumnNames:))) return self.shownResult != nil;
     return YES;
 }
 

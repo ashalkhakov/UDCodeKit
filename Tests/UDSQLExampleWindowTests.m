@@ -24,6 +24,7 @@
 #import "UDSQLExampleFile.h"
 #import "UDSQLExampleViewController.h"
 #import "UDSQLExampleEntry.h"
+#import <objc/runtime.h>
 
 static Class UDPluginClass(NSString *name) {
     (void)[UDLanguageModeRegistry sharedRegistry];
@@ -174,7 +175,7 @@ static Class UDPluginClass(NSString *name) {
                           @"[\n  {\"id\": 1, \"body\": \"a\\nb\\tc\", \"data\": \"\\\\x0a1b\", \"kind\": null}\n]\n");
     // a double-click: its whole value, selectable
     XCTAssertNotNil(editor.valueView, @"the XIB's value view");
-    XCTAssertEqual(editor.resultsView.doubleAction, @selector(showValue:));
+    XCTAssertTrue(sel_isEqual(editor.resultsView.doubleAction, @selector(showValue:)));
     [controller close];
     [workspace close];
 }
@@ -363,7 +364,7 @@ static Class UDPluginClass(NSString *name) {
     // a table added (the list's +): joined along its key by elements of
     // its own, and selected
     XCTAssertEqualObjects(editor.addTableButton.title, @"+");
-    XCTAssertEqual(editor.removeTableButton.action, @selector(removeTable:));
+    XCTAssertTrue(sel_isEqual(editor.removeTableButton.action, @selector(removeTable:)));
     [editor addTableChosen:[editor.addTableButton.menu itemWithTitle:@"orders"]];
     XCTAssertEqual(editor.skeletons.count, 2u);
     XCTAssertEqual(editor.selectedSkeleton, 1);

@@ -134,6 +134,30 @@
     XCTAssertEqualObjects([model getValue], before);
 }
 
+// The keys as the key bindings send them: commands made from their names,
+// which on GNUstep are not always == @selector(); there Escape is complete:.
+- (void)testReturnAndEscapeInTheSearchFieldAsTheKeyBindingsSendThem {
+    [_editor showFindBarReplacing:NO];
+    UDFindBarViewController *bar = _editor.findBar;
+    [self type:@"beta"];
+    XCTAssertEqualObjects(bar.statusLabel.stringValue, @"1 of 3");
+    XCTAssertTrue([bar control:bar.findField textView:nil doCommandBySelector:NSSelectorFromString(@"insertNewline:")]);
+    XCTAssertEqualObjects(bar.statusLabel.stringValue, @"2 of 3", @"Return: the next match");
+    XCTAssertFalse([bar control:bar.findField textView:nil doCommandBySelector:NSSelectorFromString(@"insertBacktab:")],
+                   @"Shift-Tab: left to the field");
+    XCTAssertTrue(_editor.isFindBarVisible);
+#ifdef GNUSTEP
+    NSArray *escapes = @[ @"cancelOperation:", @"complete:" ];
+#else
+    NSArray *escapes = @[ @"cancelOperation:" ];
+#endif
+    for (NSString *escape in escapes) {
+        [_editor showFindBarReplacing:NO];
+        XCTAssertTrue([bar control:bar.findField textView:nil doCommandBySelector:NSSelectorFromString(escape)], @"%@", escape);
+        XCTAssertFalse(_editor.isFindBarVisible, @"%@ closes the bar", escape);
+    }
+}
+
 - (void)testTheFindMenuAndDone {
     NSMenuItem *find = [[NSMenuItem alloc] initWithTitle:@"Find…" action:@selector(performTextFinderAction:) keyEquivalent:@"f"];
     find.tag = 1;   // NSTextFinderActionShowFindInterface
